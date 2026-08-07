@@ -1,0 +1,26 @@
+# Local environment files
+.env
+.env.*
+!.env.example
+
+# Dependencies
+node_modules/
+
+# Build and test output
+dist/
+coverage/
+*.tsbuildinfo
+
+# Frontend generated artifacts
+apps/frontend/dist/
+apps/frontend/.vite/
+apps/frontend/.eslintcache
+apps/frontend/playwright-report/
+apps/frontend/test-results/
+
+# Local tool and operating system artifacts
+.atl/
+.cache/
+.DS_Store
+*.log
+.pnpm-debug.log*

@@ -4,7 +4,7 @@
 
 The repository is an intentionally thin foundation: a NestJS API with a shared Drizzle/PostgreSQL connection and one `users` table; React/Vite pages are `/admin` and `/dancer` placeholders. Frontend roles (`admin`, `judge`, `dancer`) and a Zustand session store are display-only; `RoleAreaBoundary` explicitly does not authorize. There are no business modules, authentication, audit trail, real-time transport, payments, operational tooling, or production observability yet.
 
-**Goal and outcomes.** Build an event-scoped coordination platform that makes registration, accreditation, commerce, operations, competition scoring, workshops, and live public results reliable and traceable during a time-critical breaking event. Primary actors are organizers/platform administrators, staff and accreditation operators, dancers/crews, judges, MCs/battle guests, vendors/cashiers, instructors/interpreters, sponsors, medical/security staff, and attendees. The planning boundary must first decide whether this is one organizer's multi-event platform or a single-event deployment; every business record otherwise needs a clear event/organization scope.
+**Goal and outcomes.** Build an event-scoped coordination platform that makes registration, accreditation, commerce, operations, competition scoring, workshops, and live public results reliable and traceable during a time-critical breaking event. Primary actors are organizers/platform administrators, staff and accreditation operators, dancers/crews, judges, MCs/battle guests, vendors/cashiers, instructors/interpreters, sponsors, medical/security staff, and attendees. The settled planning model is one organizer operating multiple events; every business record requires clear event/organization scope.
 
 **Missing capabilities beyond the supplied business brief.**
 
@@ -24,21 +24,9 @@ The repository is an intentionally thin foundation: a NestJS API with a shared D
 - `packages/shared/` — reserved but empty; repository guidance says not to extract shared packages without demonstrated reuse.
 - `openspec/specs/` and `docs/` — no product specifications, domain glossary, architecture decisions, operational requirements, or threat/privacy documentation exist.
 
-### Approaches
+### Settled Architecture
 
-1. **Modular monolith with event-scoped bounded contexts** — Keep one NestJS deployment and PostgreSQL database, organized by business module with narrow exported application services and module-owned persistence/schema files.
-   - Pros: fits the existing NestJS/Drizzle monorepo; transactional workflows such as accreditation and scoring stay consistent; deploys and operates simply; creates seams for later extraction.
-   - Cons: requires strict ownership rules to prevent a shared-database tangle; real-time and payment workloads need explicit resilience design.
-   - Effort: Medium
-
-2. **Distributed services from the foundation** — Split commerce, competition, CRM, and live projection into independently deployed services now.
-   - Pros: separate scaling and failure boundaries in theory.
-   - Cons: premature operational complexity, distributed transactions, duplicated authorization/audit concerns, and slower delivery before workflows are validated.
-   - Effort: High
-
-### Recommendation
-
-Adopt approach 1 and plan it as a **modular monolith**, not a generic technical-layer backend. NestJS documents modules as the encapsulation boundary for controllers/providers and requires explicit exports; that matches small, independently testable bounded contexts. Preserve the existing `DatabaseModule`, while each business module owns its use cases and persistence mapping. Drizzle's existing schema-plus-generated-SQL migration model should remain the schema change contract.
+The architecture choice is settled: use a **modular monolith** with event-scoped bounded contexts, one NestJS deployment, and one PostgreSQL database. NestJS modules remain the encapsulation boundary with explicit exports; preserve `DatabaseModule`, while each business module owns its use cases and persistence mapping. Drizzle's existing schema-plus-generated-SQL migration model remains the schema change contract. Distributed services are not being reconsidered for this plan because they add premature operational complexity and duplicate authorization/audit concerns.
 
 Proposed backend shape (plan only):
 
@@ -57,7 +45,7 @@ apps/backend/src/
   app.module.ts
 ```
 
-Within each module, use `api/`, `application/`, `domain/`, and `infrastructure/` only where complexity warrants it; expose a small public module API and do not share repositories or write across another module's tables. Keep `platform/` technical rather than a business dumping ground. Nest's documented gateway registration would place any later real-time gateway in the owning module, but `@nestjs/websockets` and a transport are not currently installed, so transport selection is an ADR/discovery item—not a dependency prescription.
+Within each module, use `api/`, `application/`, `domain/`, and `infrastructure/` only where complexity warrants it; expose a small public module API and do not share repositories or write across another module's tables. Keep `platform/` technical rather than a business dumping ground. The settled future transport is Socket.IO v4 through a module-owned NestJS Gateway; no dependency is installed by this planning change.
 
 This complements FSD: frontend `entities` model stable user-facing concepts, `features` own actions such as check-in or score submission, `widgets` compose workstations/screens, and `pages` route workspaces. Do not mirror every backend directory on the frontend. Retain application-local aliases and only create a workspace contracts package after a real shared contract consumer is established; the current `packages/shared` has no implementation and repository guidance rejects preemptive extraction.
 
@@ -76,15 +64,23 @@ Initial requirement categories for subsequent specs:
 
 Planning documentation set: product vision and event-scope assumptions; glossary and bounded-context map; domain specs with Given/When/Then scenarios; context-specific data model and lifecycle diagrams; ADRs for tenancy, credential/QR/PIN policy, authorization, audit, real-time transport, and offline fallback; API/event contract and versioning policy; threat model/privacy and compliance assessment; design system/accessibility/branding brief; payment/scanner/integration contracts; test strategy; event-day operating, incident, backup/recovery, and support runbooks.
 
+### Settled Release Sequence
+
+1. **Foundation gate (non-user):** Mexico planning evidence, legal/policy blockers, unresolved-domain clarification, documentation, and audit/outbox test and persistence foundations.
+2. **Release 1 — Accreditation:** organization/event/venue schema, accessible event shell, secure sign-in, enrollment, crews, and staff accreditation workflows.
+3. **Release 2 — Competition Live:** authoritative competition controls, scoring, recovery, and public competition projection. Notifications and exports are deferred.
+4. **Release 3 — Workshops and Basic Operations:** workshop and operational staff workflows.
+5. **Release 4 — Commerce:** non-regulated catalog, inventory, orders, and reconciliation workflows.
+
 Evidence: repository `docs/frontend-architecture.md` establishes FSD and defers package extraction until reuse; `apps/backend/package.json` contains NestJS, Drizzle, PostgreSQL, Swagger, Jest, and no real-time/auth/payment dependencies. NestJS official module/gateway guidance supports explicit feature modules and module-owned gateways; Drizzle official migration guidance supports the current schema-to-`drizzle/` migration workflow.
 
 ### Risks
 
 - A four-digit PIN and printed QR are low-entropy/bearer credentials; treating either as standalone authentication would expose judge, access, financial, and scoring actions.
-- Live brackets, judge votes, and public projection have concurrency and outage risks; correctness, recovery, and manual fallback must be designed before UI delivery.
+- Live brackets, judge votes, and public projection have concurrency and outage risks; correctness and snapshot recovery must be designed before UI delivery. Offline/manual replay is out of scope.
 - Unresolved organization/event tenancy, payments/legal jurisdiction, minors/waivers, and data-retention assumptions can invalidate the data model later.
 - The current repository has only unit and basic route E2E coverage; high-risk PostgreSQL invariants and event-day failure paths lack an integration-test harness.
 
 ### Ready for Proposal
 
-Yes, for a foundation proposal only. Tell the user that the proposal should lock the event/organization tenancy model, credential trust model, initial bounded-context release slice, legal/payment jurisdiction assumptions, and the real-time/offline acceptance bar before any product implementation. The 400-line review budget makes this a multi-slice plan; apply must ask before an oversized first slice.
+Yes. The settled planning change defines the foundation gate and four vertical releases above. Mexico is the planning country; regulated behavior remains blocked pending legal/policy review. The 400-line review budget makes this a multi-slice plan; each release requires separate authorization before implementation.

@@ -24,3 +24,4 @@ apps/frontend/test-results/
 .DS_Store
 *.log
 .pnpm-debug.log*
+.codegraph*

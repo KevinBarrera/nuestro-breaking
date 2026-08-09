@@ -44,7 +44,7 @@ Inventory MUST be event-scoped and MUST represent a traceable balance and moveme
 
 ### Requirement: Non-Regulated Finance Boundary
 
-The system MAY record payment references, refunds, settlement batches, reconciliation states, and external provider outcomes, but MUST NOT claim to calculate, file, withhold, or settle country-specific taxes, payouts, invoices, prize obligations, or regulated payment requirements. Those rules are **blocked/deferred** until the operating country and approved financial policy are named.
+The system MAY record payment references, refunds, settlement batches, reconciliation states, and external provider outcomes, but MUST NOT claim to calculate, file, withhold, or settle country-specific taxes, payouts, invoices, prize obligations, or regulated payment requirements. Mexico is the planning country; those rules are **blocked/deferred** pending legal/policy and approved financial review.
 
 #### Scenario: Reconcile an external settlement
 
@@ -55,9 +55,9 @@ The system MAY record payment references, refunds, settlement batches, reconcili
 
 #### Scenario: Block unresolved regulated behavior
 
-- GIVEN an organizer requests tax, payout, invoice, or prize-settlement behavior without a named country and approved policy
+- GIVEN an organizer requests tax, payout, invoice, or prize-settlement behavior before Mexico legal/policy and financial approval
 - WHEN the configuration is activated
-- THEN activation is blocked as jurisdiction-dependent
+- THEN activation is blocked as legal/policy-dependent
 - AND existing order and inventory records remain available without that claim
 
 ### Requirement: Commerce Experience

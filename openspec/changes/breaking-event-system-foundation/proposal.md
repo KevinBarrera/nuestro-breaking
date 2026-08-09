@@ -2,20 +2,20 @@
 
 ## Intent
 
-Define a foundation for one organization to operate multiple breaking events over time: reliable, traceable event-day operations, competition decisions, and public results. This change is planning-only.
+Define a planning-only delivery boundary: a short non-user foundation gate followed by four separately authorized vertical releases. It authorizes neither current implementation nor all-backend-first sequencing.
 
 ## Scope
 
 ### In Scope
 
-- One organization and multiple events; operational entities MUST be event-scoped. Multi-organization tenancy is out of scope.
-- Integrated operations contract: access, event setup, accreditation, commerce, operations, competition, workshops, and reporting—delivered in risk-based slices.
-- Data ownership, audit, connectivity, observability, security/privacy, testing, and recovery foundations.
+- Foundation: Mexico planning evidence, unresolved-domain clarification, planning/runbook artifacts, and audit/outbox foundations.
+- Full-stack releases: 1 Accreditation (organization/event schema and accessible event shell); 2 Competition Live (public competition projection); 3 Workshops and Basic Operations; 4 non-regulated Commerce.
+- One organization operates multiple events; all operational entities are event-scoped and every user-facing release includes frontend UX, protected persistence, audit, and recovery.
 
 ### Out of Scope
 
-- Product implementation, dependency installation, configuration, offline/manual event-day mode, and multi-organization isolation.
-- Country-specific regulations, payouts, taxes, and waivers until required legal review for Mexico is complete.
+- Implementation, dependencies, configuration, offline/manual mode, and multi-organization isolation.
+- Release 2 notifications/exports and all Mexico-regulated behavior, pending legal/policy review.
 
 ## Capabilities
 
@@ -36,28 +36,27 @@ None; `openspec/specs/` has no baseline capabilities.
 
 ## Approach
 
-Use a modular monolith: one deployment/database, bounded modules, narrow public APIs, and module-owned persistence. Preserve FSD; extract shared contracts only after reuse. Mexico is the initial operating country, subject to required legal review. Live flows require connectivity and use Socket.IO v4 through a NestJS Gateway; PostgreSQL remains authoritative. Testcontainers Node with ephemeral PostgreSQL 16 is the approved integration/E2E harness. Password storage uses Argon2id via `node-argon2`; parameter benchmarking on the actual deployment and multi-instance realtime scaling remain follow-ups.
+Future implementation uses a modular monolith with module-owned persistence and FSD. Mexico is the planning country; regulated behavior is blocked pending legal/policy review. PostgreSQL is authoritative; live flows use Socket.IO v4, Testcontainers PostgreSQL 16, and Argon2id sessions, with parameter benchmarking and multi-instance scaling deferred.
 
 ## Affected Areas
 
-| Area              | Impact  | Description                                |
-| ----------------- | ------- | ------------------------------------------ |
-| `openspec/specs/` | New     | Capability specifications and scenarios.   |
-| `docs/`           | New     | ADRs, models, threat/privacy, runbooks.    |
-| `apps/*/src/`     | Planned | Future modules/workspaces; no changes now. |
+| Area                 | Impact                          |
+| -------------------- | ------------------------------- |
+| `openspec/`, `docs/` | Planning artifacts              |
+| `apps/*/src/`        | Future authorized releases only |
 
 ## Risks and Blockers
 
-| Risk / blocker                                | Mitigation                                                                                                              |
-| --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| QR/PIN bearer credentials can be transferred. | Least privilege, expiry, revocation, throttling, station/session controls, immutable audit, and recorded residual risk. |
-| Mexico legal review remains pending.          | Block country-specific payouts, tax, waiver, minor-data, and retention rules.                                           |
-| Live failure or score contention.             | Connectivity-only acceptance, idempotency/versioning, monitoring, recovery drills.                                      |
+| Risk / blocker      | Mitigation                                            |
+| ------------------- | ----------------------------------------------------- |
+| Bearer credentials  | Least privilege, expiry/revocation, throttling, audit |
+| Mexico legal review | Block regulated behavior                              |
+| Live contention     | Connectivity, versions, monitoring, recovery          |
 
 ## Required Decisions and Documents
 
-- ADRs: Mexico operating country, username/password with Argon2id and opaque PostgreSQL sessions, credential trust, Socket.IO real-time transport, no-offline policy, and Testcontainers PostgreSQL 16 harness.
-- Documents: bounded-context and data/lifecycle models; API/event versioning; threat/privacy, accessibility/branding, test, event-day, support, and recovery plans.
+- ADRs: Mexico status, sessions, credentials, transport, no-offline policy, and test harness.
+- Documents: bounded contexts, lifecycle, contracts, threat/privacy, accessibility, tests, and runbooks.
 
 ## Rollback Plan
 
@@ -69,6 +68,6 @@ Delete or supersede this proposal and future deltas; no product/schema rollback 
 
 ## Success Criteria
 
-- [ ] Specs can be created from the eight capability contracts with mandatory event scope.
-- [ ] ADRs and operations documents resolve foundations and blockers before apply.
-- [ ] Implementation remains staged and asks before any 400-line review-budget risk.
+- [ ] The foundation gate and four vertical releases have unambiguous ownership and sequence.
+- [ ] Release 1 retains organization/event schema and the accessible event shell; Release 2 owns public competition projection only.
+- [ ] Regulated behavior, notifications, and exports remain blocked or deferred until separately authorized.

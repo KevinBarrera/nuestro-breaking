@@ -59,3 +59,21 @@ The system MUST record successful and failed credential, authorization, role, an
 - WHEN the action is attempted
 - THEN the sensitive action is not reported as successful
 - AND the failure is observable without exposing secrets
+
+### Requirement: Release 1 Secure Sign-In and Session Revocation
+
+For Release 1, the system MUST authenticate username/password sign-in on the server, create an opaque server-side session, and expose only a protected session identifier to the browser. Failed sign-in, expired session, and revoked session responses MUST deny access without disclosing whether an account, credential, or session exists. Session creation, denial, and revocation MUST be durably audited.
+
+#### Scenario: Establish a secure session
+
+- GIVEN an active identity supplies valid sign-in credentials
+- WHEN the server accepts the sign-in request
+- THEN it creates an active server-side session and returns only its protected identifier
+- AND the successful sign-in is auditable
+
+#### Scenario: Safely deny or revoke a session
+
+- GIVEN a sign-in attempt is invalid or an existing session is expired or revoked
+- WHEN the browser requests a protected Release 1 workflow
+- THEN access is denied without revealing which condition applied
+- AND the denial or revocation is auditable

@@ -44,7 +44,7 @@ The system MUST manage enrollment through explicit statuses and MUST validate ev
 
 ### Requirement: Waiver and Consent Status
 
-The system MUST track the waiver or consent document version, participant decision, timestamp, and event scope. Legal sufficiency, guardian/minor-data handling, retention, and jurisdiction-specific wording are **blocked/deferred** until the operating country is named; the system MUST NOT infer or claim those rules from a default.
+The system MUST track the waiver or consent document version, participant decision, timestamp, and event scope. Mexico is the planning country; legal sufficiency, guardian/minor-data handling, retention, and jurisdiction-specific wording are **blocked/deferred** pending legal/policy review. The system MUST NOT infer or claim those rules.
 
 #### Scenario: Record an accepted version
 
@@ -55,9 +55,9 @@ The system MUST track the waiver or consent document version, participant decisi
 
 #### Scenario: Block an unresolved legal policy
 
-- GIVEN a workflow requires a country-specific waiver, guardian, or retention decision and no country is configured
+- GIVEN a workflow requires a Mexico-specific waiver, guardian, or retention decision before legal/policy approval
 - WHEN an organizer attempts to activate that policy
-- THEN activation is blocked and marked pending jurisdiction decision
+- THEN activation is blocked and marked pending legal/policy decision
 - AND no claim of legal compliance is presented
 
 ### Requirement: Check-In State and Experience

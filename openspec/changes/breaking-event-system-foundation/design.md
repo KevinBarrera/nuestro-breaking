@@ -2,18 +2,18 @@
 
 ## Technical Approach
 
-Implement eight capabilities as a staged NestJS modular monolith: one PostgreSQL deployment, module-owned persistence, and narrow contracts. Retain `DatabaseModule`, Drizzle, aliases, and React FSD. Establish scope, authorization, audit, and recovery before breadth.
+Future implementation is a staged NestJS modular monolith with module-owned persistence and FSD. This document plans, but does not authorize, the foundation gate and vertical releases.
 
 ## Architecture Decisions
 
-| Decision                     | Choice                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | Rationale                                                                                             |
-| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------- |
-| Module boundary              | Create `apps/backend/src/modules/<capability>/{api,application,domain,infrastructure}/` and `<capability>.module.ts`. API owns controllers/DTOs; application, use cases/public contracts; domain, Nest/Drizzle-free rules/events; infrastructure, repositories/adapters. Consume only other modules' public application contracts.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | Bounded ownership without microservice or technical-layer coupling.                                   |
-| FSD and shared policy        | Do not mirror backend modules. FSD: `entities` event/session models, `features` actions, `widgets` workspaces, `pages` routes. Extend `RoleAreaBoundary` after auth. Do not extract `packages/shared` until a framework-neutral, versioned contract has two consumers.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | Preserves downward imports and avoids release-cycle coupling.                                         |
-| Data and migration ownership | Keep UUIDs, including `users`. Add one organization, events, venues, brands, and event records. Mutable entities have `id`, `eventId`, timestamps, `version`; money is minor-unit integer plus ISO currency. Enforce composite `(id,event_id)` references. Append-only audit/outbox facts contain event, actor/credential, time, result, redacted payload. Modules own `schema/<module>.ts` and migration review; `index.ts` aggregates and Drizzle emits `drizzle/`.                                                                                                                                                                                                                                                                                                                                                                                        | Scope and optimistic versions prevent cross-event links and lost updates.                             |
-| Auth and credentials         | Username/password authenticates the user. Password storage uses Argon2id via `node-argon2`: retain only the PHC-formatted hash, verify asynchronously, never log passwords, hashes, or reset tokens, and rehash on successful login after parameter upgrades. Benchmark parameters on the actual deployment; scrypt is a fallback only if Argon2id is not viable. An opaque server-side session is stored in PostgreSQL; only its ID reaches the browser in an `HttpOnly`, `Secure`, `SameSite` cookie. Enforce expiry, immediate revocation, HTTPS, CSRF/origin protections, and authentication/session audit. Authorize every command from active scoped roles. QR is an opaque bearer secret; PIN is an approved verifier. Both have scope, issue/expiry, rotation/revocation, throttling, station/session controls, and immutable success/failure audit. | Browser credentials remain constrained while server-side session state supports revocation and audit. |
-| Live competition             | Commands carry `eventId`, `commandId`, `expectedVersion`, actor, payload. One transaction validates policy/rubric/state, updates aggregate/version, and writes audit plus ordered outbox. Duplicates return their original result; stale versions return authority. Projections consume sequence numbers idempotently; reconnects fetch a snapshot first. No offline/manual replay. Socket.IO v4 through a NestJS Gateway is the approved transport; HTTP snapshot is recovery. Multi-instance scaling remains a follow-up.                                                                                                                                                                                                                                                                                                                                  | Authority, concurrency, and recovery stay transport-independent.                                      |
-| Experience and operations    | Event context applies constrained theme variables through `app`/`shared`; preserve contrast, focus, text status, responsive layouts, keyboard/screen-reader operation. Use structured redacted logs and health signals; minimize PII, never log credentials, and restrict views/exports.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | Branding must not weaken accessibility or safe diagnosis.                                             |
+| Decision              | Choice                                                                                                                                                                                | Rationale                                                        |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| Module boundary       | Modules expose application contracts; API, domain, and persistence layers are used only where needed.                                                                                 | Prevents cross-module table writes and technical-layer coupling. |
+| FSD/shared policy     | Keep FSD layers; extract `packages/shared` only after two consumers need a versioned contract.                                                                                        | Avoids release-cycle coupling.                                   |
+| Data/migrations       | Release 1 adds organization/event/venue records. Use UUIDs, event scope, versions, composite references, and append-only redacted audit/outbox facts.                                 | Prevents cross-event links and lost updates.                     |
+| Auth/credentials      | Argon2id password verification and opaque PostgreSQL sessions; protected browser identifier, expiry, revocation, safe denial, and audit. QR/PIN remain scoped, throttled credentials. | Enables revocation without exposing secrets.                     |
+| Live competition      | Versioned, idempotent commands update aggregate, audit, and ordered outbox atomically. Socket.IO v4 projects updates; HTTP snapshots recover reconnects. No offline/manual replay.    | Preserves authority and recovery.                                |
+| Experience/operations | Accessible responsive event theming, redacted logs, and restricted views.                                                                                                             | Branding cannot weaken accessibility or diagnosis.               |
 
 ## Data Flow
 
@@ -26,43 +26,34 @@ Client <- snapshot/projection <- outbox <- transaction
 
 The server sequences decisions; projection gaps/reconnects recover from versioned snapshots.
 
+## Release Outcomes
+
+| Release                | Actor entry                      | Frontend workflow                                                       | Protected backend persistence/audit                                   | Visible success, error, or recovery outcome                          |
+| ---------------------- | -------------------------------- | ----------------------------------------------------------------------- | --------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| 1 Accreditation        | Organizer, staff, participant    | Accessible event shell, sign-in, enrollment, crew, and station check-in | Event/venue records; scoped identity, enrollment, check-in, and audit | Scoped confirmation; safe denial; current check-in state after retry |
+| 2 Competition Live     | Judge, organizer, public viewer  | Live controls, scoring, status, and public competition projection       | Versioned authoritative competition state, audit, ordered outbox      | Finalized projection; stale/duplicate status; snapshot recovery      |
+| 3 Workshops/Operations | Staff, instructor, participant   | Schedule, attendance, roster, and incident workspaces                   | Event-scoped capacity, attendance, assignments, incidents, and audit  | Capacity/status feedback; safe least-privilege denial                |
+| 4 Commerce             | Buyer, cashier, finance operator | Catalog, order, inventory, and reconciliation workspaces                | Event-scoped orders, inventory movements, reconciliation, and audit   | Clear stock/order outcome; conflict or regulated-policy block        |
+
 ## File Changes
 
-| File                                                                   | Action                | Description                                          |
-| ---------------------------------------------------------------------- | --------------------- | ---------------------------------------------------- |
-| `openspec/changes/breaking-event-system-foundation/design.md`          | Create                | This artifact.                                       |
-| `apps/backend/src/modules/<capability>/`                               | Planned create        | Eight modules.                                       |
-| `apps/backend/src/database/schema/<module>.ts`, `index.ts`, `drizzle/` | Planned modify/create | Schemas/migrations.                                  |
-| `apps/frontend/src/{entities,features,widgets,pages,app,shared}/`      | Planned modify/create | FSD event actions/context/theme.                     |
-| `docs/{adr,runbooks}/`                                                 | Planned create        | Auth, transport, recovery, privacy/threat decisions. |
+| File                                                              | Action   | Description             |
+| ----------------------------------------------------------------- | -------- | ----------------------- |
+| `openspec/changes/breaking-event-system-foundation/`, `docs/`     | Planning | This change's artifacts |
+| `apps/backend/src/modules/`, `database/schema/`, `drizzle/`       | Future   | Modules and migrations  |
+| `apps/frontend/src/{entities,features,widgets,pages,app,shared}/` | Future   | FSD workflows and shell |
 
 ## Interfaces / Contracts
 
-```ts
-type Command = {
-  eventId: string;
-  commandId: string;
-  expectedVersion: number;
-  payload: unknown;
-};
-type DomainEvent = {
-  eventId: string;
-  sequence: number;
-  type: string;
-  occurredAt: string;
-  payload: unknown;
-};
-```
-
-REST/OpenAPI is the initial cross-app contract. Socket.IO v4 through a NestJS Gateway is the approved real-time transport; this planning artifact does not install dependencies. Expose stable IDs, timestamps, permitted fields, amount/currency, version.
+REST/OpenAPI is the initial cross-app contract. Commands carry event, command, and expected-version identifiers; events carry event, sequence, type, time, and permitted payload fields. Socket.IO v4 is the future real-time transport; this plan installs no dependency.
 
 ## Testing Strategy
 
-| Layer           | What                                                                    | Approach                                                                                                                                                                                               |
-| --------------- | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Unit            | Scope/lifecycle, policies, QR/PIN, money, idempotency, stale scores     | Strict RED-first Jest tests beside domain/application code.                                                                                                                                            |
-| Persistence/E2E | Composite references, transaction/outbox/audit durability, safe denials | Use Testcontainers Node with ephemeral PostgreSQL 16, real migrations, cleanup, and isolation. It requires a Docker-compatible runtime; CI parallelization and harness optimization remain follow-ups. |
-| Browser         | Responsive routes, keyboard/status, theme, recovery                     | Playwright; no new accessibility dependency without discovery.                                                                                                                                         |
+| Layer           | What                                             | Approach                                                          |
+| --------------- | ------------------------------------------------ | ----------------------------------------------------------------- |
+| Unit            | Scope, policies, idempotency                     | RED-first Jest                                                    |
+| Persistence/E2E | References, audit/outbox durability, safe denial | Testcontainers PostgreSQL 16, real migrations, cleanup, isolation |
+| Browser         | Responsive status and recovery                   | Playwright                                                        |
 
 ## Threat Matrix
 
@@ -78,11 +69,12 @@ Routing is planned, but no shell, repository, VCS, PR, executable-classification
 
 ## Migration / Rollout
 
-1. ADR and review gates: Mexico legal review; approved username/password with Argon2id and opaque PostgreSQL sessions; Socket.IO Gateway transport; Testcontainers PostgreSQL 16 harness; privacy/threat/recovery runbooks.
-2. Foundation: organization/event/venue/brand, scoped relations, audit/outbox, authorization seam, accessible event shell.
-3. Identity/accreditation; competition commands/projections/recovery; then workshops, operations, commerce, communications/reporting. Keep apply work verifiable and ask before a 400-line risk.
+1. Foundation gate (non-user): record Mexico planning evidence and legal/policy blockers, resolve the listed domain questions, complete planning/runbook artifacts, and establish audit/outbox test and persistence foundations.
+2. Release 1 — Accreditation: organization/event/venue schema, scoped relations, accessible event shell, secure identity/session handling, enrollment, crews, and accreditation station workflows.
+3. Release 2 — Competition Live: authoritative competition commands, scoring, recovery, and public competition projection. Notifications and exports are deferred to later authorized work.
+4. Release 3 — Workshops and Basic Operations; Release 4 — non-regulated Commerce. Keep each release full-stack, verifiable, and separately authorized before apply.
 
 ## Open Questions
 
 - [ ] Complete required legal review for Mexico before country-specific waiver/consent, guardian/minor data, privacy retention/deletion, taxes, invoices, payments, payouts, prizes, or settlements proceed; make no compliance claim.
-- [ ] Benchmark Argon2id parameters on the actual deployment, and select a broker/adapter topology for multi-instance Socket.IO scaling, before implementing those follow-ups.
+- [ ] Benchmark Argon2id and select multi-instance Socket.IO topology before those follow-ups.

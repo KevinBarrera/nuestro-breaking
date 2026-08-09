@@ -1,0 +1,61 @@
+schema: spec-driven
+
+context: |
+  Project: Nuestro Breaking monorepo.
+  Stack: pnpm 11, Node.js 24.18.1, React 19/Vite 8, NestJS 11, TypeScript, PostgreSQL 16, Drizzle ORM.
+  Architecture: Independent FSD frontend and NestJS backend applications with a reserved shared package.
+  Style: Prettier-authoritative formatting, type-aware ESLint, application-local @/ aliases, downward FSD imports.
+  Delivery: SDD planning artifacts are written in English; product implementation requires explicit apply work.
+
+strict_tdd: true
+
+testing:
+  test_runner:
+    framework: Jest 30 and Playwright 1.62
+    commands:
+      unit: pnpm --filter @nuestro-breaking/backend test
+      e2e_backend: pnpm --filter @nuestro-breaking/backend test:e2e
+      e2e_frontend: pnpm --filter @nuestro-breaking/frontend test:e2e
+  layers:
+    unit:
+      available: true
+      tool: Jest
+    integration:
+      available: false
+      tool: null
+    e2e:
+      available: true
+      tool: Supertest-backed NestJS E2E and Playwright
+  coverage:
+    available: true
+    command: pnpm --filter @nuestro-breaking/backend test:cov
+    scope: backend unit tests
+  quality:
+    linter: pnpm --filter @nuestro-breaking/backend lint and pnpm --filter @nuestro-breaking/frontend lint
+    type_checker: pnpm --filter @nuestro-breaking/backend build and pnpm --filter @nuestro-breaking/frontend build
+    formatter: pnpm format:check
+
+rules:
+  proposal:
+    - Keep scope and assumptions explicit; include rollback planning for risky changes.
+  specs:
+    - Use Given/When/Then scenarios and RFC 2119 requirement keywords.
+  design:
+    - Respect the existing frontend FSD boundaries and backend application/database separation.
+    - Document architecture decisions with rationale and identify cross-application contracts.
+  tasks:
+    - Keep tasks independently verifiable and separate planning from product implementation.
+    - Group tasks by reviewable work unit; total review budget is 400 changed lines.
+  apply:
+    tdd: true
+    test_command: pnpm verify:setup
+    guidelines:
+      - Do not implement product code during planning-only engagements.
+      - Follow existing aliases, import boundaries, formatting, and lint configuration.
+  verify:
+    test_command: pnpm verify:setup
+    build_command: pnpm verify:setup
+    coverage_threshold: 0
+  archive:
+    - Preserve the OpenSpec change directory as an audit trail.
+    - Warn before merging destructive specification deltas.

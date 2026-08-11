@@ -29,6 +29,7 @@ export class EventOrganizationReadRepository implements EventOrganizationReadPor
       .select({
         id: events.id,
         name: events.name,
+        lifecycle: events.lifecycle,
         venue: { id: venues.id, name: venues.name },
         startsAt: events.startsAt,
         endsAt: events.endsAt,

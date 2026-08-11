@@ -9,6 +9,7 @@ const eventOrganization = {
     {
       id: '70000000-0000-0000-0000-000000000001',
       name: 'Local Breaking Jam',
+      lifecycle: 'draft',
       venue: { id: '60000000-0000-0000-0000-000000000001', name: 'Local Main Hall' },
       schedule: { startsAt: '2026-06-10T15:30:00.000Z', endsAt: null },
     },
@@ -29,6 +30,26 @@ test('renders the seeded organization event, venue, and schedule', async ({ page
   await expect(page.getByRole('status')).toHaveText('1 event loaded');
   await page.keyboard.press('Tab');
   await expect(page.getByRole('link', { name: 'Skip to events' })).toBeFocused();
+});
+
+test('renders each lifecycle status supplied by the API', async ({ page }) => {
+  const lifecycleView = {
+    ...eventOrganization,
+    events: [
+      { ...eventOrganization.events[0], lifecycle: 'draft' },
+      { ...eventOrganization.events[0], lifecycle: 'published' },
+      { ...eventOrganization.events[0], lifecycle: 'closed' },
+    ],
+  };
+  await page.route(organizationRoute, (route) =>
+    route.fulfill({ contentType: 'application/json', json: lifecycleView }),
+  );
+
+  await page.goto('/admin');
+
+  await expect(page.getByText('Draft', { exact: true })).toBeVisible();
+  await expect(page.getByText('Published', { exact: true })).toBeVisible();
+  await expect(page.getByText('Closed', { exact: true })).toBeVisible();
 });
 
 test('announces loading before the organization request resolves', async ({ page }) => {

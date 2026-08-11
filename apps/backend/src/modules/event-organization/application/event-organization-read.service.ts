@@ -6,6 +6,7 @@ export type EventOrganizationView = {
   events: Array<{
     id: string;
     name: string;
+    lifecycle: string;
     venue: { id: string; name: string };
     schedule: { startsAt: Date; endsAt: Date | null };
   }>;

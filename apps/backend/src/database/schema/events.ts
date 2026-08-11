@@ -12,6 +12,7 @@ export const events = pgTable(
       .references(() => users.id),
     venueId: uuid('venue_id').notNull(),
     name: text('name').notNull(),
+    lifecycle: text('lifecycle').notNull().default('draft'),
     startsAt: timestamp('starts_at', { withTimezone: true }).notNull(),
     endsAt: timestamp('ends_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

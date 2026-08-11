@@ -74,6 +74,10 @@ export function EventOrganizationView() {
                 <h4 className="font-semibold text-zinc-950">{event.name}</h4>
                 <dl className="mt-2 grid gap-2 text-sm text-zinc-700 sm:grid-cols-2">
                   <div>
+                    <dt className="font-medium text-zinc-950">Status</dt>
+                    <dd>{event.lifecycle[0].toUpperCase() + event.lifecycle.slice(1)}</dd>
+                  </div>
+                  <div>
                     <dt className="font-medium text-zinc-950">Venue</dt>
                     <dd>{event.venue.name}</dd>
                   </div>

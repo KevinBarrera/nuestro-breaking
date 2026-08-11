@@ -8,6 +8,7 @@ export type EventOrganizationView = {
 export type EventOrganizationEvent = {
   id: string;
   name: string;
+  lifecycle: 'draft' | 'published' | 'closed';
   venue: { id: string; name: string };
   schedule: { startsAt: string; endsAt: string | null };
 };

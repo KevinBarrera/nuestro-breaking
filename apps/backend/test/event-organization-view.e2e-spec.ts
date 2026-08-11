@@ -61,6 +61,7 @@ describe('Event organization view (e2e)', () => {
           id: scope.eventId,
           name: 'Event a',
           venue: { id: scope.venueId, name: 'Venue a' },
+          lifecycle: 'draft',
           schedule: { startsAt: '2026-06-10T15:30:00.000Z', endsAt: null },
         },
       ],
@@ -86,7 +87,7 @@ describe('Event organization view (e2e)', () => {
     await seedLocalDatabase(client);
 
     const [event] = await client`
-      SELECT id, organization_id, venue_id, name
+      SELECT id, organization_id, venue_id, name, lifecycle
       FROM events
       WHERE id = ${LOCAL_SEED_IDS.eventId}
     `;
@@ -101,6 +102,7 @@ describe('Event organization view (e2e)', () => {
       organization_id: LOCAL_SEED_IDS.organizationId,
       venue_id: LOCAL_SEED_IDS.venueId,
       name: 'Local Breaking Jam',
+      lifecycle: 'draft',
     });
     expect(count.value).toBe(1);
   });

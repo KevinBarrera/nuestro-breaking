@@ -17,7 +17,7 @@ Chain strategy: stacked-to-main
 400-line budget risk: High
 
 `Focused PG16`: `pnpm --filter @nuestro-breaking/backend test:e2e -- event-activity-foundation.e2e-spec.ts --runInBand`
-`Full safety net` (once per work unit): `pnpm verify:setup && pnpm --filter @nuestro-breaking/backend test:e2e -- --runInBand && pnpm --filter @nuestro-breaking/backend lint && pnpm --filter @nuestro-breaking/backend build && pnpm format:check`. It may start bounded services; use native attempt authority and clean up owned processes.
+`Full safety net` (once per work unit): `pnpm verify:setup && pnpm --filter @nuestro-breaking/backend exec jest --config ./test/jest-e2e.json --runInBand && pnpm format:check`. `verify:setup` already runs workspace lint/build and backend E2E; direct Jest avoids the package-wrapper standalone-flag forwarding defect. It may start bounded services; use native attempt authority and clean up owned processes.
 
 Canonical `stacked-to-main` implementation chain (repository integration target is `dev`; staging/main promotion is out of scope):
 
@@ -37,7 +37,7 @@ Strict TDD: record each RED failure before its GREEN change, then refactor only 
 
 ## Phase 1: Container and Venue Scope (Work Unit 1 / PR 1)
 
-- [x] 1.1 **RED** — Create `apps/backend/test/event-activity-foundation.e2e-spec.ts`: reset/replay; no-user-FK catalog; unbounded event; reject partial/unordered windows and invalid zones; accept `America/Bogota`/`US/Eastern`.
+- [x] 1.1 **RED** — Create `apps/backend/test/event-activity-foundation.e2e-spec.ts`: reset/replay; no-user-FK catalog; unbounded and complete ordered events; reject partial/equal/unordered windows and invalid zones; accept exact PG16 catalog names `America/Bogota`/`Etc/UTC`.
 - [x] 1.2 **IMPLEMENT** — Create `apps/backend/src/database/schema/{organizations,venues,events}.ts`; export `schema/index.ts`; add UUIDs, non-blank checks, scoped uniques, optional ordered windows, `NO ACTION` FKs, and no user ownership.
 - [x] 1.3 **GREEN** — Generate `apps/backend/drizzle/0001_event_containers.sql` and `apps/backend/drizzle/meta/{_journal.json,0001_snapshot.json}`; add `assert_event_time_zone` / `events_time_zone_ck` after `0000_unknown_ultimates`.
 - [x] 1.4 **REFACTOR** — Run focused PG16 then safety net; separately review migration SQL and generated metadata, never hand-edit metadata, and preserve custom SQL later.

@@ -24,7 +24,7 @@ Every event and venue MUST belong to one organization and MUST NOT have user own
 
 ### Requirement: Event Time Zone and Optional Window
 
-An event MUST retain an IANA authoring/display time zone. Its window MAY be absent; otherwise both endpoints MUST exist and start MUST precede end.
+An event MUST retain an IANA authoring/display time zone whose exact name is present in PostgreSQL 16 `pg_catalog.pg_timezone_names`. Its window MAY be absent; otherwise both endpoints MUST exist and start MUST precede end. The PostgreSQL 16 image used for direct-SQL proof provides `Etc/UTC` as the tested catalog alias alongside canonical `America/Bogota`.
 
 #### Scenario: Create an unbounded multi-day event
 
@@ -37,6 +37,12 @@ An event MUST retain an IANA authoring/display time zone. Its window MAY be abse
 - GIVEN one missing boundary or start not before end
 - WHEN the event is written
 - THEN PostgreSQL 16 rejects it
+
+#### Scenario: Accept a complete ordered window
+
+- GIVEN both window boundaries and a start before end
+- WHEN the event is written
+- THEN PostgreSQL 16 accepts it
 
 ### Requirement: Event-Venue Membership and Scope
 

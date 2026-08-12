@@ -1,13 +1,13 @@
 # Apply Progress: Event Activity Foundation
 
-| Field | Value |
-| --- | --- |
-| Change | `event-activity-foundation` |
-| Mode | Strict TDD |
-| Work unit | 1 — Container and venue scope |
-| Candidate base | Current `dev` |
-| Candidate boundary | Organization, venue, and event persistence through `0001_event_containers.sql`; no Work Unit 2 code or artifacts |
-**Evidence revision**: 3
+| Field                    | Value                                                                                                            |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------- |
+| Change                   | `event-activity-foundation`                                                                                      |
+| Mode                     | Strict TDD                                                                                                       |
+| Work unit                | 1 — Container and venue scope                                                                                    |
+| Candidate base           | Current `dev`                                                                                                    |
+| Candidate boundary       | Organization, venue, and event persistence through `0001_event_containers.sql`; no Work Unit 2 code or artifacts |
+| **Evidence revision**: 3 |
 
 ## Cumulative Task Progress
 

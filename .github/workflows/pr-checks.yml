@@ -1,0 +1,108 @@
+name: Required PR checks
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, edited]
+  push:
+    branches: [dev]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: required-pr-checks-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  CI: true
+
+jobs:
+  quality_format:
+    name: quality / format
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm format:check
+
+  backend_lint_build_unit:
+    name: backend / lint-build-unit
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @nuestro-breaking/backend lint
+      - run: pnpm --filter @nuestro-breaking/backend build
+      - run: pnpm --filter @nuestro-breaking/backend test --runInBand
+
+  backend_postgres_e2e:
+    name: backend / postgres-e2e
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - name: Run disposable PostgreSQL 16 E2E tests
+        run: pnpm --filter @nuestro-breaking/backend test:e2e --runInBand
+
+  frontend_lint_build:
+    name: frontend / lint-build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @nuestro-breaking/frontend lint
+      - run: pnpm --filter @nuestro-breaking/frontend build
+
+  frontend_playwright:
+    name: frontend / playwright
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @nuestro-breaking/frontend exec playwright install --with-deps chromium
+      - run: pnpm --filter @nuestro-breaking/frontend test:e2e
+      - name: Upload Playwright failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-artifacts-${{ github.run_id }}
+          path: |
+            apps/frontend/test-results/
+            apps/frontend/playwright-report/
+          if-no-files-found: ignore
+          retention-days: 7

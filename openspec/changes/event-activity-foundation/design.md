@@ -2,72 +2,38 @@
 
 ## Technical Approach
 
-Implement `event-activity-persistence` in two stacked-to-main database slices. Drizzle owns tables; migrations add PostgreSQL triggers. Excluded: API, UI, seed, user/identity ownership, auth/session, lifecycle/publication, audit/outbox, roster/check-in, competition categories/stages/scoring, workshops, payments, legal claims, November-flow, and pilot-readiness.
+Implement three bounded units: completed WU1 containers/venues (`0001`), WU2-A declarative membership/activity (`0002`), and WU2-B deferred windows/concurrency (`0003`). Drizzle owns tables and generated metadata; committed custom SQL owns triggers. API, UI, seed, identity/auth, lifecycle, audit/outbox, roster/check-in, competition, workshops, payments, legal, November flow, and pilot readiness remain excluded.
+
+## Delivery and Authority
+
+Canonical machine `chain_strategy` is `stacked-to-main`; it is an accepted-domain label, not a PR target. Human routing is `dev`: WU1 is complete on `dev`; WU2-A targets `dev`; WU2-B initially targets the WU2-A branch and, after A merges, rebases/retargets to `dev`. Staging/main promotion is excluded. WU1 actual 294 authored lines, WU2-A and WU2-B cap at 380 each. The completed combined-WU2 settlement was invalidated by independent validation and supplies no WU2-A/B RED/GREEN evidence.
 
 ## Architecture Decisions
 
-| Decision                 | Choice and rationale                                                                                                                                                                                                                                                                                                     | Rejected alternative                                                          |
-| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------- |
-| Ownership and membership | Organizations own reusable venues/events; `event_venues` attaches them. This preserves reuse and proves scope without user ownership.                                                                                                                                                                                    | Event-owned venues duplicate locations.                                       |
-| Temporal model           | Store `timestamptz`; retain required `events.time_zone`, matching an exact PG16 `pg_catalog.pg_timezone_names` entry, for authoring/display. Equivalent explicit offsets normalize equally; PostgreSQL loses input syntax after coercion, so lexical validation belongs to a future API if required.                     | Local timestamps lose instant or zone intent.                                 |
-| Window enforcement       | Use two `DEFERRABLE INITIALLY DEFERRED` row constraint triggers: activity writes validate the current event window, and event-window updates scan current activities. Cross-table rules cannot be expressed safely by `CHECK`; both directions prevent invalid window shrinkage and permit transaction-local reordering. | Application checks race; an activity-only trigger misses event edits.         |
-| Extensibility            | Future competition/workshop tables reference `activities.id` through explicit cardinality-specific foreign keys.                                                                                                                                                                                                         | Polymorphic `subject_type`/`subject_id` cannot provide referential integrity. |
+- **Membership:** `event_venues(organization_id,event_id,venue_id)` uses primary `(event_id,venue_id)` and composite scoped FKs, allowing same-organization venue reuse while rejecting cross-scope attachment.
+- **Activities:** UUID identity; non-blank `kind`/`name`; ordered `timestamptz`; composite membership FK; and `ON DELETE/UPDATE NO ACTION`. Overlap has no exclusion constraint.
+- **Temporal values:** equivalent explicit offsets compare equally; `events.time_zone` remains the IANA authoring/display zone. PostgreSQL cannot retain lexical offset syntax.
+- **Windows:** `0003` supplies two `DEFERRABLE INITIALLY DEFERRED` triggers. They re-read final rows by UUID; activity writes lock their event and event writes scan current activities. Failures are named `23514` errors.
 
-## Data Model and Flow
+## Files and Boundaries
 
-```text
-organizations ─┬─< venues
-               └─< events ─< event_venues >─ venues
-                             └─< activities (event_id, venue_id)
-```
+- **WU1 unchanged:** `schema/{organizations,venues,events}.ts`, `0001_event_containers.sql`, `meta/{_journal,0001_snapshot}.json`, and E2E proof.
+- **WU2-A:** `schema/{event-venues,activities}.ts`, `schema/index.ts`, `0002_event_activity_membership.sql`, `meta/{_journal,0002_snapshot}.json`, and E2E cases. Generate SQL/metadata; never hand-edit metadata.
+- **WU2-B:** `0003_event_activity_windows.sql`, `meta/_journal.json`, and E2E cases. Custom SQL is migration-authoritative.
 
-- UUID identities default to `gen_random_uuid()`; required names/kinds are non-blank. Events and venues expose `UNIQUE (organization_id,id)`.
-- `event_venues(organization_id,event_id,venue_id)` references both scoped targets and has `PRIMARY KEY (event_id,venue_id)`; `activities(event_id,venue_id)` references that membership. Activity organization remains derivable.
-- Windows are both null or ordered; activity intervals are ordered. Present windows use inclusive containment at both boundaries. Null windows permit any valid interval; overlaps remain allowed. All foreign keys use `ON DELETE NO ACTION`.
+## Strict TDD and PG16 Proof
 
-## Concurrency Contract
+WU2-A first records isolated RED direct-SQL cases for reset/replay `0000→0001→0002`, reuse, scope/unattached rejection, UUID/non-blank/ordered `timestamptz`, equivalent-offset equality with retained event IANA zone, overlap, and `NO ACTION` delete/key-update rejection. Then implement schemas, generate `0002`/metadata, prove green, and refactor.
 
-The activity trigger re-reads and locks its event `FOR SHARE`; event updates already lock that row. Deferred functions query final rows by UUID, not queued `NEW` values.
+WU2-B first records independent RED cases for reset/replay `0000→0001→0002→0003`; bounded-event activity INSERT/UPDATE beyond either boundary rejection; exact-boundary success; and unbounded-event acceptance. Deferred final-state cases cover activity update repair, transient invalid insert then delete, event-window restoration, and offending activity update or delete after event-window add/narrow. Every unrepaired counterpart must fail named `23514` at forced constraint check and at commit.
 
-| Interleaving                                              | Expected result                                                                          |
-| --------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| Activity validates first, then a window update waits      | Activity commits; updater continues, sees it, and an excluding window fails `23514`.     |
-| Window update locks first, then activity validation waits | Update commits; activity re-reads the new window and an excluded activity fails `23514`. |
+WU2-B also records two independent RED tests for each interleaving. Every client sets `READ COMMITTED`, `lock_timeout='2s'`, `statement_timeout='5s'`, and a 15-second Jest bound; `pg_blocking_pids(waiter_pid)` must contain the expected blocker before release. Activity-first rejects the excluding event update; window-first rejects the excluded activity. `55P03` or timeout fails the test. Only then add `0003` triggers, prove all cases green, and refactor.
 
-PG16 tests use two clients, barriers, `lock_timeout='2s'`, `statement_timeout='5s'`, and Jest bounds. They assert waiting before release and completion afterward; `55P03` is test failure, not domain behavior.
+Focused PG16: `pnpm --filter @nuestro-breaking/backend test:e2e -- event-activity-foundation.e2e-spec.ts --runInBand`.
+Full safety net once per new unit: `pnpm verify:setup && pnpm --filter @nuestro-breaking/backend exec jest --config ./test/jest-e2e.json --runInBand && pnpm format:check`.
 
-## Drizzle / SQL Boundary and Files
+## Threat Matrix and Rollback
 
-| File                                                                                        | Action          | Responsibility                                                              |
-| ------------------------------------------------------------------------------------------- | --------------- | --------------------------------------------------------------------------- |
-| `apps/backend/src/database/schema/{organizations,venues,events,event-venues,activities}.ts` | Create          | Tables and Drizzle-representable keys/checks.                               |
-| `apps/backend/src/database/schema/index.ts`                                                 | Modify          | Export schemas.                                                             |
-| `apps/backend/drizzle/0001_event_containers.sql`                                            | Generate/extend | Organizations, venues, events, then zone validation.                        |
-| `apps/backend/drizzle/0002_event_activity_scheduling.sql`                                   | Generate/extend | Membership, activities, deferred containment.                               |
-| `apps/backend/drizzle/meta/{_journal.json,0001_snapshot.json,0002_snapshot.json}`           | Generate        | Drizzle history; never hand-edit and report separately from authored lines. |
-| `apps/backend/test/event-activity-foundation.e2e-spec.ts`                                   | Create          | Direct-SQL PG16 contract proof.                                             |
+N/A — no routing, shell, subprocess, VCS/PR automation, executable classification, or process-integration change; `PostgresHarness` is reused.
 
-Use snake_case names ending `_pk`, `_uq`, `_fk`, or `_ck`. Function/trigger pairs are `assert_event_time_zone`/`events_time_zone_ck`, `assert_activity_within_event_window`/`activities_event_window_ck`, and `assert_event_window_contains_activities`/`events_activities_window_ck`. The latter two are `DEFERRABLE INITIALLY DEFERRED`. Native constraints retain `23503`/`23505`/`23514`; triggers raise `23514` with their name. Deferred failures surface at forced check or commit and abort the transaction.
-
-Drizzle metadata describes declarative schema only. Committed SQL is authoritative for custom triggers; later migrations preserve or explicitly replace them rather than expecting `db:generate` to diff them.
-
-## Testing Strategy
-
-| Slice                             | RED-to-green PG16 proof                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1: container/venue scope          | Apply/reset/replay `0000→0001` to empty PG16; inspect catalogs for no user ownership; test absent, complete ordered, partial, equal, and unordered windows; accept exact catalog names `America/Bogota` and `Etc/UTC`; reject an invalid zone.                                                                                                                                                                                                                                                                                           |
-| 2: membership/activity scheduling | Apply/reset/replay complete `0000→0001→0002`; reuse one venue across two same-organization events; persist equivalent explicit-offset activity instants and prove equality while retaining the event IANA zone; reject cross-scope membership/unattached venues/bad intervals; accept exact boundaries and reject beyond each boundary on activity insert/update; reject event-window addition/narrowing; prove deferred repair and forced-check/commit failure; prove both concurrency interleavings and same-event/same-venue overlap. |
-
-Reuse `PostgresHarness` unchanged with `postgres:16`; run the focused file and full backend E2E suite. Slice 1 lands before Slice 2; each carries its RED-to-green proof and stays below 400 authored lines.
-
-## Threat Matrix
-
-N/A — no routing, shell, subprocess, VCS/PR automation, executable classification, or process-integration change; the harness is reused.
-
-## Migration / Rollout
-
-Migrations are additive and ordered after `0000_unknown_ultimates`. On an undeployed/empty stack, revert Slice 2 objects before Slice 1. Once deployed or populated, never rewrite SQL or metadata: ship a forward corrective migration. Destructive rollback drops window triggers/functions, activities, membership, the zone trigger/function, events, venues, then organizations; export dependent data first.
-
-## Open Questions
-
-None.
+On an empty undeployed stack, roll back WU2-B trigger SQL/journal, then WU2-A activities/membership/`0002`/metadata/schemas, then WU1 `0001` and container schemas. Deployed/populated environments require forward corrective migrations.

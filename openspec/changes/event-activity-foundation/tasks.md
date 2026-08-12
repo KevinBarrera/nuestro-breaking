@@ -2,14 +2,14 @@
 
 ## Review Workload Forecast
 
-| Field                   | Value                                                          |
-| ----------------------- | -------------------------------------------------------------- |
-| Estimated changed lines | WU1 294/312; WU2-A ≤380/~320; WU2-B ≤380/~8 authored/generated |
-| 400-line budget risk    | High overall; each ≤400 authored                               |
-| Chained PRs recommended | Yes                                                            |
-| Suggested split         | WU1 complete → WU2-A declarative → WU2-B enforcement           |
-| Delivery strategy       | auto-chain                                                     |
-| Chain strategy          | stacked-to-main                                                |
+| Field                   | Value                                                               |
+| ----------------------- | ------------------------------------------------------------------- |
+| Estimated changed lines | WU1 294/312; WU2-A actual 373/460; WU2-B ≤380/~8 authored/generated |
+| 400-line budget risk    | High overall; each ≤400 authored                                    |
+| Chained PRs recommended | Yes                                                                 |
+| Suggested split         | WU1 complete → WU2-A declarative → WU2-B enforcement                |
+| Delivery strategy       | auto-chain                                                          |
+| Chain strategy          | stacked-to-main                                                     |
 
 Decision needed before apply: No
 Chained PRs recommended: Yes
@@ -26,6 +26,8 @@ Chain strategy: stacked-to-main
 
 Focused: `pnpm --filter @nuestro-breaking/backend test:e2e -- event-activity-foundation.e2e-spec.ts --runInBand`. Safety net per unit: `pnpm verify:setup && pnpm --filter @nuestro-breaking/backend exec jest --config ./test/jest-e2e.json --runInBand && pnpm format:check`.
 
+**WU2-A accounting (actual):** 373 authored candidate changed lines = 299 product/test additions + 74 SDD ledger additions/deletions. Generated output is 460 additions = SQL 24 + snapshot 429 + journal 7. WU2-B remains forecast at ≤380 authored/~8 generated.
+
 ## Phase 1: Container and Venue Scope (WU1 / PR 1)
 
 - [x] 1.1 **RED** — `test/event-activity-foundation.e2e-spec.ts`: replay and container invariants.
@@ -35,10 +37,10 @@ Focused: `pnpm --filter @nuestro-breaking/backend test:e2e -- event-activity-fou
 
 ## Phase 2: Declarative Membership and Activity (WU2-A / PR 2)
 
-- [ ] 2.1 **RED** — Add failing PG16: replay `0000→0001→0002`; reuse/scope/unattached; UUID, non-blank, ordered `timestamptz`; equal offsets/retained IANA zone; overlap; `NO ACTION` delete/key update.
-- [ ] 2.2 **IMPLEMENT** — Create `schema/{event-venues,activities}.ts` and exports with composite scope/membership FKs, checks, and `NO ACTION` actions.
-- [ ] 2.3 **GREEN** — Generate `0002_event_activity_membership.sql` and `meta/{_journal,0002_snapshot}.json`; prove every WU2-A RED case passes.
-- [ ] 2.4 **REFACTOR** — Refactor green WU2-A tests; focused/safety net; review metadata.
+- [x] 2.1 **RED** — Add failing PG16: replay `0000→0001→0002`; reuse/scope/unattached; UUID, non-blank, ordered `timestamptz`; equal offsets/retained IANA zone; overlap; `NO ACTION` delete/key update.
+- [x] 2.2 **IMPLEMENT** — Create `schema/{event-venues,activities}.ts` and exports with composite scope/membership FKs, checks, and `NO ACTION` actions.
+- [x] 2.3 **GREEN** — Generate `0002_event_activity_membership.sql` and `meta/{_journal,0002_snapshot}.json`; prove every WU2-A RED case passes.
+- [x] 2.4 **REFACTOR** — Refactor green WU2-A tests; focused/safety net; review metadata.
 
 ## Phase 3: Deferred Windows and Concurrency (WU2-B / PR 3)
 

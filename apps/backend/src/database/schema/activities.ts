@@ -1,0 +1,29 @@
+import { sql } from 'drizzle-orm';
+import { check, foreignKey, pgTable, primaryKey, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { eventVenues } from './event-venues';
+
+export const activities = pgTable(
+  'activities',
+  {
+    id: uuid('id').defaultRandom().notNull(),
+    eventId: uuid('event_id').notNull(),
+    venueId: uuid('venue_id').notNull(),
+    kind: text('kind').notNull(),
+    name: text('name').notNull(),
+    startsAt: timestamp('starts_at', { withTimezone: true }).notNull(),
+    endsAt: timestamp('ends_at', { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.id], name: 'activities_pk' }),
+    foreignKey({
+      columns: [table.eventId, table.venueId],
+      foreignColumns: [eventVenues.eventId, eventVenues.venueId],
+      name: 'activities_event_venue_fk',
+    })
+      .onDelete('no action')
+      .onUpdate('no action'),
+    check('activities_kind_ck', sql`length(btrim(${table.kind})) > 0`),
+    check('activities_name_ck', sql`length(btrim(${table.name})) > 0`),
+    check('activities_window_ck', sql`${table.startsAt} < ${table.endsAt}`),
+  ],
+);

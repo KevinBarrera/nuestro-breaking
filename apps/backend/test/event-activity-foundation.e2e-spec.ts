@@ -181,4 +181,243 @@ describe('event activity foundation containers (e2e)', () => {
       expect(error).toMatchObject({ code: '23514', constraint_name: 'events_window_ck' });
     }
   });
+
+  it('replays declarative membership and activity migrations after reset', async () => {
+    await harness.reset();
+
+    const [{ migrations, eventVenuesTable, activitiesTable }] = await client<
+      { migrations: string[]; eventVenuesTable: string | null; activitiesTable: string | null }[]
+    >`
+      SELECT
+        array_agg(hash ORDER BY created_at) AS migrations,
+        to_regclass('public.event_venues') AS "eventVenuesTable",
+        to_regclass('public.activities') AS "activitiesTable"
+      FROM drizzle.__drizzle_migrations
+    `;
+
+    expect(migrations).toHaveLength(3);
+    expect({ eventVenuesTable, activitiesTable }).toEqual({
+      eventVenuesTable: 'event_venues',
+      activitiesTable: 'activities',
+    });
+  });
+
+  it('reuses a venue across events and rejects cross-organization membership', async () => {
+    const [{ organizationId }] = await client<{ organizationId: string }[]>`
+      INSERT INTO organizations (name) VALUES ('Reuse Organization') RETURNING id AS "organizationId"
+    `;
+    const [{ otherOrganizationId }] = await client<{ otherOrganizationId: string }[]>`
+      INSERT INTO organizations (name) VALUES ('Other Organization') RETURNING id AS "otherOrganizationId"
+    `;
+    const [{ venueId }] = await client<{ venueId: string }[]>`
+      INSERT INTO venues (organization_id, name)
+      VALUES (${organizationId}, 'Reusable Hall')
+      RETURNING id AS "venueId"
+    `;
+    const events = await client<{ eventId: string }[]>`
+      INSERT INTO events (organization_id, name, time_zone)
+      VALUES
+        (${organizationId}, 'First event', 'America/Bogota'),
+        (${organizationId}, 'Second event', 'America/Bogota')
+      RETURNING id AS "eventId"
+    `;
+    const [{ otherVenueId }] = await client<{ otherVenueId: string }[]>`
+      INSERT INTO venues (organization_id, name)
+      VALUES (${otherOrganizationId}, 'Other Hall')
+      RETURNING id AS "otherVenueId"
+    `;
+
+    await client`
+      INSERT INTO event_venues (organization_id, event_id, venue_id)
+      VALUES
+        (${organizationId}, ${events[0].eventId}, ${venueId}),
+        (${organizationId}, ${events[1].eventId}, ${venueId})
+    `;
+    await expect(
+      client`
+        INSERT INTO event_venues (organization_id, event_id, venue_id)
+        VALUES (${organizationId}, ${events[0].eventId}, ${otherVenueId})
+      `,
+    ).rejects.toMatchObject({ code: '23503' });
+
+    const [{ memberships }] = await client<{ memberships: string }[]>`
+      SELECT count(*) AS memberships FROM event_venues
+    `;
+    expect(memberships).toBe('2');
+  });
+
+  it('rejects unattached venues, blank values, and unordered or equal activity intervals', async () => {
+    const [{ organizationId }] = await client<{ organizationId: string }[]>`
+      INSERT INTO organizations (name) VALUES ('Activity Validation Organization')
+      RETURNING id AS "organizationId"
+    `;
+    const [{ eventId }] = await client<{ eventId: string }[]>`
+      INSERT INTO events (organization_id, name, time_zone)
+      VALUES (${organizationId}, 'Activity validation event', 'America/Bogota')
+      RETURNING id AS "eventId"
+    `;
+    const [{ venueId }] = await client<{ venueId: string }[]>`
+      INSERT INTO venues (organization_id, name)
+      VALUES (${organizationId}, 'Unattached Hall')
+      RETURNING id AS "venueId"
+    `;
+
+    await expect(
+      client`
+        INSERT INTO activities (event_id, venue_id, kind, name, starts_at, ends_at)
+        VALUES (
+          ${eventId}, ${venueId}, 'social', 'Unattached activity',
+          TIMESTAMPTZ '2026-11-02 10:00:00+00', TIMESTAMPTZ '2026-11-02 11:00:00+00'
+        )
+      `,
+    ).rejects.toMatchObject({ code: '23503' });
+
+    await client`
+      INSERT INTO event_venues (organization_id, event_id, venue_id)
+      VALUES (${organizationId}, ${eventId}, ${venueId})
+    `;
+    await expect(
+      client`
+        INSERT INTO activities (event_id, venue_id, kind, name, starts_at, ends_at)
+        VALUES (
+          ${eventId}, ${venueId}, ' ', 'Valid name',
+          TIMESTAMPTZ '2026-11-02 10:00:00+00', TIMESTAMPTZ '2026-11-02 11:00:00+00'
+        )
+      `,
+    ).rejects.toMatchObject({ code: '23514', constraint_name: 'activities_kind_ck' });
+    await expect(
+      client`
+        INSERT INTO activities (event_id, venue_id, kind, name, starts_at, ends_at)
+        VALUES (
+          ${eventId}, ${venueId}, 'social', ' ',
+          TIMESTAMPTZ '2026-11-02 10:00:00+00', TIMESTAMPTZ '2026-11-02 11:00:00+00'
+        )
+      `,
+    ).rejects.toMatchObject({ code: '23514', constraint_name: 'activities_name_ck' });
+    await expect(
+      client`
+        INSERT INTO activities (event_id, venue_id, kind, name, starts_at, ends_at)
+        VALUES (
+          ${eventId}, ${venueId}, 'social', 'Late activity',
+          TIMESTAMPTZ '2026-11-02 11:00:00+00', TIMESTAMPTZ '2026-11-02 10:00:00+00'
+        )
+      `,
+    ).rejects.toMatchObject({ code: '23514', constraint_name: 'activities_window_ck' });
+    await expect(
+      client`
+        INSERT INTO activities (event_id, venue_id, kind, name, starts_at, ends_at)
+        VALUES (
+          ${eventId}, ${venueId}, 'social', 'Equal interval activity',
+          TIMESTAMPTZ '2026-11-02 10:00:00+00', TIMESTAMPTZ '2026-11-02 10:00:00+00'
+        )
+      `,
+    ).rejects.toMatchObject({ code: '23514', constraint_name: 'activities_window_ck' });
+  });
+
+  it('normalizes equivalent offsets, retains the event zone, and permits overlaps', async () => {
+    const [{ organizationId }] = await client<{ organizationId: string }[]>`
+      INSERT INTO organizations (name) VALUES ('Offset Organization') RETURNING id AS "organizationId"
+    `;
+    const [{ eventId }] = await client<{ eventId: string }[]>`
+      INSERT INTO events (organization_id, name, time_zone)
+      VALUES (${organizationId}, 'Offset event', 'America/Bogota')
+      RETURNING id AS "eventId"
+    `;
+    const [{ venueId }] = await client<{ venueId: string }[]>`
+      INSERT INTO venues (organization_id, name)
+      VALUES (${organizationId}, 'Offset Hall')
+      RETURNING id AS "venueId"
+    `;
+    await client`
+      INSERT INTO event_venues (organization_id, event_id, venue_id)
+      VALUES (${organizationId}, ${eventId}, ${venueId})
+    `;
+
+    const activityRows = await client<{ activityId: string }[]>`
+      INSERT INTO activities (event_id, venue_id, kind, name, starts_at, ends_at)
+      VALUES
+        (
+          ${eventId}, ${venueId}, 'social', 'Offset activity',
+          TIMESTAMPTZ '2026-11-02 10:00:00-05', TIMESTAMPTZ '2026-11-02 11:00:00-05'
+        ),
+        (
+          ${eventId}, ${venueId}, 'social', 'Overlapping activity',
+          TIMESTAMPTZ '2026-11-02 14:30:00+00', TIMESTAMPTZ '2026-11-02 16:30:00+00'
+        )
+      RETURNING id AS "activityId"
+    `;
+    expect(activityRows.map(({ activityId }) => activityId)).toEqual([
+      expect.stringMatching(/^[0-9a-f-]{36}$/),
+      expect.stringMatching(/^[0-9a-f-]{36}$/),
+    ]);
+
+    const [{ equivalentStart, timeZone, activitiesCount }] = await client<
+      { equivalentStart: boolean; timeZone: string; activitiesCount: string }[]
+    >`
+      SELECT
+        bool_and(activities.starts_at = TIMESTAMPTZ '2026-11-02 15:00:00+00')
+          FILTER (WHERE activities.name = 'Offset activity') AS "equivalentStart",
+        max(events.time_zone) AS "timeZone",
+        count(*) AS "activitiesCount"
+      FROM activities
+      JOIN events ON events.id = activities.event_id
+      GROUP BY activities.event_id
+    `;
+    expect({ equivalentStart, timeZone, activitiesCount }).toEqual({
+      equivalentStart: true,
+      timeZone: 'America/Bogota',
+      activitiesCount: '2',
+    });
+  });
+
+  it('uses no action for delete and key updates, then permits activity-first cleanup', async () => {
+    const [{ organizationId }] = await client<{ organizationId: string }[]>`
+      INSERT INTO organizations (name) VALUES ('No Action Organization') RETURNING id AS "organizationId"
+    `;
+    const [{ eventId }] = await client<{ eventId: string }[]>`
+      INSERT INTO events (organization_id, name, time_zone)
+      VALUES (${organizationId}, 'No action event', 'America/Bogota')
+      RETURNING id AS "eventId"
+    `;
+    const [{ venueId }] = await client<{ venueId: string }[]>`
+      INSERT INTO venues (organization_id, name)
+      VALUES (${organizationId}, 'No action hall')
+      RETURNING id AS "venueId"
+    `;
+    await client`
+      INSERT INTO event_venues (organization_id, event_id, venue_id)
+      VALUES (${organizationId}, ${eventId}, ${venueId})
+    `;
+    const [{ activityId }] = await client<{ activityId: string }[]>`
+      INSERT INTO activities (event_id, venue_id, kind, name, starts_at, ends_at)
+      VALUES (
+        ${eventId}, ${venueId}, 'social', 'No action activity',
+        TIMESTAMPTZ '2026-11-02 10:00:00+00', TIMESTAMPTZ '2026-11-02 11:00:00+00'
+      )
+      RETURNING id AS "activityId"
+    `;
+
+    await expect(
+      client`DELETE FROM event_venues WHERE event_id = ${eventId} AND venue_id = ${venueId}`,
+    ).rejects.toMatchObject({
+      code: '23503',
+    });
+    await expect(
+      client`UPDATE events SET id = gen_random_uuid() WHERE id = ${eventId}`,
+    ).rejects.toMatchObject({
+      code: '23503',
+    });
+
+    await client`DELETE FROM activities WHERE id = ${activityId}`;
+    await client`DELETE FROM event_venues WHERE event_id = ${eventId} AND venue_id = ${venueId}`;
+
+    const [{ memberships, activitiesCount }] = await client<
+      { memberships: string; activitiesCount: string }[]
+    >`
+      SELECT
+        (SELECT count(*) FROM event_venues) AS memberships,
+        (SELECT count(*) FROM activities) AS "activitiesCount"
+    `;
+    expect({ memberships, activitiesCount }).toEqual({ memberships: '0', activitiesCount: '0' });
+  });
 });

@@ -92,14 +92,14 @@ El equipo podrá ver de inmediato si la persona:
 
 ## Panel para el equipo organizador
 
-| Necesidad | Qué podrá hacer el equipo |
-| --- | --- |
-| Ver inscritos | Consultar las personas registradas por actividad. |
-| Buscar personas | Encontrar por nombre, correo, nombre artístico o folio. |
-| Registrar efectivo | Agregar una inscripción presencial y marcar su pago. |
-| Hacer check-in | Marcar asistencia para una competencia o workshop. |
-| Resolver errores | Corregir registros con autorización. |
-| Tener respaldo | Descargar o imprimir listas antes del evento. |
+| Necesidad          | Qué podrá hacer el equipo                               |
+| ------------------ | ------------------------------------------------------- |
+| Ver inscritos      | Consultar las personas registradas por actividad.       |
+| Buscar personas    | Encontrar por nombre, correo, nombre artístico o folio. |
+| Registrar efectivo | Agregar una inscripción presencial y marcar su pago.    |
+| Hacer check-in     | Marcar asistencia para una competencia o workshop.      |
+| Resolver errores   | Corregir registros con autorización.                    |
+| Tener respaldo     | Descargar o imprimir listas antes del evento.           |
 
 ## Continuidad durante el evento
 
@@ -136,15 +136,15 @@ flowchart TD
 Esta propuesta busca confirmar la experiencia deseada, no pedir al organizador que diseñe tecnología. El equipo organizador solo necesita validar o corregir:
 
 - Las actividades que estarán a la venta.\
-  *Ejemplo de respuesta:* “Competencia 1 vs 1, workshop de top rock y entrada general.”
+  _Ejemplo de respuesta:_ “Competencia 1 vs 1, workshop de top rock y entrada general.”
 - Los datos necesarios de cada persona.\
-  *Ejemplo de respuesta:* “Para asistentes: nombre y correo. Para competidores: también nombre artístico y categoría.”
+  _Ejemplo de respuesta:_ “Para asistentes: nombre y correo. Para competidores: también nombre artístico y categoría.”
 - Quiénes pueden registrar efectivo y resolver errores.\
-  *Ejemplo de respuesta:* “La persona de caja y la coordinación pueden registrar efectivo; solo coordinación puede corregir un error.”
+  _Ejemplo de respuesta:_ “La persona de caja y la coordinación pueden registrar efectivo; solo coordinación puede corregir un error.”
 - Cómo quieren realizar el check-in.\
-  *Ejemplo de respuesta:* “En la entrada, buscamos por nombre o folio y marcamos la llegada a cada actividad.”
+  _Ejemplo de respuesta:_ “En la entrada, buscamos por nombre o folio y marcamos la llegada a cada actividad.”
 - Las situaciones reales que debemos contemplar el día del evento.\
-  *Ejemplo de respuesta:* “Una persona llega tarde, pierde su folio o dice que pagó pero no aparece confirmada.”
+  _Ejemplo de respuesta:_ “Una persona llega tarde, pierde su folio o dice que pagó pero no aparece confirmada.”
 
 ## Validaciones a cargo del equipo de producto
 

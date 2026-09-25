@@ -20,13 +20,22 @@
         --shadow: 0 10px 30px rgb(23 33 43 / 9%);
       }
 
-      * { box-sizing: border-box; }
+      * {
+        box-sizing: border-box;
+      }
 
       body {
         margin: 0;
         color: var(--ink);
         background: var(--canvas);
-        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        font-family:
+          Inter,
+          ui-sans-serif,
+          system-ui,
+          -apple-system,
+          BlinkMacSystemFont,
+          'Segoe UI',
+          sans-serif;
         font-size: 16px;
         line-height: 1.55;
       }
@@ -58,11 +67,33 @@
         border-radius: 999px;
       }
 
-      h1, h2, h3, p { margin-top: 0; }
-      h1 { max-width: 720px; margin-bottom: 12px; font-size: clamp(2rem, 5vw, 3.4rem); line-height: 1.08; }
-      h2 { margin-bottom: 10px; font-size: 1.6rem; line-height: 1.2; }
-      h3 { margin-bottom: 6px; font-size: 1.05rem; }
-      .hero p { max-width: 700px; margin-bottom: 0; font-size: 1.1rem; color: #edf3ff; }
+      h1,
+      h2,
+      h3,
+      p {
+        margin-top: 0;
+      }
+      h1 {
+        max-width: 720px;
+        margin-bottom: 12px;
+        font-size: clamp(2rem, 5vw, 3.4rem);
+        line-height: 1.08;
+      }
+      h2 {
+        margin-bottom: 10px;
+        font-size: 1.6rem;
+        line-height: 1.2;
+      }
+      h3 {
+        margin-bottom: 6px;
+        font-size: 1.05rem;
+      }
+      .hero p {
+        max-width: 700px;
+        margin-bottom: 0;
+        font-size: 1.1rem;
+        color: #edf3ff;
+      }
 
       section {
         margin-top: 24px;
@@ -80,8 +111,18 @@
         align-items: center;
       }
 
-      .intro p { margin-bottom: 0; color: var(--muted); }
-      .goal { max-width: 345px; padding: 16px; color: #113677; background: var(--primary-pale); border-radius: 14px; font-weight: 650; }
+      .intro p {
+        margin-bottom: 0;
+        color: var(--muted);
+      }
+      .goal {
+        max-width: 345px;
+        padding: 16px;
+        color: #113677;
+        background: var(--primary-pale);
+        border-radius: 14px;
+        font-weight: 650;
+      }
 
       .flow {
         display: flex;
@@ -100,12 +141,30 @@
         border-radius: 16px;
       }
 
-      .step strong { display: block; margin-bottom: 6px; color: #123877; }
-      .step p { margin: 0; font-size: 0.9rem; color: var(--muted); }
-      .step.success { border-color: #8bd4ad; background: var(--success-pale); }
-      .step.success strong { color: var(--success); }
-      .step.manual { border-color: #f0c26b; background: var(--warning-pale); }
-      .step.manual strong { color: var(--warning); }
+      .step strong {
+        display: block;
+        margin-bottom: 6px;
+        color: #123877;
+      }
+      .step p {
+        margin: 0;
+        font-size: 0.9rem;
+        color: var(--muted);
+      }
+      .step.success {
+        border-color: #8bd4ad;
+        background: var(--success-pale);
+      }
+      .step.success strong {
+        color: var(--success);
+      }
+      .step.manual {
+        border-color: #f0c26b;
+        background: var(--warning-pale);
+      }
+      .step.manual strong {
+        color: var(--warning);
+      }
 
       .arrow {
         flex: 0 0 26px;
@@ -116,8 +175,14 @@
         text-align: center;
       }
 
-      .journey + .journey { margin-top: 30px; padding-top: 30px; border-top: 1px solid var(--line); }
-      .journey > p { color: var(--muted); }
+      .journey + .journey {
+        margin-top: 30px;
+        padding-top: 30px;
+        border-top: 1px solid var(--line);
+      }
+      .journey > p {
+        color: var(--muted);
+      }
       .note {
         margin: 20px 0 0;
         padding: 14px 16px;
@@ -127,44 +192,145 @@
         border-radius: 8px;
       }
 
-      .two-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
-      .card { padding: 22px; border: 1px solid var(--line); border-radius: 16px; }
-      .card p:last-child { margin-bottom: 0; color: var(--muted); }
-      .card ul { margin: 0; padding-left: 20px; color: var(--muted); }
-      .card li + li { margin-top: 6px; }
+      .two-columns {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 18px;
+      }
+      .card {
+        padding: 22px;
+        border: 1px solid var(--line);
+        border-radius: 16px;
+      }
+      .card p:last-child {
+        margin-bottom: 0;
+        color: var(--muted);
+      }
+      .card ul {
+        margin: 0;
+        padding-left: 20px;
+        color: var(--muted);
+      }
+      .card li + li {
+        margin-top: 6px;
+      }
 
-      .list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin: 0; padding: 0; list-style: none; }
-      .list li { padding: 16px; color: var(--muted); background: #f8fafc; border: 1px solid var(--line); border-radius: 12px; }
-      .list strong { display: block; margin-bottom: 4px; color: var(--ink); }
+      .list {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 14px;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+      .list li {
+        padding: 16px;
+        color: var(--muted);
+        background: #f8fafc;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+      }
+      .list strong {
+        display: block;
+        margin-bottom: 4px;
+        color: var(--ink);
+      }
 
-      .scope { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
-      .scope > div { padding: 22px; border-radius: 16px; }
-      .included { background: var(--success-pale); }
-      .excluded { background: #f4f6f8; }
-      .scope ul { margin: 0; padding-left: 20px; }
-      .scope li + li { margin-top: 7px; }
+      .scope {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 18px;
+      }
+      .scope > div {
+        padding: 22px;
+        border-radius: 16px;
+      }
+      .included {
+        background: var(--success-pale);
+      }
+      .excluded {
+        background: #f4f6f8;
+      }
+      .scope ul {
+        margin: 0;
+        padding-left: 20px;
+      }
+      .scope li + li {
+        margin-top: 7px;
+      }
 
-      .validation { background: #f8fbff; border-color: #bfd0f7; }
-      .validation ul { margin: 0; padding-left: 20px; }
-      .validation li + li { margin-top: 8px; }
-      .validation strong { display: block; color: var(--ink); }
-      .example { display: block; margin-top: 2px; color: var(--muted); font-size: 0.92rem; }
-      .small { font-size: 0.92rem; color: var(--muted); }
+      .validation {
+        background: #f8fbff;
+        border-color: #bfd0f7;
+      }
+      .validation ul {
+        margin: 0;
+        padding-left: 20px;
+      }
+      .validation li + li {
+        margin-top: 8px;
+      }
+      .validation strong {
+        display: block;
+        color: var(--ink);
+      }
+      .example {
+        display: block;
+        margin-top: 2px;
+        color: var(--muted);
+        font-size: 0.92rem;
+      }
+      .small {
+        font-size: 0.92rem;
+        color: var(--muted);
+      }
 
       @media (max-width: 720px) {
-        main { width: min(100% - 24px, 1120px); padding-top: 12px; }
-        .hero, section { padding: 24px; border-radius: 16px; }
-        .intro, .two-columns, .list, .scope { grid-template-columns: 1fr; }
-        .goal { max-width: none; }
-        .flow { flex-direction: column; overflow: visible; }
-        .step { flex-basis: auto; min-height: auto; }
-        .arrow { align-self: center; transform: rotate(90deg); }
+        main {
+          width: min(100% - 24px, 1120px);
+          padding-top: 12px;
+        }
+        .hero,
+        section {
+          padding: 24px;
+          border-radius: 16px;
+        }
+        .intro,
+        .two-columns,
+        .list,
+        .scope {
+          grid-template-columns: 1fr;
+        }
+        .goal {
+          max-width: none;
+        }
+        .flow {
+          flex-direction: column;
+          overflow: visible;
+        }
+        .step {
+          flex-basis: auto;
+          min-height: auto;
+        }
+        .arrow {
+          align-self: center;
+          transform: rotate(90deg);
+        }
       }
 
       @media print {
-        body { background: white; }
-        main { width: 100%; padding: 0; }
-        .hero, section { box-shadow: none; break-inside: avoid; }
+        body {
+          background: white;
+        }
+        main {
+          width: 100%;
+          padding: 0;
+        }
+        .hero,
+        section {
+          box-shadow: none;
+          break-inside: avoid;
+        }
       }
     </style>
   </head>
@@ -173,15 +339,24 @@
       <header class="hero">
         <p class="eyebrow">Propuesta para validar</p>
         <h1>MVP para noviembre de 2026</h1>
-        <p>Una forma sencilla de vender accesos, registrar participantes y hacer check-in sin detener la operación del evento.</p>
+        <p>
+          Una forma sencilla de vender accesos, registrar participantes y hacer check-in sin detener
+          la operación del evento.
+        </p>
       </header>
 
       <section class="intro">
         <div>
           <h2>La idea en una frase</h2>
-          <p>Una persona compra o se registra; el equipo confirma su acceso y marca su llegada a cada actividad.</p>
+          <p>
+            Una persona compra o se registra; el equipo confirma su acceso y marca su llegada a cada
+            actividad.
+          </p>
         </div>
-        <div class="goal">La herramienta ayuda al evento. Si surge un problema, el evento continúa con una lista de respaldo.</div>
+        <div class="goal">
+          La herramienta ayuda al evento. Si surge un problema, el evento continúa con una lista de
+          respaldo.
+        </div>
       </section>
 
       <section>
@@ -189,28 +364,55 @@
           <h2>1. Compra en línea</h2>
           <p>Así sería la experiencia para alguien que compra antes del evento.</p>
           <div class="flow" aria-label="Flujo de compra en línea">
-            <div class="step"><strong>1. Elige actividad</strong><p>Ve competencias, workshops o entradas disponibles.</p></div>
+            <div class="step">
+              <strong>1. Elige actividad</strong>
+              <p>Ve competencias, workshops o entradas disponibles.</p>
+            </div>
             <div class="arrow" aria-hidden="true">→</div>
-            <div class="step"><strong>2. Se registra</strong><p>Comparte los datos necesarios para asistir o competir.</p></div>
+            <div class="step">
+              <strong>2. Se registra</strong>
+              <p>Comparte los datos necesarios para asistir o competir.</p>
+            </div>
             <div class="arrow" aria-hidden="true">→</div>
-            <div class="step"><strong>3. Paga en línea</strong><p>Completa el pago en una pantalla segura.</p></div>
+            <div class="step">
+              <strong>3. Paga en línea</strong>
+              <p>Completa el pago en una pantalla segura.</p>
+            </div>
             <div class="arrow" aria-hidden="true">→</div>
-            <div class="step success"><strong>4. Queda confirmado</strong><p>Recibe su folio y el detalle de sus actividades.</p></div>
+            <div class="step success">
+              <strong>4. Queda confirmado</strong>
+              <p>Recibe su folio y el detalle de sus actividades.</p>
+            </div>
           </div>
-          <p class="note"><strong>Importante:</strong> la inscripción se confirma cuando el pago está aprobado, no solo cuando la persona termina de ver la pantalla de pago.</p>
+          <p class="note">
+            <strong>Importante:</strong> la inscripción se confirma cuando el pago está aprobado, no
+            solo cuando la persona termina de ver la pantalla de pago.
+          </p>
         </div>
 
         <div class="journey">
           <h2>2. Registro y pago en efectivo</h2>
           <p>Para una persona que llega sin haber pagado en línea.</p>
           <div class="flow" aria-label="Flujo de pago en efectivo">
-            <div class="step"><strong>1. Llega al evento</strong><p>El equipo busca si ya tiene una inscripción.</p></div>
+            <div class="step">
+              <strong>1. Llega al evento</strong>
+              <p>El equipo busca si ya tiene una inscripción.</p>
+            </div>
             <div class="arrow" aria-hidden="true">→</div>
-            <div class="step"><strong>2. Se registra</strong><p>Una persona autorizada completa o corrige su registro.</p></div>
+            <div class="step">
+              <strong>2. Se registra</strong>
+              <p>Una persona autorizada completa o corrige su registro.</p>
+            </div>
             <div class="arrow" aria-hidden="true">→</div>
-            <div class="step manual"><strong>3. Paga en efectivo</strong><p>El administrador registra el importe y entrega un comprobante.</p></div>
+            <div class="step manual">
+              <strong>3. Paga en efectivo</strong>
+              <p>El administrador registra el importe y entrega un comprobante.</p>
+            </div>
             <div class="arrow" aria-hidden="true">→</div>
-            <div class="step success"><strong>4. Puede hacer check-in</strong><p>Su inscripción queda confirmada para la actividad.</p></div>
+            <div class="step success">
+              <strong>4. Puede hacer check-in</strong>
+              <p>Su inscripción queda confirmada para la actividad.</p>
+            </div>
           </div>
         </div>
 
@@ -218,11 +420,20 @@
           <h2>3. Check-in</h2>
           <p>En la entrada de una competencia o workshop, el equipo confirma la asistencia.</p>
           <div class="flow" aria-label="Flujo de check-in">
-            <div class="step"><strong>1. Buscar persona</strong><p>Por nombre, correo, nombre artístico o folio.</p></div>
+            <div class="step">
+              <strong>1. Buscar persona</strong>
+              <p>Por nombre, correo, nombre artístico o folio.</p>
+            </div>
             <div class="arrow" aria-hidden="true">→</div>
-            <div class="step"><strong>2. Confirmar actividad</strong><p>El equipo revisa que tenga acceso a ese workshop o competencia.</p></div>
+            <div class="step">
+              <strong>2. Confirmar actividad</strong>
+              <p>El equipo revisa que tenga acceso a ese workshop o competencia.</p>
+            </div>
             <div class="arrow" aria-hidden="true">→</div>
-            <div class="step success"><strong>3. Marcar asistencia</strong><p>La lista muestra que esa persona ya hizo check-in.</p></div>
+            <div class="step success">
+              <strong>3. Marcar asistencia</strong>
+              <p>La lista muestra que esa persona ya hizo check-in.</p>
+            </div>
           </div>
         </div>
       </section>
@@ -231,22 +442,38 @@
         <h2>Panel para el equipo organizador</h2>
         <div class="list">
           <li><strong>Ver inscritos</strong>Consultar personas registradas por actividad.</li>
-          <li><strong>Buscar personas</strong>Encontrar por nombre, correo, nombre artístico o folio.</li>
-          <li><strong>Registrar efectivo</strong>Agregar una inscripción presencial y registrar su pago.</li>
+          <li>
+            <strong>Buscar personas</strong>Encontrar por nombre, correo, nombre artístico o folio.
+          </li>
+          <li>
+            <strong>Registrar efectivo</strong>Agregar una inscripción presencial y registrar su
+            pago.
+          </li>
           <li><strong>Hacer check-in</strong>Marcar asistencia para competencias y workshops.</li>
           <li><strong>Resolver errores</strong>Corregir un registro con autorización.</li>
-          <li><strong>Tener respaldo</strong>Descargar o imprimir listas antes de cada actividad.</li>
+          <li>
+            <strong>Tener respaldo</strong>Descargar o imprimir listas antes de cada actividad.
+          </li>
         </div>
       </section>
 
       <section>
         <h2>Si hay un problema durante el evento</h2>
         <div class="flow" aria-label="Flujo de continuidad manual">
-          <div class="step"><strong>Antes de abrir</strong><p>El equipo descarga o imprime la lista actualizada.</p></div>
+          <div class="step">
+            <strong>Antes de abrir</strong>
+            <p>El equipo descarga o imprime la lista actualizada.</p>
+          </div>
           <div class="arrow" aria-hidden="true">→</div>
-          <div class="step"><strong>Si todo funciona</strong><p>El equipo realiza check-in normalmente con la plataforma.</p></div>
+          <div class="step">
+            <strong>Si todo funciona</strong>
+            <p>El equipo realiza check-in normalmente con la plataforma.</p>
+          </div>
           <div class="arrow" aria-hidden="true">→</div>
-          <div class="step manual"><strong>Si hay una falla</strong><p>El evento continúa con la lista manual y se guardan las correcciones.</p></div>
+          <div class="step manual">
+            <strong>Si hay una falla</strong>
+            <p>El evento continúa con la lista manual y se guardan las correcciones.</p>
+          </div>
         </div>
       </section>
 
@@ -279,13 +506,45 @@
       <section class="validation">
         <h2>Lo que necesitamos validar con el equipo organizador</h2>
         <ul>
-          <li><strong>Las actividades que estarán a la venta.</strong><span class="example">Ejemplo: “Competencia 1 vs 1, workshop de top rock y entrada general.”</span></li>
-          <li><strong>Los datos necesarios de cada persona.</strong><span class="example">Ejemplo: “Para asistentes: nombre y correo. Para competidores: también nombre artístico y categoría.”</span></li>
-          <li><strong>Quiénes pueden registrar efectivo y resolver errores.</strong><span class="example">Ejemplo: “La persona de caja y la coordinación pueden registrar efectivo; solo coordinación puede corregir un error.”</span></li>
-          <li><strong>Cómo quieren realizar el check-in.</strong><span class="example">Ejemplo: “En la entrada, buscamos por nombre o folio y marcamos la llegada a cada actividad.”</span></li>
-          <li><strong>Las situaciones reales que debemos contemplar el día del evento.</strong><span class="example">Ejemplo: “Una persona llega tarde, pierde su folio o dice que pagó pero no aparece confirmada.”</span></li>
+          <li>
+            <strong>Las actividades que estarán a la venta.</strong
+            ><span class="example"
+              >Ejemplo: “Competencia 1 vs 1, workshop de top rock y entrada general.”</span
+            >
+          </li>
+          <li>
+            <strong>Los datos necesarios de cada persona.</strong
+            ><span class="example"
+              >Ejemplo: “Para asistentes: nombre y correo. Para competidores: también nombre
+              artístico y categoría.”</span
+            >
+          </li>
+          <li>
+            <strong>Quiénes pueden registrar efectivo y resolver errores.</strong
+            ><span class="example"
+              >Ejemplo: “La persona de caja y la coordinación pueden registrar efectivo; solo
+              coordinación puede corregir un error.”</span
+            >
+          </li>
+          <li>
+            <strong>Cómo quieren realizar el check-in.</strong
+            ><span class="example"
+              >Ejemplo: “En la entrada, buscamos por nombre o folio y marcamos la llegada a cada
+              actividad.”</span
+            >
+          </li>
+          <li>
+            <strong>Las situaciones reales que debemos contemplar el día del evento.</strong
+            ><span class="example"
+              >Ejemplo: “Una persona llega tarde, pierde su folio o dice que pagó pero no aparece
+              confirmada.”</span
+            >
+          </li>
         </ul>
-        <p class="small">El equipo de producto se encarga de validar la operación técnica de los pagos, incluidos los métodos disponibles para los compradores que se acuerde atender.</p>
+        <p class="small">
+          El equipo de producto se encarga de validar la operación técnica de los pagos, incluidos
+          los métodos disponibles para los compradores que se acuerde atender.
+        </p>
       </section>
     </main>
   </body>

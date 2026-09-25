@@ -2,6 +2,8 @@
 
 pnpm workspace containing the frontend, backend API, and shared packages.
 
+For project context, start with the [documentation guide](docs/README.md) or the [OpenSpec change guide](openspec/README.md). The November 2026 MVP proposal is a draft pending organizer validation, not an approved change to the existing plan.
+
 ## Prerequisites
 
 - [NVM](https://github.com/nvm-sh/nvm)

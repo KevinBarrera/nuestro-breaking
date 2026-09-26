@@ -1,10 +1,10 @@
 # Event/activity API boundary
 
-This document defines the planned API boundary for reading the event/activity foundation. It is a contract shape, not an implemented endpoint, and it does not approve the November 2026 MVP proposal.
+This document defines the implemented read-only API boundary for the event/activity foundation. It does not approve the November 2026 MVP proposal.
 
 ## Current answer
 
-The next safe API boundary is a read-only foundation view for administration:
+The safe API boundary is a read-only foundation view for administration:
 
 ```text
 GET /admin/events/:eventId/foundation
@@ -21,7 +21,7 @@ It should return one event, the venues attached to that event, neutral activitie
 | Avoid leaking future workflows into #60.                   | Keep registration, payment, check-in, and competition behavior out of the payload. |
 | Keep persistence and UI aligned.                           | Match fields already documented in the event/activity foundation contract.         |
 
-## Planned request
+## Implemented request
 
 ```http
 GET /admin/events/:eventId/foundation
@@ -34,9 +34,9 @@ GET /admin/events/:eventId/foundation
 | Scope      | One event foundation view. Cross-event search/list behavior is out of scope.              |
 | Mutability | Read-only. No state changes, commands, idempotency keys, or version preconditions.        |
 
-Concrete route naming may change when backend modules are implemented, but the response boundary below is the intended shape.
+The current backend route is implemented in `apps/backend/src/events/foundation/` and remains read-only.
 
-## Planned response shape
+## Implemented response shape
 
 ```json
 {
@@ -83,8 +83,8 @@ Concrete route naming may change when backend modules are implemented, but the r
 | `activities[].kind`                            | `activities.kind`                            | Flexible plain-text label until product validation decides controlled values. |
 | `activities[].venueId`                         | `activities.venue_id`                        | Must reference a venue attached to the same event.                            |
 | `activities[].startsAt`, `activities[].endsAt` | `activities.starts_at`, `activities.ends_at` | Ordered instants; overlapping activities are allowed.                         |
-| `activities[].planningStatus`                  | Planned API derivation                       | Use `draft` until publication/workflow semantics exist.                       |
-| `deferredFields[]`                             | Planned API metadata                         | Names fields intentionally not guaranteed by the current foundation.          |
+| `activities[].planningStatus`                  | API derivation                               | Use `draft` until publication/workflow semantics exist.                       |
+| `deferredFields[]`                             | API metadata                                 | Names fields intentionally not guaranteed by the current foundation.          |
 
 ## Explicit exclusions
 
@@ -99,17 +99,17 @@ The response must not include or imply:
 
 ## Error boundary
 
-Concrete status codes remain future implementation work. The planned boundary should distinguish these cases without leaking unrelated event data:
+The implemented boundary distinguishes these cases without leaking unrelated event data:
 
-| Situation                                                | Planned behavior                                                                       |
-| -------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| Event does not exist or caller cannot access it.         | Return a safe not-found/denied response.                                               |
-| Event exists but has no venues or activities.            | Return the event with empty `venues` and/or `activities` arrays.                       |
-| Stored data violates the documented foundation contract. | Treat as server-side data integrity failure; do not invent fields in the API response. |
+| Situation                                                | Planned behavior                                                                           |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| Event does not exist or caller cannot access it.         | Return a safe not-found/denied response. Current auth mechanics are deferred to issue #78. |
+| Event exists but has no venues or activities.            | Return the event with empty `venues` and/or `activities` arrays.                           |
+| Stored data violates the documented foundation contract. | Treat as server-side data integrity failure; do not invent fields in the API response.     |
 
 ## Relationship to issue #60
 
-This boundary reduces one known gap from the foundation contract: the model now has a documented API shape. It still does not implement the endpoint or close #60. Remaining issue #60 decisions include event-window containment, whether price/capacity become persistence fields, and whether activity kinds stay flexible or become controlled values.
+This boundary closes the read API gap from the foundation contract: the model now has a documented and implemented endpoint, with a first frontend route consuming it. Event-window containment is also implemented in migration `0003_event_window_containment`. Remaining product decisions, such as price/capacity persistence and controlled activity kinds, stay deferred to focused follow-up work rather than blocking issue #60.
 
 ## Cross-references
 

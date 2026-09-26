@@ -8,6 +8,10 @@ context: |
   Delivery: SDD planning artifacts are written in English; product implementation requires explicit apply work.
 
 strict_tdd: true
+execution_mode: auto
+artifact_store: hybrid
+delivery_strategy: auto-chain
+review_budget_lines: 400
 
 testing:
   test_runner:
@@ -21,8 +25,8 @@ testing:
       available: true
       tool: Jest
     integration:
-      available: false
-      tool: null
+      available: true
+      tool: Testcontainers PostgreSQL harness
     e2e:
       available: true
       tool: Supertest-backed NestJS E2E and Playwright

@@ -14,7 +14,7 @@ Update the issue #60 documentation readback after the backend API, frontend read
 - [x] Reassess issue #60 acceptance criteria against merged work.
 - [x] Update contract docs that still describe completed work as pending.
 - [x] Verify documentation formatting and record evidence.
-- [ ] Commit work unit after approval.
+- [x] Commit work unit after approval.
 
 ## Constraints
 
@@ -31,3 +31,4 @@ Update the issue #60 documentation readback after the backend API, frontend read
 - Issue #78 tracks minimal admin authentication and access boundary separately.
 - Updated `docs/contracts/event-activity-foundation.md` and `docs/contracts/event-activity-api-boundary.md` so event-window containment and the read API/frontend flow are no longer described as pending.
 - Verification: initial `corepack pnpm format:check` failed on the edited docs; after Prettier, `corepack pnpm format:check` passed and `git diff --check` passed. Node engine warning persisted: repository wants Node v24.18.1, host uses v24.19.0.
+- Work-unit commit: `63e4ada` — `docs(product): update event activity foundation readback`.

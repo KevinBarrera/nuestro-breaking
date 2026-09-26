@@ -26,7 +26,7 @@ Rationale: this keeps the first integration honest. The backend endpoint require
 - [x] Add a frontend route that reads `GET /admin/events/:eventId/foundation`.
 - [x] Render loading, success, empty, and safe failure states without adding auth or CRUD.
 - [x] Verify frontend checks and record evidence.
-- [ ] Commit work unit after approval.
+- [x] Commit work unit after approval.
 
 ## Auth notes
 
@@ -50,3 +50,4 @@ The current event/activity line is read-only. A full CRUD frontend/backend flow 
 - GREEN implementation: added `/admin/events/:eventId/foundation`, fetched the backend endpoint using the route `eventId`, rendered Spanish loading/success/empty/safe failure states, and kept `/admin` as the sample dashboard.
 - Verification: `corepack pnpm --filter @nuestro-breaking/frontend test:e2e` passed (5 tests); `corepack pnpm --filter @nuestro-breaking/frontend lint` passed; `corepack pnpm --filter @nuestro-breaking/frontend build` passed; `corepack pnpm format:check` passed; `git diff --check` passed. Node engine warning persisted: repository wants Node v24.18.1, host uses v24.19.0.
 - Risk: Playwright uses mocked endpoint responses; live backend integration still requires a running backend and a real persisted `eventId`. Without `VITE_API_BASE_URL`, the frontend targets `http://localhost:3000`.
+- Work-unit commit: `64815f3` — `feat(frontend): read event foundation from backend`.

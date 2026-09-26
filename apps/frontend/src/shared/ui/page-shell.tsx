@@ -13,7 +13,10 @@ export function PageShell({ title, description, children }: PageShellProps) {
       </p>
       <h1 className="mt-4 text-4xl font-semibold tracking-tight sm:text-5xl">{title}</h1>
       <p className="mx-auto mt-5 max-w-xl text-base leading-7">{description}</p>
-      <div aria-hidden="true" className="mx-auto mt-8 h-1 w-16 rounded-full bg-[var(--event-orange)]" />
+      <div
+        aria-hidden="true"
+        className="mx-auto mt-8 h-1 w-16 rounded-full bg-[var(--event-orange)]"
+      />
       {children ? <div className="mt-8">{children}</div> : null}
     </main>
   );

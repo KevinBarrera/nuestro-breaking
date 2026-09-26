@@ -16,7 +16,7 @@ Enforce the remaining event/activity foundation invariant: when an event has a b
 - [x] Explore current schema, migrations, tests, and documented gap.
 - [x] Add database enforcement for event/activity window containment.
 - [x] Verify with focused PostgreSQL e2e coverage.
-- [ ] Commit work unit after approval.
+- [x] Commit work unit after approval.
 
 ## Constraints
 
@@ -34,3 +34,4 @@ Enforce the remaining event/activity foundation invariant: when an event has a b
 - The activity trigger locks the event row during containment checks, and the event trigger rejects bounds that exclude existing activities. Unbounded events and activity overlaps remain allowed.
 - Final verification: `corepack pnpm --filter @nuestro-breaking/backend exec jest --config ./test/jest-e2e.json event-activity-foundation.e2e-spec.ts --runInBand` passed (15 tests); `corepack pnpm --filter @nuestro-breaking/backend exec jest --config ./test/jest-e2e.json --runInBand` passed (20 tests); `corepack pnpm --filter @nuestro-breaking/backend lint` passed; `corepack pnpm format:check` passed; `git diff --check` passed. Node engine warning persisted: repository wants Node v24.18.1, host uses v24.19.0.
 - Risk: concurrent transaction behavior was not separately stress-tested; coverage verifies the normal PostgreSQL invariant path through the migration chain.
+- Work-unit commit: `29cbb4d` — `feat(database): enforce event activity window containment`.

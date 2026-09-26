@@ -5,6 +5,7 @@
 - GitHub issue: #60 — Define event and activity foundation
 - UI branch: `feature/60-event-activity-foundation`
 - Contract branch: `docs/60-event-activity-contract`
+- API boundary branch: `docs/60-event-activity-api-boundary`
 
 ## Goal
 
@@ -37,3 +38,4 @@ Define the reusable event/activity foundation for the November MVP without treat
 - Work-unit commit: `6cdae30` — `feat(frontend): preview event activity foundation`.
 - PR #73 format correction: formatted only `apps/frontend/src/pages/admin/ui/admin-page.tsx` and `apps/frontend/e2e/route-placeholders.spec.ts` with Prettier. Added root `verify:pr` to run `corepack pnpm format:check` before frontend lint, build, and e2e, in that order, so the PR gate is reproducible locally even when bare `pnpm` is unavailable. Initial `corepack pnpm verify:pr` failed at the first step with `sh: pnpm: command not found`; after using Corepack for each step, `corepack pnpm format:check` passed and `corepack pnpm verify:pr` passed (format, lint, build, 2 e2e tests). The host still reports Node v24.19.0 instead of the required v24.18.1.
 - Contract slice: added `docs/contracts/event-activity-foundation.md` and linked it from `docs/README.md`. The document separates current implemented guarantees (`0001`/`0002`, schema, and e2e coverage) from known gaps: event-window containment, price/capacity persistence fields, controlled activity kinds, and API exposure. It explicitly keeps registration, payments, check-in, scoring, authorization, and pilot readiness out of scope. Verification passed: `corepack pnpm format:check`, `git diff --check`, and `corepack pnpm verify:pr` (format, frontend lint, frontend build, 2 Playwright tests). Node engine warning persisted (host v24.19.0 vs required v24.18.1).
+- API boundary slice: added `docs/contracts/event-activity-api-boundary.md`, linked it from `docs/README.md`, and updated the foundation contract to say the read-only API shape is documented but not implemented. The planned endpoint shape is `GET /admin/events/:eventId/foundation`, returning event, attached venues, neutral activities, and deferred fields while excluding registration, payments, check-in, scoring, auth internals, and pilot-readiness claims. Verification passed: targeted Prettier write on changed docs, `corepack pnpm format:check`, `git diff --check`, and `corepack pnpm verify:pr` (format, frontend lint, frontend build, 2 Playwright tests). Node engine warning persisted (host v24.19.0 vs required v24.18.1).

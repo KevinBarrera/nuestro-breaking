@@ -15,7 +15,7 @@ Choose a path by purpose. The November 2026 MVP proposal is **DRAFT pending orga
 ## Reusable references
 
 - [Frontend architecture](frontend-architecture.md), [code quality](code-quality.md), and [setup verification](setup-verification.md) — development guides.
-- [Architecture decisions](adr/), [event/activity foundation](contracts/event-activity-foundation.md), [API/event versioning](contracts/api-event-versioning.md), and [bounded contexts](models/bounded-contexts.md) — design references; check each document's stated scope before treating planned behavior as implemented.
+- [Architecture decisions](adr/), [event/activity foundation](contracts/event-activity-foundation.md), [event/activity API boundary](contracts/event-activity-api-boundary.md), [API/event versioning](contracts/api-event-versioning.md), and [bounded contexts](models/bounded-contexts.md) — design references; check each document's stated scope before treating planned behavior as implemented.
 - [OpenSpec change guide](../openspec/README.md) — change artifacts and their boundaries, including the reusable event activity foundation.
 
 ## Historical and provisional context

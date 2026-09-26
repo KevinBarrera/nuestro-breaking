@@ -195,7 +195,7 @@ describe('event activity foundation containers (e2e)', () => {
       FROM drizzle.__drizzle_migrations
     `;
 
-    expect(migrations).toHaveLength(3);
+    expect(migrations).toHaveLength(4);
     expect({ eventVenuesTable, activitiesTable }).toEqual({
       eventVenuesTable: 'event_venues',
       activitiesTable: 'activities',
@@ -368,6 +368,139 @@ describe('event activity foundation containers (e2e)', () => {
       timeZone: 'America/Bogota',
       activitiesCount: '2',
     });
+  });
+
+  it('contains activity inserts and updates within bounded events, including exact edges and overlaps', async () => {
+    const [{ organizationId }] = await client<{ organizationId: string }[]>`
+      INSERT INTO organizations (name) VALUES ('Containment Organization') RETURNING id AS "organizationId"
+    `;
+    const [{ eventId }] = await client<{ eventId: string }[]>`
+      INSERT INTO events (organization_id, name, time_zone, starts_at, ends_at)
+      VALUES (
+        ${organizationId}, 'Bounded event', 'America/Bogota',
+        TIMESTAMPTZ '2026-11-02 09:00+00', TIMESTAMPTZ '2026-11-02 18:00+00'
+      ) RETURNING id AS "eventId"
+    `;
+    const [{ venueId }] = await client<{ venueId: string }[]>`
+      INSERT INTO venues (organization_id, name) VALUES (${organizationId}, 'Hall')
+      RETURNING id AS "venueId"
+    `;
+    await client`
+      INSERT INTO event_venues (organization_id, event_id, venue_id)
+      VALUES (${organizationId}, ${eventId}, ${venueId})
+    `;
+
+    const [{ activityId }] = await client<{ activityId: string }[]>`
+      INSERT INTO activities (event_id, venue_id, kind, name, starts_at, ends_at)
+      VALUES (
+        ${eventId}, ${venueId}, 'social', 'Exact edges',
+        TIMESTAMPTZ '2026-11-02 09:00+00', TIMESTAMPTZ '2026-11-02 18:00+00'
+      ) RETURNING id AS "activityId"
+    `;
+    await client`
+      INSERT INTO activities (event_id, venue_id, kind, name, starts_at, ends_at)
+      VALUES (
+        ${eventId}, ${venueId}, 'social', 'Overlapping',
+        TIMESTAMPTZ '2026-11-02 10:00+00', TIMESTAMPTZ '2026-11-02 12:00+00'
+      )
+    `;
+    await expect(
+      client`
+        INSERT INTO activities (event_id, venue_id, kind, name, starts_at, ends_at)
+        VALUES (
+          ${eventId}, ${venueId}, 'social', 'Before start',
+          TIMESTAMPTZ '2026-11-02 08:59+00', TIMESTAMPTZ '2026-11-02 10:00+00'
+        )
+      `,
+    ).rejects.toMatchObject({ code: '23514', constraint_name: 'activities_event_window_ck' });
+    await expect(
+      client`
+        INSERT INTO activities (event_id, venue_id, kind, name, starts_at, ends_at)
+        VALUES (
+          ${eventId}, ${venueId}, 'social', 'After end',
+          TIMESTAMPTZ '2026-11-02 17:00+00', TIMESTAMPTZ '2026-11-02 18:01+00'
+        )
+      `,
+    ).rejects.toMatchObject({ code: '23514', constraint_name: 'activities_event_window_ck' });
+    await expect(
+      client`
+        UPDATE activities SET starts_at = TIMESTAMPTZ '2026-11-02 08:59+00'
+        WHERE id = ${activityId}
+      `,
+    ).rejects.toMatchObject({ code: '23514', constraint_name: 'activities_event_window_ck' });
+    await expect(
+      client`
+        UPDATE activities SET ends_at = TIMESTAMPTZ '2026-11-02 18:01+00'
+        WHERE id = ${activityId}
+      `,
+    ).rejects.toMatchObject({ code: '23514', constraint_name: 'activities_event_window_ck' });
+    await client`
+      UPDATE activities SET starts_at = TIMESTAMPTZ '2026-11-02 10:00+00',
+        ends_at = TIMESTAMPTZ '2026-11-02 17:00+00'
+      WHERE id = ${activityId}
+    `;
+    const [{ count }] = await client<{ count: string }[]>`
+      SELECT count(*) AS count FROM activities WHERE event_id = ${eventId}
+    `;
+    expect(count).toBe('2');
+  });
+
+  it('allows unbounded activities and only bounds or narrows events around contained activities', async () => {
+    const [{ organizationId }] = await client<{ organizationId: string }[]>`
+      INSERT INTO organizations (name) VALUES ('Window Changes Organization') RETURNING id AS "organizationId"
+    `;
+    const [{ eventId }] = await client<{ eventId: string }[]>`
+      INSERT INTO events (organization_id, name, time_zone)
+      VALUES (${organizationId}, 'Initially unbounded', 'America/Bogota')
+      RETURNING id AS "eventId"
+    `;
+    const [{ venueId }] = await client<{ venueId: string }[]>`
+      INSERT INTO venues (organization_id, name) VALUES (${organizationId}, 'Hall')
+      RETURNING id AS "venueId"
+    `;
+    await client`
+      INSERT INTO event_venues (organization_id, event_id, venue_id)
+      VALUES (${organizationId}, ${eventId}, ${venueId})
+    `;
+    await client`
+      INSERT INTO activities (event_id, venue_id, kind, name, starts_at, ends_at)
+      VALUES (
+        ${eventId}, ${venueId}, 'social', 'Unbounded activity',
+        TIMESTAMPTZ '2026-11-02 09:00+00', TIMESTAMPTZ '2026-11-02 18:00+00'
+      )
+    `;
+    await expect(
+      client`
+        UPDATE events SET starts_at = TIMESTAMPTZ '2026-11-02 10:00+00',
+          ends_at = TIMESTAMPTZ '2026-11-02 19:00+00'
+        WHERE id = ${eventId}
+      `,
+    ).rejects.toMatchObject({ code: '23514', constraint_name: 'events_activities_window_ck' });
+    await client`
+      UPDATE events SET starts_at = TIMESTAMPTZ '2026-11-02 09:00+00',
+        ends_at = TIMESTAMPTZ '2026-11-02 18:00+00'
+      WHERE id = ${eventId}
+    `;
+    await expect(
+      client`
+        UPDATE events SET ends_at = TIMESTAMPTZ '2026-11-02 17:00+00'
+        WHERE id = ${eventId}
+      `,
+    ).rejects.toMatchObject({ code: '23514', constraint_name: 'events_activities_window_ck' });
+    await client`
+      UPDATE events SET starts_at = TIMESTAMPTZ '2026-11-02 08:00+00',
+        ends_at = TIMESTAMPTZ '2026-11-02 19:00+00'
+      WHERE id = ${eventId}
+    `;
+    await client`
+      UPDATE events SET starts_at = NULL, ends_at = NULL WHERE id = ${eventId}
+    `;
+    const [{ startsAt, endsAt }] = await client<
+      { startsAt: string | null; endsAt: string | null }[]
+    >`
+      SELECT starts_at AS "startsAt", ends_at AS "endsAt" FROM events WHERE id = ${eventId}
+    `;
+    expect({ startsAt, endsAt }).toEqual({ startsAt: null, endsAt: null });
   });
 
   it('uses no action for delete and key updates, then permits activity-first cleanup', async () => {

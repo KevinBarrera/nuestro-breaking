@@ -10,6 +10,7 @@
     "dev:frontend": "pnpm --filter @nuestro-breaking/frontend dev",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "verify:pr": "corepack pnpm format:check && corepack pnpm --filter @nuestro-breaking/frontend lint && corepack pnpm --filter @nuestro-breaking/frontend build && corepack pnpm --filter @nuestro-breaking/frontend test:e2e",
     "verify:setup": "node scripts/verify-setup.mjs"
   },
   "devDependencies": {

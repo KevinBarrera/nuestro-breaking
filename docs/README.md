@@ -1,17 +1,22 @@
 # Documentation guide
 
-Choose a path by purpose. The November 2026 MVP proposal is **still a draft pending organizer validation**; it does not approve implementation or replace earlier plans.
+Choose a path by purpose. The November 2026 MVP proposal is **DRAFT pending organizer validation**; it does not approve implementation or replace earlier plans. This guide separates issue tracking from proposed scope and older context.
+
+## Active MVP tracking
+
+- [November 2026 MVP master issue #57](https://github.com/KevinBarrera/nuestro-breaking/issues/57) — track the current MVP work and decisions here; an issue link does not approve the draft proposal.
+- [Documentation cleanup issue #66](https://github.com/KevinBarrera/nuestro-breaking/issues/66) — scope and rationale for this navigation cleanup, not a product plan.
 
 ## Proposal in validation
 
-- [November 2026 MVP proposal (Markdown)](product/november-2026-mvp-proposal.md) — draft for organizer review.
+- [November 2026 MVP proposal (Markdown)](product/november-2026-mvp-proposal.md) — **DRAFT pending organizer validation**; proposed scope, not an approved delivery plan.
 - [November 2026 MVP proposal (browser version)](product/november-2026-mvp-proposal.html) — same proposal in a browser-friendly format.
 
-## Reusable technical foundations
+## Reusable references
 
 - [Frontend architecture](frontend-architecture.md), [code quality](code-quality.md), and [setup verification](setup-verification.md) — development guides.
 - [Architecture decisions](adr/), [API/event versioning](contracts/api-event-versioning.md), and [bounded contexts](models/bounded-contexts.md) — design references; check each document's stated scope before treating planned behavior as implemented.
-- [OpenSpec change guide](../openspec/README.md) — change artifacts and their boundaries.
+- [OpenSpec change guide](../openspec/README.md) — change artifacts and their boundaries, including the reusable event activity foundation.
 
 ## Historical and provisional context
 

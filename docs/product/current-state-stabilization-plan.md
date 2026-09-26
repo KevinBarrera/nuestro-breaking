@@ -1,5 +1,7 @@
 # Current-State Stabilization Plan
 
+> **Status: historical/provisional context (DRAFT, snapshot as of 2026-08-11).** Branch, PR, check, and delivery claims below are point-in-time observations, not current status. Use [master issue #57](https://github.com/KevinBarrera/nuestro-breaking/issues/57) for current November MVP tracking and the [MVP proposal](november-2026-mvp-proposal.md) for proposed scope; that proposal remains **DRAFT pending organizer validation**. This plan does not authorize implementation.
+
 ## Document Control
 
 | Field                   | Value                                                                                                                                                                                                                           |

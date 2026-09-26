@@ -1,5 +1,7 @@
 # Draft Product Brief: November 2026 Preliminary Pilot
 
+> **Status: historical/provisional context (DRAFT, 2026-08-11).** This earlier pilot exploration is not the current MVP tracking source; use [master issue #57](https://github.com/KevinBarrera/nuestro-breaking/issues/57) for tracking and the [November 2026 MVP proposal](november-2026-mvp-proposal.md) for proposed scope. That proposal remains **DRAFT pending organizer validation**. This brief is retained as product discovery context, not an approved implementation plan.
+
 This brief frames a provisional first real-use pilot for the November 2026 preliminary event associated with Los más pesados. It is the product input for a later scope decision and planning reconciliation; it does not approve implementation scope or alter the existing OpenSpec plan.
 
 ## Document Control

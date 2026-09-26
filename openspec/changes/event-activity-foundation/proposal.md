@@ -1,5 +1,7 @@
 # Proposal: Event Activity Foundation
 
+> **Status: reusable technical reference, not an MVP plan.** This change's scoped persistence contract and recorded progress do not establish November pilot readiness. See [master issue #57](https://github.com/KevinBarrera/nuestro-breaking/issues/57) for current MVP tracking; the [November 2026 MVP proposal](../../../docs/product/november-2026-mvp-proposal.md) remains **DRAFT pending organizer validation**.
+
 ## Intent
 
 Establish a PostgreSQL 16 contract for multi-day events with reusable venues and simultaneous neutral activities. The merged **DRAFT** November brief evidences a coordination problem, not approved scope or pilot readiness.

@@ -1,5 +1,7 @@
 # Proposal: Breaking Event System Foundation
 
+> **Status: historical planning context.** This planning-only release sequence is not the current November MVP tracking source; see [master issue #57](https://github.com/KevinBarrera/nuestro-breaking/issues/57). The [November 2026 MVP proposal](../../../docs/product/november-2026-mvp-proposal.md) remains **DRAFT pending organizer validation** and does not by itself replace this change or authorize its implementation.
+
 ## Intent
 
 Define a planning-only delivery boundary: a short non-user foundation gate followed by four separately authorized vertical releases. It authorizes neither current implementation nor all-backend-first sequencing.

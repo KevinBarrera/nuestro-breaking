@@ -10,13 +10,13 @@ export function NotFoundPage() {
     >
       <nav className="flex flex-wrap justify-center gap-3" aria-label="Available route areas">
         <Link
-          className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white"
+          className="rounded-md bg-[var(--event-cyan)] px-4 py-2 text-sm font-medium text-[var(--event-ink)]"
           to={routes.admin}
         >
           Admin area
         </Link>
         <Link
-          className="rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-900"
+          className="rounded-md border border-[var(--event-orange)] px-4 py-2 text-sm font-medium text-[var(--event-cream)]"
           to={routes.dancer}
         >
           Dancer area

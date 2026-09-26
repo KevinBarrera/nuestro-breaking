@@ -5,9 +5,15 @@ test('renders a Spanish sample event and activity foundation at /admin', async (
 
   await expect(page).toHaveURL(/\/admin$/);
   await expect(page.getByRole('heading', { name: 'Administración' })).toBeVisible();
-  await expect(page.getByText('Vista preliminar del espacio de administración para el equipo organizador y los jueces.')).toBeVisible();
+  await expect(
+    page.getByText(
+      'Vista preliminar del espacio de administración para el equipo organizador y los jueces.',
+    ),
+  ).toBeVisible();
   await expect(page.getByText('Vista de planificación · Datos de ejemplo')).toBeVisible();
-  await expect(page.getByText('La propuesta del MVP de noviembre sigue en borrador; no está aprobada.')).toBeVisible();
+  await expect(
+    page.getByText('La propuesta del MVP de noviembre sigue en borrador; no está aprobada.'),
+  ).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Fin de semana de breaking' })).toBeVisible();
   const event = page.getByRole('region', { name: 'Evento de ejemplo' });
   const summary = event.getByRole('article', { name: 'Fin de semana de breaking' });
@@ -35,7 +41,11 @@ test('renders a Spanish sample event and activity foundation at /admin', async (
   const planning = page.getByRole('region', { name: 'Estado de planificación' });
   await expect(planning.getByText('2 actividades de ejemplo')).toBeVisible();
   await expect(planning.getByText('Pendiente de definir')).toBeVisible();
-  await expect(page.getByText('Los campos que dependen de la organización siguen siendo configurables o quedan pendientes de definir.')).toBeVisible();
+  await expect(
+    page.getByText(
+      'Los campos que dependen de la organización siguen siendo configurables o quedan pendientes de definir.',
+    ),
+  ).toBeVisible();
 });
 
 test('renders the dancer placeholder at /dancer', async ({ page }) => {

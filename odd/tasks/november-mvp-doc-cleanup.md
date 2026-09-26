@@ -27,3 +27,4 @@ Reduce documentation noise around the November 2026 MVP while preserving traceab
 - `git diff --check` passed.
 - Changed docs-only files: `docs/README.md`, `openspec/README.md`, `docs/product/november-2026-preliminary-pilot-brief.md`, `docs/product/current-state-stabilization-plan.md`, `openspec/changes/breaking-event-system-foundation/proposal.md`, `openspec/changes/event-activity-foundation/proposal.md`.
 - Issue #57 now links cleanup issue #66 under planning and validation.
+- Cleanup commit: `4f69add`; PR #67.

@@ -6,9 +6,10 @@ export type AdminCapableRole = Extract<UserRole, 'admin' | 'judge'>;
 export type User = {
   id: string;
   displayName: string;
-  role: UserRole;
+  roles: UserRole[];
 };
 
 export type UserSession = {
   user: User | null;
+  expiresAt?: string;
 };

@@ -43,7 +43,7 @@ The rule applies to future `features` and `widgets` directories as well. A slice
 - `/dancer` is the dancer route area.
 - `*` renders a not-found page with links to the two current areas.
 
-`RoleAreaBoundary` provides route boundaries that can receive authorization later. It deliberately does not enforce access or create a mock authentication flow. The selected approach is documented in [Admin authentication boundary](contracts/admin-auth-boundary.md): route enforcement should depend on the backend-reported server session rather than frontend-only fake auth.
+`AdminSessionBoundary` protects the `/admin` route area by checking the backend-reported server session and rendering the minimal sign-in state when admin access is unavailable. `RoleAreaBoundary` remains available for route areas that do not yet enforce access; it must not create mock authentication.
 
 ## Workspace Reuse
 

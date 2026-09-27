@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router';
+import { apiUrl } from '@/shared/api';
 
 type EventFoundation = {
   event: {
@@ -28,10 +29,6 @@ type LoadState =
   | { status: 'failure'; eventId: string }
   | { status: 'success'; eventId: string; foundation: EventFoundation };
 
-// The backend allows the local Vite origin; deployments can override the API origin.
-const apiBaseUrl =
-  (import.meta.env as { VITE_API_BASE_URL?: string }).VITE_API_BASE_URL ?? 'http://localhost:3000';
-
 function formatDate(value: string, timeZone: string) {
   return new Intl.DateTimeFormat('es-ES', {
     dateStyle: 'medium',
@@ -59,7 +56,8 @@ export function AdminEventFoundationPage() {
     }
 
     const controller = new AbortController();
-    void fetch(`${apiBaseUrl}/admin/events/${encodeURIComponent(eventId)}/foundation`, {
+    void fetch(apiUrl(`/admin/events/${encodeURIComponent(eventId)}/foundation`), {
+      credentials: 'include',
       signal: controller.signal,
     })
       .then(async (response) => {

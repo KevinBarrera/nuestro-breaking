@@ -1,4 +1,4 @@
-import { getSession, signIn, useSessionStore } from '@/entities/session';
+import { getSession, signIn, signOut, useSessionStore } from '@/entities/session';
 import type { FormEvent } from 'react';
 import { useEffect, useState } from 'react';
 import { Outlet } from 'react-router';
@@ -63,8 +63,32 @@ export function AdminSessionBoundary() {
     }
   }
 
+  async function leave() {
+    if (submitting) return;
+    setSubmitting(true);
+    setError(false);
+    try {
+      await signOut();
+      clearSession();
+      setStatus('signed-out');
+    } catch {
+      setError(true);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   if (status === 'loading') return <p role="status">Comprobando sesión…</p>;
-  if (status === 'signed-in') return <Outlet />;
+  if (status === 'signed-in')
+    return (
+      <>
+        <button type="button" disabled={submitting} onClick={() => void leave()}>
+          Cerrar sesión
+        </button>
+        {error && <p role="alert">No se pudo cerrar sesión.</p>}
+        <Outlet />
+      </>
+    );
   return (
     <main className="min-h-screen bg-slate-950 px-4 py-8 text-slate-100">
       <form onSubmit={(event) => void submit(event)} className="mx-auto max-w-sm space-y-4">

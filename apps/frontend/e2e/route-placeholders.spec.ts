@@ -1,6 +1,79 @@
 import { expect, test } from '@playwright/test';
 
+const sessionEndpoint = (url: URL) => url.port === '3000' && url.pathname === '/auth/session';
+const signInEndpoint = (url: URL) => url.port === '3000' && url.pathname === '/auth/admin/sign-in';
+const user = { id: 'admin-1', email: 'admin@example.com', displayName: 'Admin', roles: ['admin'] };
+
+test('guards admin content when the backend session is missing', async ({ page }) => {
+  let sessionRequests = 0;
+  await page.route(sessionEndpoint, (route) => {
+    sessionRequests += 1;
+    return route.fulfill({ status: 401, json: { message: 'Unauthorized' } });
+  });
+  await page.goto('/admin');
+  await expect(page.getByRole('heading', { name: 'Iniciar sesión' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Administración' })).toHaveCount(0);
+  expect(sessionRequests).toBeGreaterThan(0);
+});
+
+test('allows a judge session and denies a dancer-only session', async ({ page }) => {
+  await page.route(sessionEndpoint, (route) =>
+    route.fulfill({ json: { user: { ...user, roles: ['judge'] } } }),
+  );
+  await page.goto('/admin');
+  await expect(page.getByRole('heading', { name: 'Administración' })).toBeVisible();
+  await page.route(sessionEndpoint, (route) =>
+    route.fulfill({ json: { user: { ...user, roles: ['dancer'] } } }),
+  );
+  await page.reload();
+  await expect(page.getByRole('heading', { name: 'Iniciar sesión' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Administración' })).toHaveCount(0);
+});
+
+test('signs in with the backend and only then reveals admin content', async ({ page }) => {
+  await page.route(sessionEndpoint, (route) => route.fulfill({ status: 401, json: {} }));
+  let submitted: unknown;
+  await page.addInitScript({
+    content: `
+    const originalFetch = window.fetch.bind(window);
+    window.fetch = (input, init) => {
+      if (String(input).includes('/auth/')) {
+        document.documentElement.dataset.authCredentials =
+          (document.documentElement.dataset.authCredentials || '') + init?.credentials + ',';
+      }
+      return originalFetch(input, init);
+    };
+  `,
+  });
+  await page.route(signInEndpoint, async (route) => {
+    submitted = route.request().postDataJSON();
+    await route.fulfill({ json: { user, csrfToken: 'do-not-store-this-token' } });
+  });
+  await page.goto('/admin');
+  await page.getByLabel('Correo electrónico').fill('admin@example.com');
+  await page.getByLabel('Contraseña').fill('secret');
+  await page.getByRole('button', { name: 'Iniciar sesión' }).click();
+  await expect(page.getByRole('heading', { name: 'Administración' })).toBeVisible();
+  expect(submitted).toEqual({ email: 'admin@example.com', password: 'secret' });
+  await expect(page.locator('html')).toHaveAttribute('data-auth-credentials', /^(include,){2,}$/);
+  await expect(page.getByText('do-not-store-this-token')).toHaveCount(0);
+});
+
+test('keeps admin content hidden after rejected credentials', async ({ page }) => {
+  await page.route(sessionEndpoint, (route) => route.fulfill({ status: 401, json: {} }));
+  await page.route(signInEndpoint, (route) => route.fulfill({ status: 401, json: {} }));
+  await page.goto('/admin');
+  await page.getByLabel('Correo electrónico').fill('admin@example.com');
+  await page.getByLabel('Contraseña').fill('wrong');
+  await page.getByRole('button', { name: 'Iniciar sesión' }).click();
+  await expect(page.getByRole('alert')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Administración' })).toHaveCount(0);
+});
+
 test('renders a Spanish sample event and activity foundation at /admin', async ({ page }) => {
+  await page.route(sessionEndpoint, (route) =>
+    route.fulfill({ json: { user, expiresAt: '2026-11-14T18:00:00.000Z' } }),
+  );
   await page.goto('/admin');
 
   await expect(page).toHaveURL(/\/admin$/);

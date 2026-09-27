@@ -17,6 +17,54 @@ test('guards admin content when the backend session is missing', async ({ page }
   expect(sessionRequests).toBeGreaterThan(0);
 });
 
+test('presents a centered, responsive and accessible Spanish admin sign-in panel', async ({
+  page,
+}) => {
+  await page.route(sessionEndpoint, (route) => route.fulfill({ status: 401, json: {} }));
+  for (const width of [375, 1280]) {
+    await page.setViewportSize({ width, height: 800 });
+    await page.goto('/admin');
+    const panel = page.getByRole('region', { name: 'Acceso administrativo' });
+    await expect(panel.getByText('Nuestro Breaking · Administración')).toBeVisible();
+    await expect(panel.getByRole('heading', { name: 'Iniciar sesión' })).toBeVisible();
+    await expect(
+      panel.getByText('Accede con tu cuenta del equipo organizador o de jueces.'),
+    ).toBeVisible();
+    await expect(panel.getByText('Acceso exclusivo para el equipo autorizado.')).toBeVisible();
+    const email = panel.getByRole('textbox', { name: 'Correo electrónico' });
+    const password = panel.getByLabel('Contraseña');
+    const button = panel.getByRole('button', { name: 'Iniciar sesión' });
+    await expect(email).toHaveAttribute('autocomplete', 'username');
+    await expect(password).toHaveAttribute('type', 'password');
+    await expect(button).toHaveAttribute('type', 'submit');
+    const bounds = await panel.boundingBox();
+    expect(bounds).not.toBeNull();
+    expect(bounds!.width).toBeGreaterThan(300);
+    expect(bounds!.x).toBeGreaterThanOrEqual(0);
+    expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(width);
+    expect(Math.abs(bounds!.x + bounds!.width / 2 - width / 2)).toBeLessThan(2);
+    await expect(email).not.toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+    await expect(button).not.toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+    const buttonBounds = await button.boundingBox();
+    expect(buttonBounds!.height).toBeGreaterThanOrEqual(44);
+  }
+});
+
+test('shows a safe sign-in error after keyboard submission without revealing admin content', async ({
+  page,
+}) => {
+  await page.route(sessionEndpoint, (route) => route.fulfill({ status: 401, json: {} }));
+  await page.route(signInEndpoint, (route) => route.fulfill({ status: 401, json: {} }));
+  await page.goto('/admin');
+  await page.getByLabel('Correo electrónico').fill('admin@example.com');
+  await page.getByLabel('Contraseña').fill('wrong');
+  await page.getByLabel('Contraseña').press('Enter');
+  await expect(page.getByRole('alert')).toHaveText(
+    'No se pudo iniciar sesión. Revisa tus datos e inténtalo de nuevo.',
+  );
+  await expect(page.getByRole('heading', { name: 'Administración' })).toHaveCount(0);
+});
+
 test('allows a judge session and denies a dancer-only session', async ({ page }) => {
   await page.route(sessionEndpoint, (route) =>
     route.fulfill({ json: { user: { ...user, roles: ['judge'] } } }),

@@ -90,34 +90,60 @@ export function AdminSessionBoundary() {
       </>
     );
   return (
-    <main className="min-h-screen bg-slate-950 px-4 py-8 text-slate-100">
-      <form onSubmit={(event) => void submit(event)} className="mx-auto max-w-sm space-y-4">
-        <h1 className="text-2xl font-semibold">Iniciar sesión</h1>
-        <label className="block">
-          Correo electrónico
-          <input
-            className="block w-full text-slate-950"
-            name="email"
-            type="email"
-            autoComplete="username"
-            required
-          />
-        </label>
-        <label className="block">
-          Contraseña
-          <input
-            className="block w-full text-slate-950"
-            name="password"
-            type="password"
-            autoComplete="current-password"
-            required
-          />
-        </label>
-        {error && <p role="alert">No se pudo iniciar sesión.</p>}
-        <button type="submit" disabled={submitting}>
-          Iniciar sesión
-        </button>
-      </form>
+    <main className="flex min-h-screen items-center justify-center px-4 py-10 text-[var(--event-cream)] sm:px-6">
+      <section
+        aria-label="Acceso administrativo"
+        className="w-full max-w-md overflow-hidden rounded-2xl border border-[var(--event-dusk)] bg-slate-950/90 p-6 shadow-2xl shadow-black/40 sm:p-10"
+      >
+        <div aria-hidden="true" className="mb-8 h-1 w-16 rounded-full bg-[var(--event-magenta)]" />
+        <p className="text-xs font-bold uppercase tracking-[0.18em] text-[var(--event-cyan)]">
+          Nuestro Breaking · Administración
+        </p>
+        <h1 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">Iniciar sesión</h1>
+        <p className="mt-3 text-sm leading-6 text-slate-300">
+          Accede con tu cuenta del equipo organizador o de jueces.
+        </p>
+        <form onSubmit={(event) => void submit(event)} className="mt-8 space-y-5">
+          <label className="block text-sm font-semibold text-slate-100">
+            Correo electrónico
+            <input
+              className="mt-2 block min-h-12 w-full rounded-lg border border-slate-500 bg-slate-900 px-4 py-3 text-base text-white outline-none placeholder:text-slate-400 focus-visible:border-[var(--event-cyan)] focus-visible:ring-2 focus-visible:ring-[var(--event-cyan)]"
+              name="email"
+              type="email"
+              autoComplete="username"
+              required
+            />
+          </label>
+          <label className="block text-sm font-semibold text-slate-100">
+            Contraseña
+            <input
+              className="mt-2 block min-h-12 w-full rounded-lg border border-slate-500 bg-slate-900 px-4 py-3 text-base text-white outline-none focus-visible:border-[var(--event-cyan)] focus-visible:ring-2 focus-visible:ring-[var(--event-cyan)]"
+              name="password"
+              type="password"
+              autoComplete="current-password"
+              required
+            />
+          </label>
+          {error && (
+            <p
+              role="alert"
+              className="rounded-lg border border-rose-400 bg-rose-950/70 p-3 text-sm text-rose-100"
+            >
+              No se pudo iniciar sesión. Revisa tus datos e inténtalo de nuevo.
+            </p>
+          )}
+          <button
+            type="submit"
+            disabled={submitting}
+            className="min-h-12 w-full rounded-lg bg-[var(--event-cyan)] px-5 py-3 text-base font-bold text-[var(--event-ink)] transition-colors hover:bg-[var(--event-cream)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--event-cream)] disabled:cursor-wait disabled:opacity-60"
+          >
+            {submitting ? 'Iniciando sesión…' : 'Iniciar sesión'}
+          </button>
+        </form>
+        <p className="mt-8 border-t border-slate-700 pt-5 text-xs leading-5 text-slate-300">
+          Acceso exclusivo para el equipo autorizado.
+        </p>
+      </section>
     </main>
   );
 }

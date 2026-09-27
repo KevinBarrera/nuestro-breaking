@@ -30,6 +30,20 @@ export async function getSession(signal: AbortSignal): Promise<UserSession> {
   return readSession(await response.json());
 }
 
+export async function signOut(): Promise<void> {
+  const sessionResponse = await fetch(apiUrl('/auth/session'), { credentials: 'include' });
+  if (!sessionResponse.ok) throw new Error('Session unavailable');
+  const csrf = sessionResponse.headers.get('X-CSRF-Token');
+  if (!csrf) throw new Error('CSRF token unavailable');
+
+  const response = await fetch(apiUrl('/auth/sign-out'), {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'X-CSRF-Token': csrf },
+  });
+  if (!response.ok) throw new Error('Sign-out failed');
+}
+
 export async function signIn(email: string, password: string): Promise<UserSession> {
   const response = await fetch(apiUrl('/auth/admin/sign-in'), {
     method: 'POST',

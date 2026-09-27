@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test';
 
 const sessionEndpoint = (url: URL) => url.port === '3000' && url.pathname === '/auth/session';
 const signInEndpoint = (url: URL) => url.port === '3000' && url.pathname === '/auth/admin/sign-in';
+const signOutEndpoint = (url: URL) => url.port === '3000' && url.pathname === '/auth/sign-out';
 const user = { id: 'admin-1', email: 'admin@example.com', displayName: 'Admin', roles: ['admin'] };
 
 test('guards admin content when the backend session is missing', async ({ page }) => {
@@ -57,6 +58,83 @@ test('signs in with the backend and only then reveals admin content', async ({ p
   expect(submitted).toEqual({ email: 'admin@example.com', password: 'secret' });
   await expect(page.locator('html')).toHaveAttribute('data-auth-credentials', /^(include,){2,}$/);
   await expect(page.getByText('do-not-store-this-token')).toHaveCount(0);
+});
+
+test('signs out an admin using the session CSRF header and clears local identity', async ({
+  page,
+}) => {
+  const csrf = 'session-bound-csrf';
+  let sessionRequests = 0;
+  await page.route(sessionEndpoint, (route) => {
+    sessionRequests += 1;
+    return route.fulfill({
+      headers: { 'X-CSRF-Token': csrf, 'Access-Control-Expose-Headers': 'X-CSRF-Token' },
+      json: { user, expiresAt: '2026-11-14T18:00:00.000Z' },
+    });
+  });
+  await page.addInitScript({
+    content: `
+      const originalFetch = window.fetch.bind(window);
+      window.fetch = (input, init) => {
+        if (String(input).includes('/auth/sign-out')) {
+          document.documentElement.dataset.signOutCredentials = init?.credentials || '';
+        }
+        return originalFetch(input, init);
+      };
+    `,
+  });
+  let signOutRequests = 0;
+  await page.route(signOutEndpoint, (route) => {
+    if (route.request().method() === 'OPTIONS')
+      return route.fulfill({
+        status: 204,
+        headers: {
+          'Access-Control-Allow-Origin': 'http://127.0.0.1:4173',
+          'Access-Control-Allow-Credentials': 'true',
+          'Access-Control-Allow-Methods': 'POST',
+          'Access-Control-Allow-Headers': 'X-CSRF-Token',
+        },
+      });
+    signOutRequests += 1;
+    expect(route.request().method()).toBe('POST');
+    expect(route.request().headers()['x-csrf-token']).toBe(csrf);
+    return route.fulfill({ status: 200, json: {} });
+  });
+  await page.goto('/admin');
+  await expect(page.getByRole('heading', { name: 'Administración' })).toBeVisible();
+  await page.getByRole('button', { name: 'Cerrar sesión' }).click();
+  await expect(page.getByRole('heading', { name: 'Iniciar sesión' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Administración' })).toHaveCount(0);
+  await expect(page.locator('html')).toHaveAttribute('data-sign-out-credentials', 'include');
+  expect(sessionRequests).toBeGreaterThanOrEqual(2);
+  expect(signOutRequests).toBe(1);
+  expect(
+    await page.evaluate(async () => {
+      const module: unknown = await import('/src/entities/session/model/session-store.ts');
+      const store = module as { useSessionStore: { getState: () => { session: unknown } } };
+      return store.useSessionStore.getState().session;
+    }),
+  ).toEqual({ user: null });
+});
+
+test('does not sign out without a session CSRF header', async ({ page }) => {
+  let sessionRequests = 0;
+  await page.route(sessionEndpoint, (route) => {
+    sessionRequests += 1;
+    return route.fulfill({ json: { user } });
+  });
+  let signOutRequests = 0;
+  await page.route(signOutEndpoint, (route) => {
+    signOutRequests += 1;
+    return route.fulfill({ status: 200, json: {} });
+  });
+  await page.goto('/admin');
+  await expect(page.getByRole('heading', { name: 'Administración' })).toBeVisible();
+  await page.getByRole('button', { name: 'Cerrar sesión' }).click();
+  await expect(page.getByRole('alert')).toHaveText('No se pudo cerrar sesión.');
+  await expect(page.getByRole('heading', { name: 'Administración' })).toBeVisible();
+  expect(sessionRequests).toBeGreaterThanOrEqual(2);
+  expect(signOutRequests).toBe(0);
 });
 
 test('keeps admin content hidden after rejected credentials', async ({ page }) => {

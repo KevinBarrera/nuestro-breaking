@@ -1,5 +1,14 @@
 import { sql } from 'drizzle-orm';
-import { check, foreignKey, pgTable, primaryKey, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import {
+  check,
+  foreignKey,
+  pgTable,
+  primaryKey,
+  text,
+  timestamp,
+  unique,
+  uuid,
+} from 'drizzle-orm/pg-core';
 import { eventVenues } from './event-venues';
 
 export const activities = pgTable(
@@ -15,6 +24,7 @@ export const activities = pgTable(
   },
   (table) => [
     primaryKey({ columns: [table.id], name: 'activities_pk' }),
+    unique('activities_event_id_id_uq').on(table.eventId, table.id),
     foreignKey({
       columns: [table.eventId, table.venueId],
       foreignColumns: [eventVenues.eventId, eventVenues.venueId],

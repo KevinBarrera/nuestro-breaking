@@ -48,5 +48,6 @@ Make event registration lifecycle states explicit before payment, admin cash reg
 - RED: `corepack pnpm --filter @nuestro-breaking/backend test:e2e -- participant-registration.e2e-spec.ts --runInBand` failed on `column "status" does not exist` (1 failed, 3 passed) before migration/schema changes.
 - GREEN: same focused e2e command passed (4/4) after migration and test adjustment; negative INSERT and UPDATE cases reject inconsistent metadata.
 - `corepack pnpm --filter @nuestro-breaking/backend lint`, `corepack pnpm --filter @nuestro-breaking/backend exec tsc --noEmit -p tsconfig.json`, and scoped `corepack pnpm exec prettier --check` passed.
+- CI caught the migration replay assertion in `event-activity-foundation.e2e-spec.ts` still expecting six migrations; updated it to seven for `0006_registration_lifecycle_states.sql`.
 - The suggested `corepack pnpm --filter @nuestro-breaking/backend test -- participant-registration.e2e-spec.ts --runInBand` finds no tests: the default Jest configuration searches `src` for `.spec.ts`; the e2e configuration is required.
 - This slice validates row invariants, not transition history or actor authority. Source attribution is supplied by future trusted workflows; no redirect, payment, cash, refund, or check-in behavior is implemented.

@@ -1,0 +1,6 @@
+ALTER TABLE "event_registrations" ADD COLUMN "status" text DEFAULT 'pending_payment' NOT NULL;--> statement-breakpoint
+ALTER TABLE "event_registrations" ADD COLUMN "confirmation_source" text;--> statement-breakpoint
+ALTER TABLE "event_registrations" ADD COLUMN "confirmed_at" timestamp with time zone;--> statement-breakpoint
+ALTER TABLE "event_registrations" ADD CONSTRAINT "event_registrations_status_ck" CHECK ("event_registrations"."status" IN ('pending_payment', 'confirmed', 'voided'));--> statement-breakpoint
+ALTER TABLE "event_registrations" ADD CONSTRAINT "event_registrations_confirmation_source_ck" CHECK ("event_registrations"."confirmation_source" IS NULL OR "event_registrations"."confirmation_source" IN ('approved_payment', 'admin_cash'));--> statement-breakpoint
+ALTER TABLE "event_registrations" ADD CONSTRAINT "event_registrations_confirmation_metadata_ck" CHECK (("event_registrations"."status" = 'confirmed' AND "event_registrations"."confirmation_source" IS NOT NULL AND "event_registrations"."confirmed_at" IS NOT NULL) OR ("event_registrations"."status" IN ('pending_payment', 'voided') AND "event_registrations"."confirmation_source" IS NULL AND "event_registrations"."confirmed_at" IS NULL));

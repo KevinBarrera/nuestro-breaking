@@ -43,6 +43,13 @@
       "when": 1786562775592,
       "tag": "0005_participant_registration_model",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1786562775593,
+      "tag": "0006_registration_lifecycle_states",
+      "breakpoints": true
     }
   ]
 }

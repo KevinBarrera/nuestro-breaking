@@ -113,6 +113,88 @@ describe('participant registration persistence (e2e)', () => {
     expect(count).toBe('4');
   });
 
+  it('defaults registrations to pending and guards lifecycle confirmation metadata', async () => {
+    const [{ organizationId }] = await client<{ organizationId: string }[]>`
+      INSERT INTO organizations (name) VALUES ('Lifecycle org') RETURNING id AS "organizationId"
+    `;
+    const [{ eventId }] = await client<{ eventId: string }[]>`
+      INSERT INTO events (organization_id, name, time_zone)
+      VALUES (${organizationId}, 'Lifecycle event', 'America/Bogota') RETURNING id AS "eventId"
+    `;
+    const participants = await client<{ id: string }[]>`
+      INSERT INTO participants (full_name)
+      VALUES ('Pending'), ('Payment'), ('Cash'), ('Voided'), ('Invalid') RETURNING id
+    `;
+    const [{ id, status, confirmationSource, confirmedAt }] = await client<
+      { id: string; status: string; confirmationSource: string | null; confirmedAt: Date | null }[]
+    >`
+      INSERT INTO event_registrations (event_id, participant_id)
+      VALUES (${eventId}, ${participants[0].id})
+      RETURNING id, status, confirmation_source AS "confirmationSource", confirmed_at AS "confirmedAt"
+    `;
+    expect({ status, confirmationSource, confirmedAt }).toEqual({
+      status: 'pending_payment',
+      confirmationSource: null,
+      confirmedAt: null,
+    });
+
+    for (const [participant, source] of [
+      [participants[1], 'approved_payment'],
+      [participants[2], 'admin_cash'],
+    ] as const) {
+      const [confirmed] = await client<
+        { status: string; confirmationSource: string; confirmedAt: string }[]
+      >`
+        INSERT INTO event_registrations
+          (event_id, participant_id, status, confirmation_source, confirmed_at)
+        VALUES (${eventId}, ${participant.id}, 'confirmed', ${source}, now())
+        RETURNING status, confirmation_source AS "confirmationSource", confirmed_at AS "confirmedAt"
+      `;
+      expect(confirmed.status).toBe('confirmed');
+      expect(confirmed.confirmationSource).toBe(source);
+      expect(confirmed.confirmedAt).toMatch(/^\d{4}-\d{2}-\d{2}/);
+    }
+    const [{ status: voidedStatus }] = await client<{ status: string }[]>`
+      INSERT INTO event_registrations (event_id, participant_id, status)
+      VALUES (${eventId}, ${participants[3].id}, 'voided') RETURNING status
+    `;
+    expect(voidedStatus).toBe('voided');
+
+    for (const [status, source, time] of [
+      ['unknown', null, null],
+      ['pending_payment', 'approved_payment', null],
+      ['pending_payment', null, '2026-11-02 10:00+00'],
+      ['confirmed', null, '2026-11-02 10:00+00'],
+      ['confirmed', 'admin_cash', null],
+      ['confirmed', 'untrusted', '2026-11-02 10:00+00'],
+      ['voided', 'admin_cash', '2026-11-02 10:00+00'],
+      ['voided', null, '2026-11-02 10:00+00'],
+    ] as const) {
+      await expect(client`
+        INSERT INTO event_registrations
+          (event_id, participant_id, status, confirmation_source, confirmed_at)
+        VALUES (${eventId}, ${participants[4].id}, ${status}, ${source}, ${time})
+      `).rejects.toMatchObject({ code: '23514' });
+    }
+    await expect(client`
+      UPDATE event_registrations SET status = 'confirmed' WHERE id = ${id}
+    `).rejects.toMatchObject({
+      code: '23514',
+      constraint_name: 'event_registrations_confirmation_metadata_ck',
+    });
+    await client`
+      UPDATE event_registrations
+      SET status = 'confirmed', confirmation_source = 'admin_cash', confirmed_at = now()
+      WHERE id = ${id}
+    `;
+    await expect(client`
+      UPDATE event_registrations SET status = 'voided' WHERE id = ${id}
+    `).rejects.toMatchObject({
+      code: '23514',
+      constraint_name: 'event_registrations_confirmation_metadata_ck',
+    });
+  });
+
   it('links activities only to registrations for the same event and prevents duplicates', async () => {
     const [{ organizationId }] = await client<{ organizationId: string }[]>`
       INSERT INTO organizations (name) VALUES ('Activity org') RETURNING id AS "organizationId"

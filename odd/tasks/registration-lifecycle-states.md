@@ -51,3 +51,4 @@ Make event registration lifecycle states explicit before payment, admin cash reg
 - CI caught the migration replay assertion in `event-activity-foundation.e2e-spec.ts` still expecting six migrations; updated it to seven for `0006_registration_lifecycle_states.sql`.
 - The suggested `corepack pnpm --filter @nuestro-breaking/backend test -- participant-registration.e2e-spec.ts --runInBand` finds no tests: the default Jest configuration searches `src` for `.spec.ts`; the e2e configuration is required.
 - This slice validates row invariants, not transition history or actor authority. Source attribution is supplied by future trusted workflows; no redirect, payment, cash, refund, or check-in behavior is implemented.
+- Commit evidence: `d9d481a` (`feat(database): add registration lifecycle states`) and `7d72728` (`test(database): update migration replay count`) were pushed to PR #100.

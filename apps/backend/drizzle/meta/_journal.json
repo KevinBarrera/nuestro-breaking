@@ -29,6 +29,13 @@
       "when": 1786562775590,
       "tag": "0003_event_window_containment",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1786562775591,
+      "tag": "0004_admin_sessions",
+      "breakpoints": true
     }
   ]
 }

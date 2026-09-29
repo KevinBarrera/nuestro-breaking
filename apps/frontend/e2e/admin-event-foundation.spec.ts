@@ -3,6 +3,25 @@ import { expect, test } from '@playwright/test';
 const eventId = 'a1b2c3d4-1234-4567-89ab-123456789abc';
 const foundationPath = `/admin/events/${eventId}/foundation`;
 const foundationEndpoint = (url: URL) => url.port === '3000' && url.pathname === foundationPath;
+const sessionEndpoint = (url: URL) => url.port === '3000' && url.pathname === '/auth/session';
+
+test.beforeEach(async ({ page }) => {
+  await page.route(sessionEndpoint, (route) =>
+    route.fulfill({ json: { user: { id: 'admin-1', displayName: 'Admin', roles: ['admin'] } } }),
+  );
+});
+
+test('does not request protected foundation without a valid session', async ({ page }) => {
+  await page.route(sessionEndpoint, (route) => route.fulfill({ status: 401, json: {} }));
+  let requested = false;
+  await page.route(foundationEndpoint, (route) => {
+    requested = true;
+    return route.fulfill({ json: foundation });
+  });
+  await page.goto(foundationPath);
+  await expect(page.getByRole('heading', { name: 'Iniciar sesión' })).toBeVisible();
+  expect(requested).toBe(false);
+});
 
 const foundation = {
   event: {
@@ -34,6 +53,18 @@ test('loads the endpoint-backed foundation for the event in the URL', async ({ p
     releaseResponse = resolve;
   });
   let requestedPath: string | undefined;
+  await page.addInitScript({
+    content: `
+    const originalFetch = window.fetch.bind(window);
+    window.fetch = (input, init) => {
+      if (String(input).includes('/auth/session') || String(input).includes('/foundation')) {
+        document.documentElement.dataset.apiCredentials =
+          (document.documentElement.dataset.apiCredentials || '') + init?.credentials + ',';
+      }
+      return originalFetch(input, init);
+    };
+  `,
+  });
   await page.route(foundationEndpoint, async (route) => {
     requestedPath = new URL(route.request().url()).pathname;
     await heldResponse;
@@ -46,6 +77,7 @@ test('loads the endpoint-backed foundation for the event in the URL', async ({ p
 
   await expect(page.getByRole('heading', { name: 'Encuentro del barrio' })).toBeVisible();
   expect(requestedPath).toBe(foundationPath);
+  await expect(page.locator('html')).toHaveAttribute('data-api-credentials', /^(include,){2,}$/);
   await expect(
     page.getByText('Datos del endpoint · No aprueban la propuesta del MVP'),
   ).toBeVisible();

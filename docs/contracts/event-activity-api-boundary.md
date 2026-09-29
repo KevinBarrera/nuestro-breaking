@@ -27,12 +27,12 @@ It should return one event, the venues attached to that event, neutral activitie
 GET /admin/events/:eventId/foundation
 ```
 
-| Part       | Requirement                                                                               |
-| ---------- | ----------------------------------------------------------------------------------------- |
-| `eventId`  | Stable event identifier.                                                                  |
-| Caller     | Future authenticated admin-capable caller. Authentication mechanics are not defined here. |
-| Scope      | One event foundation view. Cross-event search/list behavior is out of scope.              |
-| Mutability | Read-only. No state changes, commands, idempotency keys, or version preconditions.        |
+| Part       | Requirement                                                                                                                      |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `eventId`  | Stable event identifier.                                                                                                         |
+| Caller     | Future authenticated admin-capable caller. Authentication mechanics are defined separately in the admin authentication boundary. |
+| Scope      | One event foundation view. Cross-event search/list behavior is out of scope.                                                     |
+| Mutability | Read-only. No state changes, commands, idempotency keys, or version preconditions.                                               |
 
 The current backend route is implemented in `apps/backend/src/events/foundation/` and remains read-only.
 
@@ -101,11 +101,11 @@ The response must not include or imply:
 
 The implemented boundary distinguishes these cases without leaking unrelated event data:
 
-| Situation                                                | Planned behavior                                                                           |
-| -------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| Event does not exist or caller cannot access it.         | Return a safe not-found/denied response. Current auth mechanics are deferred to issue #78. |
-| Event exists but has no venues or activities.            | Return the event with empty `venues` and/or `activities` arrays.                           |
-| Stored data violates the documented foundation contract. | Treat as server-side data integrity failure; do not invent fields in the API response.     |
+| Situation                                                | Planned behavior                                                                       |
+| -------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| Event does not exist or caller cannot access it.         | Return a safe not-found/denied response using the admin authentication boundary.       |
+| Event exists but has no venues or activities.            | Return the event with empty `venues` and/or `activities` arrays.                       |
+| Stored data violates the documented foundation contract. | Treat as server-side data integrity failure; do not invent fields in the API response. |
 
 ## Relationship to issue #60
 
@@ -115,4 +115,5 @@ This boundary closes the read API gap from the foundation contract: the model no
 
 - [Event/activity foundation contract](event-activity-foundation.md)
 - [API and event versioning contract](api-event-versioning.md)
+- [Admin authentication boundary](admin-auth-boundary.md)
 - [November 2026 MVP proposal](../product/november-2026-mvp-proposal.md) — draft pending organizer validation

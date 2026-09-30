@@ -37,4 +37,4 @@ Define the durable operation-audit facts and correction/voiding policy needed be
 - `docs/contracts/admin-registration-audit-policy.md` defines an append-only, redacted operation fact for each write type, transaction-level audit atomicity, pending-only correction and voiding defaults, and explicit blockers for confirmed voids, shared participant edits, cash evidence, authority, readers, and retention. These are future-command requirements, not implemented behavior.
 - `corepack pnpm format:check` and `git diff --check` passed after the contract and navigation updates; the task checklist was then marked verified.
 - Independent read-only verifier passed the documentation implementation for #101 with no blocking findings.
-- Work-unit commit: `5f5f8c1` (`docs(admin): define registration audit policy`).
+- Work-unit commit: `71d4bd4` (`docs(admin): define registration audit policy`).

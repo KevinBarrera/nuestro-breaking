@@ -3,6 +3,7 @@ import { and, eq } from 'drizzle-orm';
 import { DATABASE_CLIENT } from '@/database/database.constants';
 import type { DatabaseService } from '@/database/database.service';
 import {
+  activities,
   activityCheckIns,
   eventActivityRegistrations,
   eventCheckIns,
@@ -30,8 +31,15 @@ export class CheckInService {
       if (registration?.status !== 'confirmed')
         throw new BadRequestException('Registration is not confirmed in this event');
       const [enrollment] = await tx
-        .select({ id: eventActivityRegistrations.id })
+        .select({ id: eventActivityRegistrations.id, kind: activities.kind })
         .from(eventActivityRegistrations)
+        .innerJoin(
+          activities,
+          and(
+            eq(activities.id, eventActivityRegistrations.activityId),
+            eq(activities.eventId, eventActivityRegistrations.eventId),
+          ),
+        )
         .where(
           and(
             eq(eventActivityRegistrations.eventId, eventId),
@@ -41,6 +49,8 @@ export class CheckInService {
         );
       if (!enrollment)
         throw new BadRequestException('Registration is not enrolled in this activity');
+      if (!['workshop', 'battle', 'competition'].includes(enrollment.kind))
+        throw new BadRequestException('Activity kind is not eligible for check-in');
       const [eventFact] = await tx
         .select({ id: eventCheckIns.id })
         .from(eventCheckIns)

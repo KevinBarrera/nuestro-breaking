@@ -74,10 +74,11 @@ describe('event check-in (e2e)', () => {
     await client`
       INSERT INTO event_venues (organization_id, event_id, venue_id)
       VALUES (${org}, ${registrations.event}, ${venue}), (${org}, ${registrations.other}, ${venue})`;
-    const [workshop, competition, unenrolled] = await client<{ id: string }[]>`
+    const [workshop, competition, battle, unenrolled] = await client<{ id: string }[]>`
       INSERT INTO activities (event_id, venue_id, kind, name, starts_at, ends_at)
       VALUES (${registrations.event}, ${venue}, 'workshop', 'Workshop', now(), now() + interval '1 hour'),
         (${registrations.event}, ${venue}, 'competition', 'Competition', now(), now() + interval '1 hour'),
+        (${registrations.event}, ${venue}, 'battle', 'Battle', now(), now() + interval '1 hour'),
         (${registrations.event}, ${venue}, 'open format', 'Unenrolled', now(), now() + interval '1 hour')
       RETURNING id`;
     const [{ id: foreignActivity }] = await client<{ id: string }[]>`
@@ -87,6 +88,7 @@ describe('event check-in (e2e)', () => {
       INSERT INTO event_activity_registrations (event_id, event_registration_id, activity_id)
       VALUES (${registrations.event}, ${registrations.confirmed}, ${workshop.id}),
         (${registrations.event}, ${registrations.confirmed}, ${competition.id}),
+        (${registrations.event}, ${registrations.confirmed}, ${battle.id}),
         (${registrations.event}, ${registrations.pending}, ${workshop.id}),
         (${registrations.event}, ${registrations.voided}, ${workshop.id}),
         (${registrations.other}, ${registrations.foreign}, ${foreignActivity})`;
@@ -98,6 +100,7 @@ describe('event check-in (e2e)', () => {
       ...registrations,
       workshop: workshop.id,
       competition: competition.id,
+      battle: battle.id,
       unenrolled: unenrolled.id,
       foreignActivity,
       general,
@@ -134,13 +137,13 @@ describe('event check-in (e2e)', () => {
   const activityRows = () => client`SELECT * FROM activity_check_ins ORDER BY activity_id`;
 
   it('records one fact per enrolled activity after event admission with server actor/time and no registration mutation', async () => {
-    const { event, confirmed, workshop, competition } = await activityFixture();
+    const { event, confirmed, workshop, competition, battle } = await activityFixture();
     const { cookie, userId, sessionId } = await session('admin', event);
     const before = await client`SELECT * FROM event_registrations ORDER BY id`;
     const enrollments = await client`SELECT * FROM event_activity_registrations ORDER BY id`;
     await checkIn(event, confirmed).set(headers(cookie)).send({}).expect(201);
     const start = Date.now();
-    for (const activity of [workshop, competition]) {
+    for (const activity of [workshop, competition, battle]) {
       const result = await activityCheckIn(event, confirmed, activity)
         .set(headers(cookie))
         .send({})
@@ -153,7 +156,7 @@ describe('event check-in (e2e)', () => {
     }
     const end = Date.now();
     const facts = await activityRows();
-    expect(facts).toHaveLength(2);
+    expect(facts).toHaveLength(3);
     for (const fact of facts) {
       expect(fact).toMatchObject({
         event_id: event,
@@ -200,6 +203,40 @@ describe('event check-in (e2e)', () => {
     );
   });
 
+  it('denies enrolled non-workshop/competition kinds after event admission without mutation', async () => {
+    const f = await activityFixture();
+    const { cookie } = await session('admin', f.event);
+    const kinds = ['general entry', 'party'];
+    const activities = [f.unenrolled];
+    for (const kind of kinds) {
+      const [{ id }] = await client<{ id: string }[]>`
+        INSERT INTO activities (event_id, venue_id, kind, name, starts_at, ends_at)
+        SELECT ${f.event}, venue_id, ${kind}, ${kind}, now(), now() + interval '1 hour'
+        FROM activities WHERE id = ${f.workshop} RETURNING id`;
+      activities.push(id);
+    }
+    for (const activity of activities) {
+      await client`
+        INSERT INTO event_activity_registrations (event_id, event_registration_id, activity_id)
+        VALUES (${f.event}, ${f.confirmed}, ${activity})`;
+    }
+    await checkIn(f.event, f.confirmed).set(headers(cookie)).send({}).expect(201);
+    const registrations = await client`SELECT * FROM event_registrations ORDER BY id`;
+    const enrollments = await client`SELECT * FROM event_activity_registrations ORDER BY id`;
+    for (const activity of activities) {
+      const response = await activityCheckIn(f.event, f.confirmed, activity)
+        .set(headers(cookie))
+        .send({})
+        .expect(400);
+      expect((response.body as { message: string }).message).toMatch(/activity|kind/i);
+    }
+    expect(await activityRows()).toHaveLength(0);
+    expect(await client`SELECT * FROM event_registrations ORDER BY id`).toEqual(registrations);
+    expect(await client`SELECT * FROM event_activity_registrations ORDER BY id`).toEqual(
+      enrollments,
+    );
+  });
+
   it('denies unauthorized and concurrent duplicate activity requests', async () => {
     const f = await activityFixture();
     const admin = await session('admin', f.event);
@@ -236,6 +273,33 @@ describe('event check-in (e2e)', () => {
     expect(await activityRows()).toHaveLength(1);
   });
 
+  it('rejects direct SQL check-in for an enrolled party after valid event admission', async () => {
+    const f = await activityFixture();
+    const { cookie, userId, sessionId } = await session('admin', f.event);
+    const [{ id: party }] = await client<{ id: string }[]>`
+      INSERT INTO activities (event_id, venue_id, kind, name, starts_at, ends_at)
+      SELECT ${f.event}, venue_id, 'party', 'Party', now(), now() + interval '1 hour'
+      FROM activities WHERE id = ${f.workshop} RETURNING id`;
+    const [{ id: enrollmentId }] = await client<{ id: string }[]>`
+      INSERT INTO event_activity_registrations (event_id, event_registration_id, activity_id)
+      VALUES (${f.event}, ${f.confirmed}, ${party}) RETURNING id`;
+    const admission = await checkIn(f.event, f.confirmed).set(headers(cookie)).send({}).expect(201);
+    const eventFactId = (admission.body as { id: string }).id;
+    const registrations = await client`SELECT * FROM event_registrations ORDER BY id`;
+    const enrollments = await client`SELECT * FROM event_activity_registrations ORDER BY id`;
+    await expect(client`
+      INSERT INTO activity_check_ins (event_id, event_registration_id, activity_id,
+        enrollment_id, event_check_in_id, actor_user_id, session_id)
+      VALUES (${f.event}, ${f.confirmed}, ${party}, ${enrollmentId}, ${eventFactId},
+        ${userId}, ${sessionId})
+    `).rejects.toThrow('activity check-in requires a workshop or competition');
+    expect(await activityRows()).toHaveLength(0);
+    expect(await client`SELECT * FROM event_registrations ORDER BY id`).toEqual(registrations);
+    expect(await client`SELECT * FROM event_activity_registrations ORDER BY id`).toEqual(
+      enrollments,
+    );
+  });
+
   it('enforces enrollment, event admission, session ownership, server time and immutability in PostgreSQL', async () => {
     const f = await activityFixture();
     const { cookie, userId, sessionId } = await session('admin', f.event);
@@ -249,28 +313,29 @@ describe('event check-in (e2e)', () => {
     ) => client`
       INSERT INTO activity_check_ins (event_id, event_registration_id, activity_id,
         enrollment_id, event_check_in_id, actor_user_id, session_id)
-      VALUES (${eventId}, ${registrationId}, ${activityId}, ${enrollmentId}, ${eventCheckInId}, ${actor})`;
+      VALUES (${eventId}, ${registrationId}, ${activityId}, ${enrollmentId}, ${eventCheckInId}, ${actor}, ${sessionId})`;
     const [{ id: enrollmentId }] = await client<{ id: string }[]>`
       SELECT id FROM event_activity_registrations WHERE activity_id = ${f.workshop} AND event_registration_id = ${f.confirmed}`;
     await expect(
       insert(f.event, f.confirmed, f.workshop, enrollmentId, randomUUID()),
-    ).rejects.toThrow();
+    ).rejects.toMatchObject({ code: '23503' });
     const eventResult = await checkIn(f.event, f.confirmed)
       .set(headers(cookie))
       .send({})
       .expect(201);
     const eventFactId = (eventResult.body as { id: string }).id;
+    await client`UPDATE activities SET kind = 'workshop' WHERE id = ${f.unenrolled}`;
     await expect(
       insert(f.event, f.confirmed, f.unenrolled, enrollmentId, eventFactId),
-    ).rejects.toThrow();
+    ).rejects.toMatchObject({ code: '23503' });
     await expect(
       insert(f.other, f.confirmed, f.workshop, enrollmentId, eventFactId),
-    ).rejects.toThrow();
+    ).rejects.toThrow('activity check-in requires a confirmed registration in this event');
     const [{ id: stranger }] = await client<{ id: string }[]>`
       INSERT INTO users (email, display_name) VALUES ('stranger@example.com', 'Stranger') RETURNING id`;
     await expect(
       insert(f.event, f.confirmed, f.workshop, enrollmentId, eventFactId, stranger),
-    ).rejects.toThrow();
+    ).rejects.toThrow('activity check-in actor must own the session');
     const start = Date.now();
     const [fact] = await client<{ checked_in_at: string }[]>`
       INSERT INTO activity_check_ins (event_id, event_registration_id, activity_id,
@@ -280,7 +345,7 @@ describe('event check-in (e2e)', () => {
     expect(new Date(fact.checked_in_at).getTime()).toBeGreaterThanOrEqual(start - 5000);
     await expect(
       insert(f.event, f.confirmed, f.workshop, enrollmentId, eventFactId),
-    ).rejects.toThrow();
+    ).rejects.toMatchObject({ code: '23505' });
     await expect(client`UPDATE activity_check_ins SET checked_in_at = now()`).rejects.toThrow();
     await expect(client`DELETE FROM activity_check_ins`).rejects.toThrow();
     expect(await activityRows()).toHaveLength(1);

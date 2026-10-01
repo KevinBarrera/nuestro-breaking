@@ -50,6 +50,13 @@
       "when": 1786562775593,
       "tag": "0006_registration_lifecycle_states",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1786562775594,
+      "tag": "0007_admin_registration_operations",
+      "breakpoints": true
     }
   ]
 }

@@ -73,6 +73,12 @@ export const eventActivityRegistrations = pgTable(
       table.eventRegistrationId,
       table.activityId,
     ),
+    unique('event_activity_registrations_check_in_scope_uq').on(
+      table.eventId,
+      table.eventRegistrationId,
+      table.activityId,
+      table.id,
+    ),
     foreignKey({
       columns: [table.eventId, table.eventRegistrationId],
       foreignColumns: [eventRegistrations.eventId, eventRegistrations.id],

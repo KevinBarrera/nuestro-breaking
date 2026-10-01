@@ -1,5 +1,5 @@
-import { createHash } from 'node:crypto';
-import { Inject, Injectable, UnauthorizedException } from '@nestjs/common';
+import { createHash, timingSafeEqual } from 'node:crypto';
+import { ForbiddenException, Inject, Injectable, UnauthorizedException } from '@nestjs/common';
 import { and, eq, gt, isNull } from 'drizzle-orm';
 import type { Request, Response } from 'express';
 import { DATABASE_CLIENT } from '@/database/database.constants';
@@ -65,6 +65,44 @@ export class SessionAccessService {
     const adminRoles = roles.filter((row) => row.role === 'admin' || row.role === 'judge');
     if (!adminRoles.length) return this.denied();
     return { ...record, token, roles: adminRoles };
+  }
+
+  private async eventAdminSession(request: Request, response: Response, eventId: string) {
+    const session = await this.activeSession(request, response);
+    if (
+      !session.roles.some(
+        (role) =>
+          role.role === 'admin' &&
+          (role.scopeType === 'global' || (role.scopeType === 'event' && role.scopeId === eventId)),
+      )
+    ) {
+      await this.denied();
+    }
+    return session;
+  }
+
+  async authorizeEventAdmin(request: Request, response: Response, eventId: string) {
+    const session = await this.eventAdminSession(request, response, eventId);
+    return { userId: session.user.id, sessionId: session.session.id };
+  }
+
+  async authorizeEventAdminMutation(request: Request, response: Response, eventId: string) {
+    const trusted = process.env.AUTH_TRUSTED_ORIGIN ?? 'http://localhost:5173';
+    if (request.headers.origin !== trusted) {
+      await this.db.insert(authAudit).values({ action: 'denied' });
+      throw new ForbiddenException('Request denied');
+    }
+    const session = await this.eventAdminSession(request, response, eventId);
+    const supplied = request.header('X-CSRF-Token') ?? '';
+    const expected = digest(`nb-admin-csrf-v1:${session.token}`);
+    if (
+      supplied.length !== expected.length ||
+      !timingSafeEqual(Buffer.from(supplied), Buffer.from(expected))
+    ) {
+      await this.db.insert(authAudit).values({ action: 'denied' });
+      throw new ForbiddenException('Request denied');
+    }
+    return { userId: session.user.id, sessionId: session.session.id };
   }
 
   async authorizeEvent(request: Request, response: Response, eventId: string): Promise<void> {

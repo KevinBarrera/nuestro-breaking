@@ -6,10 +6,21 @@ import { EventFoundationController } from './foundation/event-foundation.control
 import { EventFoundationService } from './foundation/event-foundation.service';
 import { RegistrationSearchController } from './registration-search/registration-search.controller';
 import { RegistrationSearchService } from './registration-search/registration-search.service';
+import { ManualRegistrationController } from './manual-registration/manual-registration.controller';
+import { ManualRegistrationService } from './manual-registration/manual-registration.service';
 
 @Module({
   imports: [DatabaseModule, IdentityAccessModule],
-  controllers: [EventFoundationController, RegistrationSearchController],
-  providers: [EventFoundationService, EventFoundationGuard, RegistrationSearchService],
+  controllers: [
+    EventFoundationController,
+    RegistrationSearchController,
+    ManualRegistrationController,
+  ],
+  providers: [
+    EventFoundationService,
+    EventFoundationGuard,
+    RegistrationSearchService,
+    ManualRegistrationService,
+  ],
 })
 export class EventsModule {}

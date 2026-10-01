@@ -7,3 +7,4 @@ export * from './event-venues';
 export * from './activities';
 export * from './participants';
 export * from './registrations';
+export * from './registration-operation-audit';

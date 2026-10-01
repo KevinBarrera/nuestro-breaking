@@ -2,11 +2,75 @@ import { BadRequestException, ConflictException, Inject, Injectable } from '@nes
 import { and, eq } from 'drizzle-orm';
 import { DATABASE_CLIENT } from '@/database/database.constants';
 import type { DatabaseService } from '@/database/database.service';
-import { eventCheckIns, eventRegistrations } from '@/database/schema';
+import {
+  activityCheckIns,
+  eventActivityRegistrations,
+  eventCheckIns,
+  eventRegistrations,
+} from '@/database/schema';
 
 @Injectable()
 export class CheckInService {
   constructor(@Inject(DATABASE_CLIENT) private readonly db: DatabaseService['db']) {}
+
+  async createActivity(
+    eventId: string,
+    registrationId: string,
+    activityId: string,
+    actor: { userId: string; sessionId: string },
+  ) {
+    return this.db.transaction(async (tx) => {
+      const [registration] = await tx
+        .select({ status: eventRegistrations.status })
+        .from(eventRegistrations)
+        .where(
+          and(eq(eventRegistrations.eventId, eventId), eq(eventRegistrations.id, registrationId)),
+        )
+        .for('update');
+      if (registration?.status !== 'confirmed')
+        throw new BadRequestException('Registration is not confirmed in this event');
+      const [enrollment] = await tx
+        .select({ id: eventActivityRegistrations.id })
+        .from(eventActivityRegistrations)
+        .where(
+          and(
+            eq(eventActivityRegistrations.eventId, eventId),
+            eq(eventActivityRegistrations.eventRegistrationId, registrationId),
+            eq(eventActivityRegistrations.activityId, activityId),
+          ),
+        );
+      if (!enrollment)
+        throw new BadRequestException('Registration is not enrolled in this activity');
+      const [eventFact] = await tx
+        .select({ id: eventCheckIns.id })
+        .from(eventCheckIns)
+        .where(
+          and(
+            eq(eventCheckIns.eventId, eventId),
+            eq(eventCheckIns.eventRegistrationId, registrationId),
+          ),
+        );
+      if (!eventFact)
+        throw new BadRequestException('Event check-in required before activity check-in');
+      const [fact] = await tx
+        .insert(activityCheckIns)
+        .values({
+          eventId,
+          eventRegistrationId: registrationId,
+          activityId,
+          enrollmentId: enrollment.id,
+          eventCheckInId: eventFact.id,
+          actorUserId: actor.userId,
+          sessionId: actor.sessionId,
+        })
+        .onConflictDoNothing({
+          target: [activityCheckIns.eventRegistrationId, activityCheckIns.activityId],
+        })
+        .returning({ id: activityCheckIns.id, checkedInAt: activityCheckIns.checkedInAt });
+      if (!fact) throw new ConflictException('Activity already checked in');
+      return { id: fact.id, eventId, registrationId, activityId, checkedInAt: fact.checkedInAt };
+    });
+  }
 
   async create(
     eventId: string,

@@ -141,7 +141,11 @@ describe('GET /admin/events/:eventId/participants (e2e)', () => {
             stageName: 'Flash',
           },
           registration: {
-            id: one.id, eventId: event.id, folio: 'F-10', status: 'confirmed', checkedInAt: null,
+            id: one.id,
+            eventId: event.id,
+            folio: 'F-10',
+            status: 'confirmed',
+            checkedInAt: null,
           },
           activities: [
             { id: battle.id, name: 'Battle', kind: 'battle', checkedInAt: null },
@@ -156,7 +160,11 @@ describe('GET /admin/events/:eventId/participants (e2e)', () => {
             stageName: 'Other',
           },
           registration: {
-            id: two.id, eventId: event.id, folio: 'F-11', status: 'pending_payment', checkedInAt: null,
+            id: two.id,
+            eventId: event.id,
+            folio: 'F-11',
+            status: 'pending_payment',
+            checkedInAt: null,
           },
           activities: [],
         },
@@ -245,7 +253,10 @@ describe('GET /admin/events/:eventId/participants (e2e)', () => {
       ].sort((a, b) => a.id.localeCompare(b.id)),
     );
     const nextPage = (
-      await search(event.id, 'Alex').query({ limit: 1, offset: 1 }).set('Cookie', cookie).expect(200)
+      await search(event.id, 'Alex')
+        .query({ limit: 1, offset: 1 })
+        .set('Cookie', cookie)
+        .expect(200)
     ).body as RegistrationSearchPage;
     expect(nextPage).toMatchObject({
       total: 2,
@@ -255,8 +266,14 @@ describe('GET /admin/events/:eventId/participants (e2e)', () => {
     });
     const visible = JSON.stringify([firstPage, nextPage]);
     for (const secret of [
-      userId, sessionId, admission.id, activityAdmission.id, enrollmentId, privateEnrollmentId,
-      'Private', 'admin_cash',
+      userId,
+      sessionId,
+      admission.id,
+      activityAdmission.id,
+      enrollmentId,
+      privateEnrollmentId,
+      'Private',
+      'admin_cash',
     ]) {
       expect(visible).not.toContain(secret);
     }
@@ -283,8 +300,9 @@ describe('GET /admin/events/:eventId/participants (e2e)', () => {
       UPDATE user_roles SET scope_type = 'event', scope_id = ${event.id}
       WHERE user_id = ${userId}
     `;
-    expect((await search(other.id, 'Hidden').set('Cookie', cookie).expect(401)).body)
-      .toEqual((await search(other.id, 'Hidden').expect(401)).body);
+    expect((await search(other.id, 'Hidden').set('Cookie', cookie).expect(401)).body).toEqual(
+      (await search(other.id, 'Hidden').expect(401)).body,
+    );
   });
 
   it('bounds pages, validates parameters, and never treats blank or wildcard input as a roster search', async () => {

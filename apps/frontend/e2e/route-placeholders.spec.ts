@@ -202,14 +202,21 @@ test('keeps admin content hidden after rejected credentials', async ({ page }) =
 test('shows the authenticated admin shell with only the available navigation and sign-out', async ({
   page,
 }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
   await page.route(sessionEndpoint, (route) => route.fulfill({ json: { user } }));
   await page.goto('/admin');
   const header = page.getByRole('banner', { name: 'Espacio de administración' });
-  await expect(header.getByText('Nuestro Breaking')).toBeVisible();
   await expect(header.getByText('Administración', { exact: true })).toBeVisible();
+  const content = header.locator('div.mx-auto').first();
+  const bounds = await content.boundingBox();
+  expect(bounds).not.toBeNull();
+  expect(bounds!.width).toBeLessThanOrEqual(1152);
+  expect(Math.abs(bounds!.x + bounds!.width / 2 - 640)).toBeLessThan(2);
   const nav = header.getByRole('navigation', { name: 'Navegación administrativa' });
   await expect(nav.getByRole('link', { name: 'Inicio' })).toHaveAttribute('href', '/admin');
-  await expect(nav.getByRole('link', { name: 'Inicio' })).toHaveAttribute('aria-current', 'page');
+  const home = nav.getByRole('link', { name: 'Inicio' });
+  await expect(home).toHaveAttribute('aria-current', 'page');
+  await expect(home).not.toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
   await expect(header.getByRole('button', { name: 'Cerrar sesión' })).toBeVisible();
   await expect(header.getByRole('link')).toHaveCount(1);
   await expect(page.getByText('Vista de planificación · Datos de ejemplo')).toBeVisible();

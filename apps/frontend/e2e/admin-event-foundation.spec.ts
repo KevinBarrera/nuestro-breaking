@@ -97,7 +97,7 @@ test('shows foundation context and navigates to the only global admin destinatio
   await page.goto(foundationPath);
   const header = page.getByRole('banner', { name: 'Espacio de administración' });
   await expect(header.getByText('Fundamentos del evento')).toBeVisible();
-  await expect(header.getByText(eventId)).toBeVisible();
+  await expect(header.getByText(eventId)).toHaveCount(0);
   const nav = header.getByRole('navigation', { name: 'Navegación administrativa' });
   const home = nav.getByRole('link', { name: 'Inicio' });
   await expect(home).not.toHaveAttribute('aria-current', 'page');
@@ -116,7 +116,7 @@ test('keeps event context and the only usable destination accessible at 375px', 
   await page.goto(foundationPath);
   const header = page.getByRole('banner', { name: 'Espacio de administración' });
   await expect(header.getByText('Fundamentos del evento')).toBeVisible();
-  await expect(header.getByText(eventId)).toBeVisible();
+  await expect(header.getByText(eventId)).toHaveCount(0);
   const home = header
     .getByRole('navigation', { name: 'Navegación administrativa' })
     .getByRole('link', { name: 'Inicio' });

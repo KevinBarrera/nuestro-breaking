@@ -88,27 +88,25 @@ export function AdminSessionBoundary() {
       <div className="min-h-screen bg-slate-950 text-slate-100">
         <header
           aria-label="Espacio de administración"
-          className="border-b border-slate-700 bg-slate-900 px-4 py-4 sm:px-8"
+          className="border-b border-slate-700/70 border-t-2 border-t-[var(--event-magenta)] bg-slate-900 px-4 py-3 sm:px-8"
         >
-          <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-4">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-widest text-cyan-300">
-                Nuestro Breaking
+          <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-x-8 gap-y-3">
+            <div className="border-l-2 border-[var(--event-cyan)] pl-3">
+              <p className="text-base font-bold tracking-tight text-[var(--event-cream)]">
+                Administración
               </p>
-              <p className="mt-1 text-lg font-semibold">Administración</p>
               {foundation && (
-                <p className="mt-1 text-sm text-slate-300">
-                  Fundamentos del evento ·{' '}
-                  <span className="break-all">{foundation.params.eventId}</span>
+                <p className="text-sm font-medium text-[var(--event-cyan)]">
+                  Fundamentos del evento
                 </p>
               )}
             </div>
-            <div className="flex flex-wrap items-center gap-3 sm:gap-6">
+            <div className="flex items-center gap-2 sm:gap-4">
               <nav aria-label="Navegación administrativa">
                 <Link
                   to={routes.admin}
                   aria-current={onHome ? 'page' : undefined}
-                  className="inline-flex min-h-11 items-center rounded-md px-3 text-sm font-semibold text-cyan-200 hover:bg-slate-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-300 aria-[current=page]:bg-slate-800"
+                  className="inline-flex min-h-11 items-center rounded-md px-4 text-sm font-semibold text-[var(--event-cream)] hover:bg-slate-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--event-cyan)] aria-[current=page]:bg-[var(--event-cream)] aria-[current=page]:text-[var(--event-ink)]"
                 >
                   Inicio
                 </Link>
@@ -117,14 +115,14 @@ export function AdminSessionBoundary() {
                 type="button"
                 disabled={submitting}
                 onClick={() => void leave()}
-                className="min-h-11 rounded-md border border-slate-500 px-3 text-sm font-semibold hover:bg-slate-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-300 disabled:cursor-wait disabled:opacity-60"
+                className="min-h-11 rounded-md px-3 text-sm font-medium text-slate-300 hover:bg-slate-800 hover:text-[var(--event-cream)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--event-cyan)] disabled:cursor-wait disabled:opacity-60"
               >
                 Cerrar sesión
               </button>
             </div>
           </div>
           {error && (
-            <p role="alert" className="mx-auto mt-3 max-w-5xl text-sm text-rose-200">
+            <p role="alert" className="mx-auto mt-3 max-w-6xl text-sm text-rose-200">
               No se pudo cerrar sesión.
             </p>
           )}

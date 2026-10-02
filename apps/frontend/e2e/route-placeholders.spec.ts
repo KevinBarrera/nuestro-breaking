@@ -182,7 +182,9 @@ test('does not sign out without a session CSRF header', async ({ page }) => {
   await page.goto('/admin');
   await expect(page.getByRole('heading', { name: 'Administración' })).toBeVisible();
   await page.getByRole('button', { name: 'Cerrar sesión' }).click();
-  await expect(page.getByRole('alert')).toHaveText('No se pudo cerrar sesión.');
+  await expect(
+    page.getByRole('banner', { name: 'Espacio de administración' }).getByRole('alert'),
+  ).toHaveText('No se pudo cerrar sesión.');
   await expect(page.getByRole('heading', { name: 'Administración' })).toBeVisible();
   expect(sessionRequests).toBeGreaterThanOrEqual(2);
   expect(signOutRequests).toBe(0);

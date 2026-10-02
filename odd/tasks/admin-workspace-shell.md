@@ -12,8 +12,8 @@ Give authenticated admin/judge users a responsive, accessible shared header and 
 
 ## Tasks
 
-- [ ] T1 — Build the shared authenticated admin shell with integrated sign-out and honest active `/admin` navigation, with route/access and sign-out browser coverage. Test-first when the existing Playwright runner supports a meaningful RED. Commit a coherent work unit. Status: in progress.
-- [ ] T2 — Harden the responsive header and failure states with keyboard and narrow-screen browser checks, and confirm planning-view distinction. Test-first when applicable. Run frontend lint/build and format checks, then commit the work unit. Status: pending.
+- [x] T1 — Build the shared authenticated admin shell with integrated sign-out and honest active `/admin` navigation, with route/access and sign-out browser coverage. Test-first when the existing Playwright runner supports a meaningful RED. Commit a coherent work unit. Status: done.
+- [ ] T2 — Harden the responsive header and failure states with keyboard and narrow-screen browser checks, and confirm planning-view distinction. Test-first when applicable. Run frontend lint/build and format checks, then commit the work unit. Status: in progress.
 
 ## Acceptance and evidence
 
@@ -23,9 +23,10 @@ Give authenticated admin/judge users a responsive, accessible shared header and 
 - Planning/sample content is not presented as live operational data.
 - T1: shared header, single `/admin` link and integrated sign-out added to authenticated boundary; route and access assertions included on both existing admin routes. Corrected Playwright invocation passed 16/16 focused browser tests. Frontend lint, build, repository format check and `git diff --check` passed.
 - T1 test-first RED was unavailable: two incorrect Playwright artifact/flag invocations failed before tests began; no RED or GREEN was observed by the writer. A separate verifier then ran all 16 focused tests successfully. Do not claim a RED cycle.
-- T1 commit identity: pending work-unit commit.
-- T2 mobile/keyboard/failure checks and commit identity: pending.
+- T1 commit identity: `b5c490236dcdc85e3d211d5b310a3863b912ceaa` (`feat(admin): add authenticated workspace shell`).
+- T2: new browser cases at 375px verify keyboard focus and visible outlines on both admin routes, no horizontal overflow, available navigation, failed sign-out retaining protected content and a successful retry, and non-live planning labels. Existing header passed without behavior changes; test-first RED was not applicable because tests passed before a fix. Focused Playwright passed 19/19; frontend lint/build, format and `git diff --check` passed.
+- T2 commit identity: pending work-unit commit.
 
 ## Next step
 
-Commit verified T1 code, tests and current tracking; record commit identity, then start T2.
+Commit verified T2 tests and tracking, record its commit identity, then inspect native review authority for the completed work unit.

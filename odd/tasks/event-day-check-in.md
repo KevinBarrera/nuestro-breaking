@@ -4,8 +4,8 @@
 
 - Issue: https://github.com/KevinBarrera/nuestro-breaking/issues/112
 - Branch: `feat/112-event-day-check-in` from clean `dev` at `dcff1a6fde19d38c319a580496c16c00e62ebe63`.
-- Status: T1–T6 committed and verified locally; unpublished.
-- Delivery strategy: feature/tracker branch chain (user-selected); forecast ~700–1000 authored changed lines across two work units (tests included). Backend projection slice: `dcff1a6..7d5005e` (206 authored changed lines); screen slice: `7d5005e..a9d7d46` (479 authored changed lines); formatting normalization `a9d7d46..fc34d3d` (636 diff lines, formatting only). No push or PR without user approval.
+- Status: T1–T6 committed and verified locally; authorized draft PR delivery in progress. Issue remains open until all acceptance criteria are met.
+- Delivery strategy: user-selected feature/tracker branch chain targeting `dev` (verified `origin/dev` at `dcff1a6`; remote default branch is `main`). Tracker at `7d5005e` (backend projection: 206 changed lines), screen child at `9c1958b` (screen/tests/formatting/docs: 831 net changed lines), final event-entry child at the current feature head (authorized list/access/test/docs: about 472 net changed lines). The screen slice is cohesive but exceeds the advisory review budget; do not split tests away or code-golf. User explicitly authorized current-session `gh` push, draft PR creation, issue label/status update and Project #3 In Progress on github.com/KevinBarrera/nuestro-breaking; no merge or issue closure.
 
 ## Objective and boundaries
 
@@ -19,6 +19,9 @@ Give authenticated, event-authorized admins a usable event-day search and check-
 - [x] T4 — Add a minimal protected list of real events eligible for event-admin check-in (UUID and name only), derived from active admin roles on the server. Global admins see all persisted events; event-scoped admins only their assigned events. Judges and organization-only roles see none; preserve per-event guards. Test-first PostgreSQL E2E for access, isolation, empty list, and denial. Route: delegated writer (multi-file/backend preparation). Status: done. Commit `7db3181`.
 - [x] T5 — Add a real-event entry from `/admin` to the existing check-in route with loading, empty, denied and error states, without presenting sample events as live. Browser test-first for global/event-scoped admin and links with UUIDs. Route: delegated writer (multi-file/frontend preparation). Status: done. Commit `c5a0c71`.
 - [x] T6 — Verify the real browser-to-backend check-in path against local persisted event/registration fixtures, or record exactly why it cannot run; run focused and cross-slice checks. Route: delegated verifier for runnable commands; no push or PR. Status: done. Test correction commit `05fd21b`.
+- [ ] D1 — Approve #112 for PR, remove stale blocked label, verify origin/dev and exact branch/slice geometry; preserve original acceptance gap and no-closing PR reference. Route: parent repository-authority actions. Status: in progress.
+- [ ] D2 — Publish draft tracker and two dependent child PRs with clean nonempty diffs, linked approved issue and exactly one type label each; report oversized screen slice honestly. Route: parent remote delivery actions. Status: pending.
+- [ ] D3 — Record PR chain links and observed CI, update Project #3 to In Progress, leave issue open with automated real-server success/denial criterion visibly pending. Route: parent repository-authority actions. Status: pending.
 
 ## Acceptance and evidence
 
@@ -39,4 +42,4 @@ User selected an authorized real-event selector from Inicio instead of an event-
 
 ## Next step
 
-The local real-browser flow succeeded with disposable fixtures. To reproduce in the user's environment, a real persisted event and confirmed registration plus authorized admin are needed; the seeded disposable data was intentionally removed. The automated browser cases still mock API; a repeatable live-server integration test remains a follow-up, not a condition falsely claimed complete. Event creation, developer fixtures for a persistent local database, and registration UI belong to separate product/development decisions, not to #112. The branch remains local and clean; seek separate approval before push, chained PRs, issue updates, or closure.
+The local real-browser flow succeeded with disposable fixtures. To reproduce in the user's environment, a real persisted event and confirmed registration plus authorized admin are needed; the seeded disposable data was intentionally removed. The automated browser cases still mock API; a repeatable live-server integration test remains a follow-up, not a condition falsely claimed complete. Event creation, developer fixtures for a persistent local database, and registration UI belong to separate product/development decisions, not to #112. The user approved pushing a draft chain, approving the issue for PR, and moving its project item to In Progress using the current GitHub session; do not merge or close the issue. Track the automated real-server success/denial criterion as pending until implemented or explicitly revised.

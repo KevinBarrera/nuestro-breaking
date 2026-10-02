@@ -4,7 +4,9 @@ import { DATABASE_CLIENT } from '@/database/database.constants';
 import { type DatabaseService } from '@/database/database.service';
 import {
   activities,
+  activityCheckIns,
   eventActivityRegistrations,
+  eventCheckIns,
   eventRegistrations,
   participants,
 } from '@/database/schema';
@@ -47,9 +49,17 @@ export class RegistrationSearchService {
           eventId: eventRegistrations.eventId,
           folio: eventRegistrations.folio,
           status: eventRegistrations.status,
+          checkedInAt: eventCheckIns.checkedInAt,
         })
         .from(eventRegistrations)
         .innerJoin(participants, eq(eventRegistrations.participantId, participants.id))
+        .leftJoin(
+          eventCheckIns,
+          and(
+            eq(eventCheckIns.eventId, eventRegistrations.eventId),
+            eq(eventCheckIns.eventRegistrationId, eventRegistrations.id),
+          ),
+        )
         .where(matches)
         .orderBy(
           asc(participants.fullName),
@@ -67,6 +77,7 @@ export class RegistrationSearchService {
             id: activities.id,
             name: activities.name,
             kind: activities.kind,
+            checkedInAt: activityCheckIns.checkedInAt,
           })
           .from(eventActivityRegistrations)
           .innerJoin(
@@ -74,6 +85,18 @@ export class RegistrationSearchService {
             and(
               eq(activities.id, eventActivityRegistrations.activityId),
               eq(activities.eventId, eventActivityRegistrations.eventId),
+            ),
+          )
+          .leftJoin(
+            activityCheckIns,
+            and(
+              eq(activityCheckIns.eventId, eventActivityRegistrations.eventId),
+              eq(
+                activityCheckIns.eventRegistrationId,
+                eventActivityRegistrations.eventRegistrationId,
+              ),
+              eq(activityCheckIns.activityId, eventActivityRegistrations.activityId),
+              eq(activityCheckIns.enrollmentId, eventActivityRegistrations.id),
             ),
           )
           .where(
@@ -104,10 +127,16 @@ export class RegistrationSearchService {
           eventId: row.eventId,
           folio: row.folio,
           status: row.status,
+          checkedInAt: row.checkedInAt?.toISOString() ?? null,
         },
         activities: activityRows
           .filter((activity) => activity.registrationId === row.registrationId)
-          .map(({ id, name, kind }) => ({ id, name, kind })),
+          .map(({ id, name, kind, checkedInAt }) => ({
+            id,
+            name,
+            kind,
+            checkedInAt: checkedInAt?.toISOString() ?? null,
+          })),
       })),
     };
   }

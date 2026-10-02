@@ -9,6 +9,7 @@ import { AppModule } from '@/app.module';
 import { DATABASE_CLIENT } from '@/database/database.constants';
 import * as schema from '@/database/schema';
 import { DatabaseService } from '@/database/database.service';
+import { type RegistrationSearchPage } from '@/events/registration-search/registration-search.types';
 import { PostgresHarness } from './support/postgres-harness';
 
 jest.setTimeout(120_000);
@@ -78,7 +79,7 @@ describe('GET /admin/events/:eventId/participants (e2e)', () => {
       VALUES (${event.id}, ${one.id}, ${workshop.id}), (${event.id}, ${one.id}, ${battle.id}),
         (${other.id}, ${hidden.id}, ${privateActivity.id})
     `;
-    return { event, other, first, second, one, two, battle, workshop };
+    return { event, other, first, second, one, two, hidden, battle, workshop, privateActivity };
   }
 
   async function session(role = 'admin', eventId: string | null = null) {
@@ -91,11 +92,12 @@ describe('GET /admin/events/:eventId/participants (e2e)', () => {
       VALUES (${userId}, ${role}, ${eventId ? 'event' : 'global'}, ${eventId})
     `;
     const token = randomBytes(32).toString('hex');
-    await client`
+    const [{ sessionId }] = await client<{ sessionId: string }[]>`
       INSERT INTO auth_sessions (user_id, token_digest, expires_at)
       VALUES (${userId}, ${createHash('sha256').update(token).digest('hex')}, now() + interval '1 hour')
+      RETURNING id AS "sessionId"
     `;
-    return { cookie: `nb_admin_session=${token}`, userId };
+    return { cookie: `nb_admin_session=${token}`, userId, sessionId };
   }
 
   const search = (eventId: string, q: string) =>
@@ -138,10 +140,12 @@ describe('GET /admin/events/:eventId/participants (e2e)', () => {
             email: 'alex@example.com',
             stageName: 'Flash',
           },
-          registration: { id: one.id, eventId: event.id, folio: 'F-10', status: 'confirmed' },
+          registration: {
+            id: one.id, eventId: event.id, folio: 'F-10', status: 'confirmed', checkedInAt: null,
+          },
           activities: [
-            { id: battle.id, name: 'Battle', kind: 'battle' },
-            { id: workshop.id, name: 'Workshop', kind: 'workshop' },
+            { id: battle.id, name: 'Battle', kind: 'battle', checkedInAt: null },
+            { id: workshop.id, name: 'Workshop', kind: 'workshop', checkedInAt: null },
           ].sort((a, b) => a.id.localeCompare(b.id)),
         },
         {
@@ -151,7 +155,9 @@ describe('GET /admin/events/:eventId/participants (e2e)', () => {
             email: 'second@example.com',
             stageName: 'Other',
           },
-          registration: { id: two.id, eventId: event.id, folio: 'F-11', status: 'pending_payment' },
+          registration: {
+            id: two.id, eventId: event.id, folio: 'F-11', status: 'pending_payment', checkedInAt: null,
+          },
           activities: [],
         },
       ],
@@ -166,8 +172,119 @@ describe('GET /admin/events/:eventId/participants (e2e)', () => {
     expect((await get('hidden')).body).toEqual({ total: 0, limit: 20, offset: 0, results: [] });
     expect(((await get('F-10', other.id)).body as { results: unknown[] }).results).toHaveLength(1);
     expect(JSON.stringify(result.body)).not.toMatch(
-      /Private|admin_cash|confirmedAt|paymentProvider|checkIn|audit/,
+      /Private|admin_cash|confirmedAt|paymentProvider|actorUserId|sessionId|audit/,
     );
+  });
+
+  it('projects only scoped durable attendance timestamps for the requested page and enrollments', async () => {
+    const { event, other, one, two, hidden, battle, workshop, privateActivity } = await fixture();
+    const { cookie, userId, sessionId } = await session();
+    const eventTime = '2026-01-02T03:04:05.000Z';
+    const activityTime = '2026-01-02T03:05:06.000Z';
+    const privateTime = '2026-01-03T03:04:05.000Z';
+    await client`
+      UPDATE event_registrations
+      SET status = 'confirmed', confirmation_source = 'admin_cash', confirmed_at = now()
+      WHERE id = ${hidden.id}
+    `;
+    const [admission] = await client<{ id: string; checkedInAt: string }[]>`
+      INSERT INTO event_check_ins (event_id, event_registration_id, actor_user_id, session_id, checked_in_at)
+      VALUES (${event.id}, ${one.id}, ${userId}, ${sessionId}, ${eventTime})
+      RETURNING id, checked_in_at AS "checkedInAt"
+    `;
+    const [privateAdmission] = await client<{ id: string; checkedInAt: string }[]>`
+      INSERT INTO event_check_ins (event_id, event_registration_id, actor_user_id, session_id, checked_in_at)
+      VALUES (${other.id}, ${hidden.id}, ${userId}, ${sessionId}, ${privateTime})
+      RETURNING id, checked_in_at AS "checkedInAt"
+    `;
+    const [{ id: enrollmentId }] = await client<{ id: string }[]>`
+      SELECT id FROM event_activity_registrations
+      WHERE event_id = ${event.id} AND event_registration_id = ${one.id} AND activity_id = ${battle.id}
+    `;
+    const [{ id: privateEnrollmentId }] = await client<{ id: string }[]>`
+      SELECT id FROM event_activity_registrations
+      WHERE event_id = ${other.id} AND event_registration_id = ${hidden.id} AND activity_id = ${privateActivity.id}
+    `;
+    const [activityAdmission] = await client<{ id: string; checkedInAt: string }[]>`
+      INSERT INTO activity_check_ins
+        (event_id, event_registration_id, activity_id, enrollment_id, event_check_in_id,
+         actor_user_id, session_id, checked_in_at)
+      VALUES (${event.id}, ${one.id}, ${battle.id}, ${enrollmentId}, ${admission.id},
+        ${userId}, ${sessionId}, ${activityTime})
+      RETURNING id, checked_in_at AS "checkedInAt"
+    `;
+    const [privateActivityAdmission] = await client<{ checkedInAt: string }[]>`
+      INSERT INTO activity_check_ins
+        (event_id, event_registration_id, activity_id, enrollment_id, event_check_in_id,
+         actor_user_id, session_id, checked_in_at)
+      VALUES (${other.id}, ${hidden.id}, ${privateActivity.id}, ${privateEnrollmentId},
+        ${privateAdmission.id}, ${userId}, ${sessionId}, ${privateTime})
+      RETURNING checked_in_at AS "checkedInAt"
+    `;
+
+    const firstPage = (
+      await search(event.id, 'Alex').query({ limit: 1 }).set('Cookie', cookie).expect(200)
+    ).body as RegistrationSearchPage;
+    expect(firstPage).toMatchObject({ total: 2, limit: 1, offset: 0 });
+    expect(firstPage.results[0].registration).toEqual({
+      id: one.id,
+      eventId: event.id,
+      folio: 'F-10',
+      status: 'confirmed',
+      checkedInAt: new Date(admission.checkedInAt).toISOString(),
+    });
+    expect(firstPage.results[0].activities).toEqual(
+      [
+        {
+          id: battle.id,
+          name: 'Battle',
+          kind: 'battle',
+          checkedInAt: new Date(activityAdmission.checkedInAt).toISOString(),
+        },
+        { id: workshop.id, name: 'Workshop', kind: 'workshop', checkedInAt: null },
+      ].sort((a, b) => a.id.localeCompare(b.id)),
+    );
+    const nextPage = (
+      await search(event.id, 'Alex').query({ limit: 1, offset: 1 }).set('Cookie', cookie).expect(200)
+    ).body as RegistrationSearchPage;
+    expect(nextPage).toMatchObject({
+      total: 2,
+      limit: 1,
+      offset: 1,
+      results: [{ registration: { id: two.id, checkedInAt: null }, activities: [] }],
+    });
+    const visible = JSON.stringify([firstPage, nextPage]);
+    for (const secret of [
+      userId, sessionId, admission.id, activityAdmission.id, enrollmentId, privateEnrollmentId,
+      'Private', 'admin_cash',
+    ]) {
+      expect(visible).not.toContain(secret);
+    }
+    const hiddenHere = (await search(event.id, 'Hidden').set('Cookie', cookie).expect(200))
+      .body as RegistrationSearchPage;
+    expect(hiddenHere.results).toEqual([]);
+    const privatePage = (await search(other.id, 'Hidden').set('Cookie', cookie).expect(200))
+      .body as RegistrationSearchPage;
+    expect(privatePage.results).toMatchObject([
+      {
+        registration: {
+          id: hidden.id,
+          checkedInAt: new Date(privateAdmission.checkedInAt).toISOString(),
+        },
+        activities: [
+          {
+            id: privateActivity.id,
+            checkedInAt: new Date(privateActivityAdmission.checkedInAt).toISOString(),
+          },
+        ],
+      },
+    ]);
+    await client`
+      UPDATE user_roles SET scope_type = 'event', scope_id = ${event.id}
+      WHERE user_id = ${userId}
+    `;
+    expect((await search(other.id, 'Hidden').set('Cookie', cookie).expect(401)).body)
+      .toEqual((await search(other.id, 'Hidden').expect(401)).body);
   });
 
   it('bounds pages, validates parameters, and never treats blank or wildcard input as a roster search', async () => {

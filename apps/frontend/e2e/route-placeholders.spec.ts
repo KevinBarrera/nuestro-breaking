@@ -150,7 +150,10 @@ test('signs out an admin using the session CSRF header and clears local identity
   });
   await page.goto('/admin');
   await expect(page.getByRole('heading', { name: 'Administración' })).toBeVisible();
-  await page.getByRole('button', { name: 'Cerrar sesión' }).click();
+  await page
+    .getByRole('banner', { name: 'Espacio de administración' })
+    .getByRole('button', { name: 'Cerrar sesión' })
+    .click();
   await expect(page.getByRole('heading', { name: 'Iniciar sesión' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Administración' })).toHaveCount(0);
   await expect(page.locator('html')).toHaveAttribute('data-sign-out-credentials', 'include');
@@ -194,6 +197,106 @@ test('keeps admin content hidden after rejected credentials', async ({ page }) =
   await page.getByRole('button', { name: 'Iniciar sesión' }).click();
   await expect(page.getByRole('alert')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Administración' })).toHaveCount(0);
+});
+
+test('shows the authenticated admin shell with only the available navigation and sign-out', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.route(sessionEndpoint, (route) => route.fulfill({ json: { user } }));
+  await page.goto('/admin');
+  const header = page.getByRole('banner', { name: 'Espacio de administración' });
+  await expect(header.getByText('Administración', { exact: true })).toBeVisible();
+  const content = header.locator('div.mx-auto').first();
+  const bounds = await content.boundingBox();
+  expect(bounds).not.toBeNull();
+  expect(bounds!.width).toBeLessThanOrEqual(1152);
+  expect(Math.abs(bounds!.x + bounds!.width / 2 - 640)).toBeLessThan(2);
+  const nav = header.getByRole('navigation', { name: 'Navegación administrativa' });
+  await expect(nav.getByRole('link', { name: 'Inicio' })).toHaveAttribute('href', '/admin');
+  const home = nav.getByRole('link', { name: 'Inicio' });
+  await expect(home).toHaveAttribute('aria-current', 'page');
+  await expect(home).not.toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+  await expect(header.getByRole('button', { name: 'Cerrar sesión' })).toBeVisible();
+  await expect(header.getByRole('link')).toHaveCount(1);
+  await expect(page.getByText('Vista de planificación · Datos de ejemplo')).toBeVisible();
+});
+
+test('keeps the planning label distinct from live data on a narrow keyboard-accessible admin header', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 375, height: 800 });
+  await page.route(sessionEndpoint, (route) => route.fulfill({ json: { user } }));
+  await page.goto('/admin');
+  const header = page.getByRole('banner', { name: 'Espacio de administración' });
+  const home = header
+    .getByRole('navigation', { name: 'Navegación administrativa' })
+    .getByRole('link', { name: 'Inicio' });
+  const signOut = header.getByRole('button', { name: 'Cerrar sesión' });
+  await expect(home).toHaveAttribute('aria-current', 'page');
+  await expect(header.getByRole('link')).toHaveCount(1);
+  await expect(page.getByText('Vista de planificación · Datos de ejemplo')).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Evento de ejemplo' })).toBeVisible();
+  await page.keyboard.press('Tab');
+  await expect(home).toBeFocused();
+  await expect(home).toHaveCSS('outline-style', 'solid');
+  await page.keyboard.press('Tab');
+  await expect(signOut).toBeFocused();
+  await expect(signOut).toHaveCSS('outline-style', 'solid');
+  for (const control of [home, signOut]) {
+    const bounds = await control.boundingBox();
+    expect(bounds).not.toBeNull();
+    expect(bounds!.x).toBeGreaterThanOrEqual(0);
+    expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(375);
+    expect(bounds!.height).toBeGreaterThanOrEqual(44);
+  }
+  const scrollWidth = await page.evaluate(
+    () =>
+      (globalThis as unknown as { document: { documentElement: { scrollWidth: number } } }).document
+        .documentElement.scrollWidth,
+  );
+  expect(scrollWidth).toBeLessThanOrEqual(375);
+});
+
+test('retains admin content and alerts on failed sign-out, then exits after a successful retry', async ({
+  page,
+}) => {
+  const csrf = 'session-bound-csrf';
+  await page.route(sessionEndpoint, (route) =>
+    route.fulfill({
+      headers: { 'X-CSRF-Token': csrf, 'Access-Control-Expose-Headers': 'X-CSRF-Token' },
+      json: { user },
+    }),
+  );
+  let attempts = 0;
+  await page.route(signOutEndpoint, (route) => {
+    if (route.request().method() === 'OPTIONS')
+      return route.fulfill({
+        status: 204,
+        headers: {
+          'Access-Control-Allow-Origin': 'http://127.0.0.1:4173',
+          'Access-Control-Allow-Credentials': 'true',
+          'Access-Control-Allow-Methods': 'POST',
+          'Access-Control-Allow-Headers': 'X-CSRF-Token',
+        },
+      });
+    attempts += 1;
+    expect(route.request().headers()['x-csrf-token']).toBe(csrf);
+    return route.fulfill({ status: attempts === 1 ? 500 : 200, json: {} });
+  });
+  await page.goto('/admin');
+  const header = page.getByRole('banner', { name: 'Espacio de administración' });
+  const signOut = header.getByRole('button', { name: 'Cerrar sesión' });
+  await expect(page.getByText('Vista de planificación · Datos de ejemplo')).toBeVisible();
+  await signOut.click();
+  await expect(header.getByRole('alert')).toHaveText('No se pudo cerrar sesión.');
+  await expect(page.getByText('Vista de planificación · Datos de ejemplo')).toBeVisible();
+  await expect(signOut).toBeEnabled();
+  await signOut.click();
+  await expect(page.getByRole('heading', { name: 'Iniciar sesión' })).toBeVisible();
+  await expect(header).toHaveCount(0);
+  await expect(page.getByText('Vista de planificación · Datos de ejemplo')).toHaveCount(0);
+  expect(attempts).toBe(2);
 });
 
 test('renders a Spanish sample event and activity foundation at /admin', async ({ page }) => {

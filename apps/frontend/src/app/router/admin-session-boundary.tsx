@@ -1,7 +1,8 @@
 import { getSession, signIn, signOut, useSessionStore } from '@/entities/session';
+import { routes } from '@/shared/config';
 import type { FormEvent } from 'react';
 import { useEffect, useState } from 'react';
-import { Outlet } from 'react-router';
+import { Link, matchPath, Outlet, useLocation } from 'react-router';
 
 type Status = 'loading' | 'signed-out' | 'signed-in';
 
@@ -15,6 +16,9 @@ export function AdminSessionBoundary() {
   const [submitting, setSubmitting] = useState(false);
   const setSession = useSessionStore((state) => state.setSession);
   const clearSession = useSessionStore((state) => state.clearSession);
+  const { pathname } = useLocation();
+  const foundation = matchPath({ path: routes.adminEventFoundation, end: true }, pathname);
+  const onHome = pathname === routes.admin;
 
   useEffect(() => {
     const controller = new AbortController();
@@ -81,13 +85,50 @@ export function AdminSessionBoundary() {
   if (status === 'loading') return <p role="status">Comprobando sesión…</p>;
   if (status === 'signed-in')
     return (
-      <>
-        <button type="button" disabled={submitting} onClick={() => void leave()}>
-          Cerrar sesión
-        </button>
-        {error && <p role="alert">No se pudo cerrar sesión.</p>}
+      <div className="min-h-screen bg-slate-950 text-slate-100">
+        <header
+          aria-label="Espacio de administración"
+          className="border-b border-slate-700/70 border-t-2 border-t-[var(--event-magenta)] bg-slate-900 px-4 py-3 sm:px-8"
+        >
+          <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-x-8 gap-y-3">
+            <div className="border-l-2 border-[var(--event-cyan)] pl-3">
+              <p className="text-base font-bold tracking-tight text-[var(--event-cream)]">
+                Administración
+              </p>
+              {foundation && (
+                <p className="text-sm font-medium text-[var(--event-cyan)]">
+                  Fundamentos del evento
+                </p>
+              )}
+            </div>
+            <div className="flex items-center gap-2 sm:gap-4">
+              <nav aria-label="Navegación administrativa">
+                <Link
+                  to={routes.admin}
+                  aria-current={onHome ? 'page' : undefined}
+                  className="inline-flex min-h-11 items-center rounded-md px-4 text-sm font-semibold text-[var(--event-cream)] hover:bg-slate-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--event-cyan)] aria-[current=page]:bg-[var(--event-cream)] aria-[current=page]:text-[var(--event-ink)]"
+                >
+                  Inicio
+                </Link>
+              </nav>
+              <button
+                type="button"
+                disabled={submitting}
+                onClick={() => void leave()}
+                className="min-h-11 rounded-md px-3 text-sm font-medium text-slate-300 hover:bg-slate-800 hover:text-[var(--event-cream)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--event-cyan)] disabled:cursor-wait disabled:opacity-60"
+              >
+                Cerrar sesión
+              </button>
+            </div>
+          </div>
+          {error && (
+            <p role="alert" className="mx-auto mt-3 max-w-6xl text-sm text-rose-200">
+              No se pudo cerrar sesión.
+            </p>
+          )}
+        </header>
         <Outlet />
-      </>
+      </div>
     );
   return (
     <main className="flex min-h-screen items-center justify-center px-4 py-10 text-[var(--event-cream)] sm:px-6">

@@ -20,6 +20,7 @@ test('does not request protected foundation without a valid session', async ({ p
   });
   await page.goto(foundationPath);
   await expect(page.getByRole('heading', { name: 'Iniciar sesión' })).toBeVisible();
+  await expect(page.getByRole('banner', { name: 'Espacio de administración' })).toHaveCount(0);
   expect(requested).toBe(false);
 });
 
@@ -87,6 +88,57 @@ test('loads the endpoint-backed foundation for the event in the URL', async ({ p
     page.getByRole('region', { name: 'Sedes' }).getByText('Centro cultural'),
   ).toBeVisible();
   await expect(page.getByText('Borrador')).toBeVisible();
+});
+
+test('shows foundation context and navigates to the only global admin destination', async ({
+  page,
+}) => {
+  await page.route(foundationEndpoint, (route) => route.fulfill({ json: foundation }));
+  await page.goto(foundationPath);
+  const header = page.getByRole('banner', { name: 'Espacio de administración' });
+  await expect(header.getByText('Fundamentos del evento')).toBeVisible();
+  await expect(header.getByText(eventId)).toHaveCount(0);
+  const nav = header.getByRole('navigation', { name: 'Navegación administrativa' });
+  const home = nav.getByRole('link', { name: 'Inicio' });
+  await expect(home).not.toHaveAttribute('aria-current', 'page');
+  await expect(header.getByRole('link')).toHaveCount(1);
+  await home.click();
+  await expect(page).toHaveURL(/\/admin$/);
+  await expect(home).toHaveAttribute('aria-current', 'page');
+  await expect(page.getByText('Vista de planificación · Datos de ejemplo')).toBeVisible();
+});
+
+test('keeps event context and the only usable destination accessible at 375px', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 375, height: 800 });
+  await page.route(foundationEndpoint, (route) => route.fulfill({ json: foundation }));
+  await page.goto(foundationPath);
+  const header = page.getByRole('banner', { name: 'Espacio de administración' });
+  await expect(header.getByText('Fundamentos del evento')).toBeVisible();
+  await expect(header.getByText(eventId)).toHaveCount(0);
+  const home = header
+    .getByRole('navigation', { name: 'Navegación administrativa' })
+    .getByRole('link', { name: 'Inicio' });
+  await expect(home).not.toHaveAttribute('aria-current', 'page');
+  await expect(header.getByRole('link')).toHaveCount(1);
+  await page.keyboard.press('Tab');
+  await expect(home).toBeFocused();
+  await expect(home).toHaveCSS('outline-style', 'solid');
+  await page.keyboard.press('Tab');
+  const signOut = header.getByRole('button', { name: 'Cerrar sesión' });
+  await expect(signOut).toBeFocused();
+  await expect(signOut).toHaveCSS('outline-style', 'solid');
+  const scrollWidth = await page.evaluate(
+    () =>
+      (globalThis as unknown as { document: { documentElement: { scrollWidth: number } } }).document
+        .documentElement.scrollWidth,
+  );
+  expect(scrollWidth).toBeLessThanOrEqual(375);
+  await home.click();
+  await expect(page).toHaveURL(/\/admin$/);
+  await expect(home).toHaveAttribute('aria-current', 'page');
+  await expect(page.getByText('Vista de planificación · Datos de ejemplo')).toBeVisible();
 });
 
 test('shows an empty activities state for a persisted event', async ({ page }) => {

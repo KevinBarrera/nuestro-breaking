@@ -1,4 +1,4 @@
-import { AdminEventFoundationPage, AdminPage } from '@/pages/admin';
+import { AdminCheckInPage, AdminEventFoundationPage, AdminPage } from '@/pages/admin';
 import { DancerPage } from '@/pages/dancer';
 import { NotFoundPage } from '@/pages/not-found';
 import { routes } from '@/shared/config';
@@ -12,6 +12,7 @@ export function AppRouter() {
       <Route element={<AdminSessionBoundary />}>
         <Route path={routes.admin} element={<AdminPage />} />
         <Route path={routes.adminEventFoundation} element={<AdminEventFoundationPage />} />
+        <Route path={routes.adminEventCheckIn} element={<AdminCheckInPage />} />
       </Route>
       <Route element={<RoleAreaBoundary allowedRoles={['dancer'] as const} />}>
         <Route path={routes.dancer} element={<DancerPage />} />

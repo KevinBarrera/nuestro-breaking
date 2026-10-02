@@ -67,6 +67,20 @@ export class SessionAccessService {
     return { ...record, token, roles: adminRoles };
   }
 
+  async adminEventScope(request: Request, response: Response): Promise<string[] | null> {
+    const { roles } = await this.activeSession(request, response);
+    if (roles.some((role) => role.role === 'admin' && role.scopeType === 'global')) {
+      return null;
+    }
+    return [
+      ...new Set(
+        roles.flatMap((role) =>
+          role.role === 'admin' && role.scopeType === 'event' && role.scopeId ? [role.scopeId] : [],
+        ),
+      ),
+    ];
+  }
+
   private async eventAdminSession(request: Request, response: Response, eventId: string) {
     const session = await this.activeSession(request, response);
     if (

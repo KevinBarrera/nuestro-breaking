@@ -150,7 +150,10 @@ test('signs out an admin using the session CSRF header and clears local identity
   });
   await page.goto('/admin');
   await expect(page.getByRole('heading', { name: 'Administración' })).toBeVisible();
-  await page.getByRole('button', { name: 'Cerrar sesión' }).click();
+  await page
+    .getByRole('banner', { name: 'Espacio de administración' })
+    .getByRole('button', { name: 'Cerrar sesión' })
+    .click();
   await expect(page.getByRole('heading', { name: 'Iniciar sesión' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Administración' })).toHaveCount(0);
   await expect(page.locator('html')).toHaveAttribute('data-sign-out-credentials', 'include');
@@ -194,6 +197,22 @@ test('keeps admin content hidden after rejected credentials', async ({ page }) =
   await page.getByRole('button', { name: 'Iniciar sesión' }).click();
   await expect(page.getByRole('alert')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Administración' })).toHaveCount(0);
+});
+
+test('shows the authenticated admin shell with only the available navigation and sign-out', async ({
+  page,
+}) => {
+  await page.route(sessionEndpoint, (route) => route.fulfill({ json: { user } }));
+  await page.goto('/admin');
+  const header = page.getByRole('banner', { name: 'Espacio de administración' });
+  await expect(header.getByText('Nuestro Breaking')).toBeVisible();
+  await expect(header.getByText('Administración', { exact: true })).toBeVisible();
+  const nav = header.getByRole('navigation', { name: 'Navegación administrativa' });
+  await expect(nav.getByRole('link', { name: 'Inicio' })).toHaveAttribute('href', '/admin');
+  await expect(nav.getByRole('link', { name: 'Inicio' })).toHaveAttribute('aria-current', 'page');
+  await expect(header.getByRole('button', { name: 'Cerrar sesión' })).toBeVisible();
+  await expect(header.getByRole('link')).toHaveCount(1);
+  await expect(page.getByText('Vista de planificación · Datos de ejemplo')).toBeVisible();
 });
 
 test('renders a Spanish sample event and activity foundation at /admin', async ({ page }) => {

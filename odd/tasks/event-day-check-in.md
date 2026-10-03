@@ -4,7 +4,7 @@
 
 - Issue: https://github.com/KevinBarrera/nuestro-breaking/issues/112 — open with `status:approved`; this slice references, but does not close, it.
 - Backend prerequisite: PR #118 merged into `dev` at `046c0c6`. The screen branch is rebased onto that commit and published as `feat/112-event-day-check-in-screen-linear` (initial head `641a3ac`). The earlier remote screen branch remains unchanged.
-- Status: T1–T3 committed; this screen slice is published for a draft PR to `dev`, not merged. Its exact `dev...screen` diff has six files (+789/−10) with no backend changes. The later authorized-event entry is a separate slice, not part of this PR.
+- Status: T1–T3 committed; this screen slice is published for a draft PR to `dev`, not merged. Its pre-tracking-correction `dev...screen` diff had six files (+789/−10) with no backend changes; the PR diff includes this tracking update. The later authorized-event entry is a separate slice, not part of this PR.
 - Review workload: the screen and its 370-line browser test are cohesive but exceed the advisory 400-line budget. Review the route/boundary first, then the operator state machine and browser cases; do not separate tests from behavior merely to reduce the count.
 
 ## Objective and boundaries

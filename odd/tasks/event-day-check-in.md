@@ -2,14 +2,14 @@
 
 ## Tracking
 
-- Issue: https://github.com/KevinBarrera/nuestro-breaking/issues/112
-- Branch: `feat/112-event-day-check-in` from clean `dev` at `dcff1a6fde19d38c319a580496c16c00e62ebe63`.
-- Status: T1–T3 committed and verified locally; unpublished.
-- Delivery strategy: feature/tracker branch chain (user-selected); forecast ~700–1000 authored changed lines across two work units (tests included). Backend projection slice: `dcff1a6..7d5005e` (206 authored changed lines); screen slice: `7d5005e..a9d7d46` (479 authored changed lines); formatting normalization `a9d7d46..fc34d3d` (636 diff lines, formatting only). No push or PR without user approval.
+- Issue: https://github.com/KevinBarrera/nuestro-breaking/issues/112 — open with `status:approved`; this slice references, but does not close, it.
+- Backend prerequisite: PR #118 merged into `dev` at `046c0c6`. The screen branch is rebased onto that commit and published as `feat/112-event-day-check-in-screen-linear` (initial head `641a3ac`). The earlier remote screen branch remains unchanged.
+- Status: T1–T3 committed; this screen slice is published for a draft PR to `dev`, not merged. Its exact `dev...screen` diff has six files (+789/−10) with no backend changes. The later authorized-event entry is a separate slice, not part of this PR.
+- Review workload: the screen and its 370-line browser test are cohesive but exceed the advisory 400-line budget. Review the route/boundary first, then the operator state machine and browser cases; do not separate tests from behavior merely to reduce the count.
 
 ## Objective and boundaries
 
-Give authenticated, event-authorized admins a usable event-day search and check-in surface. #64 check-in commands and #102 protected participant search are integrated; the outstanding technical dependency is current attendance status. Extend the existing event-scoped, bounded participant-search response with the smallest status projection: event check-in timestamp or null and per-enrolled-activity check-in timestamp or null, never actor/session data. The server joins only within the authorized event. The frontend must distinguish registration confirmation from attendance, permit activity admission only after event admission and matching eligible enrollment, and announce success only after a durable successful POST response. Duplicates, stale/concurrent requests, denials, loading, and errors get truthful states and safe handoff. No overrides, refunds, payment or registration writes, QR/PIN, exports or offline sync; #65 owns printable fallback and #104 owns corrections.
+Give authenticated, event-authorized admins a usable event-day search and check-in surface. #64 check-in commands and #102 protected participant search are integrated; PR #118 added the minimal event-scoped attendance projection: event check-in timestamp or null and per-enrolled-activity check-in timestamp or null, never actor/session data. The merged backend joins only within the authorized event. The frontend must distinguish registration confirmation from attendance, permit activity admission only after event admission and matching eligible enrollment, and announce success only after a durable successful POST response. Duplicates, stale/concurrent requests, denials, loading, and errors get truthful states and safe handoff. No overrides, refunds, payment or registration writes, QR/PIN, exports or offline sync; #65 owns printable fallback and #104 owns corrections.
 
 ## Tasks
 
@@ -27,6 +27,8 @@ Give authenticated, event-authorized admins a usable event-day search and check-
 - T2 evidence: route absent RED 6/6 browser tests, GREEN 6/6; correction RED route transition/POST denial, GREEN 10/10; independent verifier 16/16 focused browser tests, frontend lint/build passed. Commit `a9d7d4671717adea477716f1c1e78d3dd9c5990f` (`feat(check-in): add protected event-day operator screen`). Native medium slice review approved and exact acknowledgement burned lineage `review-39e23036315dfc47`; two informational warnings, no correction required. Browser API tests are mocked; real server-side abort behavior not exercised.
 - T3 evidence: full PostgreSQL E2E 54/54 (9 suites) and Chromium browser 29/29 passed; backend/frontend builds and lint passed earlier. Initial formatting check failed on three new/changed files; normalized them, then Prettier check passed and focused 4 backend + 10 browser tests passed. `git diff --check` passed. Formatting-only work-unit commit `fc34d3d0940685f3484468e63e9be1cf75a43dc5`. Full browser suite mocks API; no live frontend-to-backend browser integration or real abort semantics exercised. PostgreSQL suite logged expected test constraint rejections but finished green. An initial consent binding expired without creating a lineage; fresh native review of the formatting/tracking slice approved and exact acknowledgement burned lineage `review-2181bfdf49803e4c`.
 
-## Next step
+## Screen-slice validation and next step
 
-Seek separate user approval before push or PR; keep projection and screen as distinct review slices. Consider an end-to-end browser run against a real backend before event-day deployment.
+- After rebasing onto `dev`, focused Chromium browser checks passed 10/10, frontend build and changed-file Prettier checks passed, and lint passed with two effect-cleanup warnings at `admin-check-in-page.tsx:66–69`. Diff whitespace checks passed. The full PR CI has not run yet.
+- The route is registered behind `AdminSessionBoundary`, but `/admin` has no entry link in this slice. The separate event-entry slice adds discoverability; this PR does not claim a complete operator journey by itself. Browser cases mock the API, and the automated real-server success/denial criterion for #112 remains open; a prior manual live success run on a later branch does not satisfy it.
+- Open this screen slice as a draft PR to `dev` with `Refs #112`, exactly one `type:feature` label, and explicit review-size and access limitations. Wait for its required CI and human review before a separate merge decision; keep #112 open and re-evaluate the later entry branch against the integrated `dev`.

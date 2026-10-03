@@ -1,3 +1,30 @@
+import { apiUrl } from '@/shared/api';
+import { routes } from '@/shared/config';
+import { useEffect, useState } from 'react';
+import { Link } from 'react-router';
+
+type EventEntry = { id: string; name: string };
+type EventListState =
+  { status: 'loading' | 'denied' | 'error' } | { status: 'ready'; events: EventEntry[] };
+
+const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function isEventList(value: unknown): value is EventEntry[] {
+  return (
+    Array.isArray(value) &&
+    value.every((entry: unknown) => {
+      if (!entry || typeof entry !== 'object') return false;
+      const candidate = entry as Record<string, unknown>;
+      return (
+        typeof candidate.id === 'string' &&
+        uuid.test(candidate.id) &&
+        typeof candidate.name === 'string' &&
+        candidate.name.trim().length > 0
+      );
+    })
+  );
+}
+
 const sampleActivities = [
   {
     name: 'Batalla individual',
@@ -18,6 +45,29 @@ const sampleActivities = [
 ];
 
 export function AdminPage() {
+  const [eventList, setEventList] = useState<EventListState>({ status: 'loading' });
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void fetch(apiUrl('/admin/events'), { credentials: 'include', signal: controller.signal })
+      .then(async (response) => {
+        if (response.status === 401 || response.status === 403) {
+          return { status: 'denied' as const };
+        }
+        if (!response.ok) throw new Error('Event list request failed');
+        const value: unknown = await response.json();
+        if (!isEventList(value)) throw new Error('Invalid event list');
+        return { status: 'ready' as const, events: value };
+      })
+      .then((result) => {
+        if (!controller.signal.aborted) setEventList(result);
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setEventList({ status: 'error' });
+      });
+    return () => controller.abort();
+  }, []);
+
   return (
     <main className="min-h-screen bg-slate-950 px-4 py-8 text-slate-100 sm:px-8 lg:py-12">
       <div className="mx-auto max-w-6xl">
@@ -36,6 +86,53 @@ export function AdminPage() {
             Vista de planificación · Datos de ejemplo
           </span>
         </header>
+
+        <section
+          aria-label="Eventos para el control de acceso"
+          className="mt-6 rounded-xl border border-cyan-800 bg-slate-900 p-5 sm:p-6"
+        >
+          <h2 className="text-xl font-semibold">Eventos para el control de acceso</h2>
+          <p className="mt-2 text-sm text-slate-300">
+            Eventos reales disponibles para tu cuenta. El acceso a cada evento se verifica en el
+            servidor.
+          </p>
+          {eventList.status === 'loading' && (
+            <p role="status" className="mt-4">
+              Cargando eventos…
+            </p>
+          )}
+          {eventList.status === 'denied' && (
+            <p role="alert" className="mt-4 text-amber-200">
+              Acceso denegado a la lista de eventos. No puedes iniciar el control de acceso desde
+              aquí.
+            </p>
+          )}
+          {eventList.status === 'error' && (
+            <p role="alert" className="mt-4 text-rose-200">
+              No se pudieron cargar los eventos. Inténtalo de nuevo más tarde.
+            </p>
+          )}
+          {eventList.status === 'ready' &&
+            (eventList.events.length === 0 ? (
+              <p className="mt-4 text-slate-300">
+                No hay eventos disponibles para el control de acceso.
+              </p>
+            ) : (
+              <ul className="mt-4 grid gap-3 sm:grid-cols-2">
+                {eventList.events.map((event) => (
+                  <li key={event.id}>
+                    <Link
+                      className="flex min-h-11 items-center justify-between gap-3 rounded-lg border border-slate-600 px-4 py-3 text-cyan-200 hover:bg-slate-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-300"
+                      to={routes.adminEventCheckIn.replace(':eventId', event.id)}
+                    >
+                      <span className="min-w-0 break-words">{event.name}</span>
+                      <span className="shrink-0 text-sm font-semibold">Control de acceso →</span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            ))}
+        </section>
 
         <p className="mt-6 rounded-lg border border-amber-800 bg-amber-950/40 px-4 py-3 text-sm text-amber-200">
           La propuesta del MVP de noviembre sigue en borrador; no está aprobada.

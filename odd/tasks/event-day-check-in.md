@@ -18,7 +18,7 @@ Give authenticated, event-authorized admins a usable event-day search and check-
 - [x] T3 — Cross-slice verification and review workload readback; run applicable integration/browser checks, record limitations and next delivery decision. Route: delegated verifier for cross-slice commands; no push or PR. Status: done.
 - [x] D5 — Rebase the event-list, admin-home entry and test correction work units onto integrated `dev` on a new linear branch. Verified eight implementation/test files byte-identical to historical source commits, no screen/backend duplication or stale delivery claims. Status: done; work-unit commits `5438a65`, `78d7ddc`, `6bea326`.
 - [x] D6 — Run focused backend PostgreSQL E2E and frontend browser checks, builds, lint and formatting on the rebased slice; distinguish mocked tests from live integration. Status: done; PostgreSQL 5/5, Chromium 19/19, backend/frontend lint and build passed, frontend lint has two existing screen effect-cleanup warnings, changed-file Prettier and diff whitespace checks passed. Browser API mocked; automated live-server success/denial still pending.
-- [ ] D7 — Publish the new branch and prepare its independently reviewable draft PR to `dev` with `Refs #112`, CI readback and a separate merge decision. Status: pending.
+- [x] D7 — Publish the new branch and prepare its independently reviewable draft PR to `dev` with `Refs #112`, CI readback and a separate merge decision. Status: done. PR #120 is OPEN/draft/CLEAN at `c392a41` before this tracking update; run `37158771628` passed all six required checks. No human review or merge is claimed.
 
 ## Acceptance and evidence
 
@@ -34,4 +34,4 @@ Give authenticated, event-authorized admins a usable event-day search and check-
 
 - PR #119's ready-transition CI passed all six jobs before its separate rebase merge. This is not evidence that the new entry slice has passed CI.
 - The entry slice adds a protected list of real persisted events eligible for event-admin check-in and links from `/admin` to the already integrated screen. The frontend browser cases mock API responses; a prior manual live success run used disposable fixtures and does not meet #112's pending automated real-server success/denial criterion.
-- The rebased slice contains only the eight entry implementation/test paths plus this task record; prior screen/backend files remain intact. Open a draft PR after verifying its exact diff and monitor fresh required CI. Keep #112 open; event creation and persistent developer fixtures remain separate work.
+- The rebased slice contains only the eight entry implementation/test paths plus this task record; prior screen/backend files remain intact. Draft PR #120 is ready for human assessment, not merge-authorized. Recheck any CI triggered by this tracking-only update. Keep #112 open; event creation and persistent developer fixtures remain separate work.

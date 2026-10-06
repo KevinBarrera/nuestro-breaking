@@ -12,6 +12,8 @@ import { CheckInController } from './check-in/check-in.controller';
 import { CheckInService } from './check-in/check-in.service';
 import { CheckInEventListController } from './check-in-event-list/check-in-event-list.controller';
 import { CheckInEventListService } from './check-in-event-list/check-in-event-list.service';
+import { ActivityAdminController } from './activity-admin/activity-admin.controller';
+import { ActivityAdminService } from './activity-admin/activity-admin.service';
 
 @Module({
   imports: [DatabaseModule, IdentityAccessModule],
@@ -21,6 +23,7 @@ import { CheckInEventListService } from './check-in-event-list/check-in-event-li
     ManualRegistrationController,
     CheckInController,
     CheckInEventListController,
+    ActivityAdminController,
   ],
   providers: [
     EventFoundationService,
@@ -29,6 +32,7 @@ import { CheckInEventListService } from './check-in-event-list/check-in-event-li
     ManualRegistrationService,
     CheckInService,
     CheckInEventListService,
+    ActivityAdminService,
   ],
 })
 export class EventsModule {}

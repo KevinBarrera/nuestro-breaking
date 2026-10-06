@@ -20,8 +20,8 @@ Align the November MVP draft, admin registration contracts, event-day runbook, a
 
 ## Tasks
 
-- [ ] T1 Align draft proposal Markdown/HTML, audit and operations contracts, and event-day runbook with the confirmed bounded policy. Check `git diff --check`, formatting and cross-document terms; record results.
-- [ ] T2 Reconcile #65/#104 label and project metadata with the recorded decisions only after exact authorization for the intended transitions; read back statuses and preserve delivery Todo. If not authorized, record this as pending.
+- [x] T1 Align draft proposal Markdown/HTML, audit and operations contracts, and event-day runbook with the confirmed bounded policy. Check `git diff --check`, formatting and cross-document terms; record results.
+- [x] T2 Reconcile #65/#104 label and project metadata under the user's exact authorization for the intended transitions; read back statuses and preserve delivery Todo.
 
 ## Acceptance
 
@@ -31,10 +31,10 @@ Align the November MVP draft, admin registration contracts, event-day runbook, a
 
 ## Progress and evidence
 
-- T1: in progress (documentation alignment).
-- T2: pending exact label/project transition authorization.
-- No verification or commit evidence yet.
+- T1: completed in `841fb7d` (`docs(mvp): align organizer decisions across operating guidance`). Independent verifier found and writer fixed list groupings, optional receipt, cash correction audit, and settled field/authority mismatches. `git diff --check`, `git diff --cached --check`, and `corepack pnpm format:check` passed; no behavior tests apply to passive documentation.
+- T2: confirmed by issue/project pre- and post-readback. #65 `status:ready`, Project Target `Build now`, Dependency `None`; #104 `status:blocked`, Target `Needs validation`, Dependency `Technical`; #105 `status:blocked`, Target `Needs validation`, Dependency `Technical`. All remain Open/Todo. No unrelated labels or status fields changed.
+- No application tests or builds were run; this is a documentation/tracker alignment, not #65/#104 feature delivery. No push or PR was requested.
 
 ## Next step
 
-Update documents as one bounded documentation work unit, verify and read back the diff, then address authorized tracker metadata.
+Publish the local branch or open a documentation PR only if separately authorized; design #104 cash-correction transitions and retention mechanics before implementation, and implement #65 printable continuity separately.

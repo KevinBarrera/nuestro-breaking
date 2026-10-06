@@ -14,6 +14,8 @@ import { CheckInEventListController } from './check-in-event-list/check-in-event
 import { CheckInEventListService } from './check-in-event-list/check-in-event-list.service';
 import { ActivityAdminController } from './activity-admin/activity-admin.controller';
 import { ActivityAdminService } from './activity-admin/activity-admin.service';
+import { PassTypeAdminController } from './pass-type-admin/pass-type-admin.controller';
+import { PassTypeAdminService } from './pass-type-admin/pass-type-admin.service';
 
 @Module({
   imports: [DatabaseModule, IdentityAccessModule],
@@ -24,6 +26,7 @@ import { ActivityAdminService } from './activity-admin/activity-admin.service';
     CheckInController,
     CheckInEventListController,
     ActivityAdminController,
+    PassTypeAdminController,
   ],
   providers: [
     EventFoundationService,
@@ -33,6 +36,7 @@ import { ActivityAdminService } from './activity-admin/activity-admin.service';
     CheckInService,
     CheckInEventListService,
     ActivityAdminService,
+    PassTypeAdminService,
   ],
 })
 export class EventsModule {}

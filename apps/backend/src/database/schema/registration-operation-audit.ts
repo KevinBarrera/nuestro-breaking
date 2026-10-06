@@ -43,7 +43,7 @@ export const registrationOperationAudit = pgTable(
   (table) => [
     check(
       'registration_operation_audit_operation_type_check',
-      sql`${table.operationType} IN ('manual_registration', 'cash_confirmation')`,
+      sql`${table.operationType} IN ('manual_registration', 'cash_confirmation', 'pass_assignment', 'pass_selection_change')`,
     ),
     check('registration_operation_audit_outcome_check', sql`${table.outcome} = 'accepted'`),
     check(

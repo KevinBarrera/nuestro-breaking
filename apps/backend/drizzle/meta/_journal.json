@@ -85,6 +85,13 @@
       "when": 1786562775598,
       "tag": "0011_event_catalog",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1786562775599,
+      "tag": "0012_registration_entitlement_audit",
+      "breakpoints": true
     }
   ]
 }

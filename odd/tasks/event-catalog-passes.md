@@ -38,7 +38,7 @@ No pass, price, or entitlement exists in the codebase. Activities have a free-te
 Route per task: delegated writer (2+ non-trivial files each). Test-first: PostgreSQL e2e via Testcontainers for backend, Playwright for frontend.
 
 - [x] T1 Schema and hand-written migration `0011` for the model above, with constraints and e2e coverage of the rules enforceable in SQL.
-- [ ] T2 Admin activity API: list, create, update (expected version), archive; audited; admin-only writes with CSRF and event scope.
+- [x] T2 Admin activity API: list, create, update (expected version), archive; audited; admin-only writes with CSRF and event scope.
 - [ ] T3 Admin pass type API: list, create, update, archive, manage activity access; audited.
 - [ ] T4 Entitlements: assign passes to a registration and change competition selections (admin, audited); rules: add-on requires its pass class, selections must be `selectable` activities of that pass, general entry grants no activity; read model registration → accessible activities.
 - [ ] T5 Admin frontend: activities and pass types screens (list, create, edit, archive, link activities) with Playwright coverage.
@@ -73,9 +73,10 @@ Route per task: delegated writer (2+ non-trivial files each). Test-first: Postgr
 - Strategy: `ask-on-risk`; chain strategy `stacked-to-main` targeting `dev` (user, 2026-10-06).
 - Slices: one PR per task, branches `feat/124-NN-<slug>`, each targets `dev` after its parent merges (retarget/rebase so only the current slice shows).
 
-| Slice | Branch                       | PR  | Commits                                                 |
-| ----- | ---------------------------- | --- | ------------------------------------------------------- |
-| T1    | `feat/124-01-catalog-schema` | —   | `feat(catalog): add event catalog schema and migration` |
+| Slice | Branch                           | PR   | Commits                                                 |
+| ----- | -------------------------------- | ---- | ------------------------------------------------------- |
+| T1    | `feat/124-01-catalog-schema`     | #128 | `feat(catalog): add event catalog schema and migration` |
+| T2    | `feat/124-02-activity-admin-api` | —    | `feat(catalog): add admin activity catalog API`         |
 
 ## Progress
 
@@ -83,6 +84,11 @@ Route per task: delegated writer (2+ non-trivial files each). Test-first: Postgr
 - #124 updated on GitHub: approved scope, `status:approved`, new title.
 - T1 (delegated writer): migration `0011_event_catalog`, Drizzle schema and `event-catalog-schema.e2e-spec.ts` written; RED 10/10 failing before the migration, GREEN 10/10 after. Lint, build, unit tests (35) pass. Migration-count assertion in `test/event-activity-foundation.e2e-spec.ts` bumped to 12 (human-approved surface). Full e2e 69/69 (11 suites), `pnpm format:check` clean. Route: delegated writer. Design: `requires_pass_class` only on add-ons (`full|general`); selectable-activity rule left to the T4 service (no trigger); audit state check requires `before` null only on `create`.
 
+- T1 outcome: PR #128 opened; native review approved. Advisories pending later handling: audit FK name drift between schema and migration, `TRUNCATE` bypasses the audit immutability trigger, positive-path test gaps in the schema spec.
+- T2 (delegated writer): `apps/backend/src/events/activity-admin/` (controller, service, types) registered in `events.module.ts`. Endpoints: `GET /admin/events/:eventId/activities` (`authorizeEventAdmin`, admin only, judges rejected), `POST .../activities`, `PATCH .../activities/:activityId`, `POST .../activities/:activityId/archive` (all `authorizeEventAdminMutation`). Test-first: `test/admin-activity-catalog.e2e-spec.ts` RED 9/10 failing before implementation (the 404 case passed only because routes did not exist), GREEN 10/10 after. Lint, build, unit tests (35) pass; full e2e 79/79 (12 suites); `pnpm format:check` clean. Route: delegated writer (trigger: 2+ non-trivial files).
+- T2 design: updates and archives lock the activity row (`FOR UPDATE`) before checking status and `expectedVersion`, so version check and increment cannot interleave; archived → 409, stale version → 409, wrong-event or unknown activity → 404 `Activity not found`. Venue membership and event-window containment are pre-checked for 400s; DB constraints and the `0003` window trigger stay as backstop. Audit `before`/`after` hold the full activity snapshot (no personal data) and are written in the same transaction; an audit failure rolls back the mutation (covered by e2e). Update requires `expectedVersion` plus at least one field.
+- Follow-up (out of this slice, #126): check-in should reject archived activities; check-in behavior is unchanged here.
+
 ## Next step
 
-T2 admin activity API (delegated writer).
+T3 admin pass type API (delegated writer).

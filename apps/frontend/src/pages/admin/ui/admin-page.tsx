@@ -134,6 +134,44 @@ export function AdminPage() {
             ))}
         </section>
 
+        {eventList.status === 'ready' && eventList.events.length > 0 && (
+          <section
+            aria-label="Catálogo de eventos"
+            className="mt-6 rounded-xl border border-slate-700 bg-slate-900 p-5 sm:p-6"
+          >
+            <h2 className="text-xl font-semibold">Catálogo de eventos</h2>
+            <p className="mt-2 text-sm text-slate-300">
+              Administra las actividades y los pases de cada evento.
+            </p>
+            <ul className="mt-4 grid gap-3 sm:grid-cols-2">
+              {eventList.events.map((event) => (
+                <li
+                  key={event.id}
+                  className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-600 px-4 py-3"
+                >
+                  <span className="min-w-0 break-words">{event.name}</span>
+                  <span className="flex shrink-0 gap-2">
+                    <Link
+                      aria-label={`Actividades de ${event.name}`}
+                      className="inline-flex min-h-11 items-center rounded-md px-3 text-sm font-semibold text-cyan-200 hover:bg-slate-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-300"
+                      to={routes.adminEventActivities.replace(':eventId', event.id)}
+                    >
+                      Actividades
+                    </Link>
+                    <Link
+                      aria-label={`Pases de ${event.name}`}
+                      className="inline-flex min-h-11 items-center rounded-md px-3 text-sm font-semibold text-cyan-200 hover:bg-slate-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-300"
+                      to={routes.adminEventPassTypes.replace(':eventId', event.id)}
+                    >
+                      Pases
+                    </Link>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
         <p className="mt-6 rounded-lg border border-amber-800 bg-amber-950/40 px-4 py-3 text-sm text-amber-200">
           La propuesta del MVP de noviembre sigue en borrador; no está aprobada.
         </p>

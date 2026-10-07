@@ -125,17 +125,38 @@ for (const { name, respond } of selectorGuardCases) {
   });
 }
 
+const fontLink = (page: Page, rel: string) =>
+  page.locator(`head link[rel="${rel}"][href*="fonts.googleapis.com/css2"]`);
+
 test('renders without the font host and loads fonts without blocking', async ({ page }) => {
-  const fontResponses: string[] = [];
+  const finished: string[] = [];
+  const failed: string[] = [];
   page.on('requestfinished', (request) => {
-    if (/fonts\.(googleapis|gstatic)\.com/.test(request.url())) fontResponses.push(request.url());
+    if (/fonts\.(googleapis|gstatic)\.com/.test(request.url())) finished.push(request.url());
+  });
+  page.on('requestfailed', (request) => {
+    if (/fonts\.googleapis\.com/.test(request.url())) failed.push(request.url());
   });
   await page.goto('/admin');
   await expect(page.getByRole('banner', { name: 'Espacio de administración' })).toBeVisible();
-  await expect(
-    page.locator('head link[rel="stylesheet"][href*="fonts.googleapis.com"]'),
-  ).toHaveCount(0);
-  expect(fontResponses).toEqual([]);
+  // The font stylesheet was really requested and blocked; the shell rendered regardless.
+  await expect.poll(() => failed.length).toBeGreaterThan(0);
+  await expect(fontLink(page, 'preload')).toHaveCount(1);
+  await expect(fontLink(page, 'stylesheet')).toHaveCount(0);
+  expect(finished).toEqual([]);
+});
+
+test('applies the font stylesheet once it loads', async ({ page }) => {
+  let served = 0;
+  await page.route('https://fonts.googleapis.com/css2**', (route) => {
+    served++;
+    return route.fulfill({ contentType: 'text/css', body: '/* event fonts */' });
+  });
+  await page.goto('/admin');
+  await expect(page.getByRole('banner', { name: 'Espacio de administración' })).toBeVisible();
+  await expect(fontLink(page, 'stylesheet')).toHaveCount(1);
+  await expect(fontLink(page, 'preload')).toHaveCount(0);
+  expect(served).toBeGreaterThan(0);
 });
 
 test('toggles the theme, persists it across reloads and keeps a 44px target', async ({ page }) => {

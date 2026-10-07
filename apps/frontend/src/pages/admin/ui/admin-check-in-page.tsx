@@ -21,7 +21,16 @@ type Notice = { kind: 'success' | 'duplicate' | 'error'; text: string };
 
 const eligible = new Set(['workshop', 'battle', 'competition']);
 const button =
-  'min-h-11 rounded-lg bg-primary px-4 py-2 font-semibold text-primary-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus disabled:cursor-wait disabled:opacity-50';
+  'min-h-11 rounded-lg bg-primary px-4 py-2 font-semibold text-primary-fg hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus disabled:cursor-wait disabled:opacity-50';
+// Admission is the one action an operator must not miss: larger and full width on phones.
+const admitButton = `${button} min-h-14 w-full text-lg font-extrabold sm:w-auto sm:px-6`;
+const chip = 'inline-flex rounded-full px-3 py-1 text-sm font-semibold';
+const statusBox = 'rounded-lg border p-4';
+const noticeStyles: Record<Notice['kind'], string> = {
+  success: 'border-success-fg bg-success text-success-fg',
+  duplicate: 'border-warning-fg bg-warning text-warning-fg',
+  error: 'border-danger-fg bg-danger text-danger-fg',
+};
 
 function validRow(value: unknown, eventId: string): value is Registration {
   if (!value || typeof value !== 'object') return false;
@@ -242,11 +251,13 @@ function EventCheckIn({ eventId }: { eventId: string | undefined }) {
   }
 
   return (
-    <main className="px-4 py-8 text-fg sm:px-8">
+    <main className="px-4 py-8 text-fg sm:px-8 lg:py-12">
       <div className="mx-auto max-w-4xl space-y-6">
         <header>
-          <p className="text-sm text-link">Administración · Evento {eventId}</p>
-          <h1 className="mt-2 text-3xl font-bold">Control de entrada</h1>
+          <p className="text-sm break-all text-muted">Administración · Evento {eventId}</p>
+          <h1 className="mt-2 text-3xl font-extrabold tracking-tight text-heading">
+            Control de entrada
+          </h1>
           <p className="mt-2 text-muted">
             Verifica la inscripción antes de registrar cada entrada.
           </p>
@@ -255,7 +266,7 @@ function EventCheckIn({ eventId }: { eventId: string | undefined }) {
           onSubmit={(event) => void search(event)}
           className="rounded-xl border border-line bg-surface p-4 sm:p-6"
         >
-          <label htmlFor="registration-query" className="block font-semibold">
+          <label htmlFor="registration-query" className="block font-semibold text-heading">
             Buscar inscripción
           </label>
           <div className="mt-3 flex flex-col gap-3 sm:flex-row">
@@ -274,11 +285,11 @@ function EventCheckIn({ eventId }: { eventId: string | undefined }) {
               minLength={2}
               maxLength={200}
               required
-              className="min-h-11 min-w-0 flex-1 rounded-lg border border-input-line bg-input px-3 text-fg focus-visible:outline-2 focus-visible:outline-focus"
+              className="min-h-13 min-w-0 flex-1 rounded-lg border-2 border-input-line bg-input px-4 text-lg text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus disabled:opacity-50"
               placeholder="Nombre, correo o folio"
             />
             <button
-              className={button}
+              className={`${button} min-h-13 sm:px-6`}
               type="submit"
               disabled={busy || searchState.status === 'loading'}
             >
@@ -286,20 +297,30 @@ function EventCheckIn({ eventId }: { eventId: string | undefined }) {
             </button>
           </div>
         </form>
-        {searchState.status === 'loading' && <p role="status">Buscando inscripciones…</p>}
-        {searchState.status === 'empty' && <p role="status">No se encontraron inscripciones.</p>}
+        {searchState.status === 'loading' && (
+          <p role="status" className={`${statusBox} border-line bg-surface text-muted`}>
+            Buscando inscripciones…
+          </p>
+        )}
+        {searchState.status === 'empty' && (
+          <p role="status" className={`${statusBox} border-line bg-surface text-muted`}>
+            No se encontraron inscripciones.
+          </p>
+        )}
         {searchState.status === 'denied' && (
-          <p role="alert">Acceso denegado para este evento. Consulta al responsable.</p>
+          <p role="alert" className={`${statusBox} ${noticeStyles.error}`}>
+            Acceso denegado para este evento. Consulta al responsable.
+          </p>
         )}
         {searchState.status === 'error' && (
-          <p role="alert">
+          <p role="alert" className={`${statusBox} ${noticeStyles.error}`}>
             No se pudo verificar la inscripción o el estado. Consulta al responsable antes de
             continuar.
           </p>
         )}
         {searchState.status === 'ready' && (
           <section aria-label="Resultados" className="space-y-3">
-            <h2 className="text-xl font-semibold">Resultados ({searchState.total})</h2>
+            <h2 className="text-xl font-bold text-heading">Resultados ({searchState.total})</h2>
             {searchState.results.map((row) => (
               <button
                 key={row.registration.id}
@@ -309,12 +330,22 @@ function EventCheckIn({ eventId }: { eventId: string | undefined }) {
                   setSelectedId(row.registration.id);
                   setNotice(null);
                 }}
-                className="block min-h-14 w-full rounded-lg border border-line bg-surface p-4 text-left hover:border-focus focus-visible:outline-2 focus-visible:outline-focus disabled:opacity-50"
+                className={`flex min-h-14 w-full flex-wrap items-start justify-between gap-x-3 gap-y-1 rounded-xl border bg-surface p-4 text-left hover:border-focus focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus disabled:opacity-50 ${
+                  row.registration.id === selectedId
+                    ? 'border-focus ring-2 ring-focus'
+                    : 'border-line'
+                }`}
               >
-                <span className="block font-semibold">{row.participant.fullName}</span>
-                <span className="block text-sm text-muted">
-                  {row.registration.folio ?? 'Sin folio'} ·{' '}
-                  {row.participant.stageName ?? row.participant.email ?? 'Sin alias'}
+                <span className="min-w-0">
+                  <span className="block text-lg leading-tight font-bold text-heading">
+                    {row.participant.fullName}
+                  </span>
+                  <span className="block text-sm break-words text-muted">
+                    {row.participant.stageName ?? row.participant.email ?? 'Sin alias'}
+                  </span>
+                </span>
+                <span className="rounded bg-chip px-2 py-1 font-mono text-sm text-fg">
+                  {row.registration.folio ?? 'Sin folio'}
                 </span>
               </button>
             ))}
@@ -325,41 +356,64 @@ function EventCheckIn({ eventId }: { eventId: string | undefined }) {
             aria-label="Inscripción seleccionada"
             className="space-y-5 rounded-xl border border-line bg-surface p-4 sm:p-6"
           >
-            <h2 className="text-xl font-semibold">{selected.participant.fullName}</h2>
-            <p>
+            <h2 className="text-2xl leading-tight font-extrabold text-heading">
+              {selected.participant.fullName}
+            </h2>
+            <p
+              className={`${chip} ${
+                selected.registration.status === 'confirmed'
+                  ? 'bg-success text-success-fg'
+                  : 'bg-danger text-danger-fg'
+              }`}
+            >
               {selected.registration.status === 'confirmed'
                 ? 'Inscripción confirmada'
                 : 'Inscripción no confirmada · No registrar entrada'}
             </p>
-            <div className="space-y-2 border-t border-line pt-4">
-              <h3 className="font-semibold">Entrada al evento</h3>
-              <p>
+            <div className="space-y-3 border-t border-line pt-4">
+              <h3 className="font-bold text-heading">Entrada al evento</h3>
+              <p
+                className={`${chip} ${
+                  selected.registration.checkedInAt
+                    ? 'bg-success text-success-fg'
+                    : 'bg-chip text-fg'
+                }`}
+              >
                 {selected.registration.checkedInAt
                   ? 'Evento: entrada registrada'
                   : 'Evento: entrada pendiente'}
               </p>
               {selected.registration.status === 'confirmed' &&
                 !selected.registration.checkedInAt && (
-                  <button
-                    type="button"
-                    className={button}
-                    disabled={busy}
-                    onClick={() => void admit(selected)}
-                  >
-                    {busy ? 'Registrando…' : 'Registrar entrada al evento'}
-                  </button>
+                  <div>
+                    <button
+                      type="button"
+                      className={admitButton}
+                      disabled={busy}
+                      onClick={() => void admit(selected)}
+                    >
+                      {busy ? 'Registrando…' : 'Registrar entrada al evento'}
+                    </button>
+                  </div>
                 )}
             </div>
-            <div className="space-y-4 border-t border-line pt-4">
-              <h3 className="font-semibold">Actividades inscritas</h3>
+            <div className="space-y-3 border-t border-line pt-4">
+              <h3 className="font-bold text-heading">Actividades inscritas</h3>
               {selected.activities.filter((activity) => eligible.has(activity.kind)).length ===
-                0 && <p>Sin actividades elegibles.</p>}
+                0 && <p className="text-muted">Sin actividades elegibles.</p>}
               {selected.activities
                 .filter((activity) => eligible.has(activity.kind))
                 .map((activity) => (
-                  <div key={activity.id} className="rounded-lg border border-line p-4">
-                    <h4 className="font-semibold">{activity.name}</h4>
-                    <p className="my-2">
+                  <div
+                    key={activity.id}
+                    className="space-y-3 rounded-lg border border-line bg-surface-inner p-4"
+                  >
+                    <h4 className="font-bold text-heading">{activity.name}</h4>
+                    <p
+                      className={`${chip} ${
+                        activity.checkedInAt ? 'bg-success text-success-fg' : 'bg-chip text-fg'
+                      }`}
+                    >
                       {activity.checkedInAt
                         ? 'Actividad: entrada registrada'
                         : 'Actividad pendiente'}
@@ -369,7 +423,7 @@ function EventCheckIn({ eventId }: { eventId: string | undefined }) {
                       !activity.checkedInAt && (
                         <button
                           type="button"
-                          className={button}
+                          className={admitButton}
                           disabled={busy}
                           onClick={() => void admit(selected, activity)}
                         >
@@ -384,7 +438,7 @@ function EventCheckIn({ eventId }: { eventId: string | undefined }) {
         {notice && (
           <p
             role={notice.kind === 'error' ? 'alert' : 'status'}
-            className="rounded-lg border border-warning-fg p-4"
+            className={`${statusBox} font-semibold ${noticeStyles[notice.kind]}`}
           >
             {notice.text}
           </p>
@@ -393,7 +447,7 @@ function EventCheckIn({ eventId }: { eventId: string | undefined }) {
           Si el estado no se puede verificar, no repitas la entrada. Consulta al responsable o
           vuelve a{' '}
           <Link
-            className="underline focus-visible:outline-2 focus-visible:outline-focus"
+            className="font-semibold text-link underline hover:text-link-hover focus-visible:outline-2 focus-visible:outline-focus"
             to={routes.admin}
           >
             Inicio

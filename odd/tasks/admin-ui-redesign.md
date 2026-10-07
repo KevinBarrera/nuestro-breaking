@@ -45,10 +45,10 @@ Forecast: ~1,900 authored lines over 5 PRs.
 
 - [x] T7 — Actividades agenda grouped by day in the event time zone, kind filters, search, archived toggle, workshop empty state. Playwright coverage.
 
-### PR 7 — `feat/136-07-check-in-restyle`
+### PR 7 — `feat/136-08-check-in-restyle` (stacked on `feat/136-07-activity-agenda`)
 
-- [ ] T8 — Check-in visual restyle only; existing specs unchanged and passing.
-- [ ] T9 — Contrast and phone-width pass across screens; docs update.
+- [x] T8 — Check-in visual restyle only; existing specs unchanged and passing.
+- [x] T9 — Contrast and phone-width pass across screens; docs update.
 
 ## Acceptance criteria
 
@@ -112,6 +112,33 @@ See issue #136. Mapped: themes/contrast/targets → T1–T3, T9; persistence →
   - R3-update-abort-leaves-refresh-state — `ceaeb85 fix(admin): re-read the catalog when a write aborts a requested reload`. `useCatalogLoad.update` still aborts the read in flight (stale data can never overwrite the confirmed write) and then issues that reload again, so it starts after the write and its outcome clears or keeps `refreshFailure`. Chosen over clearing `refreshFailure` on the write because the write only refreshes one entity; the re-read keeps the "reload requested" intent. Forms stay keyed by the last server read's version, so a re-read that brings a newer version remounts with server values, as any reload does. RED: the refresh-failure banner stayed after the save; GREEN, and the stale-reload regression stays green.
 - Checks: lint (0 errors, 2 pre-existing warnings), build, full Playwright suite (96 passed), `pnpm format:check`, `git diff --check`.
 
+### PR 7 — T8–T9 (`feat/136-08-check-in-restyle`; route: delegated direct — one bounded writer; trigger: 2+ non-trivial files)
+
+- T8 — `22e9250 style(admin): restyle check-in with theme cards and status chips` (+93/−39). Classes and wrappers only: muted eyebrow, extrabold heading, 52px search input with a 2px border, result cards with the name, alias and a `font-mono` folio chip (selected card gets a focus ring; no new ARIA state), status chips (`bg-success`/`bg-danger`/`bg-chip`) around the existing status copy, 56px full-width-on-phone admission buttons, notices colored by kind (success/duplicate/error), loading/empty/denied/error boxes. Same requests, states, copy, flows and focus behavior; no single-action check-in, verdicts or escalation. Test-first exception: visual restyle, no meaningful RED; `admin-check-in.spec.ts` and `admin-check-in-entry.spec.ts` are byte-identical to the base (16/16 passing, including the existing 375px no-overflow test).
+- T9 contrast and targets — `3105789 test(admin): check theme contrast and 44px targets across admin screens` (+297). `e2e/admin-accessibility.spec.ts` resolves every `--nb-*` text/background pair through the browser in both themes (surfaces, chips, rows, header, eligible/included, success/warning/danger, nav-active, plus fg/heading/muted/link on each page-gradient stop and on the translucent side nav composited over each stop, and the primary magenta/ink action) and requires 4.5:1; and sweeps every visible control on Resumen, Check-in (result selected), Actividades and Pases (access map open) for ≥ 44px height (inline links in running text exempt; checkboxes/radios measured by their label), with guards that links, buttons, map selects and kind chips were seen. Passed first run, no token changes; a temporary `--nb-muted` change to `#9a9fab` made it fail (2.23–2.65:1), so it is not vacuous. Shared mocks in `e2e/support/admin-mocks.ts`.
+- T9 phone width — `5ab680d test(admin): check every admin screen at phone width in both themes` (+50). `e2e/admin-phone-width.spec.ts`: 4 screens × 2 themes at 375px: no page-level horizontal overflow, side nav above `main`, every `main table` inside an `overflow-x` box that fits the viewport (tables required on Resumen and Pases). 8/8 first run.
+- T9 T4 deferred gaps — `15f6506 test(admin): cover overview access summaries and a failed event list` (+88/−2): a pass with three active inclusions plus an archived one shows "3 actividades incluidas"; archived selectable links are not counted ("1 actividad a elegir · Incluye Taller de footwork"); a pass linked only to an archived activity shows "Sin actividades"; an unknown kind (`cypher`) is counted under its raw name; with `GET /admin/events` 500 the overview still shows counts and the pass table, no event name and no alert. Coverage only, passed first run.
+- T9 font test — `6df973b test(admin): prove the font stylesheet swaps in and the block is real` (+27/−6): the blocked test now requires a failed font request and the preload link still present (not just absence of a stylesheet); a new test routes the font CSS and asserts the preload swaps to `rel="stylesheet"`. Temporarily disabling the swap in `index.html` made the new test fail.
+- T9 docs — `340d6f8 docs(frontend): describe the theme system, admin shell and typed e2e specs` (+20/−2): `docs/frontend-architecture.md` Theme System and Admin Shell sections, `test:e2e` command, typed e2e specs.
+- Checks: lint (0 errors, 2 pre-existing warnings), build, full Playwright suite (113 passed), `pnpm format:check`, `git diff --check`; `git diff feat/136-07-activity-agenda -- e2e/admin-check-in*.spec.ts` empty.
+
+### Acceptance criteria evidence (issue #136)
+
+- Both themes meet 4.5:1 text contrast and keep 44px targets — `admin-accessibility.spec.ts` (both themes, all admin screens); theme toggle target in `admin-shell.spec.ts`.
+- Theme choice persists and degrades safely — `admin-shell.spec.ts` (persists across reloads, applied before first render, storage throws → light, no page errors).
+- Access map PUT body with `expectedVersion` and 409 reload path — `admin-pass-access-map.spec.ts`.
+- Agenda groups by day in the event time zone and respects the archived toggle — `admin-activity-agenda.spec.ts` (Tokyo browser, Mexico City event), `admin-event-catalog.spec.ts`.
+- Unsupported actions visibly disabled or hidden — `admin-shell.spec.ts` (Inscripciones, Listas de respaldo), `admin-overview.spec.ts` (Registrar en el lugar, Imprimir listas `aria-disabled`, "Por confirmar" absent).
+- Check-in behavior unchanged; existing specs pass — `admin-check-in.spec.ts`, `admin-check-in-entry.spec.ts` unchanged since T3 and passing.
+- Phone width (nav stacks, tables scroll in a box) — `admin-phone-width.spec.ts`, plus the 375px cases in `admin-shell`, `admin-overview`, `admin-check-in`, `admin-event-foundation`.
+- Playwright mocked coverage for shell, theme toggle, access map and agenda — `admin-shell.spec.ts`, `admin-pass-access-map.spec.ts`, `admin-activity-agenda.spec.ts`.
+
+Feature complete pending review and merge of the stacked PRs; the last PR carries `Closes #136`.
+
 ## Next step
 
-Slices split by the chained-pr pass (one pass; each slice verified alone: build, lint, full e2e). Review: `review-c590b22230a870f6` approved and acknowledged on fdd9477..5f5e609 (medium, granted, 1 reliability lens, 3 advisory findings fixed in d7fcf86, 649337a, 3e67302 — each assessed medium/under_budget, pending in the slice from boundary 5f5e609). The hook-issued review of everything since `df49d48` was declined per standing user instruction. Open PRs 1–3 stacked to `dev`; then T4 on `feat/136-04-admin-overview` from `feat/136-03-admin-theme-pages`. PRs #137–#139 opened. T4 done on `feat/136-04-admin-overview`; review `review-fb6259ea0fddd00b` (medium, granted, reliability lens) approved and acknowledged on 5f5e609..9c2f75a; reviewed boundary is now 9c2f75a. Advisory suggestions deferred to T9: cover `describeAccess` archived/3+ included/unknown-kind branches, overview with `/admin/events` 500, and a font test that does not rely on the DNS block. PR 4 is +547/−30: the overview commit (route, page and tests) cannot split cohesively, so it needs a `size:exception`. Next T5–T6 on `feat/136-05-pass-access-map`.
+Implementation complete. Chain of PRs to `dev`, merge in order with a rebase onto `dev` before each merge commit: #137 theme foundation, #138 admin shell, #139 pages on theme tokens, #140 overview, #141 pass cards, #142 pass access map, #143 activity agenda, then `feat/136-08-check-in-restyle` (T8–T9, `Closes #136`). #140, #142, #143 and the last PR request `size:exception`.
+
+Native reviews (all medium, granted, reliability lens, approved and acknowledged): `review-c590b22230a870f6` (fdd9477..5f5e609), `review-fb6259ea0fddd00b` (5f5e609..9c2f75a), `review-219858fbd4ffdb26` (de1b711), `review-ae836d8c038ae32c` (de1b711..db37326), `review-b4dac27ab71c97be` (db37326..918fd70), `review-4e18d6bd4541d88f` (918fd70..10c1745). The last review's two suggestions (missing-token check, inline target exemption limited to anchors) are fixed in 8728cfc, assessed medium/under_budget. Every hook-issued review spanning `df49d48` was declined per standing user instruction.
+
+Known follow-up outside #136 scope: the admin sign-in screen in `admin-session-boundary.tsx` still uses raw `--event-*` and slate colors.

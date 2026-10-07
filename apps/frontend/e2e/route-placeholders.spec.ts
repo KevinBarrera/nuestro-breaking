@@ -161,7 +161,9 @@ test('signs out an admin using the session CSRF header and clears local identity
   await expect(page.locator('html')).toHaveAttribute('data-sign-out-credentials', 'include');
   expect(sessionRequests).toBeGreaterThanOrEqual(2);
   expect(signOutRequests).toBe(1);
-  // The in-memory store is only reachable as a source module on the Vite dev server.
+  // `session-store.test.ts` covers the store itself; this proves the sign-out flow clears it,
+  // which no rendered output shows. The in-memory store is only reachable as a source module
+  // on the Vite dev server.
   // CI shards serve a production build (NB_E2E_PREVIEW=1), so shard 1 re-runs this test
   // against the dev server (see .github/workflows/pr-checks.yml).
   if (process.env.NB_E2E_PREVIEW !== '1') {

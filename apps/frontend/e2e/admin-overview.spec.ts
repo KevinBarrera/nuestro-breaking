@@ -132,7 +132,9 @@ test('shows the event overview with quick actions and Resumen as the current pag
   expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
 });
 
-test('derives catalog counts from the active activities and pass types', async ({ page }) => {
+// Counts, access summaries and kind labels are covered by `overview-model.test.ts`, and price
+// formatting by `money.test.ts`; this checks that the overview renders them.
+test('renders catalog counts and the pass types on sale', async ({ page }) => {
   await mockCatalog(page);
   await page.goto(overviewPath);
   const catalog = page.getByRole('region', { name: 'Catálogo' });
@@ -145,95 +147,21 @@ test('derives catalog counts from the active activities and pass types', async (
     'href',
     `${overviewPath}/pass-types`,
   );
-});
 
-test('lists active pass types with class, derived access and formatted price', async ({ page }) => {
-  await mockCatalog(page);
-  await page.goto(overviewPath);
   const table = page.getByRole('table', { name: 'Pases a la venta' });
   await expect(table.getByRole('row')).toHaveCount(4);
   const row = (name: string) =>
     table.getByRole('row').filter({ has: page.getByRole('rowheader', { name, exact: true }) });
   await expect(row('Pase completo')).toContainText('Completo');
-  await expect(row('Pase completo')).toContainText('2 actividades a elegir');
-  await expect(row('Pase completo')).toContainText('Taller de footwork');
+  await expect(row('Pase completo')).toContainText(
+    '2 actividades a elegir · Incluye Taller de footwork',
+  );
   await expect(row('Pase completo')).toContainText('$1,500.00');
-  await expect(row('Entrada general')).toContainText('General');
-  await expect(row('Entrada general')).toContainText('Sin actividades');
-  await expect(row('Entrada general')).toContainText('$300.00');
   await expect(row('Open Styles')).toContainText('Adicional');
-  await expect(row('Open Styles')).toContainText('1 actividad a elegir');
   await expect(row('Open Styles')).toContainText('Requiere pase completo');
-  await expect(row('Open Styles')).toContainText('$250.00');
   await expect(table.getByText('Pase anticipado')).toHaveCount(0);
   const price = row('Pase completo').getByRole('cell').last();
   await expect(price).toHaveCSS('text-align', 'right');
-});
-
-test('summarizes access from active activities only and names unknown kinds as sent', async ({
-  page,
-}) => {
-  const toprockId = 'd5b2c3d4-1234-4567-89ab-123456789abc';
-  const powerId = 'd6b2c3d4-1234-4567-89ab-123456789abc';
-  const cypherId = 'd7b2c3d4-1234-4567-89ab-123456789abc';
-  const link = (activityId: string, access: string) => ({ activityId, access });
-  await mockCatalog(page, 200, {
-    activities: [
-      ...activities,
-      activity(toprockId, 'workshop', 'Taller de toprock'),
-      activity(powerId, 'workshop', 'Taller de power'),
-      activity(cypherId, 'cypher', 'Cypher abierto'),
-    ],
-    passTypes: [
-      passType({
-        id: 'f1b2c3d4-1234-4567-89ab-123456789abc',
-        name: 'Pase talleres',
-        passClass: 'full',
-        priceCents: 90000,
-        activities: [
-          link(workshopId, 'included'),
-          link(toprockId, 'included'),
-          link(powerId, 'included'),
-          link(oldId, 'included'),
-        ],
-      }),
-      passType({
-        id: 'f2b2c3d4-1234-4567-89ab-123456789abc',
-        name: 'Pase mixto',
-        passClass: 'full',
-        priceCents: 80000,
-        activities: [
-          link(battleId, 'selectable'),
-          link(oldId, 'selectable'),
-          link(workshopId, 'included'),
-        ],
-      }),
-      passType({
-        id: 'f3b2c3d4-1234-4567-89ab-123456789abc',
-        name: 'Pase cancelado',
-        passClass: 'general',
-        priceCents: 10000,
-        activities: [link(oldId, 'selectable')],
-      }),
-    ],
-  });
-  await page.goto(overviewPath);
-  const table = page.getByRole('table', { name: 'Pases a la venta' });
-  const row = (name: string) =>
-    table.getByRole('row').filter({ has: page.getByRole('rowheader', { name, exact: true }) });
-  // The archived inclusion is not counted: three, not four, and above two they are counted.
-  await expect(row('Pase talleres')).toContainText('3 actividades incluidas');
-  await expect(row('Pase talleres')).not.toContainText('Incluye');
-  await expect(row('Pase mixto')).toContainText(
-    '1 actividad a elegir · Incluye Taller de footwork',
-  );
-  await expect(row('Pase cancelado')).toContainText('Sin actividades');
-  await expect(table.getByText('Batalla cancelada')).toHaveCount(0);
-
-  const catalog = page.getByRole('region', { name: 'Catálogo' });
-  const stat = (label: string) => catalog.getByRole('listitem').filter({ hasText: label });
-  await expect(stat('talleres')).toContainText('3');
-  await expect(stat('cypher')).toContainText('1');
 });
 
 test('keeps the catalog summary when the event list fails', async ({ page }) => {

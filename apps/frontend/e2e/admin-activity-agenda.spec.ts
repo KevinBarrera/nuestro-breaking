@@ -110,7 +110,10 @@ const day = (page: Page, label: string) => page.getByRole('region', { name: labe
 const rowNames = (page: Page, label: string) => day(page, label).getByRole('heading', { level: 3 });
 const kinds = (page: Page) => page.getByRole('group', { name: 'Filtrar por tipo' });
 
-test('groups activities by day in the event time zone, sorted by start time', async ({ page }) => {
+// Grouping, ordering, counts, search normalization and time ranges are covered by
+// `activity-agenda-model.test.ts`; this checks that the screen renders them and wires the
+// kind chips, the search box and the archived toggle together.
+test('renders the agenda on the event clock and wires its filters', async ({ page }) => {
   await mockCatalog(page);
   await page.goto(activitiesPath);
 
@@ -124,21 +127,11 @@ test('groups activities by day in the event time zone, sorted by start time', as
     'Batalla de crews',
     'Cypher nocturno',
   ]);
-  await expect(rowNames(page, 'Domingo 22 de noviembre')).toHaveText(['Exhibición final']);
-
   const nightly = page.getByRole('listitem').filter({ hasText: 'Cypher nocturno' });
-  await expect(nightly).toContainText('22:30–00:00');
+  await expect(nightly).toContainText('22:30–00:00 (+1 día)');
   await expect(nightly).toContainText('Social');
   await expect(nightly).toContainText('Estudio principal');
   await expect(nightly).toContainText('Activa');
-  await expect(page.getByRole('listitem').filter({ hasText: 'Bgirl 1v1' })).toContainText(
-    '10:00–12:00',
-  );
-});
-
-test('filters by kind with pressed state and counts from the real kinds', async ({ page }) => {
-  await mockCatalog(page);
-  await page.goto(activitiesPath);
 
   await expect(kinds(page).getByRole('button')).toHaveText([
     'Todas · 4',
@@ -151,7 +144,6 @@ test('filters by kind with pressed state and counts from the real kinds', async 
     'aria-pressed',
     'true',
   );
-
   await kinds(page)
     .getByRole('button', { name: /^Batalla/ })
     .click();
@@ -167,37 +159,28 @@ test('filters by kind with pressed state and counts from the real kinds', async 
     'Batalla de crews',
     'Exhibición final',
   ]);
-});
 
-test('searches by name ignoring case and accents', async ({ page }) => {
-  await mockCatalog(page);
-  await page.goto(activitiesPath);
-
-  await page.getByRole('searchbox', { name: 'Buscar actividad' }).fill('EXHIBICION');
+  const search = page.getByRole('searchbox', { name: 'Buscar actividad' });
+  await search.fill('EXHIBICION');
   await expect(page.getByRole('main').getByRole('heading', { level: 3 })).toHaveText([
     'Exhibición final',
   ]);
   await expect(day(page, 'Sábado 21 de noviembre')).toHaveCount(0);
-
-  await page.getByRole('searchbox', { name: 'Buscar actividad' }).fill('no existe');
+  await search.fill('no existe');
   await expect(page.getByText('Ninguna actividad coincide con los filtros.')).toBeVisible();
-});
-
-test('hides archived activities until the archived toggle is on', async ({ page }) => {
-  await mockCatalog(page);
-  await page.goto(activitiesPath);
+  await search.fill('');
+  await kinds(page)
+    .getByRole('button', { name: /^Todas/ })
+    .click();
 
   const toggle = page.getByRole('checkbox', { name: 'Mostrar archivadas' });
   await expect(toggle).not.toBeChecked();
   await expect(page.getByText('Cypher cancelado')).toHaveCount(0);
-
   await toggle.check();
   const archived = page.getByRole('listitem').filter({ hasText: 'Cypher cancelado' });
   await expect(archived).toContainText('Archivada');
-  await expect(archived).toContainText('12:00–13:00');
   await expect(archived.getByRole('button', { name: 'Editar' })).toHaveCount(0);
   await expect(kinds(page).getByRole('button', { name: /^Social/ })).toHaveText('Social · 2');
-
   await toggle.uncheck();
   await expect(page.getByText('Cypher cancelado')).toHaveCount(0);
 });
@@ -324,15 +307,4 @@ test('keeps the selected kind chip when hiding archived activities', async ({ pa
   await expect(page.getByText('Ninguna actividad coincide con los filtros.')).toBeVisible();
   await toggle.check();
   await expect(page.getByRole('main').getByRole('heading', { level: 3 })).toHaveText(['Bgirl 1v1']);
-});
-
-test('marks a time range that ends on the next event day', async ({ page }) => {
-  await mockCatalog(page);
-  await page.goto(activitiesPath);
-
-  const nightly = page.getByRole('listitem').filter({ hasText: 'Cypher nocturno' });
-  await expect(nightly).toContainText('22:30–00:00 (+1 día)');
-  const crews = page.getByRole('listitem').filter({ hasText: 'Batalla de crews' });
-  await expect(crews).toContainText('16:00–18:00');
-  await expect(crews).not.toContainText('+1');
 });

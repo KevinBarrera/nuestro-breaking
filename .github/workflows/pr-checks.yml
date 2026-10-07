@@ -181,6 +181,7 @@ jobs:
           cache-dependency-path: pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @nuestro-breaking/frontend lint
+      - run: pnpm --filter @nuestro-breaking/frontend test
       - run: pnpm --filter @nuestro-breaking/frontend build
 
   frontend_playwright_shard:

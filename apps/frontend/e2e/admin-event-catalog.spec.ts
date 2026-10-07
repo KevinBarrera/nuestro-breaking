@@ -1,8 +1,5 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
 import { chooseOption, expectSelected, selectTrigger } from './support/select.ts';
-// The e2e tsconfig has no `@/` alias; this pure module has no imports, so Node can load it directly.
-// eslint-disable-next-line no-restricted-imports
-import { parseMxnToCents } from '../src/entities/event-catalog/model/money.ts';
 
 const eventId = 'a1b2c3d4-1234-4567-89ab-123456789abc';
 const venueId = 'e1b2c3d4-1234-4567-89ab-123456789abc';
@@ -843,47 +840,9 @@ test('rejects ambiguous pass prices before sending them', async ({ page }) => {
   await page.getByRole('button', { name: 'Nuevo pase' }).click();
   const form = page.getByRole('form', { name: 'Nuevo pase' });
   await form.getByLabel('Nombre').fill('Pase general');
-  for (const price of ['1,500.50', '1.500,50', '1,500', '12.345']) {
-    await form.getByLabel('Precio (MXN)').fill(price);
-    await form.getByRole('button', { name: 'Guardar' }).click();
-    await expect(form.getByRole('alert')).toContainText('separadores de miles');
-  }
+  // Which prices are ambiguous is covered by `money.test.ts`; this checks the form wiring.
+  await form.getByLabel('Precio (MXN)').fill('1,500');
+  await form.getByRole('button', { name: 'Guardar' }).click();
+  await expect(form.getByRole('alert')).toContainText('separadores de miles');
   expect(writes).toBe(0);
-});
-
-test('parses MXN prices with a dot or comma decimal separator', () => {
-  const inputs = [
-    '1500',
-    ' 1500.5 ',
-    '1500,50',
-    '0,05',
-    '21474836,47',
-    '21474836,48',
-    '1,500.50',
-    '1.500,50',
-    '1,500',
-    '1.500',
-    '12.345',
-    '1 500',
-    ',50',
-    '',
-  ];
-  // No unit runner exists; the parser is pure, so Playwright runs it directly in Node.
-  const parsed = inputs.map((value) => parseMxnToCents(value));
-  expect(Object.fromEntries(inputs.map((input, index) => [input, parsed[index]]))).toEqual({
-    '1500': 150000,
-    ' 1500.5 ': 150050,
-    '1500,50': 150050,
-    '0,05': 5,
-    '21474836,47': 2147483647,
-    '21474836,48': null,
-    '1,500.50': null,
-    '1.500,50': null,
-    '1,500': null,
-    '1.500': null,
-    '12.345': null,
-    '1 500': null,
-    ',50': null,
-    '': null,
-  });
 });

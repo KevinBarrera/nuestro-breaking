@@ -38,8 +38,8 @@ Forecast: ~900 authored lines over 3 PRs.
 
 ### PR 2 — `test/frontend-unit-runner`
 
-- [ ] T3 — Add Vitest to `apps/frontend`, reusing the Vite config and the `@` alias, plus a `test` script. Add unit tests for `money.ts`, `zoned-time.ts`, `roles.ts` and `readers.ts`. Run unit tests in `frontend / lint-build` and in root `verify:pr`. Update `docs/frontend-architecture.md` and `docs/code-quality.md`.
-- [ ] T4 — Move pure-logic e2e assertions to unit tests: the agenda model, the overview model, the in-Node money parser test, and the session-store probe. That last move removes the dev-server re-run step in shard 1. E2E keeps one flow-level assertion per screen.
+- [x] T3 — Add Vitest to `apps/frontend`, reusing the Vite config and the `@` alias, plus a `test` script. Add unit tests for `money.ts`, `zoned-time.ts`, `roles.ts` and `readers.ts`. Run unit tests in `frontend / lint-build` and in root `verify:pr`. Update `docs/frontend-architecture.md` and `docs/code-quality.md`.
+- [x] T4 — Move pure-logic e2e assertions to unit tests: the agenda model, the overview model, the in-Node money parser test, and the session-store probe. That last move removes the dev-server re-run step in shard 1. E2E keeps one flow-level assertion per screen.
 
 ### PR 3 — `ci/sweeps-off-pr-path`
 
@@ -56,3 +56,5 @@ Forecast: ~900 authored lines over 3 PRs.
 - 2026-10-07: PR 1 is #153 (route: delegated writer, then an inline follow-up fix). Commits: `93c6249` (T1), `5d027ab` (T2), `c78e6fd` (plan), `9151a5a` (fail-safe follow-up from review findings: unclassified files and failed change detection run every area). Native reviews `review-037af3d9921f537b` (T1+T2, high, granted, approved) and a second high-risk review of `9151a5a` (granted, approved), both acknowledged. Open suggestions: the `predicate-quantifier` comment and the README "outside `apps/`" wording.
 - Checks: YAML parses, `pnpm format:check` passes, and all 10 checks on #153 pass. Throwaway backend-only PR #154 (closed): `frontend / lint-build` and the Playwright shards were skipped, `frontend / playwright` passed, and the backend and live jobs ran.
 - Next: T3 on `test/frontend-unit-runner`, stacked on `ci/split-guard-and-path-filters`.
+- 2026-10-07: PR 2 `test/frontend-unit-runner` (route: delegated writer). Commits: `c170024` (T3), `dd5461f` (T4). `vitest@^5.0.3` runs 7 files and 105 tests in about 0.3s. E2E went from 140 to 133 tests (1 catalog, 4 agenda and 2 overview tests became unit tests or one flow test each). Every new test file was mutation-checked once. Deviation: the session-store dev-server probe and its CI re-run stay. Signing out has no UI reader of the store, so only that probe proves `clearSession()` is wired; `session-store.test.ts` covers the store itself. Native review (high, granted) approved and acknowledged. Open suggestions: comment the state reset in the merged agenda flow test, type the overview fixture `status`, and note that the Intl strings depend on the Node CLDR data.
+- Next: T5 on `ci/sweeps-off-pr-path`, stacked on `test/frontend-unit-runner`.

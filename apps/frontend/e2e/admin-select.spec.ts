@@ -45,7 +45,7 @@ test('admin screens and catalog forms expose no native select', async ({ page })
   expect(await exposedNativeSelects(page)).toBe(0);
 });
 
-for (const key of ['Enter', 'ArrowDown'] as const) {
+for (const key of ['Enter', 'Space', 'ArrowDown'] as const) {
   test(`the topbar event selector opens with ${key} and navigates on choice`, async ({ page }) => {
     await mockTwoEvents(page);
     await page.goto(`/admin/events/${eventId}/activities`);
@@ -82,6 +82,21 @@ for (const key of ['Enter', 'ArrowDown'] as const) {
     await expect(trigger).toContainText('Batalla de otoño');
   });
 }
+
+test('Escape closes the listbox and returns focus to the trigger', async ({ page }) => {
+  await mockTwoEvents(page);
+  await page.goto(`/admin/events/${eventId}/activities`);
+  const header = page.getByRole('banner', { name: 'Espacio de administración' });
+  const trigger = selectTrigger(header, 'Evento');
+  await trigger.focus();
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('listbox')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('listbox')).toHaveCount(0);
+  await expect(trigger).toHaveAttribute('aria-expanded', 'false');
+  await expect(trigger).toBeFocused();
+  await expect(page).toHaveURL(new RegExp(`/admin/events/${eventId}/activities$`));
+});
 
 test('choosing the current event again does not navigate', async ({ page }) => {
   await mockTwoEvents(page);

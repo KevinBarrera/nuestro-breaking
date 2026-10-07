@@ -70,7 +70,7 @@ function EventCheckIn({ eventId }: { eventId: string | undefined }) {
   const controller = useRef<AbortController | null>(null);
   const locked = useRef(false);
   const sequence = useRef(0);
-  const eventName = useEventName(eventId);
+  const { name: eventName, state: eventNameState } = useEventName(eventId);
 
   useEffect(() => {
     // Cleanup must abort the latest request, not the one active when the effect ran.
@@ -256,7 +256,7 @@ function EventCheckIn({ eventId }: { eventId: string | undefined }) {
     <main className="px-4 py-8 text-fg sm:px-8 lg:py-12">
       <div className="mx-auto max-w-4xl space-y-6">
         <header>
-          <p className="text-sm break-words text-muted">
+          <p className="text-sm break-words text-muted" data-event-name-state={eventNameState}>
             {eventName ? `Administración · ${eventName}` : 'Administración'}
           </p>
           <h1 className="mt-2 text-3xl font-extrabold tracking-tight text-heading">

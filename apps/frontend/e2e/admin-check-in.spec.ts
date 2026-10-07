@@ -60,19 +60,29 @@ for (const [name, respond] of [
   ['the event is not in the list', { json: [events[1]] }],
 ] as const) {
   test(`shows only "Administración" without a UUID when ${name}`, async ({ page }) => {
-    let served = false;
+    // The admin shell's event selector requests the same list, so a served-request flag can
+    // flip before the page handled its own response. The eyebrow's settled state is set only by
+    // the check-in page after its own lookup finished, so wait for it before the negatives.
+    let served = 0;
     await page.route(
       (url) => api(url) && url.pathname === '/admin/events',
-      async (route) => {
-        await route.fulfill(respond);
-        served = true;
+      (route) => {
+        served++;
+        return route.fulfill(respond);
       },
     );
     await page.goto(path);
-    await expect.poll(() => served).toBe(true);
     const main = page.getByRole('main');
-    await expect(main.getByText('Administración', { exact: true })).toBeVisible();
+    const eyebrow = main.locator('[data-event-name-state]');
+    await expect(eyebrow).toHaveAttribute('data-event-name-state', 'unavailable');
+    expect(served).toBeGreaterThanOrEqual(1);
+    await expect(eyebrow).toHaveText('Administración');
     await expect(main.getByText(/Administración ·/)).toHaveCount(0);
+    expect(await main.innerText()).not.toMatch(uuidPattern);
+    // Stays settled: no late response replaces the fallback.
+    await page.waitForLoadState('networkidle');
+    await expect(eyebrow).toHaveAttribute('data-event-name-state', 'unavailable');
+    await expect(eyebrow).toHaveText('Administración');
     expect(await main.innerText()).not.toMatch(uuidPattern);
   });
 }

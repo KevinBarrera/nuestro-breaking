@@ -85,52 +85,46 @@ export function AdminEventFoundationPage() {
   const venueNames = new Map(foundation?.venues.map((venue) => [venue.id, venue.name]));
 
   return (
-    <main className="min-h-screen bg-slate-950 px-4 py-8 text-slate-100 sm:px-8 lg:py-12">
+    <main className="px-4 py-8 text-fg sm:px-8 lg:py-12">
       <div className="mx-auto max-w-5xl space-y-6">
-        <header className="border-b border-slate-700 pb-6">
-          <p className="text-xs font-semibold uppercase tracking-widest text-cyan-300">
+        <header className="border-b border-line pb-6">
+          <p className="text-xs font-semibold uppercase tracking-widest text-link">
             Nuestro Breaking · Administración
           </p>
           <h1 className="mt-2 text-3xl font-semibold">Fundamentos del evento</h1>
-          <p className="mt-3 text-sm text-amber-200">
+          <p className="mt-3 text-sm text-warning-fg">
             Datos del endpoint · No aprueban la propuesta del MVP
           </p>
         </header>
 
         {currentState.status === 'loading' && <p role="status">Cargando datos del evento…</p>}
         {currentState.status === 'failure' && (
-          <p role="alert" className="rounded-lg border border-rose-700 bg-rose-950/40 p-4">
+          <p role="alert" className="rounded-lg border border-danger-fg bg-danger p-4">
             No se pudo cargar la información del evento. Comprueba el enlace o inténtalo más tarde.
           </p>
         )}
         {foundation && (
           <>
-            <section
-              aria-label="Evento"
-              className="rounded-xl border border-slate-700 bg-slate-900 p-5"
-            >
+            <section aria-label="Evento" className="rounded-xl border border-line bg-surface p-5">
               <h2 className="text-2xl font-semibold">{foundation.event.name}</h2>
               <dl className="mt-4 grid gap-4 text-sm sm:grid-cols-2">
                 <div>
-                  <dt className="text-slate-400">Zona horaria</dt>
+                  <dt className="text-muted">Zona horaria</dt>
                   <dd>{foundation.event.timeZone}</dd>
                 </div>
                 <div>
-                  <dt className="text-slate-400">Ventana del evento</dt>
+                  <dt className="text-muted">Ventana del evento</dt>
                   <dd>{formatWindow(foundation.event)}</dd>
                 </div>
               </dl>
             </section>
 
-            <section
-              aria-label="Sedes"
-              className="rounded-xl border border-slate-700 bg-slate-900 p-5"
-            >
+            <section aria-label="Sedes" className="rounded-xl border border-line bg-surface p-5">
               <h2 className="text-xl font-semibold">Sedes</h2>
               {foundation.venues.length === 0 ? (
-                <p className="mt-3 text-slate-300">Aún no hay sedes para este evento.</p>
+                <p className="mt-3 text-muted">Aún no hay sedes para este evento.</p>
               ) : (
-                <ul className="mt-3 list-inside list-disc text-slate-300">
+                <ul className="mt-3 list-inside list-disc text-muted">
                   {foundation.venues.map((venue) => (
                     <li key={venue.id}>{venue.name}</li>
                   ))}
@@ -141,31 +135,31 @@ export function AdminEventFoundationPage() {
             <section aria-label="Actividades">
               <h2 className="text-xl font-semibold">Actividades</h2>
               {foundation.activities.length === 0 ? (
-                <p className="mt-3 text-slate-300">Aún no hay actividades para este evento.</p>
+                <p className="mt-3 text-muted">Aún no hay actividades para este evento.</p>
               ) : (
                 <div className="mt-3 grid gap-4 sm:grid-cols-2">
                   {foundation.activities.map((activity) => (
                     <article
                       key={activity.id}
-                      className="rounded-xl border border-slate-700 bg-slate-900 p-5"
+                      className="rounded-xl border border-line bg-surface p-5"
                     >
                       <h3 className="text-lg font-semibold">{activity.name}</h3>
-                      <p className="mt-2 text-sm text-amber-200">Borrador</p>
+                      <p className="mt-2 text-sm text-warning-fg">Borrador</p>
                       <dl className="mt-4 space-y-2 text-sm">
                         <div>
-                          <dt className="text-slate-400">Tipo</dt>
+                          <dt className="text-muted">Tipo</dt>
                           <dd>{activity.kind}</dd>
                         </div>
                         <div>
-                          <dt className="text-slate-400">Sede</dt>
+                          <dt className="text-muted">Sede</dt>
                           <dd>{venueNames.get(activity.venueId) ?? 'Sede no disponible'}</dd>
                         </div>
                         <div>
-                          <dt className="text-slate-400">Inicio</dt>
+                          <dt className="text-muted">Inicio</dt>
                           <dd>{formatDate(activity.startsAt, foundation.event.timeZone)}</dd>
                         </div>
                         <div>
-                          <dt className="text-slate-400">Fin</dt>
+                          <dt className="text-muted">Fin</dt>
                           <dd>{formatDate(activity.endsAt, foundation.event.timeZone)}</dd>
                         </div>
                       </dl>
@@ -174,7 +168,7 @@ export function AdminEventFoundationPage() {
                 </div>
               )}
             </section>
-            <p className="text-sm text-slate-400">
+            <p className="text-sm text-muted">
               Precio, cupo y requisitos de inscripción: pendientes de definir en el endpoint.
             </p>
           </>

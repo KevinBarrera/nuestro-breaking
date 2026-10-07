@@ -30,7 +30,7 @@ export function PassTypeList({
   onArchiveCancel,
 }: PassTypeListProps) {
   if (passTypes.length === 0)
-    return <p className="text-slate-300">Aún no hay pases para este evento.</p>;
+    return <p className="text-muted">Aún no hay pases para este evento.</p>;
 
   return (
     <ul className="grid gap-4 sm:grid-cols-2">
@@ -43,35 +43,35 @@ export function PassTypeList({
               <span
                 className={`rounded-full border px-2.5 py-0.5 text-xs font-medium ${
                   active
-                    ? 'border-emerald-700 bg-emerald-950 text-emerald-200'
-                    : 'border-slate-600 bg-slate-800 text-slate-300'
+                    ? 'border-success-fg bg-success text-success-fg'
+                    : 'border-line bg-row text-muted'
                 }`}
               >
                 {passStatusLabels[passType.status]}
               </span>
             </div>
-            <dl className="mt-4 grid grid-cols-2 gap-3 border-t border-slate-700 pt-4 text-sm">
+            <dl className="mt-4 grid grid-cols-2 gap-3 border-t border-line pt-4 text-sm">
               <div>
-                <dt className="text-slate-400">Clase</dt>
+                <dt className="text-muted">Clase</dt>
                 <dd className="mt-0.5 font-medium">{passClassLabels[passType.passClass]}</dd>
               </div>
               <div>
-                <dt className="text-slate-400">Precio</dt>
+                <dt className="text-muted">Precio</dt>
                 <dd className="mt-0.5 font-medium">{formatMxn(passType.priceCents)}</dd>
               </div>
               {passType.requiresPassClass && (
                 <div className="col-span-2">
                   <dt className="sr-only">Requisito</dt>
-                  <dd className="font-medium text-amber-200">
+                  <dd className="font-medium text-warning-fg">
                     Requiere pase {passClassLabels[passType.requiresPassClass]}
                   </dd>
                 </div>
               )}
               <div className="col-span-2">
-                <dt className="text-slate-400">Actividades</dt>
+                <dt className="text-muted">Actividades</dt>
                 <dd className="mt-0.5">
                   {passType.activities.length === 0 ? (
-                    <span className="text-slate-300">Sin actividades vinculadas</span>
+                    <span className="text-muted">Sin actividades vinculadas</span>
                   ) : (
                     <ul className="space-y-1">
                       {passType.activities.map((link) => (
@@ -87,8 +87,8 @@ export function PassTypeList({
             </dl>
             {active &&
               (confirmingId === passType.id ? (
-                <div className="mt-4 space-y-3 border-t border-slate-700 pt-4">
-                  <p className="text-sm text-amber-200">
+                <div className="mt-4 space-y-3 border-t border-line pt-4">
+                  <p className="text-sm text-warning-fg">
                     ¿Archivar {passType.name}? Ya no se podrá asignar a nuevas inscripciones.
                   </p>
                   <div className="flex flex-wrap gap-3">
@@ -111,7 +111,7 @@ export function PassTypeList({
                   </div>
                 </div>
               ) : (
-                <div className="mt-4 flex flex-wrap gap-3 border-t border-slate-700 pt-4">
+                <div className="mt-4 flex flex-wrap gap-3 border-t border-line pt-4">
                   <button
                     type="button"
                     disabled={busy}

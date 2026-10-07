@@ -25,7 +25,7 @@ export function ActivityList({
   onArchiveCancel,
 }: ActivityListProps) {
   if (activities.length === 0)
-    return <p className="text-slate-300">Aún no hay actividades para este evento.</p>;
+    return <p className="text-muted">Aún no hay actividades para este evento.</p>;
 
   return (
     <ul className="grid gap-4 sm:grid-cols-2">
@@ -38,39 +38,39 @@ export function ActivityList({
               <span
                 className={`rounded-full border px-2.5 py-0.5 text-xs font-medium ${
                   active
-                    ? 'border-emerald-700 bg-emerald-950 text-emerald-200'
-                    : 'border-slate-600 bg-slate-800 text-slate-300'
+                    ? 'border-success-fg bg-success text-success-fg'
+                    : 'border-line bg-row text-muted'
                 }`}
               >
                 {activityStatusLabels[activity.status]}
               </span>
             </div>
-            <dl className="mt-4 grid grid-cols-2 gap-3 border-t border-slate-700 pt-4 text-sm">
+            <dl className="mt-4 grid grid-cols-2 gap-3 border-t border-line pt-4 text-sm">
               <div>
-                <dt className="text-slate-400">Tipo</dt>
+                <dt className="text-muted">Tipo</dt>
                 <dd className="mt-0.5 break-words font-medium">{activity.kind}</dd>
               </div>
               <div>
-                <dt className="text-slate-400">Sede</dt>
+                <dt className="text-muted">Sede</dt>
                 <dd className="mt-0.5 break-words font-medium">
                   {venueNames.get(activity.venueId) ?? 'Sede no disponible'}
                 </dd>
               </div>
               <div>
-                <dt className="text-slate-400">Inicio</dt>
+                <dt className="text-muted">Inicio</dt>
                 <dd className="mt-0.5 font-medium">
                   {formatEventTime(activity.startsAt, timeZone)}
                 </dd>
               </div>
               <div>
-                <dt className="text-slate-400">Fin</dt>
+                <dt className="text-muted">Fin</dt>
                 <dd className="mt-0.5 font-medium">{formatEventTime(activity.endsAt, timeZone)}</dd>
               </div>
             </dl>
             {active &&
               (confirmingId === activity.id ? (
-                <div className="mt-4 space-y-3 border-t border-slate-700 pt-4">
-                  <p className="text-sm text-amber-200">
+                <div className="mt-4 space-y-3 border-t border-line pt-4">
+                  <p className="text-sm text-warning-fg">
                     ¿Archivar {activity.name}? Dejará de estar disponible para nuevos pases.
                   </p>
                   <div className="flex flex-wrap gap-3">
@@ -93,7 +93,7 @@ export function ActivityList({
                   </div>
                 </div>
               ) : (
-                <div className="mt-4 flex flex-wrap gap-3 border-t border-slate-700 pt-4">
+                <div className="mt-4 flex flex-wrap gap-3 border-t border-line pt-4">
                   <button
                     type="button"
                     disabled={busy}

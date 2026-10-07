@@ -49,12 +49,12 @@ export function PassTypeAccessEditor({
   return (
     <form aria-label={title} onSubmit={submit} className={`${styles.card} space-y-4`}>
       <h2 className="text-xl font-semibold">{title}</h2>
-      <p className="text-sm text-slate-300">
+      <p className="text-sm text-muted">
         Seleccionable: la persona elige esa competencia con su pase. Incluida: el pase da acceso
         directo.
       </p>
       {active.length === 0 ? (
-        <p className="text-slate-300">No hay actividades activas en este evento.</p>
+        <p className="text-muted">No hay actividades activas en este evento.</p>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
           {active.map((activity, index) => (
@@ -82,7 +82,7 @@ export function PassTypeAccessEditor({
         </div>
       )}
       {droppedLinks.length > 0 && (
-        <p className="text-sm text-amber-200">
+        <p className="text-sm text-warning-fg">
           Este pase tiene {droppedLinks.length} actividad(es) archivada(s) vinculada(s); se quitarán
           al guardar.
         </p>

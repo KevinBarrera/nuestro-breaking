@@ -8,12 +8,12 @@ type CatalogPageHeaderProps = {
 };
 
 const tab =
-  'inline-flex min-h-11 items-center rounded-md px-4 text-sm font-semibold text-cyan-200 hover:bg-slate-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-300 aria-[current=page]:bg-cyan-950 aria-[current=page]:text-cyan-100';
+  'inline-flex min-h-11 items-center rounded-md px-4 text-sm font-semibold text-link hover:bg-row focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus aria-[current=page]:bg-chip aria-[current=page]:text-link';
 
 export function CatalogPageHeader({ eventId, title, current }: CatalogPageHeaderProps) {
   return (
-    <header className="border-b border-slate-700 pb-6">
-      <p className="text-xs font-semibold uppercase tracking-widest text-cyan-300">
+    <header className="border-b border-line pb-6">
+      <p className="text-xs font-semibold uppercase tracking-widest text-link">
         Nuestro Breaking · Catálogo del evento
       </p>
       <h1 className="mt-2 text-3xl font-semibold tracking-tight">{title}</h1>

@@ -4,6 +4,7 @@ const eventId = 'a1b2c3d4-1234-4567-89ab-123456789abc';
 const foundationPath = `/admin/events/${eventId}/foundation`;
 const foundationEndpoint = (url: URL) => url.port === '3000' && url.pathname === foundationPath;
 const sessionEndpoint = (url: URL) => url.port === '3000' && url.pathname === '/auth/session';
+const adminEventsEndpoint = (url: URL) => url.port === '3000' && url.pathname === '/admin/events';
 
 test.beforeEach(async ({ page }) => {
   await page.route(sessionEndpoint, (route) =>
@@ -94,9 +95,15 @@ test('shows foundation context and navigates to the only global admin destinatio
   page,
 }) => {
   await page.route(foundationEndpoint, (route) => route.fulfill({ json: foundation }));
+  // The account manages this event, so the header shows the event selector first in Tab order.
+  await page.route(adminEventsEndpoint, (route) =>
+    route.fulfill({ json: [{ id: eventId, name: 'Encuentro del barrio' }] }),
+  );
   await page.goto(foundationPath);
   const header = page.getByRole('banner', { name: 'Espacio de administración' });
   await expect(header.getByText('Fundamentos del evento')).toBeVisible();
+  const selector = header.getByRole('combobox', { name: 'Evento' });
+  await expect(selector).toHaveValue(eventId);
   await expect(header.getByText(eventId)).toHaveCount(0);
   const nav = page.getByRole('navigation', { name: 'Navegación administrativa' });
   const home = nav.getByRole('link', { name: 'Resumen' });
@@ -113,9 +120,15 @@ test('keeps event context and the only usable destination accessible at 375px', 
 }) => {
   await page.setViewportSize({ width: 375, height: 800 });
   await page.route(foundationEndpoint, (route) => route.fulfill({ json: foundation }));
+  // The account manages this event, so the header shows the event selector first in Tab order.
+  await page.route(adminEventsEndpoint, (route) =>
+    route.fulfill({ json: [{ id: eventId, name: 'Encuentro del barrio' }] }),
+  );
   await page.goto(foundationPath);
   const header = page.getByRole('banner', { name: 'Espacio de administración' });
   await expect(header.getByText('Fundamentos del evento')).toBeVisible();
+  const selector = header.getByRole('combobox', { name: 'Evento' });
+  await expect(selector).toHaveValue(eventId);
   await expect(header.getByText(eventId)).toHaveCount(0);
   const home = page
     .getByRole('navigation', { name: 'Navegación administrativa' })
@@ -123,6 +136,8 @@ test('keeps event context and the only usable destination accessible at 375px', 
   await expect(home).not.toHaveAttribute('aria-current', 'page');
   await expect(header.getByRole('link')).toHaveCount(0);
   const signOut = header.getByRole('button', { name: 'Cerrar sesión' });
+  await page.keyboard.press('Tab');
+  await expect(selector).toBeFocused();
   await page.keyboard.press('Tab');
   await expect(header.getByRole('button', { name: 'Tema oscuro' })).toBeFocused();
   await page.keyboard.press('Tab');

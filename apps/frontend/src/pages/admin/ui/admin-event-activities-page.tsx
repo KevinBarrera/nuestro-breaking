@@ -85,7 +85,7 @@ function EventActivities({ eventId }: { eventId: string }) {
   const venueNames = new Map(data?.context.venues.map((venue) => [venue.id, venue.name]));
 
   return (
-    <main className="min-h-screen bg-slate-950 px-4 py-8 text-slate-100 sm:px-8 lg:py-12">
+    <main className="px-4 py-8 text-fg sm:px-8 lg:py-12">
       <div className="mx-auto max-w-5xl space-y-6">
         <CatalogPageHeader eventId={eventId} title="Actividades" current="activities" />
         {state.status === 'loading' && <p role="status">Cargando actividades…</p>}

@@ -74,4 +74,7 @@ The admin UI has a light and a dark theme built on CSS custom properties in `src
 
 ## Admin Shell
 
-`@/widgets/admin-shell` (`AdminShell`) wraps every protected `/admin` page through `AdminSessionBoundary`. It renders the header (brand, event selector from `GET /admin/events`, theme toggle, sign-out), the brand bar, and the full-height side navigation with Operación and Catálogo groups. Screens without a backend (Inscripciones, Listas de respaldo) are shown disabled with "Próximamente". Below the `md` breakpoint the navigation stacks above the page content. Pages render only their own `<main>`.
+`@/widgets/admin-shell` (`AdminShell`) wraps every protected `/admin` page through `AdminSessionBoundary`. It renders the header (brand, event selector from `GET /admin/events`, theme toggle, sign-out), the brand bar, and the full-height side navigation with Operación and Catálogo groups. Screens without a backend (Inscripciones, Listas de respaldo) are shown disabled with "Próximamente". Pages render only their own `<main>`.
+
+- **Fixed frame.** From `md` up the shell is one viewport tall (`h-dvh`): the header, brand bar and side navigation stay in place, and only the content column around the page's `<main>` scrolls (`overflow-y-auto`); the side navigation scrolls on its own if it outgrows the height. The shell scrolls that column back to the top on every route change, because the window no longer scrolls. Popovers such as the shared `Select` listbox render at the end of `<body>`, so the scroll container never clips them.
+- **Phone.** Below `md` the navigation stacks above the page content and the whole page scrolls naturally with no horizontal overflow. `e2e/admin-fixed-shell.spec.ts` covers both layouts.

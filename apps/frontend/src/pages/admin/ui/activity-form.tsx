@@ -71,8 +71,15 @@ export function ActivityForm({
 
   return (
     <form aria-label={title} onSubmit={submit} className={`${styles.card} space-y-4`}>
-      <h2 className="text-xl font-semibold">{title}</h2>
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h2 className="text-lg font-bold text-heading">{title}</h2>
+        {activity && (
+          <span className="font-mono text-sm text-muted">
+            <span className="sr-only">Versión </span>v{activity.version}
+          </span>
+        )}
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
         <label className={styles.label}>
           Nombre
           <input
@@ -99,7 +106,7 @@ export function ActivityForm({
             ))}
           </datalist>
         </label>
-        <label className={`${styles.label} sm:col-span-2`}>
+        <label className={`${styles.label} sm:col-span-2 lg:col-span-1`}>
           Sede
           <select
             className={styles.field}
@@ -118,7 +125,7 @@ export function ActivityForm({
         <label className={styles.label}>
           Inicio
           <input
-            className={styles.field}
+            className={`${styles.field} font-mono`}
             type="datetime-local"
             value={startsAt}
             required
@@ -128,7 +135,7 @@ export function ActivityForm({
         <label className={styles.label}>
           Fin
           <input
-            className={styles.field}
+            className={`${styles.field} font-mono`}
             type="datetime-local"
             value={endsAt}
             required

@@ -43,7 +43,7 @@ Forecast: ~1,900 authored lines over 5 PRs.
 
 ### PR 6 — `feat/136-06-activity-agenda`
 
-- [ ] T7 — Actividades agenda grouped by day in the event time zone, kind filters, search, archived toggle, workshop empty state. Playwright coverage.
+- [x] T7 — Actividades agenda grouped by day in the event time zone, kind filters, search, archived toggle, workshop empty state. Playwright coverage.
 
 ### PR 7 — `feat/136-07-check-in-restyle`
 
@@ -95,6 +95,14 @@ See issue #136. Mapped: themes/contrast/targets → T1–T3, T9; persistence →
   - R3-access-save-resets-pass-form — `766798a fix(admin): keep unsaved pass edits after saving access`. The ready state keeps `loaded` (last server read) beside `data`; `PassTypeForm` is keyed by the selected pass's version in `loaded`, so a reload with a newer version still remounts it with server values, while an access save applied in place (only activity links change) keeps unsaved fields and the submit reads the current version from the latest data. Chosen over a reload-generation key because a reload returning the same version keeps unsaved edits, as before. RED: the edited name reverted to "Pase completo" after "Guardar acceso"; GREEN: the name stays and the next PATCH carries it with `expectedVersion: 3`. The stale-reload regression (v5 remount) stays green.
   - R3-busy-disables-cells-untested — `test(admin): cover the busy access map while saving` (this commit). Holds the PUT and asserts every editable cell and "Guardando…" are disabled, then releases. Coverage only; passed on first run.
 - Checks: lint (0 errors, 2 pre-existing warnings), build, full Playwright suite (84 passed), `pnpm format:check`, `git diff --check`.
+
+### PR 6 — T7 agenda (`feat/136-07-activity-agenda`; route: delegated direct — one bounded writer; trigger: 2+ non-trivial files)
+
+- `46c2f76 feat(event-catalog): format event days and clock times in the event time zone` (+32/−1): `eventDayKey`, `formatEventClock`, `formatEventDay` ("Sábado 21 de noviembre", `es-MX` parts in the event time zone, capitalized weekday) on top of `toZonedInput`.
+- `da3cf08 feat(admin): show activities as a day agenda with kind filters and search` (+649/−188): `activity-agenda-model.ts` filters (kind, accent/case-insensitive name search, archived toggle), sorts by start then name and groups by the event-clock day; one `<section>` per day (h2 + count) with rows: `font-mono` time range, name, venue, Spanish kind chip (`activityKindLabel`), status chip, Editar/Archivar (archive confirmation unchanged; archived rows show "Archivada" with no actions). Kind chips (`aria-pressed`, "Todas · N" plus the kinds present, counts follow the archived toggle) always include "Taller" because `workshop` is a known kind; selecting it with no workshop activities (any status) and no search shows "Aún no hay talleres — Se anuncian más adelante…". Other empty states: no activities at all; "Ninguna actividad coincide con los filtros." "Mostrar archivadas" is off by default. The create/edit form opens in a side panel (`aside` "Panel de la actividad"), same save/409 handling. `catalog-page-header.tsx` deleted (no users left).
+- `style(admin): restyle the activity form as a side panel` (this commit): Pases-style header with `v<version>`, one column in the lg panel, `font-mono` time inputs.
+- RED: `e2e/admin-activity-agenda.spec.ts` (browser `timezoneId: Asia/Tokyo`, event `America/Mexico_City`, a 22:30 local activity whose UTC/Tokyo date is the next day) 6/8 failed before the agenda (empty-agenda and create/edit cases already held); GREEN 8/8. Existing catalog spec changes: kind asserted as "Batalla" instead of "battle"; archived rows asserted after checking "Mostrar archivadas" (list test and archive test, which now also asserts the row hides after archiving).
+- Checks: lint (0 errors, 2 pre-existing warnings), build, full Playwright suite (92 passed), `pnpm format:check`, `git diff --check`. `46c2f76` built and linted alone; `da3cf08` passed build, lint and 92 e2e alone.
 
 ## Next step
 

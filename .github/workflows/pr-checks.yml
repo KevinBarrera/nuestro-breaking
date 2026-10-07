@@ -23,7 +23,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Enforce feature -> dev -> staging -> main flow
+      - name: Enforce feature -> dev -> staging -> main flow (chained work-branch bases allowed)
         env:
           BASE_REF: ${{ github.base_ref }}
           HEAD_REF: ${{ github.head_ref }}
@@ -32,11 +32,13 @@ jobs:
         run: |
           set -euo pipefail
 
+          WORK_BRANCH_PATTERN='^(feat|fix|chore|docs|style|refactor|perf|test|build|ci|revert)/[a-z0-9._-]+$'
+
           echo "Validating PR branch flow: ${HEAD_REPOSITORY}:${HEAD_REF} -> ${REPOSITORY}:${BASE_REF}"
 
           case "${BASE_REF}" in
             dev)
-              if [[ "${HEAD_REF}" =~ ^(feat|fix|chore|docs|style|refactor|perf|test|build|ci|revert)/[a-z0-9._-]+$ ]]; then
+              if [[ "${HEAD_REF}" =~ ${WORK_BRANCH_PATTERN} ]]; then
                 exit 0
               fi
               echo "PRs targeting dev must come from a typed work branch such as feat/*, fix/*, chore/*, docs/*, test/*, or ci/*."
@@ -57,7 +59,16 @@ jobs:
               exit 1
               ;;
             *)
-              echo "Unsupported PR base branch: ${BASE_REF}. Allowed bases are dev, staging, and main."
+              # Chained/stacked PRs: a typed work branch may target its parent
+              # typed work branch when both live in this repository.
+              if [[ "${BASE_REF}" =~ ${WORK_BRANCH_PATTERN} ]]; then
+                if [[ "${HEAD_REPOSITORY}" == "${REPOSITORY}" && "${HEAD_REF}" =~ ${WORK_BRANCH_PATTERN} ]]; then
+                  exit 0
+                fi
+                echo "PRs targeting a work branch (${BASE_REF}) must come from another typed work branch in this repository (chained PRs)."
+                exit 1
+              fi
+              echo "Unsupported PR base branch: ${BASE_REF}. Allowed bases are dev, staging, main, or a typed work branch of this repository for chained PRs."
               exit 1
               ;;
           esac

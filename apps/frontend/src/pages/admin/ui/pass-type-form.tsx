@@ -37,7 +37,9 @@ export function PassTypeForm({ title, passType, busy, onSubmit, onCancel }: Pass
       return;
     }
     if (priceCents === null) {
-      setError('Escribe un precio válido en pesos, por ejemplo 1500 o 250.50.');
+      setError(
+        'Escribe un precio válido en pesos, sin separadores de miles y con hasta 2 decimales, por ejemplo 1500 o 1500,50.',
+      );
       return;
     }
     setError(null);

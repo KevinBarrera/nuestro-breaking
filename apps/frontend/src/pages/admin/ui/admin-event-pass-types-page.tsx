@@ -13,7 +13,12 @@ import {
 import { useCallback, useState } from 'react';
 import { useParams } from 'react-router';
 import { styles } from './catalog-copy';
-import { CatalogLoadFailure, CatalogNotice, type Notice } from './catalog-notice';
+import {
+  CatalogLoadFailure,
+  CatalogNotice,
+  CatalogRefreshFailure,
+  type Notice,
+} from './catalog-notice';
 import { CatalogPageHeader } from './catalog-page-header';
 import { PassTypeAccessEditor } from './pass-type-access-editor';
 import { PassTypeForm } from './pass-type-form';
@@ -94,6 +99,7 @@ function EventPassTypes({ eventId }: { eventId: string }) {
   }
 
   const data = state.status === 'ready' ? state.data : null;
+  const refreshFailure = state.status === 'ready' ? state.refreshFailure : null;
   const activityById = new Map(data?.activities.map((activity) => [activity.id, activity]));
 
   return (
@@ -105,6 +111,7 @@ function EventPassTypes({ eventId }: { eventId: string }) {
         {data && (
           <>
             <CatalogNotice notice={notice} onReload={refresh} />
+            <CatalogRefreshFailure failure={refreshFailure} onRetry={reload} />
             {editor?.mode === 'access' ? (
               <PassTypeAccessEditor
                 key={editor.passType.id}

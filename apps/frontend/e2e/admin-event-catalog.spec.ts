@@ -410,14 +410,281 @@ test('a judge or denied session sees a no-access state on both catalogs', async 
     (route) => route.fulfill({ json: { user: { id: 'judge', roles: ['judge'] } } }),
   );
   await mockFoundation(page);
+  const deniedReads: string[] = [];
   await page.route(
     (url) => api(url) && (url.pathname === activitiesPath || url.pathname === passTypesPath),
-    (route) => route.fulfill({ status: 403, json: { message: 'Forbidden' } }),
+    (route) => {
+      deniedReads.push(new URL(route.request().url()).pathname);
+      return route.fulfill({ status: 401, json: { message: 'Unauthorized' } });
+    },
   );
   await page.goto(activitiesPath);
+  await expect(page).toHaveURL(activitiesPath);
+  await expect(page.getByRole('heading', { name: 'Actividades', level: 1 })).toBeVisible();
   await expect(page.getByRole('alert')).toContainText('Sin acceso');
   await expect(page.getByRole('button', { name: 'Nueva actividad' })).toHaveCount(0);
+  await expect(page.getByRole('region', { name: 'Lista de actividades' })).toHaveCount(0);
+  expect(deniedReads).toContain(activitiesPath);
   await page.goto(passTypesPath);
+  await expect(page).toHaveURL(passTypesPath);
+  await expect(page.getByRole('heading', { name: 'Pases', level: 1 })).toBeVisible();
   await expect(page.getByRole('alert')).toContainText('Sin acceso');
   await expect(page.getByRole('button', { name: 'Nuevo pase' })).toHaveCount(0);
+  await expect(page.getByRole('region', { name: 'Lista de pases' })).toHaveCount(0);
+  expect(deniedReads).toContain(passTypesPath);
+});
+
+test('an event without venues explains why activities cannot be saved', async ({ page }) => {
+  await page.route(
+    (url) => api(url) && url.pathname === `/admin/events/${eventId}/foundation`,
+    (route) => route.fulfill({ json: { ...foundation, venues: [] } }),
+  );
+  await mockActivityList(page, () => []);
+  let writes = 0;
+  await page.route(
+    (url) => api(url) && url.pathname === activitiesPath,
+    (route) => {
+      if (route.request().method() === 'GET') return route.fallback();
+      writes++;
+      return route.fulfill({ status: 400, json: {} });
+    },
+  );
+  await page.goto(activitiesPath);
+  await page.getByRole('button', { name: 'Nueva actividad' }).click();
+  const form = page.getByRole('form', { name: 'Nueva actividad' });
+  await expect(form.getByText('El evento aún no tiene sedes')).toBeVisible();
+  await expect(form.getByRole('button', { name: 'Guardar' })).toBeDisabled();
+  await expect(form.getByLabel('Sede')).toBeDisabled();
+  expect(writes).toBe(0);
+});
+
+test('keeps the success message when the refresh after a write fails', async ({ page }) => {
+  await mockFoundation(page);
+  let rows = [activity()];
+  let failReads = false;
+  await page.route(
+    (url) => api(url) && url.pathname === activitiesPath,
+    (route) => {
+      if (route.request().method() === 'GET') {
+        if (failReads) return route.fulfill({ status: 500, json: {} });
+        return route.fulfill({ json: rows });
+      }
+      const created = activity({ id: createdId, name: 'Taller de toprock', version: 1 });
+      rows = [...rows, created];
+      failReads = true;
+      return route.fulfill({ status: 201, json: created });
+    },
+  );
+  await page.goto(activitiesPath);
+  await page.getByRole('button', { name: 'Nueva actividad' }).click();
+  const form = page.getByRole('form', { name: 'Nueva actividad' });
+  await form.getByLabel('Nombre').fill('Taller de toprock');
+  await form.getByLabel('Tipo').fill('battle');
+  await form.getByLabel('Inicio').fill('2026-11-14T12:00');
+  await form.getByLabel('Fin').fill('2026-11-14T13:30');
+  await form.getByRole('button', { name: 'Guardar' }).click();
+  const reloadAlert = page.getByRole('alert').filter({ hasText: 'No se pudo recargar' });
+  await expect(reloadAlert).toBeVisible();
+  await expect(page.getByRole('status')).toContainText('Actividad creada');
+  await expect(page.getByText('Batalla de crews')).toBeVisible();
+  failReads = false;
+  await reloadAlert.getByRole('button', { name: 'Recargar' }).click();
+  await expect(page.getByText('Taller de toprock')).toBeVisible();
+  await expect(reloadAlert).toHaveCount(0);
+  await expect(page.getByRole('status')).toContainText('Actividad creada');
+});
+
+test('editing an activity keeps stored seconds when the times are unchanged', async ({ page }) => {
+  await mockFoundation(page);
+  const stored = activity({
+    startsAt: '2026-11-14T16:00:45.000Z',
+    endsAt: '2026-11-14T18:00:30.000Z',
+  });
+  await mockActivityList(page, () => [stored]);
+  const bodies: Record<string, unknown>[] = [];
+  await page.route(
+    (url) => api(url) && url.pathname === `${activitiesPath}/${battleId}`,
+    (route) => {
+      bodies.push(json(route));
+      return route.fulfill({ json: { ...stored, version: stored.version + bodies.length } });
+    },
+  );
+  await page.goto(activitiesPath);
+  const row = page.getByRole('listitem').filter({ hasText: 'Batalla de crews' });
+  await row.getByRole('button', { name: 'Editar' }).click();
+  let form = page.getByRole('form', { name: 'Editar actividad' });
+  await form.getByLabel('Nombre').fill('Batalla de crews');
+  await form.getByRole('button', { name: 'Guardar' }).click();
+  await expect(page.getByRole('status')).toContainText('Actividad actualizada');
+  expect(bodies[0]).toMatchObject({
+    startsAt: '2026-11-14T16:00:45.000Z',
+    endsAt: '2026-11-14T18:00:30.000Z',
+  });
+  await row.getByRole('button', { name: 'Editar' }).click();
+  form = page.getByRole('form', { name: 'Editar actividad' });
+  await form.getByLabel('Fin').fill('2026-11-14T12:30');
+  await form.getByRole('button', { name: 'Guardar' }).click();
+  await expect.poll(() => bodies.length).toBe(2);
+  expect(bodies[1]).toMatchObject({
+    startsAt: '2026-11-14T16:00:45.000Z',
+    endsAt: '2026-11-14T18:30:00.000Z',
+  });
+});
+
+test('edits a pass type with its expected version', async ({ page }) => {
+  let current: typeof fullPass = fullPass;
+  await mockPassTypes(page, () => [current]);
+  let body: Record<string, unknown> | undefined;
+  await page.route(
+    (url) => api(url) && url.pathname === `${passTypesPath}/${fullPassId}`,
+    (route) => {
+      expect(route.request().method()).toBe('PATCH');
+      expect(route.request().headers()['x-csrf-token']).toBe('safe-token');
+      body = json(route);
+      current = { ...fullPass, name: 'Pase completo VIP', priceCents: 175050, version: 3 };
+      return route.fulfill({ json: current });
+    },
+  );
+  await page.goto(passTypesPath);
+  await page
+    .getByRole('listitem')
+    .filter({ has: page.getByRole('heading', { name: 'Pase completo' }) })
+    .getByRole('button', { name: 'Editar', exact: true })
+    .click();
+  const form = page.getByRole('form', { name: 'Editar pase' });
+  await expect(form.getByLabel('Precio (MXN)')).toHaveValue('1500.00');
+  await form.getByLabel('Nombre').fill('Pase completo VIP');
+  await form.getByLabel('Precio (MXN)').fill('1750,50');
+  await form.getByRole('button', { name: 'Guardar' }).click();
+  await expect(page.getByRole('status')).toContainText('Pase actualizado');
+  expect(body).toEqual({
+    expectedVersion: 2,
+    name: 'Pase completo VIP',
+    passClass: 'full',
+    priceCents: 175050,
+    requiresPassClass: null,
+  });
+  await expect(
+    page
+      .getByRole('listitem')
+      .filter({ has: page.getByRole('heading', { name: 'Pase completo VIP' }) }),
+  ).toContainText('$1,750.50');
+});
+
+test('shows a reload request when a pass type edit conflicts', async ({ page }) => {
+  await mockPassTypes(page, () => [fullPass]);
+  await page.route(
+    (url) => api(url) && url.pathname === `${passTypesPath}/${fullPassId}`,
+    (route) => route.fulfill({ status: 409, json: { message: 'Pass type version conflict' } }),
+  );
+  await page.goto(passTypesPath);
+  await page
+    .getByRole('listitem')
+    .filter({ has: page.getByRole('heading', { name: 'Pase completo' }) })
+    .getByRole('button', { name: 'Editar', exact: true })
+    .click();
+  const form = page.getByRole('form', { name: 'Editar pase' });
+  await form.getByLabel('Nombre').fill('Otro pase');
+  await form.getByRole('button', { name: 'Guardar' }).click();
+  await expect(page.getByRole('alert')).toContainText('Conflicto');
+  await expect(page.getByText('Pass type version conflict')).toHaveCount(0);
+  await expect(page.getByText('Pase actualizado')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Recargar' })).toBeVisible();
+});
+
+test('archives a pass type only after confirmation', async ({ page }) => {
+  let current: typeof fullPass = fullPass;
+  await mockPassTypes(page, () => [current]);
+  const bodies: Record<string, unknown>[] = [];
+  await page.route(
+    (url) => api(url) && url.pathname === `${passTypesPath}/${fullPassId}/archive`,
+    (route) => {
+      expect(route.request().method()).toBe('POST');
+      expect(route.request().headers()['x-csrf-token']).toBe('safe-token');
+      bodies.push(json(route));
+      current = { ...fullPass, status: 'archived', version: 3 };
+      return route.fulfill({ json: current });
+    },
+  );
+  await page.goto(passTypesPath);
+  const row = page
+    .getByRole('listitem')
+    .filter({ has: page.getByRole('heading', { name: 'Pase completo' }) });
+  await row.getByRole('button', { name: 'Archivar' }).click();
+  await expect(row.getByText('¿Archivar Pase completo?')).toBeVisible();
+  await row.getByRole('button', { name: 'Cancelar' }).click();
+  expect(bodies).toHaveLength(0);
+  await row.getByRole('button', { name: 'Archivar' }).click();
+  await row.getByRole('button', { name: 'Confirmar archivo' }).click();
+  await expect(page.getByRole('status')).toContainText('Pase archivado');
+  await expect(row).toContainText('Archivado');
+  await expect(row.getByRole('button', { name: 'Editar', exact: true })).toHaveCount(0);
+  expect(bodies).toEqual([{ expectedVersion: 2 }]);
+});
+
+test('rejects ambiguous pass prices before sending them', async ({ page }) => {
+  await mockPassTypes(page, () => [fullPass]);
+  let writes = 0;
+  await page.route(
+    (url) => api(url) && url.pathname === passTypesPath,
+    (route) => {
+      if (route.request().method() === 'GET') return route.fallback();
+      writes++;
+      return route.fulfill({ status: 201, json: openStyles });
+    },
+  );
+  await page.goto(passTypesPath);
+  await page.getByRole('button', { name: 'Nuevo pase' }).click();
+  const form = page.getByRole('form', { name: 'Nuevo pase' });
+  await form.getByLabel('Nombre').fill('Pase general');
+  for (const price of ['1,500.50', '1.500,50', '1,500', '12.345']) {
+    await form.getByLabel('Precio (MXN)').fill(price);
+    await form.getByRole('button', { name: 'Guardar' }).click();
+    await expect(form.getByRole('alert')).toContainText('separadores de miles');
+  }
+  expect(writes).toBe(0);
+});
+
+test('parses MXN prices with a dot or comma decimal separator', async ({ page }) => {
+  const inputs = [
+    '1500',
+    ' 1500.5 ',
+    '1500,50',
+    '0,05',
+    '21474836,47',
+    '21474836,48',
+    '1,500.50',
+    '1.500,50',
+    '1,500',
+    '1.500',
+    '12.345',
+    '1 500',
+    ',50',
+    '',
+  ];
+  await page.goto('/');
+  // No unit runner exists, so the pure parser is loaded from the Vite dev server in the page.
+  const parsed = await page.evaluate(async (values) => {
+    const modulePath = '/src/entities/event-catalog/model/money.ts';
+    const money = (await import(/* @vite-ignore */ modulePath)) as {
+      parseMxnToCents: (value: string) => number | null;
+    };
+    return values.map((value) => money.parseMxnToCents(value));
+  }, inputs);
+  expect(Object.fromEntries(inputs.map((input, index) => [input, parsed[index]]))).toEqual({
+    '1500': 150000,
+    ' 1500.5 ': 150050,
+    '1500,50': 150050,
+    '0,05': 5,
+    '21474836,47': 2147483647,
+    '21474836,48': null,
+    '1,500.50': null,
+    '1.500,50': null,
+    '1,500': null,
+    '1.500': null,
+    '12.345': null,
+    '1 500': null,
+    ',50': null,
+    '': null,
+  });
 });

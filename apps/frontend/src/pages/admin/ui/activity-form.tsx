@@ -33,17 +33,26 @@ export function ActivityForm({
   const [name, setName] = useState(activity?.name ?? '');
   const [kind, setKind] = useState(activity?.kind ?? '');
   const [venueId, setVenueId] = useState(activity?.venueId ?? venues[0]?.id ?? '');
-  const [startsAt, setStartsAt] = useState(
+  // The input only holds minutes; remember the shown values so an untouched time keeps the
+  // stored instant (including seconds) instead of being silently truncated.
+  const [initialStartsAt] = useState(() =>
     activity ? toZonedInput(activity.startsAt, timeZone) : '',
   );
-  const [endsAt, setEndsAt] = useState(activity ? toZonedInput(activity.endsAt, timeZone) : '');
+  const [initialEndsAt] = useState(() => (activity ? toZonedInput(activity.endsAt, timeZone) : ''));
+  const [startsAt, setStartsAt] = useState(initialStartsAt);
+  const [endsAt, setEndsAt] = useState(initialEndsAt);
   const [error, setError] = useState<string | null>(null);
+  const noVenues = venues.length === 0;
+
+  function instant(value: string, initial: string, stored: string | undefined) {
+    return stored !== undefined && value === initial ? stored : fromZonedInput(value, timeZone);
+  }
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (busy) return;
-    const start = fromZonedInput(startsAt, timeZone);
-    const end = fromZonedInput(endsAt, timeZone);
+    if (busy || noVenues) return;
+    const start = instant(startsAt, initialStartsAt, activity?.startsAt);
+    const end = instant(endsAt, initialEndsAt, activity?.endsAt);
     if (!name.trim() || !kind.trim() || !venueId) {
       setError('Completa nombre, tipo y sede.');
       return;
@@ -96,6 +105,7 @@ export function ActivityForm({
             className={styles.field}
             value={venueId}
             required
+            disabled={noVenues}
             onChange={(event) => setVenueId(event.target.value)}
           >
             {venues.map((venue) => (
@@ -126,6 +136,11 @@ export function ActivityForm({
           />
         </label>
       </div>
+      {noVenues && (
+        <p className="text-sm text-amber-200">
+          El evento aún no tiene sedes. Agrega una sede al evento antes de guardar actividades.
+        </p>
+      )}
       <p className="text-xs text-slate-400">Horarios en la zona horaria del evento: {timeZone}.</p>
       {error && (
         <p role="alert" className="text-sm text-rose-200">
@@ -133,7 +148,7 @@ export function ActivityForm({
         </p>
       )}
       <div className="flex flex-wrap gap-3">
-        <button type="submit" disabled={busy} className={styles.primary}>
+        <button type="submit" disabled={busy || noVenues} className={styles.primary}>
           {busy ? 'Guardando…' : 'Guardar'}
         </button>
         <button type="button" disabled={busy} onClick={onCancel} className={styles.secondary}>

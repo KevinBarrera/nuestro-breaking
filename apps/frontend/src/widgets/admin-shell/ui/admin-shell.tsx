@@ -48,7 +48,7 @@ export function AdminShell({ signingOut, signOutFailed, onSignOut, children }: A
           </div>
           <div className="flex min-w-0 flex-wrap items-center gap-3">
             <EventSelector events={events} location={location} />
-            <ThemeToggle className={`${headerControl} aria-pressed:bg-header-control`} />
+            <ThemeToggle className="border-header-line text-header-fg hover:bg-header-control focus-visible:outline-header-fg" />
             <button
               type="button"
               disabled={signingOut}

@@ -249,7 +249,7 @@ test('keeps the planning label distinct from live data on a narrow keyboard-acce
   await expect(page.getByText('Vista de planificación · Datos de ejemplo')).toBeVisible();
   await expect(page.getByRole('region', { name: 'Evento de ejemplo' })).toBeVisible();
   await page.keyboard.press('Tab');
-  await expect(header.getByRole('button', { name: 'Tema oscuro' })).toBeFocused();
+  await expect(header.getByRole('button', { name: 'Cambiar a tema oscuro' })).toBeFocused();
   await page.keyboard.press('Tab');
   await expect(signOut).toBeFocused();
   await expect(signOut).toHaveCSS('outline-style', 'solid');

@@ -163,23 +163,44 @@ test('applies the font stylesheet once it loads', async ({ page }) => {
   expect(served).toBeGreaterThan(0);
 });
 
-test('toggles the theme, persists it across reloads and keeps a 44px target', async ({ page }) => {
+test('toggles the theme with an icon-only button that names its action and persists it', async ({
+  page,
+}) => {
   await page.goto('/admin');
   const html = page.locator('html');
-  const toggle = page.getByRole('button', { name: 'Tema oscuro' });
+  const header = page.getByRole('banner', { name: 'Espacio de administración' });
+  const toDark = header.getByRole('button', { name: 'Cambiar a tema oscuro', exact: true });
   await expect(html).toHaveAttribute('data-theme', 'light');
-  await expect(toggle).toHaveAttribute('aria-pressed', 'false');
-  const bounds = await toggle.boundingBox();
+  await expect(toDark).toBeVisible();
+  await expect(toDark).not.toHaveAttribute('aria-pressed');
+  await expect(toDark).toHaveAttribute('title', 'Cambiar a tema oscuro');
+  // Icon only: no visible text, just the decorative moon icon.
+  expect((await toDark.innerText()).trim()).toBe('');
+  await expect(toDark.locator('svg[aria-hidden="true"]')).toHaveCount(1);
+  await expect(toDark).toHaveAttribute('data-icon', 'moon');
+  const bounds = await toDark.boundingBox();
   expect(bounds!.height).toBeGreaterThanOrEqual(44);
-  await toggle.click();
+  expect(bounds!.width).toBeGreaterThanOrEqual(44);
+  await toDark.focus();
+  await expect(toDark).toHaveCSS('outline-style', 'solid');
+
+  await toDark.click();
   await expect(html).toHaveAttribute('data-theme', 'dark');
-  await expect(toggle).toHaveAttribute('aria-pressed', 'true');
+  const toLight = header.getByRole('button', { name: 'Cambiar a tema claro', exact: true });
+  await expect(toLight).toBeVisible();
+  await expect(toLight).toHaveAttribute('data-icon', 'sun');
+  await expect(toLight).toHaveAttribute('title', 'Cambiar a tema claro');
+  await expect(header.getByRole('button', { name: 'Cambiar a tema oscuro' })).toHaveCount(0);
+
   await page.reload();
   await expect(html).toHaveAttribute('data-theme', 'dark');
-  await expect(page.getByRole('button', { name: 'Tema oscuro' })).toHaveAttribute(
-    'aria-pressed',
-    'true',
-  );
+  await expect(
+    header.getByRole('button', { name: 'Cambiar a tema claro', exact: true }),
+  ).toBeVisible();
+
+  await header.getByRole('button', { name: 'Cambiar a tema claro', exact: true }).click();
+  await expect(html).toHaveAttribute('data-theme', 'light');
+  await expect(toDark).toBeVisible();
 });
 
 test('applies the stored theme before the app renders', async ({ page }) => {
@@ -214,7 +235,7 @@ test('falls back to the light theme when storage throws', async ({ page }) => {
   await page.goto('/admin');
   const html = page.locator('html');
   await expect(html).toHaveAttribute('data-theme', 'light');
-  const toggle = page.getByRole('button', { name: 'Tema oscuro' });
+  const toggle = page.getByRole('button', { name: 'Cambiar a tema oscuro' });
   await toggle.click();
   await expect(html).toHaveAttribute('data-theme', 'dark');
   await expect(page.getByRole('button', { name: 'Cerrar sesión' })).toBeVisible();

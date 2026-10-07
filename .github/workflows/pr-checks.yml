@@ -215,6 +215,9 @@ jobs:
             exit 1
           fi
       - run: pnpm --filter @nuestro-breaking/frontend test:e2e --shard=${{ matrix.shard }}/${{ matrix.total }}
+        env:
+          # Serve a production build (vite build + preview) instead of the dev server.
+          NB_E2E_PREVIEW: '1'
       - name: Upload Playwright failure artifacts
         if: failure()
         uses: actions/upload-artifact@v4

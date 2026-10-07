@@ -30,7 +30,7 @@ test('renders the shell with grouped navigation and unavailable sections disable
 }) => {
   await page.goto('/admin');
   const header = page.getByRole('banner', { name: 'Espacio de administración' });
-  await expect(header.getByText('NUESTRO BREAKING')).toBeVisible();
+  await expect(header.getByText('LOS MÁS PESADOS')).toBeVisible();
   await expect(header.getByText('ADMIN', { exact: true })).toBeVisible();
   const nav = sideNav(page);
   await expect(nav.getByText('OPERACIÓN')).toBeVisible();

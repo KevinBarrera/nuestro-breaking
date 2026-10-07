@@ -89,7 +89,7 @@ export function AdminEventFoundationPage() {
       <div className="mx-auto max-w-5xl space-y-6">
         <header className="border-b border-line pb-6">
           <p className="text-xs font-semibold uppercase tracking-widest text-link">
-            Nuestro Breaking · Administración
+            Los más pesados · Administración
           </p>
           <h1 className="mt-2 text-3xl font-semibold">Fundamentos del evento</h1>
           <p className="mt-3 text-sm text-warning-fg">

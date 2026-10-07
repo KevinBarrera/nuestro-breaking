@@ -44,7 +44,7 @@ Route per task: delegated writer (2+ non-trivial files each). Test-first: Postgr
 - [x] T5 Admin frontend: activities and pass types screens (list, create, edit, archive, link activities) with Playwright coverage.
 - [x] T6 Local-only seed for the November event (venue, activities, pass types) following `scripts/provision-local-admin.ts` guards.
 - [x] T7 Docs: catalog contract, update event/activity boundary contract, and replace F1–F4 with #124–#127 in the delivery slices matrix.
-- [ ] T8 UI hardening from T5 review findings: make the judge test exercise the catalog routes; handle the venue-missing activity form state; keep the success message when the post-write reload fails; add Playwright cases for pass type edit and archive; parse money entered with a comma decimal separator; keep seconds when editing activity times.
+- [x] T8 UI hardening from T5 review findings: make the judge test exercise the catalog routes; handle the venue-missing activity form state; keep the success message when the post-write reload fails; add Playwright cases for pass type edit and archive; parse money entered with a comma decimal separator; keep seconds when editing activity times.
 
 ## Constraints
 
@@ -82,7 +82,8 @@ Route per task: delegated writer (2+ non-trivial files each). Test-first: Postgr
 | T4    | `feat/124-04-registration-entitlements` | #131 | `feat(catalog): add admin registration entitlements`              |
 | T5    | `feat/124-05-admin-catalog-screens`     | #132 | `feat(catalog): add admin activity and pass type screens`         |
 | T6    | `feat/124-06-november-catalog-seed`     | #133 | `feat(catalog): add local November catalog seed`                  |
-| T7    | `docs/124-07-event-catalog-docs`        | —    | `docs(catalog): document event catalog contract and slice status` |
+| T7    | `docs/124-07-event-catalog-docs`        | #134 | `docs(catalog): document event catalog contract and slice status` |
+| T8    | `fix/124-08-catalog-ui-hardening`       | —    | `fix(catalog): harden admin catalog screens from review findings` |
 
 ## Progress
 
@@ -112,7 +113,9 @@ Route per task: delegated writer (2+ non-trivial files each). Test-first: Postgr
 - T6 outcome: PR #133 opened; native review approved. Findings pending later handling: seed CLI untested, URI decode outside the try block, natural-key normalization untested, unordered pass type lookup, archived-skip on create untested.
 - T7 (delegated writer): new `docs/contracts/event-catalog.md` (data model, every admin endpoint with auth and 400/401/403/404/409 errors, rules, audit semantics, UI, local seed, known gaps), verified against controllers, services and migrations `0011`/`0012`. Minimal updates to `event-activity-api-boundary.md` (no longer the only event/activity API; price lives on pass types; foundation lists archived activities without status) and `event-activity-foundation.md` (update callout; general entry and price questions marked resolved by #124; #60 readback kept as history). `november-2026-mvp-delivery-slices.md`: F1–F4 replaced by #124–#127 with GitHub titles; Slice 1 marked delivered via PRs #128–#133 plus this docs PR; other slices untouched. Contradiction found while verifying: auth failures for judges and other-event admins return 401 (not 403); 403 is only for origin/CSRF failures. Passive docs: no RED/GREEN; structural checks only. Route: delegated writer (trigger: 4 files, preparation reading).
 - T6 open: the local-only guard is duplicated from local admin provisioning (extract a shared guard later); if an admin narrows the event window, a re-run that must create a missing activity outside it fails as a whole (generic CLI error, nothing written).
+- T7 outcome: PR #134 opened; native assessment passive, no review.
+- T8 (delegated writer): six T5 review findings fixed in `apps/frontend/src/entities/event-catalog` and `apps/frontend/src/pages/admin/ui`, covered in `e2e/admin-event-catalog.spec.ts` (10 → 18 cases). Judge test now asserts the URL, the page heading and that the 401 catalog read happened on both routes, and that no list renders. Activity form disables the venue select and "Guardar" and explains "El evento aún no tiene sedes" when the event has no venues ("Nueva actividad" is always offered). `useCatalogLoad` keeps the last data on a failed refresh and reports `refreshFailure`; pages show a separate amber alert "No se pudo recargar la lista" with "Recargar" while the success status stays visible. `parseMxnToCents` accepts `.` or `,` as decimal separator and rejects thousand separators and more than 2 decimals (`1,500`, `1,500.50`, `12.345`); the form message names both rules. Untouched activity times send the stored instant (seconds preserved); a changed time is sent at minute precision. New Playwright cases: pass type edit (PATCH with `expectedVersion`, comma price), 409 on edit, archive with confirmation, ambiguous prices rejected without a write, parser checked in the page through the Vite dev server (parent-directory imports are lint-restricted and no unit runner exists). Test-first: RED 6/18 failing (the judge, pass type 409 and archive cases passed: coverage only), GREEN 18/18; the parser case also failed against the previous parser. Frontend lint 0 errors (2 pre-existing warnings in `admin-check-in-page.tsx`), build passes, full mocked Playwright 53/53, `pnpm format:check` clean. Live suite not run (needs the backend). Route: delegated writer (trigger: 2+ non-trivial files).
 
 ## Next step
 
-T8 UI hardening; then close #124.
+Close #124 after T8 merges.

@@ -33,6 +33,28 @@ export function CatalogNotice({ notice, onReload }: CatalogNoticeProps) {
   );
 }
 
+type RefreshFailureProps = { failure: CatalogFailure | null; onRetry: () => void };
+
+// Non-blocking: the write already succeeded, only the refreshed list could not be read.
+export function CatalogRefreshFailure({ failure, onRetry }: RefreshFailureProps) {
+  if (!failure) return null;
+  return (
+    <div
+      role="alert"
+      className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-600 bg-amber-950/40 px-4 py-3 text-sm text-amber-100"
+    >
+      <p>
+        {failure === 'denied'
+          ? failureMessages.denied
+          : 'No se pudo recargar la lista; puede no mostrar los últimos cambios.'}
+      </p>
+      <button type="button" className={styles.secondary} onClick={onRetry}>
+        Recargar
+      </button>
+    </div>
+  );
+}
+
 type LoadFailureProps = { failure: CatalogFailure };
 
 export function CatalogLoadFailure({ failure }: LoadFailureProps) {

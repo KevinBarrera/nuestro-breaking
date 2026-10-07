@@ -13,7 +13,12 @@ import { useParams } from 'react-router';
 import { ActivityForm } from './activity-form';
 import { ActivityList } from './activity-list';
 import { styles } from './catalog-copy';
-import { CatalogLoadFailure, CatalogNotice, type Notice } from './catalog-notice';
+import {
+  CatalogLoadFailure,
+  CatalogNotice,
+  CatalogRefreshFailure,
+  type Notice,
+} from './catalog-notice';
 import { CatalogPageHeader } from './catalog-page-header';
 import { useCatalogLoad } from './use-catalog-load';
 
@@ -76,6 +81,7 @@ function EventActivities({ eventId }: { eventId: string }) {
   }
 
   const data = state.status === 'ready' ? state.data : null;
+  const refreshFailure = state.status === 'ready' ? state.refreshFailure : null;
   const venueNames = new Map(data?.context.venues.map((venue) => [venue.id, venue.name]));
 
   return (
@@ -87,6 +93,7 @@ function EventActivities({ eventId }: { eventId: string }) {
         {data && (
           <>
             <CatalogNotice notice={notice} onReload={refresh} />
+            <CatalogRefreshFailure failure={refreshFailure} onRetry={reload} />
             {editor ? (
               <ActivityForm
                 key={editor.mode === 'edit' ? editor.activity.id : 'new'}
@@ -98,10 +105,6 @@ function EventActivities({ eventId }: { eventId: string }) {
                 onSubmit={save}
                 onCancel={() => setEditor(null)}
               />
-            ) : data.context.venues.length === 0 ? (
-              <p className="text-amber-200">
-                El evento aún no tiene sedes; no se pueden crear actividades.
-              </p>
             ) : (
               <button
                 type="button"

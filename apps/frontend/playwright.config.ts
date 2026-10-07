@@ -9,6 +9,10 @@ const baseURL = live
 // CI serves a production build instead of the on-demand Vite dev server, which is
 // slow on small runners. Live runs keep the dev server and its API proxy settings.
 const preview = !live && process.env.NB_E2E_PREVIEW === '1';
+// Pull requests skip the theme × screen sweeps; every push to dev runs them.
+// Feature specs keep their own phone-width checks, so PRs still cover narrow layouts.
+const skipSweeps = !live && process.env.NB_E2E_SKIP_SWEEPS === '1';
+const sweeps = ['admin-accessibility.spec.ts', 'admin-phone-width.spec.ts'];
 const port = new URL(baseURL).port;
 if (live) {
   process.env.NB_LIVE_ORIGIN = baseURL;
@@ -18,7 +22,7 @@ if (live) {
 export default defineConfig({
   testDir: './e2e',
   testMatch: live ? 'live-check-in.spec.ts' : '*.spec.ts',
-  testIgnore: live ? [] : ['live-check-in.spec.ts'],
+  testIgnore: live ? [] : ['live-check-in.spec.ts', ...(skipSweeps ? sweeps : [])],
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,

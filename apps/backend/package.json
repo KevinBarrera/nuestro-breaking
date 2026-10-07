@@ -21,7 +21,8 @@
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "db:generate": "drizzle-kit generate --config drizzle.config.ts",
     "db:migrate": "drizzle-kit migrate --config drizzle.config.ts",
-    "admin:provision": "node -r ts-node/register -r ./scripts/register-tsconfig-paths.cjs scripts/provision-local-admin.ts"
+    "admin:provision": "node -r ts-node/register -r ./scripts/register-tsconfig-paths.cjs scripts/provision-local-admin.ts",
+    "catalog:seed:november": "node -r ts-node/register -r ./scripts/register-tsconfig-paths.cjs scripts/seed-november-catalog.ts"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",

@@ -4,7 +4,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 export type CatalogLoadState<T> =
   | { status: 'loading' }
   | { status: 'failed'; failure: CatalogFailure }
-  | { status: 'ready'; data: T; refreshFailure: CatalogFailure | null };
+  // `loaded` is the last server read; `data` also carries confirmed writes applied in place.
+  | { status: 'ready'; data: T; loaded: T; refreshFailure: CatalogFailure | null };
 
 // Loads catalog data with an abortable read; `reload` refetches while keeping the last data
 // visible, so a refresh after a write does not blank the screen. A failed refresh keeps the
@@ -21,7 +22,8 @@ export function useCatalogLoad<T>(load: (signal: AbortSignal) => Promise<T>) {
     inFlight.current = controller;
     load(controller.signal)
       .then((data) => {
-        if (!controller.signal.aborted) setState({ status: 'ready', data, refreshFailure: null });
+        if (!controller.signal.aborted)
+          setState({ status: 'ready', data, loaded: data, refreshFailure: null });
       })
       .catch((error: unknown) => {
         if (controller.signal.aborted) return;

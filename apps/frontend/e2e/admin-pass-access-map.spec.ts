@@ -266,6 +266,50 @@ test('fits a 375px viewport and scrolls the access map inside its box', async ({
   expect(await box.evaluate((node) => node.scrollWidth > node.clientWidth)).toBe(true);
 });
 
+test('saving access keeps unsaved pass edits and the next save sends the new version', async ({
+  page,
+}) => {
+  let current = fullPass;
+  await mockCatalog(page, () => [current, generalPass]);
+  const patches: unknown[] = [];
+  await page.route(
+    (url) => api(url) && url.pathname.startsWith(`${passTypesPath}/`),
+    (route) => {
+      const request = route.request();
+      const body = request.postDataJSON() as Record<string, unknown>;
+      if (request.method() === 'PUT') {
+        current = { ...fullPass, version: 3, activities: body.activities as Access[] };
+        return route.fulfill({ json: current });
+      }
+      expect(request.method()).toBe('PATCH');
+      expect(new URL(request.url()).pathname).toBe(`${passTypesPath}/${fullPassId}`);
+      patches.push(body);
+      current = { ...current, name: body.name as string, version: 4 };
+      return route.fulfill({ json: current });
+    },
+  );
+  await page.goto(passTypesPath);
+  await selectPass(page, 'Pase completo');
+  const form = page.getByRole('form', { name: 'Editar pase' });
+  await form.getByLabel('Nombre').fill('Pase completo VIP');
+  await cell(page, 'Pase completo', 'Batalla 2 vs 2').selectOption('selectable');
+  await map(page).getByRole('button', { name: 'Guardar acceso' }).click();
+  await expect(page.getByRole('status')).toContainText('Acceso actualizado');
+  await expect(form).toContainText('v3');
+  await expect(form.getByLabel('Nombre')).toHaveValue('Pase completo VIP');
+  await form.getByRole('button', { name: 'Guardar cambios' }).click();
+  await expect(page.getByRole('status')).toContainText('Pase actualizado');
+  expect(patches).toEqual([
+    {
+      expectedVersion: 3,
+      name: 'Pase completo VIP',
+      passClass: 'full',
+      priceCents: 150000,
+      requiresPassClass: null,
+    },
+  ]);
+});
+
 test('a reload still in flight when access is saved cannot restore the older version', async ({
   page,
 }) => {

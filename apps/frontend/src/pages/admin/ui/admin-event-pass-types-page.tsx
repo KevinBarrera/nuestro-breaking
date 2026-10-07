@@ -24,9 +24,11 @@ import { PassTypeForm } from './pass-type-form';
 import { PassTypeList } from './pass-type-list';
 import { useCatalogLoad } from './use-catalog-load';
 
-// The edited pass is kept by id and read from the latest data. Its forms are keyed by id and
-// version, so a reload that brings a newer version remounts them with the server values instead
-// of pairing stale field values with the new expectedVersion.
+// The edited pass is kept by id and read from the latest data, so a save always sends its current
+// version. The form is keyed by the version of the last server read: a reload that brings a newer
+// version remounts it with the server values instead of pairing stale fields with the new
+// expectedVersion, while our own access save (applied in place, only activity links change)
+// keeps unsaved field edits. The access map is keyed by the current version, so a save resets it.
 type Editor = { mode: 'create' } | { mode: 'edit'; passTypeId: string } | null;
 
 export function AdminEventPassTypesPage() {
@@ -135,6 +137,10 @@ function EventPassTypes({ eventId }: { eventId: string }) {
         )
       : undefined;
   const panelOpen = editor?.mode === 'create' || selected !== undefined;
+  const loadedVersion =
+    state.status === 'ready'
+      ? state.loaded.passTypes.find((passType) => passType.id === selected?.id)?.version
+      : undefined;
 
   return (
     <main className="px-4 py-8 text-fg sm:px-8 lg:py-12">
@@ -183,7 +189,7 @@ function EventPassTypes({ eventId }: { eventId: string }) {
                   className="min-w-0 lg:col-start-2 lg:row-start-1"
                 >
                   <PassTypeForm
-                    key={selected ? `${selected.id}:${selected.version}` : 'new'}
+                    key={selected ? `${selected.id}:${loadedVersion ?? selected.version}` : 'new'}
                     title={selected ? 'Editar pase' : 'Nuevo pase'}
                     passType={selected}
                     busy={busy}

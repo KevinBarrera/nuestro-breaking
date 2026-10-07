@@ -2,6 +2,8 @@
 
 This contract explains what the current repository actually guarantees for events, venues, and activities. It supports GitHub issue #60 without treating the November 2026 MVP proposal as approved.
 
+> **Update (#124):** activities now have `status` and `version`, admins create, edit and archive them, and passes with prices and activity access are delivered. See the [event catalog contract](event-catalog.md). The #60 readback below is kept as delivered history.
+
 ## Current answer
 
 The implemented foundation is a reusable persistence layer for organization-scoped events, reusable venues, and neutral activities:
@@ -27,13 +29,13 @@ The implemented foundation is a reusable persistence layer for organization-scop
 
 The draft MVP examples can be represented as neutral activities without hard-coding final organizer decisions:
 
-| Draft example               | Current representation                                                                                 | Still configurable or deferred                                                              |
-| --------------------------- | ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------- |
-| Competition or battle       | `activities.kind = 'battle'` or another agreed label; `activities.name` stores display name.           | Final category names, brackets, scoring, judges, and winner logic.                          |
-| Workshop                    | `activities.kind = 'workshop'`; venue and interval identify where/when it happens.                     | Instructor metadata, workshop-specific capacity policy, and registration requirements.      |
-| General entry or event pass | Representable as a neutral activity if the product chooses to sell it as an activity-like access item. | Whether general access is modeled as an activity, ticket type, or separate product concept. |
-| Venue or room               | `venues.name` plus `event_venues` membership.                                                          | Public address, room details, accessibility notes, and event-day signage.                   |
-| Date/time                   | Event and activity `timestamptz` intervals with event `time_zone`.                                     | Display formatting and product rules around local date/time entry.                          |
+| Draft example               | Current representation                                                                       | Still configurable or deferred                                                         |
+| --------------------------- | -------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| Competition or battle       | `activities.kind = 'battle'` or another agreed label; `activities.name` stores display name. | Final category names, brackets, scoring, judges, and winner logic.                     |
+| Workshop                    | `activities.kind = 'workshop'`; venue and interval identify where/when it happens.           | Instructor metadata, workshop-specific capacity policy, and registration requirements. |
+| General entry or event pass | Resolved by #124: a pass type with class `general` and no activity access, not an activity.  | See the [event catalog contract](event-catalog.md).                                    |
+| Venue or room               | `venues.name` plus `event_venues` membership.                                                | Public address, room details, accessibility notes, and event-day signage.              |
+| Date/time                   | Event and activity `timestamptz` intervals with event `time_zone`.                           | Display formatting and product rules around local date/time entry.                     |
 
 This is enough for foundation work, but it is not approval of the draft MVP proposal.
 
@@ -53,11 +55,11 @@ Those belong to later MVP issues or validation work.
 
 ## Remaining deferred decisions after issue #60
 
-| Deferred decision                                          | Why it remains deferred                                                                                                               | Follow-up                                                                                 |
-| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| Price display and capacity are not persistence fields yet. | The UI preview and API metadata show them as useful planning fields, but organizer validation has not proven the exact storage model. | Decide in a focused registration/commercial or admin-authoring slice.                     |
-| Activity kind is plain text.                               | This keeps organizer-dependent labels flexible and supports battle/workshop/general-entry-like examples without premature taxonomy.   | Keep flexible until organizer/product validation, or introduce controlled values later.   |
-| Authentication and admin access are not implemented.       | The read endpoint is foundation work; protected admin access is important but should not be mixed into event/activity modeling.       | Track separately in issue #78, “Define minimal admin authentication and access boundary.” |
+| Deferred decision                                          | Why it remains deferred                                                                                                               | Follow-up                                                                                                   |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| Price display and capacity are not persistence fields yet. | The UI preview and API metadata show them as useful planning fields, but organizer validation has not proven the exact storage model. | Price resolved by #124 on pass types ([event catalog contract](event-catalog.md)); capacity stays deferred. |
+| Activity kind is plain text.                               | This keeps organizer-dependent labels flexible and supports battle/workshop/general-entry-like examples without premature taxonomy.   | Keep flexible until organizer/product validation, or introduce controlled values later.                     |
+| Authentication and admin access are not implemented.       | The read endpoint is foundation work; protected admin access is important but should not be mixed into event/activity modeling.       | Track separately in issue #78, “Define minimal admin authentication and access boundary.”                   |
 
 ## Acceptance readback for issue #60
 

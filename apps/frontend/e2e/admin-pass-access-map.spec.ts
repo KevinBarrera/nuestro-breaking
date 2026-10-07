@@ -393,3 +393,71 @@ test('a reload still in flight when access is saved cannot restore the older ver
   await expect(cell(page, 'Pase completo', 'Batalla 2 vs 2')).toHaveValue('included');
   await expect(map(page).getByRole('button', { name: 'Guardar acceso' })).toBeDisabled();
 });
+
+test('an access save during a retried reload re-reads instead of leaving the refresh failure', async ({
+  page,
+}) => {
+  let current = fullPass;
+  let reads: 'ok' | 'fail' | 'hold' = 'ok';
+  let heldReads = 0;
+  let passReads = 0;
+  let release = () => {};
+  const held = new Promise<void>((resolve) => (release = resolve));
+  let heldServed: Promise<unknown> = Promise.resolve();
+  await page.route(
+    (url) => api(url) && url.pathname === `/admin/events/${eventId}/activities`,
+    (route) => route.fulfill({ json: activities }),
+  );
+  await page.route(
+    (url) => api(url) && url.pathname === passTypesPath,
+    (route) => {
+      passReads++;
+      if (reads === 'fail') return route.fulfill({ status: 500, json: {} });
+      if (reads === 'ok') return route.fulfill({ json: [current, generalPass] });
+      heldReads++;
+      const snapshot = [current, generalPass];
+      heldServed = held.then(() => route.fulfill({ json: snapshot }).catch(() => undefined));
+      return heldServed;
+    },
+  );
+  let puts = 0;
+  await page.route(
+    (url) => api(url) && url.pathname === accessPath,
+    (route) => {
+      puts++;
+      if (puts === 1) return route.fulfill({ status: 409, json: { message: 'conflict' } });
+      const body = route.request().postDataJSON() as { activities: Access[] };
+      current = { ...fullPass, version: 3, activities: body.activities };
+      return route.fulfill({ json: current });
+    },
+  );
+  await page.goto(passTypesPath);
+  await selectPass(page, 'Pase completo');
+  await cell(page, 'Pase completo', 'Batalla 2 vs 2').selectOption('included');
+  await map(page).getByRole('button', { name: 'Guardar acceso' }).click();
+  const conflict = page.getByRole('alert').filter({ hasText: 'Otra persona cambió este pase' });
+  reads = 'fail';
+  await conflict.getByRole('button', { name: 'Recargar' }).click();
+  const refreshFailure = page.getByRole('alert').filter({ hasText: 'No se pudo recargar' });
+  await expect(refreshFailure).toBeVisible();
+
+  // The retry is still in flight when the next save lands and aborts it.
+  reads = 'hold';
+  await refreshFailure.getByRole('button', { name: 'Recargar' }).click();
+  await expect.poll(() => heldReads).toBe(1);
+  reads = 'ok';
+  const readsBeforeSave = passReads;
+  await cell(page, 'Pase completo', 'Batalla 2 vs 2').selectOption('included');
+  await map(page).getByRole('button', { name: 'Guardar acceso' }).click();
+  await expect(page.getByRole('status')).toContainText('Acceso actualizado');
+
+  await expect(refreshFailure).toHaveCount(0);
+  expect(passReads).toBe(readsBeforeSave + 1);
+  const form = page.getByRole('form', { name: 'Editar pase' });
+  await expect(form).toContainText('v3');
+  release();
+  await heldServed;
+  await page.evaluate(() => new Promise((resolve) => setTimeout(resolve, 100)));
+  await expect(form).toContainText('v3');
+  await expect(cell(page, 'Pase completo', 'Batalla 2 vs 2')).toHaveValue('included');
+});

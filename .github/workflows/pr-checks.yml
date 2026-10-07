@@ -36,15 +36,17 @@ jobs:
         if: github.event_name == 'pull_request'
         uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         with:
+          # Fail toward running: any file outside the app folders and the docs
+          # (lockfile, workspace or tool config, workflows, scripts) runs every area.
+          predicate-quantifier: every
           filters: |
-            shared:
-              - 'pnpm-lock.yaml'
-              - 'package.json'
-              - 'pnpm-workspace.yaml'
-              - '.npmrc'
-              - '.nvmrc'
-              - 'packages/**'
-              - '.github/**'
+            other:
+              - '!apps/backend/**'
+              - '!apps/frontend/**'
+              - '!docs/**'
+              - '!odd/**'
+              - '!openspec/**'
+              - '!**/*.md'
             backend:
               - 'apps/backend/**'
             frontend:
@@ -53,19 +55,19 @@ jobs:
         id: areas
         env:
           EVENT_NAME: ${{ github.event_name }}
-          SHARED: ${{ steps.filter.outputs.shared }}
+          OTHER: ${{ steps.filter.outputs.other }}
           BACKEND: ${{ steps.filter.outputs.backend }}
           FRONTEND: ${{ steps.filter.outputs.frontend }}
         run: |
           set -euo pipefail
-          if [[ "${EVENT_NAME}" != "pull_request" || "${SHARED}" == "true" ]]; then
+          if [[ "${EVENT_NAME}" != "pull_request" || "${OTHER}" == "true" ]]; then
             backend=true
             frontend=true
           else
             backend="${BACKEND:-false}"
             frontend="${FRONTEND:-false}"
           fi
-          echo "event=${EVENT_NAME} shared=${SHARED:-n/a} -> backend=${backend} frontend=${frontend}"
+          echo "event=${EVENT_NAME} other=${OTHER:-n/a} -> backend=${backend} frontend=${frontend}"
           echo "backend=${backend}" >> "${GITHUB_OUTPUT}"
           echo "frontend=${frontend}" >> "${GITHUB_OUTPUT}"
 
@@ -87,7 +89,7 @@ jobs:
   backend_lint_build_unit:
     name: backend / lint-build-unit
     needs: changes
-    if: needs.changes.outputs.backend == 'true'
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.backend == 'true') }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -106,7 +108,7 @@ jobs:
   backend_postgres_e2e:
     name: backend / postgres-e2e
     needs: changes
-    if: needs.changes.outputs.backend == 'true'
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.backend == 'true') }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -124,7 +126,7 @@ jobs:
   frontend_live_check_in:
     name: frontend / live-check-in
     needs: changes
-    if: needs.changes.outputs.backend == 'true' || needs.changes.outputs.frontend == 'true'
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.backend == 'true' || needs.changes.outputs.frontend == 'true') }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     # Runs on the host runner, not in the Playwright image: the forked backend
@@ -166,7 +168,7 @@ jobs:
   frontend_lint_build:
     name: frontend / lint-build
     needs: changes
-    if: needs.changes.outputs.frontend == 'true'
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.frontend == 'true') }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -184,7 +186,7 @@ jobs:
   frontend_playwright_shard:
     name: frontend / playwright shard (${{ matrix.shard }}/${{ matrix.total }})
     needs: changes
-    if: needs.changes.outputs.frontend == 'true'
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.frontend == 'true') }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     # Browsers and their OS dependencies ship in the official image, so no
@@ -250,8 +252,9 @@ jobs:
           retention-days: 7
 
   # Stable required-check name that aggregates the shard matrix. It always runs, so
-  # the check reports on every PR: shards skipped because the PR does not touch the
-  # frontend pass, while a failed or cancelled shard (or change detection) fails it.
+  # the check reports on every PR: shards skipped because change detection found no
+  # frontend change pass, while a failed or cancelled shard fails it. If change
+  # detection fails, the shards run anyway, so their own result decides.
   frontend_playwright:
     name: frontend / playwright
     needs: [changes, frontend_playwright_shard]
@@ -265,8 +268,8 @@ jobs:
           SHARD_RESULT: ${{ needs.frontend_playwright_shard.result }}
         run: |
           echo "Change detection result: ${CHANGES_RESULT}; Playwright shard job result: ${SHARD_RESULT}"
-          if [[ "${CHANGES_RESULT}" != "success" ]]; then
-            echo "::error::Change detection (quality / changes) did not succeed, so the Playwright shards cannot be trusted as skipped."
+          if [[ "${SHARD_RESULT}" == "skipped" && "${CHANGES_RESULT}" != "success" ]]; then
+            echo "::error::The Playwright shards were skipped without a successful change detection (quality / changes)."
             exit 1
           fi
           if [[ "${SHARD_RESULT}" != "success" && "${SHARD_RESULT}" != "skipped" ]]; then

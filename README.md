@@ -96,7 +96,7 @@ See the [code quality guide](docs/code-quality.md) for workspace formatting, lin
 
 ## Branch Flow
 
-Work branches use a typed prefix (`feat/`, `fix/`, `chore/`, `docs/`, `test/`, `ci/`, ...) and target `dev`; `dev` promotes to `staging`, and `staging` to `main`. The `quality / branch-flow-guard` check enforces this. It runs in its own workflow (`.github/workflows/branch-flow-guard.yml`), so retargeting a PR re-runs the guard, and editing a PR title or description does not re-run the rest of the checks. The other PR checks run only for the area a PR changes (backend or frontend); shared inputs such as the lockfile or `.github/**`, and every push to `dev`, run everything.
+Work branches use a typed prefix (`feat/`, `fix/`, `chore/`, `docs/`, `test/`, `ci/`, ...) and target `dev`; `dev` promotes to `staging`, and `staging` to `main`. The `quality / branch-flow-guard` check enforces this. It runs in its own workflow (`.github/workflows/branch-flow-guard.yml`), so retargeting a PR re-runs the guard, and editing a PR title or description does not re-run the rest of the checks. The other PR checks run only for the area a PR changes (backend or frontend). A PR that touches only docs runs just `quality / format`; any other file outside `apps/` (lockfile, config, workflows, scripts), and every push to `dev`, runs everything. Retargeting does not re-run these checks, so after retargeting a chained PR, rebase and push before merging.
 
 Chained (stacked) PRs are allowed: a typed work branch in this repository may target its parent typed work branch.
 

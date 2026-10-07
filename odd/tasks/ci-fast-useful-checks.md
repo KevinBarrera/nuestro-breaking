@@ -23,7 +23,7 @@ Keep every PR check meaningful and the wall-clock time low when the project grow
 
 - Branch protection and rulesets are unavailable on this private free plan (HTTP 403), so GitHub does not enforce required checks. Keep stable check names anyway, so they work if protection is enabled later.
 - A push to `dev` always runs the full suite.
-- Changes to shared inputs run everything: `pnpm-lock.yaml`, root `package.json`, `pnpm-workspace.yaml`, `.github/**`.
+- Any changed file outside `apps/backend/**`, `apps/frontend/**` and the docs (`docs/**`, `odd/**`, `openspec/**`, `*.md`) runs everything. If change detection fails, every area runs.
 - Third-party actions are pinned by commit SHA: `dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d` (v4.0.3).
 - No GitHub repo settings change without the user's approval.
 

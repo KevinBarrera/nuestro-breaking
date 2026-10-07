@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page, type Route } from '@playwright/test';
 
 const firstId = 'a1b2c3d4-1234-4567-89ab-123456789abc';
 const secondId = 'b1b2c3d4-1234-4567-89ab-123456789abc';
@@ -80,6 +80,62 @@ test('hides the event selector when no event is selected', async ({ page }) => {
   await page.goto('/admin');
   await expect(sideNav(page)).toBeVisible();
   await expect(page.getByRole('combobox', { name: 'Evento' })).toHaveCount(0);
+});
+
+const selectorGuardCases: {
+  name: string;
+  respond: (route: Route) => Promise<void>;
+}[] = [
+  {
+    name: 'the list does not include the current event',
+    respond: (route) => route.fulfill({ json: [events[1]] }),
+  },
+  {
+    name: 'the events request fails with 500',
+    respond: (route) => route.fulfill({ status: 500, json: { message: 'Server error' } }),
+  },
+  {
+    name: 'the payload has entries without a name',
+    respond: (route) => route.fulfill({ json: [{ id: firstId, title: 'Encuentro del barrio' }] }),
+  },
+  {
+    name: 'the payload is not JSON',
+    respond: (route) => route.fulfill({ contentType: 'application/json', body: '{not json' }),
+  },
+];
+
+for (const { name, respond } of selectorGuardCases) {
+  test(`hides the event selector on an event route when ${name}`, async ({ page }) => {
+    let served = false;
+    await page.route(
+      (url) => api(url) && url.pathname === '/admin/events',
+      async (route) => {
+        await respond(route);
+        served = true;
+      },
+    );
+    await page.goto(`/admin/events/${firstId}/activities`);
+    await expect.poll(() => served).toBe(true);
+    await expect(sideNav(page).getByRole('link', { name: 'Actividades' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+    await expect(page.getByRole('combobox', { name: 'Evento' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Cerrar sesión' })).toBeVisible();
+  });
+}
+
+test('renders without the font host and loads fonts without blocking', async ({ page }) => {
+  const fontResponses: string[] = [];
+  page.on('requestfinished', (request) => {
+    if (/fonts\.(googleapis|gstatic)\.com/.test(request.url())) fontResponses.push(request.url());
+  });
+  await page.goto('/admin');
+  await expect(page.getByRole('banner', { name: 'Espacio de administración' })).toBeVisible();
+  await expect(
+    page.locator('head link[rel="stylesheet"][href*="fonts.googleapis.com"]'),
+  ).toHaveCount(0);
+  expect(fontResponses).toEqual([]);
 });
 
 test('toggles the theme, persists it across reloads and keeps a 44px target', async ({ page }) => {

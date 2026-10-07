@@ -2,6 +2,7 @@ import {
   AdminCheckInPage,
   AdminEventActivitiesPage,
   AdminEventFoundationPage,
+  AdminEventOverviewPage,
   AdminEventPassTypesPage,
   AdminPage,
 } from '@/pages/admin';
@@ -17,6 +18,7 @@ export function AppRouter() {
     <Routes>
       <Route element={<AdminSessionBoundary />}>
         <Route path={routes.admin} element={<AdminPage />} />
+        <Route path={routes.adminEventOverview} element={<AdminEventOverviewPage />} />
         <Route path={routes.adminEventFoundation} element={<AdminEventFoundationPage />} />
         <Route path={routes.adminEventCheckIn} element={<AdminCheckInPage />} />
         <Route path={routes.adminEventActivities} element={<AdminEventActivitiesPage />} />

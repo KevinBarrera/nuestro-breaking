@@ -2,13 +2,13 @@ import { routes } from '@/shared/config';
 import { Link } from 'react-router';
 import { eventSectionPath, type AdminLocation, type EventSection } from './admin-location';
 
-type NavItem = { label: string; section?: EventSection; overview?: boolean; upcoming?: boolean };
+type NavItem = { label: string; section?: EventSection; upcoming?: boolean };
 
 const groups: { title: string; items: NavItem[] }[] = [
   {
     title: 'OPERACIÓN',
     items: [
-      { label: 'Resumen', overview: true },
+      { label: 'Resumen', section: 'overview' },
       { label: 'Check-in', section: 'check-in' },
       { label: 'Inscripciones', upcoming: true },
       { label: 'Listas de respaldo', upcoming: true },
@@ -26,15 +26,18 @@ const groups: { title: string; items: NavItem[] }[] = [
 const itemClass =
   'flex min-h-11 items-center justify-between gap-2 rounded-md px-3 text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus';
 
-type AdminSideNavProps = { location: AdminLocation; onOverview: boolean };
+type AdminSideNavProps = { location: AdminLocation; onLanding: boolean };
 
-export function AdminSideNav({ location, onOverview }: AdminSideNavProps) {
+export function AdminSideNav({ location, onLanding }: AdminSideNavProps) {
   function renderItem(item: NavItem) {
-    const target = item.overview
-      ? routes.admin
-      : item.section && location.eventId
+    // Without an event in the URL, Resumen falls back to the event list landing.
+    const overview = item.section === 'overview';
+    const target =
+      item.section && location.eventId
         ? eventSectionPath(location.eventId, item.section)
-        : undefined;
+        : overview
+          ? routes.admin
+          : undefined;
     if (!target)
       return (
         <a
@@ -48,7 +51,7 @@ export function AdminSideNav({ location, onOverview }: AdminSideNavProps) {
           )}
         </a>
       );
-    const active = item.overview ? onOverview : item.section === location.section;
+    const active = item.section === location.section || (overview && onLanding);
     return (
       <Link
         to={target}

@@ -1,9 +1,10 @@
 import { routes } from '@/shared/config';
 import { matchPath } from 'react-router';
 
-export type EventSection = 'foundation' | 'check-in' | 'activities' | 'pass-types';
+export type EventSection = 'overview' | 'foundation' | 'check-in' | 'activities' | 'pass-types';
 
 const sectionRoutes: Record<EventSection, string> = {
+  overview: routes.adminEventOverview,
   foundation: routes.adminEventFoundation,
   'check-in': routes.adminEventCheckIn,
   activities: routes.adminEventActivities,

@@ -140,7 +140,7 @@ test('keeps event context and the only usable destination accessible at 375px', 
   await page.keyboard.press('Tab');
   await expect(selector).toBeFocused();
   await page.keyboard.press('Tab');
-  await expect(header.getByRole('button', { name: 'Tema oscuro' })).toBeFocused();
+  await expect(header.getByRole('button', { name: 'Cambiar a tema oscuro' })).toBeFocused();
   await page.keyboard.press('Tab');
   await expect(signOut).toBeFocused();
   await expect(signOut).toHaveCSS('outline-style', 'solid');

@@ -66,7 +66,7 @@ export function AdminSideNav({ location, onLanding }: AdminSideNavProps) {
   return (
     <nav
       aria-label="Navegación administrativa"
-      className="border-b border-sidenav-line bg-sidenav px-4 py-5 md:w-64 md:shrink-0 md:border-r md:border-b-0 md:py-6"
+      className="border-b border-sidenav-line bg-sidenav px-4 py-5 md:w-64 md:shrink-0 md:overflow-y-auto md:border-r md:border-b-0 md:py-6"
     >
       {groups.map((group) => (
         <div key={group.title} className="mb-4 last:mb-0">

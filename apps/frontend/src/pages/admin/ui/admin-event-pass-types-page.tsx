@@ -24,7 +24,9 @@ import { PassTypeForm } from './pass-type-form';
 import { PassTypeList } from './pass-type-list';
 import { useCatalogLoad } from './use-catalog-load';
 
-// The edited pass is kept by id and read from the latest data, so its version stays current.
+// The edited pass is kept by id and read from the latest data. Its forms are keyed by id and
+// version, so a reload that brings a newer version remounts them with the server values instead
+// of pairing stale field values with the new expectedVersion.
 type Editor = { mode: 'create' } | { mode: 'edit'; passTypeId: string } | null;
 
 export function AdminEventPassTypesPage() {
@@ -140,7 +142,7 @@ function EventPassTypes({ eventId }: { eventId: string }) {
             {(editor?.mode === 'create' || selected) && (
               <aside aria-label="Panel del pase" className="max-w-xl space-y-4">
                 <PassTypeForm
-                  key={selected?.id ?? 'new'}
+                  key={selected ? `${selected.id}:${selected.version}` : 'new'}
                   title={selected ? 'Editar pase' : 'Nuevo pase'}
                   passType={selected}
                   busy={busy}
@@ -157,7 +159,7 @@ function EventPassTypes({ eventId }: { eventId: string }) {
                 />
                 {selected && (
                   <PassTypeAccessEditor
-                    key={`access-${selected.id}`}
+                    key={`access-${selected.id}:${selected.version}`}
                     passType={selected}
                     activities={data.activities}
                     busy={busy}

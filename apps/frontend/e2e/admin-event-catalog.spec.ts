@@ -580,6 +580,80 @@ test('edits a pass type with its expected version', async ({ page }) => {
   ).toContainText('$1,750.50');
 });
 
+test('a reload while the pass panel is open refreshes its values with the new version', async ({
+  page,
+}) => {
+  await page.route(
+    (url) => api(url) && url.pathname === activitiesPath,
+    (route) => route.fulfill({ json: [activity(), workshop] }),
+  );
+  let rows: unknown[] = [fullPass, openStyles];
+  let failReads = false;
+  await page.route(
+    (url) => api(url) && url.pathname === passTypesPath,
+    (route) => {
+      if (failReads) return route.fulfill({ status: 500, json: {} });
+      return route.fulfill({ json: rows });
+    },
+  );
+  await page.route(
+    (url) => api(url) && url.pathname === `${passTypesPath}/${openPassId}`,
+    (route) => {
+      failReads = true;
+      return route.fulfill({ json: { ...openStyles, name: 'Open Styles 2026', version: 2 } });
+    },
+  );
+  let body: Record<string, unknown> | undefined;
+  await page.route(
+    (url) => api(url) && url.pathname === `${passTypesPath}/${fullPassId}`,
+    (route) => {
+      body = json(route);
+      return route.fulfill({ json: { ...fullPass, version: 6 } });
+    },
+  );
+  await page.goto(passTypesPath);
+  const card = (name: string) =>
+    page.getByRole('listitem').filter({ has: page.getByRole('heading', { name }) });
+  await card('Open Styles').getByRole('button', { name: 'Editar', exact: true }).click();
+  const form = page.getByRole('form', { name: 'Editar pase' });
+  await form.getByLabel('Nombre').fill('Open Styles 2026');
+  await form.getByRole('button', { name: 'Guardar cambios' }).click();
+  const reloadAlert = page.getByRole('alert').filter({ hasText: 'No se pudo recargar' });
+  await expect(reloadAlert).toBeVisible();
+
+  await card('Pase completo').getByRole('button', { name: 'Editar', exact: true }).click();
+  await expect(form).toContainText('v2');
+  const access = page.getByRole('form', { name: /^Acceso de Pase completo/ });
+  await expect(access.getByLabel('Batalla de crews')).toHaveValue('selectable');
+  // Another writer changed the pass meanwhile; the retried reload brings version 5.
+  rows = [
+    {
+      ...fullPass,
+      name: 'Pase completo plus',
+      priceCents: 160000,
+      version: 5,
+      activities: [{ activityId: workshopId, access: 'included' }],
+    },
+    openStyles,
+  ];
+  failReads = false;
+  await reloadAlert.getByRole('button', { name: 'Recargar' }).click();
+  await expect(reloadAlert).toHaveCount(0);
+  await expect(form).toContainText('v5');
+  await expect(form.getByLabel('Nombre')).toHaveValue('Pase completo plus');
+  await expect(form.getByLabel('Precio (MXN)')).toHaveValue('1600.00');
+  await expect(access.getByLabel('Batalla de crews')).toHaveValue('none');
+  await form.getByRole('button', { name: 'Guardar cambios' }).click();
+  await expect(page.getByRole('status')).toContainText('Pase actualizado');
+  expect(body).toEqual({
+    expectedVersion: 5,
+    name: 'Pase completo plus',
+    passClass: 'full',
+    priceCents: 160000,
+    requiresPassClass: null,
+  });
+});
+
 test('shows a reload request when a pass type edit conflicts', async ({ page }) => {
   await mockPassTypes(page, () => [fullPass]);
   await page.route(

@@ -75,6 +75,12 @@ See issue #136. Mapped: themes/contrast/targets → T1–T3, T9; persistence →
 - RED observed: `e2e/admin-overview.spec.ts` 8/8 failed before the route existed; GREEN 8/8 after (two spec defects fixed on the way: mocks now take `eventId` from the request path, rows matched by row header).
 - Checks: lint (0 errors, 2 pre-existing warnings), build, full Playwright suite (73 passed), `pnpm format:check`, `git diff --check`.
 
+### PR 5 — T5 review follow-ups
+
+- Review `review-219858fbd4ffdb26` approved `de1b711` with two R3 warnings:
+  - R3-stale-form-current-version — `fix(admin): remount pass forms when a reload brings a newer version`. `PassTypeForm` and `PassTypeAccessEditor` are keyed by `${id}:${version}`, so a reload while the panel is open (refresh-failure retry) remounts them with the server values and the `v` badge, instead of sending stale fields with the new `expectedVersion`. Chosen over snapshotting the opened version because it needs no new state and never discards a newer server write; a reload that returns the same version keeps unsaved edits. RED: the new mocked case kept the stale name under v5; GREEN after the key change.
+  - R3-weak-access-refresh-assertion — `test(admin): assert saved activity access replaces the old summary`. The access save test now also asserts `Incluye Taller de footwork` is gone from the card.
+
 ## Next step
 
 Slices split by the chained-pr pass (one pass; each slice verified alone: build, lint, full e2e). Review: `review-c590b22230a870f6` approved and acknowledged on fdd9477..5f5e609 (medium, granted, 1 reliability lens, 3 advisory findings fixed in d7fcf86, 649337a, 3e67302 — each assessed medium/under_budget, pending in the slice from boundary 5f5e609). The hook-issued review of everything since `df49d48` was declined per standing user instruction. Open PRs 1–3 stacked to `dev`; then T4 on `feat/136-04-admin-overview` from `feat/136-03-admin-theme-pages`. PRs #137–#139 opened. T4 done on `feat/136-04-admin-overview`; review `review-fb6259ea0fddd00b` (medium, granted, reliability lens) approved and acknowledged on 5f5e609..9c2f75a; reviewed boundary is now 9c2f75a. Advisory suggestions deferred to T9: cover `describeAccess` archived/3+ included/unknown-kind branches, overview with `/admin/events` 500, and a font test that does not rely on the DNS block. PR 4 is +547/−30: the overview commit (route, page and tests) cannot split cohesively, so it needs a `size:exception`. Next T5–T6 on `feat/136-05-pass-access-map`.

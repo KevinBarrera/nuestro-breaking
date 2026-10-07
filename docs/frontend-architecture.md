@@ -43,6 +43,7 @@ The rule applies to future `features` and `widgets` directories as well. A slice
 ## Route Areas
 
 - `/admin` is the administration route area. Admins and judges belong here in the initial scope.
+  - `/admin` itself is the event picker, built only from `GET /admin/events`: a card per event (its name, "Abrir evento" to the overview, and Check-in, Actividades and Pases links), with loading, error (with "Reintentar"), access-denied and empty states. With exactly one event it redirects (replace navigation) to that event's overview. It shows no sample or planning data.
 - `/dancer` is the dancer route area.
 - `*` renders a not-found page with links to the two current areas.
 

@@ -15,7 +15,7 @@ test('guards admin content when the backend session is missing', async ({ page }
   });
   await page.goto('/admin');
   await expect(page.getByRole('heading', { name: 'Iniciar sesión' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Administración' })).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Eventos', exact: true })).toHaveCount(0);
   expect(sessionRequests).toBeGreaterThan(0);
 });
 
@@ -64,7 +64,7 @@ test('shows a safe sign-in error after keyboard submission without revealing adm
   await expect(page.getByRole('alert')).toHaveText(
     'No se pudo iniciar sesión. Revisa tus datos e inténtalo de nuevo.',
   );
-  await expect(page.getByRole('heading', { name: 'Administración' })).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Eventos', exact: true })).toHaveCount(0);
 });
 
 test('allows a judge session and denies a dancer-only session', async ({ page }) => {
@@ -72,13 +72,13 @@ test('allows a judge session and denies a dancer-only session', async ({ page })
     route.fulfill({ json: { user: { ...user, roles: ['judge'] } } }),
   );
   await page.goto('/admin');
-  await expect(page.getByRole('heading', { name: 'Administración' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Eventos', exact: true })).toBeVisible();
   await page.route(sessionEndpoint, (route) =>
     route.fulfill({ json: { user: { ...user, roles: ['dancer'] } } }),
   );
   await page.reload();
   await expect(page.getByRole('heading', { name: 'Iniciar sesión' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Administración' })).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Eventos', exact: true })).toHaveCount(0);
 });
 
 test('signs in with the backend and only then reveals admin content', async ({ page }) => {
@@ -104,7 +104,7 @@ test('signs in with the backend and only then reveals admin content', async ({ p
   await page.getByLabel('Correo electrónico').fill('admin@example.com');
   await page.getByLabel('Contraseña').fill('secret');
   await page.getByRole('button', { name: 'Iniciar sesión' }).click();
-  await expect(page.getByRole('heading', { name: 'Administración' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Eventos', exact: true })).toBeVisible();
   expect(submitted).toEqual({ email: 'admin@example.com', password: 'secret' });
   await expect(page.locator('html')).toHaveAttribute('data-auth-credentials', /^(include,){2,}$/);
   await expect(page.getByText('do-not-store-this-token')).toHaveCount(0);
@@ -151,13 +151,13 @@ test('signs out an admin using the session CSRF header and clears local identity
     return route.fulfill({ status: 200, json: {} });
   });
   await page.goto('/admin');
-  await expect(page.getByRole('heading', { name: 'Administración' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Eventos', exact: true })).toBeVisible();
   await page
     .getByRole('banner', { name: 'Espacio de administración' })
     .getByRole('button', { name: 'Cerrar sesión' })
     .click();
   await expect(page.getByRole('heading', { name: 'Iniciar sesión' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Administración' })).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Eventos', exact: true })).toHaveCount(0);
   await expect(page.locator('html')).toHaveAttribute('data-sign-out-credentials', 'include');
   expect(sessionRequests).toBeGreaterThanOrEqual(2);
   expect(signOutRequests).toBe(1);
@@ -184,12 +184,12 @@ test('does not sign out without a session CSRF header', async ({ page }) => {
     return route.fulfill({ status: 200, json: {} });
   });
   await page.goto('/admin');
-  await expect(page.getByRole('heading', { name: 'Administración' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Eventos', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Cerrar sesión' }).click();
   await expect(
     page.getByRole('banner', { name: 'Espacio de administración' }).getByRole('alert'),
   ).toHaveText('No se pudo cerrar sesión.');
-  await expect(page.getByRole('heading', { name: 'Administración' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Eventos', exact: true })).toBeVisible();
   expect(sessionRequests).toBeGreaterThanOrEqual(2);
   expect(signOutRequests).toBe(0);
 });
@@ -202,7 +202,7 @@ test('keeps admin content hidden after rejected credentials', async ({ page }) =
   await page.getByLabel('Contraseña').fill('wrong');
   await page.getByRole('button', { name: 'Iniciar sesión' }).click();
   await expect(page.getByRole('alert')).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Administración' })).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Eventos', exact: true })).toHaveCount(0);
 });
 
 test('shows the authenticated admin shell with only the available navigation and sign-out', async ({
@@ -220,20 +220,22 @@ test('shows the authenticated admin shell with only the available navigation and
   await expect(home).not.toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
   await expect(header.getByRole('button', { name: 'Cerrar sesión' })).toBeVisible();
   await expect(header.getByRole('link')).toHaveCount(0);
-  await expect(page.getByText('Vista de planificación · Datos de ejemplo')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Eventos', exact: true })).toBeVisible();
 });
 
-test('keeps the planning label distinct from live data on a narrow keyboard-accessible admin header', async ({
-  page,
-}) => {
+test('keeps a narrow keyboard-accessible admin header on the event picker', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 800 });
   await page.route(sessionEndpoint, (route) => route.fulfill({ json: { user } }));
-  // Even with a manageable event loaded, /admin has no event in the URL, so no selector.
+  // Even with manageable events loaded, /admin has no event in the URL, so no selector.
+  // Two events keep the picker in place; a single event would redirect to its overview.
   let eventsRequested = false;
   await page.route(adminEventsEndpoint, (route) => {
     eventsRequested = true;
     return route.fulfill({
-      json: [{ id: 'a1b2c3d4-1234-4567-89ab-123456789abc', name: 'Encuentro del barrio' }],
+      json: [
+        { id: 'a1b2c3d4-1234-4567-89ab-123456789abc', name: 'Encuentro del barrio' },
+        { id: 'b1b2c3d4-1234-4567-89ab-123456789abc', name: 'Batalla de otoño' },
+      ],
     });
   });
   await page.goto('/admin');
@@ -246,8 +248,7 @@ test('keeps the planning label distinct from live data on a narrow keyboard-acce
   const signOut = header.getByRole('button', { name: 'Cerrar sesión' });
   await expect(home).toHaveAttribute('aria-current', 'page');
   await expect(header.getByRole('link')).toHaveCount(0);
-  await expect(page.getByText('Vista de planificación · Datos de ejemplo')).toBeVisible();
-  await expect(page.getByRole('region', { name: 'Evento de ejemplo' })).toBeVisible();
+  await expect(page.getByRole('article', { name: 'Encuentro del barrio' })).toBeVisible();
   await page.keyboard.press('Tab');
   await expect(header.getByRole('button', { name: 'Cambiar a tema oscuro' })).toBeFocused();
   await page.keyboard.press('Tab');
@@ -300,67 +301,48 @@ test('retains admin content and alerts on failed sign-out, then exits after a su
   await page.goto('/admin');
   const header = page.getByRole('banner', { name: 'Espacio de administración' });
   const signOut = header.getByRole('button', { name: 'Cerrar sesión' });
-  await expect(page.getByText('Vista de planificación · Datos de ejemplo')).toBeVisible();
+  const picker = page.getByRole('heading', { name: 'Eventos', exact: true });
+  await expect(picker).toBeVisible();
   await signOut.click();
   await expect(header.getByRole('alert')).toHaveText('No se pudo cerrar sesión.');
-  await expect(page.getByText('Vista de planificación · Datos de ejemplo')).toBeVisible();
+  await expect(picker).toBeVisible();
   await expect(signOut).toBeEnabled();
   await signOut.click();
   await expect(page.getByRole('heading', { name: 'Iniciar sesión' })).toBeVisible();
   await expect(header).toHaveCount(0);
-  await expect(page.getByText('Vista de planificación · Datos de ejemplo')).toHaveCount(0);
+  await expect(picker).toHaveCount(0);
   expect(attempts).toBe(2);
 });
 
-test('renders a Spanish sample event and activity foundation at /admin', async ({ page }) => {
+test('renders the Spanish event picker at /admin with no sample planning content', async ({
+  page,
+}) => {
   await page.route(sessionEndpoint, (route) =>
     route.fulfill({ json: { user, expiresAt: '2026-11-14T18:00:00.000Z' } }),
   );
+  await page.route(adminEventsEndpoint, (route) => route.fulfill({ json: [] }));
   await page.goto('/admin');
 
   await expect(page).toHaveURL(/\/admin$/);
-  await expect(page.getByRole('heading', { name: 'Administración' })).toBeVisible();
+  const main = page.getByRole('main');
+  await expect(main.getByText('Administración', { exact: true })).toBeVisible();
+  await expect(main.getByRole('heading', { name: 'Eventos', level: 1 })).toBeVisible();
   await expect(
-    page.getByText(
-      'Vista preliminar del espacio de administración para el equipo organizador y los jueces.',
+    main.getByText(
+      'Elige el evento que vas a operar. Todo lo demás del panel trabaja dentro de ese evento.',
     ),
   ).toBeVisible();
-  await expect(page.getByText('Vista de planificación · Datos de ejemplo')).toBeVisible();
-  await expect(
-    page.getByText('La propuesta del MVP de noviembre sigue en borrador; no está aprobada.'),
-  ).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Fin de semana de breaking' })).toBeVisible();
-  const event = page.getByRole('region', { name: 'Evento de ejemplo' });
-  const summary = event.getByRole('article', { name: 'Fin de semana de breaking' });
-  await expect(summary.getByText('Fecha ilustrativa')).toBeVisible();
-  await expect(summary.getByText('14 de noviembre')).toBeVisible();
-  await expect(summary.getByText('Sede')).toBeVisible();
-  await expect(summary.getByText('Por confirmar')).toBeVisible();
-
-  const activities = event.getByRole('region', { name: 'Actividades de ejemplo' });
-  const battle = activities.getByRole('article', { name: 'Batalla individual' });
-  await expect(battle.getByText('Borrador')).toBeVisible();
-  await expect(battle.getByText('Batalla', { exact: true })).toBeVisible();
-  await expect(battle.getByText('14 de noviembre, 10:00')).toBeVisible();
-  await expect(battle.getByText('Pista principal')).toBeVisible();
-  await expect(battle.getByText('Precio')).toBeVisible();
-  await expect(battle.getByText('Cupo')).toBeVisible();
-  await expect(battle.getByText('Por confirmar')).toHaveCount(2);
-
-  const workshop = activities.getByRole('article', { name: 'Taller de equipos' });
-  await expect(workshop.getByText('Borrador')).toBeVisible();
-  await expect(workshop.getByText('Taller', { exact: true })).toBeVisible();
-  await expect(workshop.getByText('14 de noviembre, 14:00')).toBeVisible();
-  await expect(workshop.getByText('Sala de talleres')).toBeVisible();
-
-  const planning = page.getByRole('region', { name: 'Estado de planificación' });
-  await expect(planning.getByText('2 actividades de ejemplo')).toBeVisible();
-  await expect(planning.getByText('Pendiente de definir')).toBeVisible();
-  await expect(
-    page.getByText(
-      'Los campos que dependen de la organización siguen siendo configurables o quedan pendientes de definir.',
-    ),
-  ).toBeVisible();
+  await expect(main.getByText('No hay eventos disponibles para tu cuenta.')).toBeVisible();
+  for (const sample of [
+    'Vista de planificación · Datos de ejemplo',
+    'Vista preliminar del espacio de administración',
+    'La propuesta del MVP de noviembre sigue en borrador; no está aprobada.',
+    'Fin de semana de breaking',
+    'Actividades de ejemplo',
+    'Estado de planificación',
+    'Pendiente de definir',
+  ])
+    await expect(page.getByText(sample)).toHaveCount(0);
 });
 
 test('renders the dancer placeholder at /dancer', async ({ page }) => {

@@ -99,11 +99,13 @@ test('browser session searches, admits only authorized registration and persists
     await page.getByRole('textbox', { name: 'Correo electrónico' }).fill('live@example.test');
     await page.getByLabel('Contraseña').fill('disposable-password');
     await page.getByRole('button', { name: 'Iniciar sesión' }).click();
-    const eventLink = page
-      .getByRole('region', { name: 'Eventos para el control de acceso' })
-      .getByRole('link', { name: /Live event/ });
-    await expect(eventLink).toBeVisible();
-    await eventLink.click();
+    // The operator is scoped to one event, so /admin opens that event's overview directly.
+    await expect(page).toHaveURL(new RegExp(`/admin/events/${ready.event}$`));
+    await page
+      .getByRole('main')
+      .getByRole('link', { name: /Abrir check-in/ })
+      .click();
+    await expect(page).toHaveURL(new RegExp(`/admin/events/${ready.event}/check-in$`));
     await page.getByRole('textbox', { name: 'Buscar inscripción' }).fill('Allowed');
     await page.getByRole('button', { name: 'Buscar' }).click();
     await page.getByRole('button', { name: /Allowed Guest/ }).click();

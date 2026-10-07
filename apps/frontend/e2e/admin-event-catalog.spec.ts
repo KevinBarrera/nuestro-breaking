@@ -125,16 +125,24 @@ test.beforeEach(async ({ page }) => {
 test('admin landing links each event to its activity and pass catalogs', async ({ page }) => {
   await page.route(
     (url) => api(url) && url.pathname === '/admin/events',
-    (route) => route.fulfill({ json: [{ id: eventId, name: 'Encuentro del barrio' }] }),
+    (route) =>
+      route.fulfill({
+        json: [
+          { id: eventId, name: 'Encuentro del barrio' },
+          { id: 'f1b2c3d4-1234-4567-89ab-123456789abc', name: 'Batalla de otoño' },
+        ],
+      }),
   );
   await page.goto('/admin');
-  const catalog = page.getByRole('region', { name: 'Catálogo de eventos' });
-  await expect(
-    catalog.getByRole('link', { name: 'Actividades de Encuentro del barrio' }),
-  ).toHaveAttribute('href', activitiesPath);
-  await expect(
-    catalog.getByRole('link', { name: 'Pases de Encuentro del barrio' }),
-  ).toHaveAttribute('href', passTypesPath);
+  const card = page.getByRole('article', { name: 'Encuentro del barrio' });
+  await expect(card.getByRole('link', { name: 'Actividades', exact: true })).toHaveAttribute(
+    'href',
+    activitiesPath,
+  );
+  await expect(card.getByRole('link', { name: 'Pases', exact: true })).toHaveAttribute(
+    'href',
+    passTypesPath,
+  );
 });
 
 test('lists activities with kind, venue, schedule in event time and status', async ({ page }) => {

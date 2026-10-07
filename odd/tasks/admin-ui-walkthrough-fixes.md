@@ -36,8 +36,8 @@ Forecast: ~1,200 authored lines over 4 PRs.
 
 ### PR 3 — `feat/145-03-shell-and-theme-toggle`
 
-- [ ] T3 — Fixed shell: the header and sidenav stay in place and only the main area scrolls on desktop. The mobile layout stays usable with no horizontal scroll.
-- [ ] T4 — Icon-only theme toggle: sun in dark, moon in light. The accessible name states the action.
+- [x] T3 — Fixed shell: the header and sidenav stay in place and only the main area scrolls on desktop. The mobile layout stays usable with no horizontal scroll.
+- [x] T4 — Icon-only theme toggle: sun in dark, moon in light. The accessible name states the action.
 
 ### PR 4 — `feat/145-04-entry-check-in-and-states`
 
@@ -76,6 +76,17 @@ See issue #145; mapped to evidence at closure.
 - Interaction specs now use `e2e/support/select.ts` (`selectTrigger`, `chooseOption`, `expectSelected`); the trigger's accessible name is the value followed by the label.
 - T2 review: `review-c6f7dac9bb7b79c4` (medium, reliability lens, granted, approved and acknowledged; range `9f8ce8f..086e8ba`) with two non-blocking findings. R3-activity-venue-required-dropped fixed in `b94fea6` (shared Select `isRequired` with a Spanish `FieldError`; a saved venue missing from the event venues counts as unselected and shows "Elige una sede"; RED observed first). R3-space-open-untested fixed in `04d9dc2` (Space in the keyboard-open loop, Escape closes and refocuses the trigger). Frontend lint: 0 errors, the 2 known warnings; build: passed; full mocked `npx playwright test`: 128 passed.
 
+### PR 3 — T3–T4
+
+- Route: delegated direct — one bounded writer (trigger: 2+ non-trivial files across the shell widget, the theme-toggle feature, e2e and docs).
+- Commits: `7777f89` feat(admin): keep the header and side navigation fixed while content scrolls; `7d0d646` feat(admin): show an icon-only theme toggle that names its action.
+- T3 approach: from `md` up the shell is `h-dvh` with `overflow-hidden`; header and brand bar are `shrink-0`, the body row is `md:min-h-0`, the side navigation and the content column around each page's `<main>` get their own `md:overflow-y-auto`. No `position: fixed`, so nothing hides under the header. The shell scrolls the content column to the top on every `pathname` change (the app had no window scroll reset before). Below `md` the layout stays stacked with natural document scroll. The scroller is the column around `<main>`, not `<main>` itself, because pages own their `<main>`.
+- T3 RED: new `e2e/admin-fixed-shell.spec.ts` failed on the old layout (the document scrolled instead of the content). With the layout but before the reset effect, the route-change spec failed (content scroll kept after navigating). GREEN: 3 passed.
+- T4: icon-only 44×44 button, moon named "Cambiar a tema oscuro" in light and sun named "Cambiar a tema claro" in dark, matching `title`, `aria-hidden` SVG, no `aria-pressed`; the `aria-pressed:` hook left `admin-shell.tsx`. Specs updated in `admin-shell`, `admin-event-foundation` and `route-placeholders` (no visible text, 44px both ways, focus outline, name flips, persists across reload).
+- T4 RED: the updated specs failed against the labelled toggle (4 failed, 28 passed). GREEN: those specs plus `admin-accessibility` 42 passed.
+- Verification: frontend `npm run lint` 0 errors, the 2 known warnings in `admin-check-in-page.tsx`; `npm run build` passed; full mocked `npx playwright test` 131 passed (128 base + 3 fixed shell); Prettier check passed.
+- Caveat: no skip link exists in the app, so none was added; the React Aria listbox renders at the end of `<body>`, outside the scroll container.
+
 ## Next step
 
-T3 on `feat/145-03-shell-and-theme-toggle`, stacked on PR 2.
+T5 on `feat/145-04-entry-check-in-and-states`, stacked on PR 3.

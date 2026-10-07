@@ -28,6 +28,7 @@ const tokenPairs: [string, string][] = [
   ['warning-fg', 'warning-bg'],
   ['danger-fg', 'danger-bg'],
   ['nav-active-fg', 'nav-active-bg'],
+  ['chip-selected-fg', 'chip-selected-bg'],
 ];
 // Text placed straight on the page gradient or the translucent side navigation.
 const pageText = ['fg', 'heading', 'muted', 'link'];
@@ -211,4 +212,51 @@ for (const theme of themes) {
       }
     });
   }
+}
+
+// Filter chips: the selected chip must read as selected by lightness, not hue alone, so its
+// painted background has to stand clearly apart from an unselected chip's in both themes,
+// and both chip states keep 4.5:1 text.
+for (const theme of themes) {
+  test(`${theme} theme selected filter chip differs in lightness and keeps contrast`, async ({
+    page,
+  }) => {
+    await useTheme(page, theme);
+    await mockAdminApi(page);
+    await page.goto(adminScreens[2].path);
+    const group = page.getByRole('group', { name: 'Filtrar por tipo' });
+    const selected = group.locator('button[aria-pressed="true"]');
+    const unselected = group.locator('button[aria-pressed="false"]').first();
+    await expect(selected).toHaveCount(1);
+    await expect(unselected).toBeVisible();
+    // The selected state also shows a check icon, so it is not conveyed by color alone.
+    await expect(selected.locator('svg[aria-hidden="true"]')).toHaveCount(1);
+    await expect(unselected.locator('svg')).toHaveCount(0);
+    const paint = (node: Element) => {
+      let painted: Element | null = node;
+      let bg = 'rgba(0, 0, 0, 0)';
+      while (painted && /rgba\(.*, 0\)$/.test(bg)) {
+        bg = getComputedStyle(painted).backgroundColor;
+        painted = painted.parentElement;
+      }
+      return { fg: getComputedStyle(node).color, bg };
+    };
+    const rgba = (value: string) => [...value.match(/[\d.]+/g)!.map(Number), 1].slice(0, 4) as Rgba;
+    const on = await selected.evaluate(paint);
+    const off = await unselected.evaluate(paint);
+    for (const [label, state] of [
+      ['selected', on],
+      ['unselected', off],
+    ] as const) {
+      expect(rgba(state.bg)[3], `${label} chip background must be opaque`).toBe(1);
+      expect(contrast(rgba(state.fg), rgba(state.bg)), `${label} chip text`).toBeGreaterThanOrEqual(
+        4.5,
+      );
+    }
+    // 3:1 between the two backgrounds is a clear lightness step (WCAG non-text contrast).
+    expect(
+      contrast(rgba(on.bg), rgba(off.bg)),
+      'selected vs unselected chip background',
+    ).toBeGreaterThanOrEqual(3);
+  });
 }

@@ -98,7 +98,7 @@ async function selectPass(page: Page, name: string) {
   await page
     .getByRole('listitem')
     .filter({ has: page.getByRole('heading', { name }) })
-    .getByRole('button', { name: 'Editar', exact: true })
+    .getByRole('button', { name: `Editar ${name}`, exact: true })
     .click();
 }
 

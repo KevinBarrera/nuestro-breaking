@@ -140,7 +140,7 @@ export async function revealControls(page: Page, name: (typeof adminScreens)[num
     await page
       .getByRole('listitem')
       .filter({ has: page.getByRole('heading', { name: 'Pase completo' }) })
-      .getByRole('button', { name: 'Editar', exact: true })
+      .getByRole('button', { name: /^Editar / })
       .click();
     await page
       .getByRole('region', { name: 'Mapa de acceso' })

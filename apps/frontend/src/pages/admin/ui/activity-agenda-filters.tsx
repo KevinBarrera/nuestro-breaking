@@ -1,3 +1,4 @@
+import { CheckIcon } from '@/shared/ui';
 import type { AgendaFilters, KindOption } from './activity-agenda-model';
 import { styles } from './catalog-copy';
 
@@ -8,8 +9,10 @@ type ActivityAgendaFiltersProps = {
   onChange: (filters: AgendaFilters) => void;
 };
 
+// Unselected chips are transparent with a border; the selected chip is a solid fill that
+// differs in lightness from them in both themes and adds a check icon.
 const chip =
-  'inline-flex min-h-11 items-center rounded-full border border-line px-4 text-sm font-semibold text-fg hover:bg-row focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus aria-pressed:border-nav-active aria-pressed:bg-nav-active aria-pressed:text-nav-active-fg';
+  'inline-flex min-h-11 items-center gap-1.5 rounded-full border border-line bg-transparent px-4 text-sm font-semibold text-fg hover:bg-row focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus aria-pressed:border-chip-selected aria-pressed:bg-chip-selected aria-pressed:text-chip-selected-fg aria-pressed:hover:bg-chip-selected';
 
 export function ActivityAgendaFilters({
   filters,
@@ -29,6 +32,7 @@ export function ActivityAgendaFilters({
             className={chip}
             onClick={() => onChange({ ...filters, kind: option.kind })}
           >
+            {filters.kind === option.kind && <CheckIcon />}
             {option.label} · {option.count}
           </button>
         ))}

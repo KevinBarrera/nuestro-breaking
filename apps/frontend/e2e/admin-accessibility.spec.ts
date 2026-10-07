@@ -55,12 +55,15 @@ async function readTokens(page: Page, names: string[]) {
     document.body.append(probe);
     const parse = (value: string) => {
       probe.style.color = value;
-      const parts = getComputedStyle(probe)
-        .color.match(/[\d.]+/g)!
-        .map(Number);
+      const computed = getComputedStyle(probe).color;
+      if (!/^rgba?\(/.test(computed)) throw new Error(`Unsupported color format: ${computed}`);
+      const parts = computed.match(/[\d.]+/g)!.map(Number);
       return [parts[0], parts[1], parts[2], parts[3] ?? 1] as [number, number, number, number];
     };
     const root = getComputedStyle(document.documentElement);
+    // A missing token would make var() inherit the body color and measure the wrong pair.
+    const missing = tokens.filter((name) => root.getPropertyValue(`--nb-${name}`).trim() === '');
+    if (missing.length > 0) throw new Error(`Missing theme tokens: ${missing.join(', ')}`);
     const colors = Object.fromEntries(tokens.map((name) => [name, parse(`var(--nb-${name})`)]));
     const stops = root
       .getPropertyValue('--nb-page')
@@ -119,7 +122,10 @@ for (const screen of adminScreens) {
     const targets = await page.evaluate(() => {
       const selector = 'a[href], button, select, input, textarea, [role="button"]';
       return [...document.querySelectorAll<HTMLElement>(selector)]
-        .filter((node) => node.getClientRects().length > 0 && !node.closest('p'))
+        .filter(
+          (node) =>
+            node.getClientRects().length > 0 && !(node.tagName === 'A' && node.closest('p')),
+        )
         .map((node) => {
           const target =
             node instanceof HTMLInputElement && ['checkbox', 'radio'].includes(node.type)

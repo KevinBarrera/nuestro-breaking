@@ -623,8 +623,9 @@ test('a reload while the pass panel is open refreshes its values with the new ve
 
   await card('Pase completo').getByRole('button', { name: 'Editar', exact: true }).click();
   await expect(form).toContainText('v2');
-  const access = page.getByRole('form', { name: /^Acceso de Pase completo/ });
-  await expect(access.getByLabel('Batalla de crews')).toHaveValue('selectable');
+  const access = page.getByRole('region', { name: 'Mapa de acceso' });
+  await expect(access.getByLabel('Pase completo · Batalla de crews')).toHaveValue('selectable');
+  await access.getByLabel('Pase completo · Batalla de crews').selectOption('included');
   // Another writer changed the pass meanwhile; the retried reload brings version 5.
   rows = [
     {
@@ -642,7 +643,7 @@ test('a reload while the pass panel is open refreshes its values with the new ve
   await expect(form).toContainText('v5');
   await expect(form.getByLabel('Nombre')).toHaveValue('Pase completo plus');
   await expect(form.getByLabel('Precio (MXN)')).toHaveValue('1600.00');
-  await expect(access.getByLabel('Batalla de crews')).toHaveValue('none');
+  await expect(access.getByLabel('Pase completo plus · Batalla de crews')).toHaveValue('none');
   await form.getByRole('button', { name: 'Guardar cambios' }).click();
   await expect(page.getByRole('status')).toContainText('Pase actualizado');
   expect(body).toEqual({

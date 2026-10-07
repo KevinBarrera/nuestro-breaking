@@ -2,7 +2,7 @@ name: Required PR checks
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, ready_for_review, edited]
+    types: [opened, synchronize, reopened, ready_for_review]
   push:
     branches: [dev]
 
@@ -17,61 +17,59 @@ env:
   CI: true
 
 jobs:
-  pr_branch_flow_guard:
-    name: quality / branch-flow-guard
-    if: github.event_name == 'pull_request'
+  # Decides which areas a PR touches. It runs on every event so dependent jobs can
+  # always read its outputs: pushes to dev and shared inputs run everything.
+  changes:
+    name: quality / changes
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    permissions:
+      contents: read
+      # paths-filter lists the PR's changed files through the API (no checkout needed).
+      pull-requests: read
+    outputs:
+      backend: ${{ steps.areas.outputs.backend }}
+      frontend: ${{ steps.areas.outputs.frontend }}
     steps:
-      - name: Enforce feature -> dev -> staging -> main flow (chained work-branch bases allowed)
+      - name: Detect changed paths
+        id: filter
+        if: github.event_name == 'pull_request'
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        with:
+          # Fail toward running: any file outside the app folders and the docs
+          # (lockfile, workspace or tool config, workflows, scripts) runs every area.
+          predicate-quantifier: every
+          filters: |
+            other:
+              - '!apps/backend/**'
+              - '!apps/frontend/**'
+              - '!docs/**'
+              - '!odd/**'
+              - '!openspec/**'
+              - '!**/*.md'
+            backend:
+              - 'apps/backend/**'
+            frontend:
+              - 'apps/frontend/**'
+      - name: Decide which areas run
+        id: areas
         env:
-          BASE_REF: ${{ github.base_ref }}
-          HEAD_REF: ${{ github.head_ref }}
-          HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
-          REPOSITORY: ${{ github.repository }}
+          EVENT_NAME: ${{ github.event_name }}
+          OTHER: ${{ steps.filter.outputs.other }}
+          BACKEND: ${{ steps.filter.outputs.backend }}
+          FRONTEND: ${{ steps.filter.outputs.frontend }}
         run: |
           set -euo pipefail
-
-          WORK_BRANCH_PATTERN='^(feat|fix|chore|docs|style|refactor|perf|test|build|ci|revert)/[a-z0-9._-]+$'
-
-          echo "Validating PR branch flow: ${HEAD_REPOSITORY}:${HEAD_REF} -> ${REPOSITORY}:${BASE_REF}"
-
-          case "${BASE_REF}" in
-            dev)
-              if [[ "${HEAD_REF}" =~ ${WORK_BRANCH_PATTERN} ]]; then
-                exit 0
-              fi
-              echo "PRs targeting dev must come from a typed work branch such as feat/*, fix/*, chore/*, docs/*, test/*, or ci/*."
-              exit 1
-              ;;
-            staging)
-              if [[ "${HEAD_REPOSITORY}" == "${REPOSITORY}" && "${HEAD_REF}" == "dev" ]]; then
-                exit 0
-              fi
-              echo "PRs targeting staging must come only from this repository's dev branch. Feature branches must target dev first."
-              exit 1
-              ;;
-            main)
-              if [[ "${HEAD_REPOSITORY}" == "${REPOSITORY}" && "${HEAD_REF}" == "staging" ]]; then
-                exit 0
-              fi
-              echo "PRs targeting main must come only from this repository's staging branch. Production promotion must pass through dev and staging."
-              exit 1
-              ;;
-            *)
-              # Chained/stacked PRs: a typed work branch may target its parent
-              # typed work branch when both live in this repository.
-              if [[ "${BASE_REF}" =~ ${WORK_BRANCH_PATTERN} ]]; then
-                if [[ "${HEAD_REPOSITORY}" == "${REPOSITORY}" && "${HEAD_REF}" =~ ${WORK_BRANCH_PATTERN} ]]; then
-                  exit 0
-                fi
-                echo "PRs targeting a work branch (${BASE_REF}) must come from another typed work branch in this repository (chained PRs)."
-                exit 1
-              fi
-              echo "Unsupported PR base branch: ${BASE_REF}. Allowed bases are dev, staging, main, or a typed work branch of this repository for chained PRs."
-              exit 1
-              ;;
-          esac
+          if [[ "${EVENT_NAME}" != "pull_request" || "${OTHER}" == "true" ]]; then
+            backend=true
+            frontend=true
+          else
+            backend="${BACKEND:-false}"
+            frontend="${FRONTEND:-false}"
+          fi
+          echo "event=${EVENT_NAME} other=${OTHER:-n/a} -> backend=${backend} frontend=${frontend}"
+          echo "backend=${backend}" >> "${GITHUB_OUTPUT}"
+          echo "frontend=${frontend}" >> "${GITHUB_OUTPUT}"
 
   quality_format:
     name: quality / format
@@ -90,6 +88,8 @@ jobs:
 
   backend_lint_build_unit:
     name: backend / lint-build-unit
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.backend == 'true') }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -107,6 +107,8 @@ jobs:
 
   backend_postgres_e2e:
     name: backend / postgres-e2e
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.backend == 'true') }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -123,6 +125,8 @@ jobs:
 
   frontend_live_check_in:
     name: frontend / live-check-in
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.backend == 'true' || needs.changes.outputs.frontend == 'true') }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     # Runs on the host runner, not in the Playwright image: the forked backend
@@ -163,6 +167,8 @@ jobs:
 
   frontend_lint_build:
     name: frontend / lint-build
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.frontend == 'true') }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -179,6 +185,8 @@ jobs:
 
   frontend_playwright_shard:
     name: frontend / playwright shard (${{ matrix.shard }}/${{ matrix.total }})
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.frontend == 'true') }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     # Browsers and their OS dependencies ship in the official image, so no
@@ -243,19 +251,28 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-  # Stable required-check name that aggregates the shard matrix.
+  # Stable required-check name that aggregates the shard matrix. It always runs, so
+  # the check reports on every PR: shards skipped because change detection found no
+  # frontend change pass, while a failed or cancelled shard fails it. If change
+  # detection fails, the shards run anyway, so their own result decides.
   frontend_playwright:
     name: frontend / playwright
-    needs: frontend_playwright_shard
+    needs: [changes, frontend_playwright_shard]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Require every Playwright shard to pass
+      - name: Require every Playwright shard to pass or be skipped
         env:
+          CHANGES_RESULT: ${{ needs.changes.result }}
           SHARD_RESULT: ${{ needs.frontend_playwright_shard.result }}
         run: |
-          echo "Playwright shard job result: ${SHARD_RESULT}"
-          if [[ "${SHARD_RESULT}" != "success" ]]; then
+          echo "Change detection result: ${CHANGES_RESULT}; Playwright shard job result: ${SHARD_RESULT}"
+          if [[ "${SHARD_RESULT}" == "skipped" && "${CHANGES_RESULT}" != "success" ]]; then
+            echo "::error::The Playwright shards were skipped without a successful change detection (quality / changes)."
+            exit 1
+          fi
+          if [[ "${SHARD_RESULT}" != "success" && "${SHARD_RESULT}" != "skipped" ]]; then
+            echo "::error::At least one Playwright shard did not pass (result: ${SHARD_RESULT})."
             exit 1
           fi

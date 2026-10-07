@@ -25,6 +25,8 @@ Playwright specs in `apps/frontend/e2e` are typechecked: `tsconfig.node.json` in
 
 CI runs the mocked suite inside the official `mcr.microsoft.com/playwright:v<version>-noble` image, which ships the browsers, split into two shards (`test:e2e --shard=<n>/2`) behind the aggregated `frontend / playwright` check. The shards set `NB_E2E_PREVIEW=1`, so Playwright serves a production build (`vite build` + `vite preview`) instead of the on-demand dev server; import pure modules directly in the Node test instead of loading `/src/...` in the browser. The one dev-server-only assertion (session store cleared on sign-out) runs again without preview in shard 1. The live check-in job stays on the host runner because its backend starts PostgreSQL with Testcontainers, which needs the host Docker daemon. The image tag in `.github/workflows/pr-checks.yml` must match the exact `@playwright/test` version in `pnpm-lock.yaml`; bump both together.
 
+On pull requests, a `quality / changes` job decides which areas run: backend jobs run only when `apps/backend/**` changes, frontend lint, build and Playwright only when `apps/frontend/**` changes, and the live check-in job when either changes. Docs-only files (`docs/**`, `odd/**`, `openspec/**`, `*.md`) run no area. Any other file outside the two apps (lockfile, workspace or tool config, workflows, scripts) and every push to `dev` run everything; `quality / format` always runs. If change detection fails, every area runs instead of being skipped. Skipped shards still let `frontend / playwright` pass, so the check name stays stable.
+
 ## FSD Layers
 
 - `app/` contains application bootstrap, global styles, providers, and router wiring.

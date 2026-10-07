@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { chooseOption, expectSelected, selectTrigger } from './support/select.ts';
 
 const eventId = 'a1b2c3d4-1234-4567-89ab-123456789abc';
 const otherId = 'b1b2c3d4-1234-4567-89ab-123456789abc';
@@ -258,9 +259,9 @@ test('keeps the catalog summary when the event list fails', async ({ page }) => 
 test('keeps the overview when switching events', async ({ page }) => {
   await mockCatalog(page);
   await page.goto(overviewPath);
-  const selector = page.getByRole('combobox', { name: 'Evento' });
-  await expect(selector).toHaveValue(eventId);
-  await selector.selectOption(otherId);
+  const selector = selectTrigger(page, 'Evento');
+  await expectSelected(selector, 'Encuentro del barrio');
+  await chooseOption(selector, 'Batalla de otoño');
   await expect(page).toHaveURL(new RegExp(`/admin/events/${otherId}$`));
   await expect(page.getByRole('main')).toContainText('Batalla de otoño');
 });

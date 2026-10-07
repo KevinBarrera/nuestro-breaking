@@ -8,6 +8,7 @@ import {
   type PassTypeInput,
   type RequiredPassClass,
 } from '@/entities/event-catalog';
+import { Select } from '@/shared/ui';
 import { type FormEvent, useId, useState } from 'react';
 import { passClassLabels, styles } from './catalog-copy';
 
@@ -20,6 +21,12 @@ type PassTypeFormProps = {
   // Only an existing active pass can be archived; archiving asks for confirmation first.
   onArchive?: () => void;
 };
+
+// "Ninguno" stands for no required class (stored as ''), so it gets an explicit key.
+const requiredOptions = [
+  { id: 'none', label: 'Ninguno' },
+  ...requiredPassClasses.map((value) => ({ id: value, label: passClassLabels[value] })),
+];
 
 const segment =
   'relative flex min-h-11 items-center justify-center rounded-md px-2 text-sm font-semibold text-fg has-checked:bg-nav-active has-checked:text-nav-active-fg has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-focus';
@@ -116,21 +123,14 @@ export function PassTypeForm({
           />
         </label>
         {passClass === 'add_on' && (
-          <label className={styles.label}>
-            Requiere pase
-            <select
-              className={styles.field}
-              value={requires}
-              onChange={(event) => setRequires(event.target.value as RequiredPassClass | '')}
-            >
-              <option value="">Ninguno</option>
-              {requiredPassClasses.map((value) => (
-                <option key={value} value={value}>
-                  {passClassLabels[value]}
-                </option>
-              ))}
-            </select>
-          </label>
+          <Select
+            label="Requiere pase"
+            options={requiredOptions}
+            selectedKey={requires || 'none'}
+            onSelectionChange={(key) =>
+              setRequires(key === 'none' ? '' : (key as RequiredPassClass))
+            }
+          />
         )}
       </div>
       {error && (

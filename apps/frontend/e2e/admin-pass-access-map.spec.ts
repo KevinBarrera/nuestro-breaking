@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { chooseOption, expectSelected, selectTrigger } from './support/select.ts';
 
 const eventId = 'a1b2c3d4-1234-4567-89ab-123456789abc';
 const venueId = 'e1b2c3d4-1234-4567-89ab-123456789abc';
@@ -103,7 +104,7 @@ async function selectPass(page: Page, name: string) {
 
 const map = (page: Page) => page.getByRole('region', { name: 'Mapa de acceso' });
 const cell = (page: Page, pass: string, activityName: string) =>
-  map(page).getByLabel(`${pass} · ${activityName}`, { exact: true });
+  selectTrigger(map(page), `${pass} · ${activityName}`);
 
 test.beforeEach(async ({ page }) => {
   await page.route(
@@ -139,7 +140,7 @@ test('renders active activities against active passes with read-only chips', asy
   await expect(cellsOf('Batalla · Batalla 2 vs 2')).toHaveText([/Sin acceso/, /Sin acceso/]);
   await expect(cellsOf('Batalla · Batalla de crews')).toHaveText(['Elegible', /Sin acceso/]);
   await expect(cellsOf('Taller · Taller de footwork')).toHaveText(['Incluida', /Sin acceso/]);
-  await expect(table.getByRole('combobox')).toHaveCount(0);
+  await expect(table.getByRole('button')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Guardar acceso' })).toHaveCount(0);
 });
 
@@ -148,14 +149,14 @@ test('selecting a pass card makes its column editable and opens the panel', asyn
   await page.goto(passTypesPath);
   await selectPass(page, 'Pase completo');
   await expect(page.getByRole('form', { name: 'Editar pase' })).toBeVisible();
-  await expect(cell(page, 'Pase completo', 'Batalla de crews')).toHaveValue('selectable');
-  await expect(cell(page, 'Pase completo', 'Taller de footwork')).toHaveValue('included');
-  await expect(cell(page, 'Pase completo', 'Batalla 2 vs 2')).toHaveValue('none');
+  await expectSelected(cell(page, 'Pase completo', 'Batalla de crews'), 'Elegible');
+  await expectSelected(cell(page, 'Pase completo', 'Taller de footwork'), 'Incluida');
+  await expectSelected(cell(page, 'Pase completo', 'Batalla 2 vs 2'), 'Sin acceso');
   await expect(cell(page, 'Entrada general', 'Batalla de crews')).toHaveCount(0);
   const box = await cell(page, 'Pase completo', 'Batalla de crews').boundingBox();
   expect(box?.height).toBeGreaterThanOrEqual(44);
   await selectPass(page, 'Entrada general');
-  await expect(cell(page, 'Entrada general', 'Batalla de crews')).toHaveValue('none');
+  await expectSelected(cell(page, 'Entrada general', 'Batalla de crews'), 'Sin acceso');
   await expect(cell(page, 'Pase completo', 'Batalla de crews')).toHaveCount(0);
 });
 
@@ -166,9 +167,9 @@ test('keeps Guardar acceso disabled until the selected column changes', async ({
   await selectPass(page, 'Pase completo');
   const save = map(page).getByRole('button', { name: 'Guardar acceso' });
   await expect(save).toBeDisabled();
-  await cell(page, 'Pase completo', 'Batalla de crews').selectOption('included');
+  await chooseOption(cell(page, 'Pase completo', 'Batalla de crews'), 'Incluida');
   await expect(save).toBeEnabled();
-  await cell(page, 'Pase completo', 'Batalla de crews').selectOption('selectable');
+  await chooseOption(cell(page, 'Pase completo', 'Batalla de crews'), 'Elegible');
   await expect(save).toBeDisabled();
   expect(bodies).toHaveLength(0);
 });
@@ -189,8 +190,8 @@ test('saves the selected column with one PUT carrying expectedVersion and the fu
   await page.goto(passTypesPath);
   await selectPass(page, 'Pase completo');
   await expect(map(page)).toContainText('se quitará al guardar');
-  await cell(page, 'Pase completo', 'Batalla 2 vs 2').selectOption('selectable');
-  await cell(page, 'Pase completo', 'Taller de footwork').selectOption('none');
+  await chooseOption(cell(page, 'Pase completo', 'Batalla 2 vs 2'), 'Elegible');
+  await chooseOption(cell(page, 'Pase completo', 'Taller de footwork'), 'Sin acceso');
   await map(page).getByRole('button', { name: 'Guardar acceso' }).click();
   await expect(page.getByRole('status')).toContainText('Acceso actualizado');
   expect(bodies).toEqual([
@@ -203,7 +204,7 @@ test('saves the selected column with one PUT carrying expectedVersion and the fu
     },
   ]);
   await expect(page.getByRole('form', { name: 'Editar pase' })).toContainText('v3');
-  await expect(cell(page, 'Pase completo', 'Taller de footwork')).toHaveValue('none');
+  await expectSelected(cell(page, 'Pase completo', 'Taller de footwork'), 'Sin acceso');
   await expect(map(page).getByRole('button', { name: 'Guardar acceso' })).toBeDisabled();
   await expect(map(page)).not.toContainText('se quitará al guardar');
 });
@@ -219,7 +220,7 @@ test('a stale version shows a conflict with a reload that discards local edits',
   }));
   await page.goto(passTypesPath);
   await selectPass(page, 'Pase completo');
-  await cell(page, 'Pase completo', 'Batalla 2 vs 2').selectOption('included');
+  await chooseOption(cell(page, 'Pase completo', 'Batalla 2 vs 2'), 'Incluida');
   await map(page).getByRole('button', { name: 'Guardar acceso' }).click();
   const conflict = page.getByRole('alert').filter({ hasText: 'Otra persona cambió este pase' });
   await expect(conflict).toBeVisible();
@@ -234,8 +235,8 @@ test('a stale version shows a conflict with a reload that discards local edits',
   const readsBefore = passReads();
   await conflict.getByRole('button', { name: 'Recargar' }).click();
   await expect.poll(passReads).toBeGreaterThan(readsBefore);
-  await expect(cell(page, 'Pase completo', 'Batalla de crews')).toHaveValue('included');
-  await expect(cell(page, 'Pase completo', 'Batalla 2 vs 2')).toHaveValue('none');
+  await expectSelected(cell(page, 'Pase completo', 'Batalla de crews'), 'Incluida');
+  await expectSelected(cell(page, 'Pase completo', 'Batalla 2 vs 2'), 'Sin acceso');
   await expect(page.getByRole('form', { name: 'Editar pase' })).toContainText('v5');
   await expect(map(page).getByRole('button', { name: 'Guardar acceso' })).toBeDisabled();
   await expect(conflict).toHaveCount(0);
@@ -246,10 +247,10 @@ test('other access failures show the generic failure notice', async ({ page }) =
   await mockAccessWrite(page, () => ({ status: 500, json: {} }));
   await page.goto(passTypesPath);
   await selectPass(page, 'Pase completo');
-  await cell(page, 'Pase completo', 'Batalla 2 vs 2').selectOption('included');
+  await chooseOption(cell(page, 'Pase completo', 'Batalla 2 vs 2'), 'Incluida');
   await map(page).getByRole('button', { name: 'Guardar acceso' }).click();
   await expect(page.getByRole('alert')).toContainText('No se pudo completar la operación');
-  await expect(cell(page, 'Pase completo', 'Batalla 2 vs 2')).toHaveValue('included');
+  await expectSelected(cell(page, 'Pase completo', 'Batalla 2 vs 2'), 'Incluida');
 });
 
 test('fits a 375px viewport and scrolls the access map inside its box', async ({ page }) => {
@@ -292,7 +293,7 @@ test('saving access keeps unsaved pass edits and the next save sends the new ver
   await selectPass(page, 'Pase completo');
   const form = page.getByRole('form', { name: 'Editar pase' });
   await form.getByLabel('Nombre').fill('Pase completo VIP');
-  await cell(page, 'Pase completo', 'Batalla 2 vs 2').selectOption('selectable');
+  await chooseOption(cell(page, 'Pase completo', 'Batalla 2 vs 2'), 'Elegible');
   await map(page).getByRole('button', { name: 'Guardar acceso' }).click();
   await expect(page.getByRole('status')).toContainText('Acceso actualizado');
   await expect(form).toContainText('v3');
@@ -325,7 +326,7 @@ test('disables the editable column and Guardar acceso while the save is in fligh
   );
   await page.goto(passTypesPath);
   await selectPass(page, 'Pase completo');
-  await cell(page, 'Pase completo', 'Batalla 2 vs 2').selectOption('included');
+  await chooseOption(cell(page, 'Pase completo', 'Batalla 2 vs 2'), 'Incluida');
   await map(page).getByRole('button', { name: 'Guardar acceso' }).click();
   const saving = map(page).getByRole('button', { name: 'Guardando…' });
   await expect(saving).toBeDisabled();
@@ -374,13 +375,13 @@ test('a reload still in flight when access is saved cannot restore the older ver
   );
   await page.goto(passTypesPath);
   await selectPass(page, 'Pase completo');
-  await cell(page, 'Pase completo', 'Batalla 2 vs 2').selectOption('included');
+  await chooseOption(cell(page, 'Pase completo', 'Batalla 2 vs 2'), 'Incluida');
   await map(page).getByRole('button', { name: 'Guardar acceso' }).click();
   const conflict = page.getByRole('alert').filter({ hasText: 'Otra persona cambió este pase' });
   holdReads = true;
   await conflict.getByRole('button', { name: 'Recargar' }).click();
   await expect.poll(() => heldReads).toBe(1);
-  await cell(page, 'Pase completo', 'Batalla 2 vs 2').selectOption('included');
+  await chooseOption(cell(page, 'Pase completo', 'Batalla 2 vs 2'), 'Incluida');
   await map(page).getByRole('button', { name: 'Guardar acceso' }).click();
   await expect(page.getByRole('status')).toContainText('Acceso actualizado');
   const form = page.getByRole('form', { name: 'Editar pase' });
@@ -390,7 +391,7 @@ test('a reload still in flight when access is saved cannot restore the older ver
   // Let the page settle any late response before checking it was ignored.
   await page.evaluate(() => new Promise((resolve) => setTimeout(resolve, 100)));
   await expect(form).toContainText('v3');
-  await expect(cell(page, 'Pase completo', 'Batalla 2 vs 2')).toHaveValue('included');
+  await expectSelected(cell(page, 'Pase completo', 'Batalla 2 vs 2'), 'Incluida');
   await expect(map(page).getByRole('button', { name: 'Guardar acceso' })).toBeDisabled();
 });
 
@@ -433,7 +434,7 @@ test('an access save during a retried reload re-reads instead of leaving the ref
   );
   await page.goto(passTypesPath);
   await selectPass(page, 'Pase completo');
-  await cell(page, 'Pase completo', 'Batalla 2 vs 2').selectOption('included');
+  await chooseOption(cell(page, 'Pase completo', 'Batalla 2 vs 2'), 'Incluida');
   await map(page).getByRole('button', { name: 'Guardar acceso' }).click();
   const conflict = page.getByRole('alert').filter({ hasText: 'Otra persona cambió este pase' });
   reads = 'fail';
@@ -447,7 +448,7 @@ test('an access save during a retried reload re-reads instead of leaving the ref
   await expect.poll(() => heldReads).toBe(1);
   reads = 'ok';
   const readsBeforeSave = passReads;
-  await cell(page, 'Pase completo', 'Batalla 2 vs 2').selectOption('included');
+  await chooseOption(cell(page, 'Pase completo', 'Batalla 2 vs 2'), 'Incluida');
   await map(page).getByRole('button', { name: 'Guardar acceso' }).click();
   await expect(page.getByRole('status')).toContainText('Acceso actualizado');
 
@@ -459,5 +460,5 @@ test('an access save during a retried reload re-reads instead of leaving the ref
   await heldServed;
   await page.evaluate(() => new Promise((resolve) => setTimeout(resolve, 100)));
   await expect(form).toContainText('v3');
-  await expect(cell(page, 'Pase completo', 'Batalla 2 vs 2')).toHaveValue('included');
+  await expectSelected(cell(page, 'Pase completo', 'Batalla 2 vs 2'), 'Incluida');
 });

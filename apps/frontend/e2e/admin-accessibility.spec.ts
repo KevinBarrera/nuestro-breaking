@@ -6,6 +6,7 @@ import {
   themes,
   useTheme,
 } from './support/admin-mocks.ts';
+import { selectTrigger } from './support/select.ts';
 
 type Rgba = [number, number, number, number];
 
@@ -113,7 +114,8 @@ for (const theme of themes) {
 
 // Every visible control an operator taps must offer a 44px-tall target. Inline links inside
 // running text are exempt (WCAG 2.5.8 inline exception); checkboxes and radios are measured
-// through their wrapping label, which is the real hit area.
+// through their wrapping label, which is the real hit area. React Aria's aria-hidden native
+// select (kept for autofill) is not a target; its visible trigger button is.
 for (const screen of adminScreens) {
   test(`${screen.name} keeps 44px targets for shell and page controls`, async ({ page }) => {
     await mockAdminApi(page);
@@ -124,7 +126,9 @@ for (const screen of adminScreens) {
       return [...document.querySelectorAll<HTMLElement>(selector)]
         .filter(
           (node) =>
-            node.getClientRects().length > 0 && !(node.tagName === 'A' && node.closest('p')),
+            node.getClientRects().length > 0 &&
+            !node.closest('[aria-hidden="true"]') &&
+            !(node.tagName === 'A' && node.closest('p')),
         )
         .map((node) => {
           const target =
@@ -132,8 +136,9 @@ for (const screen of adminScreens) {
               ? (node.closest('label') ?? node)
               : node;
           const name = (node.getAttribute('aria-label') ?? node.textContent ?? '').trim();
+          const tag = node.getAttribute('aria-haspopup') === 'listbox' ? 'select' : node.tagName;
           return {
-            name: `${node.tagName.toLowerCase()} ${name}`.slice(0, 60),
+            name: `${tag.toLowerCase()} ${name}`.slice(0, 60),
             height: target.getBoundingClientRect().height,
           };
         });
@@ -142,9 +147,68 @@ for (const screen of adminScreens) {
     // Guards against a vacuous pass: the sweep must see the sampled control kinds.
     expect(tagged('a ').length).toBeGreaterThanOrEqual(4);
     expect(tagged('button ').length).toBeGreaterThanOrEqual(2);
-    if (screen.name === 'Pases') expect(tagged('select ').length).toBeGreaterThan(0);
+    // Every event screen has the topbar event select; Pases adds one per access-map cell.
+    expect(tagged('select ').length).toBeGreaterThanOrEqual(screen.name === 'Pases' ? 2 : 1);
     if (screen.name === 'Actividades')
       expect(targets.some((target) => target.name.startsWith('button Todas'))).toBe(true);
     expect(targets.filter((target) => target.height < 44)).toEqual([]);
   });
+}
+
+// The open listbox renders in a popover outside the shell, so it gets its own sweep: options
+// keep 44px targets and every option text keeps 4.5:1 on its painted background, including
+// the focused and selected option, in both themes and in both the header and a table cell.
+const popoverCases = [
+  { name: 'topbar event selector', screen: adminScreens[0], trigger: 'Evento' },
+  {
+    name: 'access map cell',
+    screen: adminScreens[3],
+    trigger: 'Pase completo · Taller de footwork',
+  },
+] as const;
+
+for (const theme of themes) {
+  for (const { name, screen, trigger } of popoverCases) {
+    test(`${theme} theme ${name} listbox keeps 44px options and 4.5:1 text`, async ({ page }) => {
+      await useTheme(page, theme);
+      await mockAdminApi(page);
+      await page.goto(screen.path);
+      await revealControls(page, screen.name);
+      await selectTrigger(page, trigger).focus();
+      await page.keyboard.press('ArrowDown');
+      const listbox = page.getByRole('listbox');
+      await expect(listbox).toBeVisible();
+      // Opening moves focus to the selected option, so the focused style is measured too.
+      await expect(listbox.getByRole('option', { selected: true })).toBeFocused();
+      const options = await listbox.getByRole('option').evaluateAll((nodes) =>
+        nodes.map((node) => {
+          let painted: Element | null = node;
+          let bg = 'rgba(0, 0, 0, 0)';
+          while (painted && /rgba\(.*, 0\)$/.test(bg)) {
+            bg = getComputedStyle(painted).backgroundColor;
+            painted = painted.parentElement;
+          }
+          return {
+            name: node.textContent ?? '',
+            selected: node.getAttribute('aria-selected') === 'true',
+            height: node.getBoundingClientRect().height,
+            fg: getComputedStyle(node).color,
+            bg,
+          };
+        }),
+      );
+      expect(options.length).toBeGreaterThanOrEqual(1);
+      expect(options.filter((option) => option.selected)).toHaveLength(1);
+      const rgba = (value: string) =>
+        [...value.match(/[\d.]+/g)!.map(Number), 1].slice(0, 4) as Rgba;
+      for (const option of options) {
+        expect(option.height, option.name).toBeGreaterThanOrEqual(44);
+        expect(rgba(option.bg)[3], `${option.name} background must be opaque`).toBe(1);
+        expect(
+          contrast(rgba(option.fg), rgba(option.bg)),
+          `${option.name} text contrast`,
+        ).toBeGreaterThanOrEqual(4.5);
+      }
+    });
+  }
 }

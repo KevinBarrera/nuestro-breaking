@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { expectSelected, selectTrigger } from './support/select.ts';
 
 const eventId = 'a1b2c3d4-1234-4567-89ab-123456789abc';
 const foundationPath = `/admin/events/${eventId}/foundation`;
@@ -100,8 +101,8 @@ test('shows foundation context and navigates to the event overview', async ({ pa
   await page.goto(foundationPath);
   const header = page.getByRole('banner', { name: 'Espacio de administración' });
   await expect(header.getByText('Fundamentos del evento')).toBeVisible();
-  const selector = header.getByRole('combobox', { name: 'Evento' });
-  await expect(selector).toHaveValue(eventId);
+  const selector = selectTrigger(header, 'Evento');
+  await expectSelected(selector, 'Encuentro del barrio');
   await expect(header.getByText(eventId)).toHaveCount(0);
   const nav = page.getByRole('navigation', { name: 'Navegación administrativa' });
   const home = nav.getByRole('link', { name: 'Resumen' });
@@ -127,8 +128,8 @@ test('keeps event context and the only usable destination accessible at 375px', 
   await page.goto(foundationPath);
   const header = page.getByRole('banner', { name: 'Espacio de administración' });
   await expect(header.getByText('Fundamentos del evento')).toBeVisible();
-  const selector = header.getByRole('combobox', { name: 'Evento' });
-  await expect(selector).toHaveValue(eventId);
+  const selector = selectTrigger(header, 'Evento');
+  await expectSelected(selector, 'Encuentro del barrio');
   await expect(header.getByText(eventId)).toHaveCount(0);
   const home = page
     .getByRole('navigation', { name: 'Navegación administrativa' })

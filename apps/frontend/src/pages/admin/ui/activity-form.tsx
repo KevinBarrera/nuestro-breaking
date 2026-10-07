@@ -5,6 +5,7 @@ import {
   type CatalogActivity,
   type CatalogVenue,
 } from '@/entities/event-catalog';
+import { Select } from '@/shared/ui';
 import { type FormEvent, useId, useState } from 'react';
 import { styles } from './catalog-copy';
 
@@ -43,6 +44,8 @@ export function ActivityForm({
   const [endsAt, setEndsAt] = useState(initialEndsAt);
   const [error, setError] = useState<string | null>(null);
   const noVenues = venues.length === 0;
+  // A saved venue that is no longer among the event venues (e.g. archived) counts as unselected.
+  const selectedVenueId = venues.some((venue) => venue.id === venueId) ? venueId : '';
 
   function instant(value: string, initial: string, stored: string | undefined) {
     return stored !== undefined && value === initial ? stored : fromZonedInput(value, timeZone);
@@ -53,7 +56,7 @@ export function ActivityForm({
     if (busy || noVenues) return;
     const start = instant(startsAt, initialStartsAt, activity?.startsAt);
     const end = instant(endsAt, initialEndsAt, activity?.endsAt);
-    if (!name.trim() || !kind.trim() || !venueId) {
+    if (!name.trim() || !kind.trim() || !selectedVenueId) {
       setError('Completa nombre, tipo y sede.');
       return;
     }
@@ -66,7 +69,13 @@ export function ActivityForm({
       return;
     }
     setError(null);
-    onSubmit({ name: name.trim(), kind: kind.trim(), venueId, startsAt: start, endsAt: end });
+    onSubmit({
+      name: name.trim(),
+      kind: kind.trim(),
+      venueId: selectedVenueId,
+      startsAt: start,
+      endsAt: end,
+    });
   }
 
   return (
@@ -106,22 +115,17 @@ export function ActivityForm({
             ))}
           </datalist>
         </label>
-        <label className={`${styles.label} sm:col-span-2 lg:col-span-1`}>
-          Sede
-          <select
-            className={styles.field}
-            value={venueId}
-            required
-            disabled={noVenues}
-            onChange={(event) => setVenueId(event.target.value)}
-          >
-            {venues.map((venue) => (
-              <option key={venue.id} value={venue.id}>
-                {venue.name}
-              </option>
-            ))}
-          </select>
-        </label>
+        <Select
+          label="Sede"
+          className="sm:col-span-2 lg:col-span-1"
+          options={venues.map((venue) => ({ id: venue.id, label: venue.name }))}
+          selectedKey={selectedVenueId}
+          isDisabled={noVenues}
+          isRequired
+          requiredMessage="Elige la sede de la actividad."
+          placeholder={noVenues ? 'Sin sedes' : 'Elige una sede'}
+          onSelectionChange={setVenueId}
+        />
         <label className={styles.label}>
           Inicio
           <input

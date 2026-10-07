@@ -10,8 +10,8 @@ type PassTypeListProps = {
   onSelect: (passType: CatalogPassType) => void;
 };
 
-// Pass cards; an active card is selected through its "Editar" button, whose hit area
-// covers the whole card. Archived cards stay visible but cannot be edited.
+// Pass cards; the whole active card is one button, laid over the card content and named
+// "Editar <pass name>". Archived cards stay visible but cannot be edited.
 export function PassTypeList({
   passTypes,
   activities,
@@ -32,7 +32,7 @@ export function PassTypeList({
             key={passType.id}
             className={`relative flex min-w-0 flex-col rounded-xl border border-line bg-surface p-4 ${
               selected ? 'ring-2 ring-heading' : ''
-            }`}
+            } ${active ? 'hover:border-heading' : ''}`}
           >
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="text-xs font-bold tracking-[0.08em] text-muted uppercase">
@@ -57,9 +57,9 @@ export function PassTypeList({
                 aria-pressed={selected}
                 disabled={busy}
                 onClick={() => onSelect(passType)}
-                className="mt-3 inline-flex min-h-11 items-center self-start rounded-lg px-1 text-sm font-semibold text-link after:absolute after:inset-0 after:rounded-xl hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus disabled:cursor-wait"
+                className="absolute inset-0 min-h-11 cursor-pointer rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus disabled:cursor-wait"
               >
-                Editar
+                <span className="sr-only">Editar {passType.name}</span>
               </button>
             )}
           </li>

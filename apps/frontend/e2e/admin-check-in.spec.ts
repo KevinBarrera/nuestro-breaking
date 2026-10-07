@@ -14,6 +14,11 @@ const participant = (checkedInAt: string | null = null) => ({
     { id: 'other', name: 'Fiesta', kind: 'social', checkedInAt: null as string | null },
   ],
 });
+const events = [
+  { id: eventId, name: 'Encuentro del barrio' },
+  { id: otherEvent, name: 'Batalla de otoño' },
+];
+const uuidPattern = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
 const results = (rows = [participant()]) => ({
   total: rows.length,
   limit: 20,
@@ -36,7 +41,51 @@ test.beforeEach(async ({ page }) => {
         json: { user: { id: 'admin', roles: ['admin'] } },
       }),
   );
+  await page.route(
+    (url) => api(url) && url.pathname === '/admin/events',
+    (route) => route.fulfill({ json: events }),
+  );
 });
+
+test('names the event instead of showing its UUID', async ({ page }) => {
+  await page.goto(path);
+  const main = page.getByRole('main');
+  await expect(main.getByText('Administración · Encuentro del barrio')).toBeVisible();
+  await expect(main.getByRole('heading', { name: 'Control de entrada' })).toBeVisible();
+  expect(await main.innerText()).not.toMatch(uuidPattern);
+});
+
+for (const [name, respond] of [
+  ['the event list fails', { status: 500, json: { message: 'error' } }],
+  ['the event is not in the list', { json: [events[1]] }],
+] as const) {
+  test(`shows only "Administración" without a UUID when ${name}`, async ({ page }) => {
+    // The admin shell's event selector requests the same list, so a served-request flag can
+    // flip before the page handled its own response. The eyebrow's settled state is set only by
+    // the check-in page after its own lookup finished, so wait for it before the negatives.
+    let served = 0;
+    await page.route(
+      (url) => api(url) && url.pathname === '/admin/events',
+      (route) => {
+        served++;
+        return route.fulfill(respond);
+      },
+    );
+    await page.goto(path);
+    const main = page.getByRole('main');
+    const eyebrow = main.locator('[data-event-name-state]');
+    await expect(eyebrow).toHaveAttribute('data-event-name-state', 'unavailable');
+    expect(served).toBeGreaterThanOrEqual(1);
+    await expect(eyebrow).toHaveText('Administración');
+    await expect(main.getByText(/Administración ·/)).toHaveCount(0);
+    expect(await main.innerText()).not.toMatch(uuidPattern);
+    // Stays settled: no late response replaces the fallback.
+    await page.waitForLoadState('networkidle');
+    await expect(eyebrow).toHaveAttribute('data-event-name-state', 'unavailable');
+    await expect(eyebrow).toHaveText('Administración');
+    expect(await main.innerText()).not.toMatch(uuidPattern);
+  });
+}
 
 test('requires session and never requests protected search when signed out', async ({ page }) => {
   await page.route(
@@ -216,7 +265,12 @@ test('loading, empty and refresh failure offer safe handoff', async ({ page }) =
   await page.getByRole('button', { name: 'Registrar entrada al evento' }).click();
   await expect(page.getByRole('alert').last()).toContainText('No se pudo verificar el estado');
   await expect(page.getByText('Entrada al evento registrada')).toHaveCount(0);
-  await expect(page.getByRole('main').getByRole('link', { name: 'Inicio' })).toBeVisible();
+  const overview = page.getByRole('main').getByRole('link', { name: 'resumen del evento' });
+  await expect(overview).toHaveAttribute('href', `/admin/events/${eventId}`);
+  await expect(page.getByRole('main')).toContainText(
+    'Consulta al responsable o vuelve al resumen del evento.',
+  );
+  await expect(page.getByRole('main').getByRole('link', { name: 'Inicio' })).toHaveCount(0);
 });
 
 test('pending registration and excluded activities cannot be admitted', async ({ page }) => {
@@ -339,7 +393,8 @@ test('switching events during an in-flight POST clears old data, notice, search 
     `history.pushState({}, '', '/admin/events/${otherEvent}/check-in'); dispatchEvent(new PopStateEvent('popstate'))`,
   );
   release();
-  await expect(page.getByText(`Administración · Evento ${otherEvent}`)).toBeVisible();
+  await expect(page.getByText('Administración · Batalla de otoño')).toBeVisible();
+  expect(await page.getByRole('main').innerText()).not.toMatch(uuidPattern);
   await expect(page.getByRole('textbox', { name: 'Buscar inscripción' })).toHaveValue('');
   await expect(page.getByRole('textbox', { name: 'Buscar inscripción' })).toBeEnabled();
   await expect(page.getByRole('button', { name: 'Buscar' })).toBeEnabled();

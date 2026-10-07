@@ -41,13 +41,13 @@ Forecast: ~1,200 authored lines over 4 PRs.
 
 ### PR 4 — `feat/145-04-entry-check-in-and-states`
 
-- [ ] T5 — `/admin` event picker: no sample content. One event redirects to it, several show a picker, zero show an empty state.
-- [ ] T6 — Check-in shows the event name instead of the UUID. The fallback link goes to the event overview.
-- [ ] T7 — The selected chip differs in lightness in both themes, and contrast checks are extended to chip state. Pass cards have a single interactive target with no "Editar" button.
+- [x] T5 — `/admin` event picker: no sample content. One event redirects to it, several show a picker, zero show an empty state.
+- [x] T6 — Check-in shows the event name instead of the UUID. The fallback link goes to the event overview.
+- [x] T7 — The selected chip differs in lightness in both themes, and contrast checks are extended to chip state. Pass cards have a single interactive target with no "Editar" button.
 
 ## Acceptance criteria
 
-See issue #145; mapped to evidence at closure.
+See issue #145; mapped to evidence below under "Acceptance criteria evidence".
 
 ## Progress and evidence
 
@@ -87,6 +87,31 @@ See issue #145; mapped to evidence at closure.
 - Verification: frontend `npm run lint` 0 errors, the 2 known warnings in `admin-check-in-page.tsx`; `npm run build` passed; full mocked `npx playwright test` 131 passed (128 base + 3 fixed shell); Prettier check passed.
 - Caveat: no skip link exists in the app, so none was added; the React Aria listbox renders at the end of `<body>`, outside the scroll container.
 
+### PR 4 — T5–T7
+
+- Route: delegated direct — one bounded writer (trigger: 2+ non-trivial files across pages, shared UI, styles, e2e and docs).
+- Commits: `d3840f2` feat(admin): replace the sample /admin view with a real event picker; `b029ad6` fix(admin): show the event name on check-in; `4af7cad` fix(admin): make selected filter chips stand out and pass cards a single target.
+- T5: `/admin` is an "Eventos" picker from `listCatalogEvents` (`@/entities/event-catalog`) through `useCatalogLoad`: loading, access-denied, error with "Reintentar", empty ("No hay eventos disponibles para tu cuenta.") and one card per event (name as `h2`, "Abrir evento" to the overview, Check-in / Actividades / Pases). Exactly one event redirects with `<Navigate replace>`. A list with any non-UUID ID is rejected as an error, as before. All sample and planning content and copy are gone. `e2e/admin-check-in-entry.spec.ts` became `e2e/admin-event-picker.spec.ts`; `route-placeholders`, `admin-event-catalog` and the live `live-check-in` spec (not run: needs the live backend) follow the new page.
+- T5 RED: the new picker spec failed 6 of 8 against the sample view. GREEN: 8 passed; with `route-placeholders`, `admin-event-catalog` and `admin-shell` 54 passed.
+- T6: `pages/admin/ui/use-event-name.ts` resolves the name from `listCatalogEvents` (entity layer, no widget import and no move needed). The eyebrow reads "Administración · <name>", or "Administración" while loading, on failure or when the event is not listed. The fallback link reads "…Consulta al responsable o vuelve al resumen del evento." and targets `/admin/events/:eventId`. Moving the `eslint-disable` comment onto the ref line cleared the file's two long-standing lint warnings.
+- T6 RED: 5 failed in `admin-check-in.spec.ts` (name, two fallback cases, overview link, event switch). GREEN: 13 passed.
+- T7: new `--nb-chip-selected-bg`/`-fg` tokens (light `#21185f`/`#fff4a8`, dark `#f3e9a6`/`#21185f`) exposed as `bg-chip-selected`/`text-chip-selected-fg`; unselected chips are transparent with a border; the selected chip shows `CheckIcon`, now exported from `@/shared/ui` and shared with `Select`. Pass cards: the visible "Editar" button is gone; an `absolute inset-0` button named "Editar <pass name>" (screen-reader text) covers the card, with a card-sized focus outline, `aria-pressed` kept; archived cards have no button.
+- T7 RED: 24 failed (missing chip token, chip luminance/contrast per theme, pass-card name and target specs). GREEN: affected specs 74 passed after one spec fix (the price click now uses mouse coordinates because the overlay intercepts element clicks by design).
+- Verification: frontend `npm run lint` 0 problems (the 2 old warnings are gone); `npm run build` passed (after folding a `use-event-name.ts` null-check fix into `b029ad6`); full mocked `npx playwright test` 140 passed; Prettier check passed.
+- T3–T7 review: `review-a52873433910900f` (medium, reliability lens, granted, approved and acknowledged; range `086e8ba..b8e01cb`) with two non-blocking findings. R3-event-name-fallback-negative-race fixed in `ac9aeaf`: `useEventName` reports `loading`/`resolved`/`unavailable` as `data-event-name-state` on the eyebrow, and the fallback specs wait for `unavailable` (set only after the page handled its own response, not the shell selector's) before asserting no name and no UUID; reintroducing the UUID in the fallback made both specs fail (then reverted). Frontend lint 0 problems; build passed; full mocked `npx playwright test` 140 passed. R3-live-check-in-unexecuted-path: `e2e/live-check-in.spec.ts` (updated for the single-event redirect and the overview's "Abrir check-in" link at `admin-event-overview-page.tsx:89`) still needs a run against the live backend (`npm run test:e2e:live`) by the user.
+
+## Acceptance criteria evidence
+
+- `/admin` shows no sample data; one event redirects, several show a picker, zero show an empty state: T5, `e2e/admin-event-picker.spec.ts`, `route-placeholders.spec.ts`.
+- No native `<select>`; the shared Select works with keyboard and screen reader in both themes: T2, `e2e/admin-select.spec.ts`, `admin-accessibility.spec.ts` popover sweep.
+- Theme toggle icon and accessible name reflect the theme, covered by a test: T4, `admin-shell.spec.ts`.
+- Header and sidenav stay visible while content scrolls on desktop; no horizontal scroll on mobile: T3, `e2e/admin-fixed-shell.spec.ts`, `admin-phone-width.spec.ts`.
+- Check-in never renders an event UUID; the fallback link targets the overview: T6, `admin-check-in.spec.ts`.
+- Selected chip distinguishable in both themes; contrast checks cover chip state: T7, `admin-accessibility.spec.ts` chip tests and the `chip-selected` token pair.
+- Pass cards have a single interactive target: T7, `admin-event-catalog.spec.ts` pass-card target and keyboard specs.
+- "Los más pesados" replaces "Nuestro Breaking" in the UI, specs updated: T1, `admin-shell.spec.ts`, `route-placeholders.spec.ts`.
+- Seed uses the new event name and the local setup docs explain how to pick it up: T1, `66f68bd`, `docs/contracts/event-catalog.md` "Local seed".
+
 ## Next step
 
-T5 on `feat/145-04-entry-check-in-and-states`, stacked on PR 3.
+Open the chained PRs (user decision); run `npm run test:e2e:live` against the live backend first.

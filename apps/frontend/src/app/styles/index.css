@@ -46,6 +46,8 @@
   --color-sidenav-line: var(--nb-sidenav-line);
   --color-nav-active: var(--nb-nav-active-bg);
   --color-nav-active-fg: var(--nb-nav-active-fg);
+  --color-chip-selected: var(--nb-chip-selected-bg);
+  --color-chip-selected-fg: var(--nb-chip-selected-fg);
 }
 
 :root {
@@ -103,6 +105,9 @@
   --nb-sidenav-line: #e3dceb;
   --nb-nav-active-bg: #21185f;
   --nb-nav-active-fg: #fff4a8;
+  /* Selected filter chip: a solid fill far darker than the unselected (transparent) chip. */
+  --nb-chip-selected-bg: #21185f;
+  --nb-chip-selected-fg: #fff4a8;
   color-scheme: light;
 }
 
@@ -141,6 +146,9 @@
   --nb-sidenav-line: #34305c;
   --nb-nav-active-bg: #353066;
   --nb-nav-active-fg: #f3e9a6;
+  /* Selected filter chip: a solid cream fill far lighter than the unselected chip. */
+  --nb-chip-selected-bg: #f3e9a6;
+  --nb-chip-selected-fg: #21185f;
   color-scheme: dark;
 }
 

@@ -30,4 +30,11 @@ export type {
   RequiredPassClass,
 } from './api/types';
 export { centsToInput, formatMxn, parseMxnToCents } from './model/money';
-export { formatEventTime, fromZonedInput, toZonedInput } from './model/zoned-time';
+export {
+  eventDayKey,
+  formatEventClock,
+  formatEventDay,
+  formatEventTime,
+  fromZonedInput,
+  toZonedInput,
+} from './model/zoned-time';

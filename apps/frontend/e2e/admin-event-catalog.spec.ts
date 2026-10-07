@@ -144,10 +144,12 @@ test('lists activities with kind, venue, schedule in event time and status', asy
   ]);
   await page.goto(activitiesPath);
   const battle = page.getByRole('listitem').filter({ hasText: 'Batalla de crews' });
-  await expect(battle).toContainText('battle');
+  await expect(battle).toContainText('Batalla');
   await expect(battle).toContainText('Centro cultural');
   await expect(battle).toContainText('10:00');
   await expect(battle).toContainText('Activa');
+  await expect(page.getByText('Taller viejo')).toHaveCount(0);
+  await page.getByRole('checkbox', { name: 'Mostrar archivadas' }).check();
   await expect(page.getByRole('listitem').filter({ hasText: 'Taller viejo' })).toContainText(
     'Archivada',
   );
@@ -291,6 +293,8 @@ test('archives an activity only after confirmation', async ({ page }) => {
   await row.getByRole('button', { name: 'Archivar' }).click();
   await row.getByRole('button', { name: 'Confirmar archivo' }).click();
   await expect(page.getByRole('status')).toContainText('Actividad archivada');
+  await expect(row).toHaveCount(0);
+  await page.getByRole('checkbox', { name: 'Mostrar archivadas' }).check();
   await expect(row).toContainText('Archivada');
   expect(bodies).toEqual([{ expectedVersion: 3 }]);
 });

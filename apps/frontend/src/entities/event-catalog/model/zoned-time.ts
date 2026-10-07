@@ -48,3 +48,27 @@ export function formatEventTime(iso: string, timeZone: string): string {
     timeZone,
   }).format(new Date(iso));
 }
+
+// Calendar day (`YYYY-MM-DD`) of an instant on the event's clock, for grouping by day.
+export function eventDayKey(iso: string, timeZone: string): string {
+  return toZonedInput(iso, timeZone).slice(0, 10);
+}
+
+// Wall-clock time (`HH:mm`) of an instant on the event's clock.
+export function formatEventClock(iso: string, timeZone: string): string {
+  return toZonedInput(iso, timeZone).slice(11);
+}
+
+// Spanish day heading on the event's clock, e.g. "Sábado 21 de noviembre".
+export function formatEventDay(iso: string, timeZone: string): string {
+  const parts = new Intl.DateTimeFormat('es-MX', {
+    timeZone,
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+  }).formatToParts(new Date(iso));
+  const part = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((entry) => entry.type === type)?.value ?? '';
+  const weekday = part('weekday');
+  return `${weekday.charAt(0).toUpperCase()}${weekday.slice(1)} ${part('day')} de ${part('month')}`;
+}

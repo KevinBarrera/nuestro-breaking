@@ -26,26 +26,26 @@ Restyle the admin interface with the event palette, user-selectable persisted li
 
 Forecast: ~1,900 authored lines over 5 PRs.
 
-### PR 1 — `feat/136-01-admin-theme-shell`
+### PRs 1–3 — theme and shell (slices: `feat/136-01-theme-foundation` = c13fe77..059f4f1, +317/−2; `feat/136-02-admin-shell` = 8ed10f4, +337/−76; `feat/136-03-admin-theme-pages` = 5f5e609..review follow-ups, +297/−127)
 
 - [x] T1 — Theme tokens and fonts: light/dark CSS custom properties from the issue, `data-theme` on `<html>`, Google Fonts with fallbacks, `lang="es"`.
 - [x] T2 — Theme preference: safe persisted toggle (storage failures fall back to light without crashing), no flash on load.
 - [x] T3 — Admin shell widget: header (brand, event selector from `GET /admin/events`, theme toggle, sign-out), brand bar, full-height side navigation with Operación/Catálogo groups, disabled Inscripciones and Listas de respaldo; phone-width stacking. Playwright coverage for shell and theme toggle.
 
-### PR 2 — `feat/136-02-admin-overview`
+### PR 4 — `feat/136-04-admin-overview`
 
 - [ ] T4 — Resumen: quick actions (Abrir check-in active; unsupported actions disabled), catalog counts from catalog APIs, pass table in a scroll box.
 
-### PR 3 — `feat/136-03-pass-access-map`
+### PR 5 — `feat/136-05-pass-access-map`
 
 - [ ] T5 — Pases: pass cards and edit panel restyle.
 - [ ] T6 — Editable access map (activities × pass types; Elegible/Incluida) via `PUT .../pass-types/:passTypeId/activities` with `expectedVersion`; 409 shows a reload path. Playwright coverage of the PUT body and conflict.
 
-### PR 4 — `feat/136-04-activity-agenda`
+### PR 6 — `feat/136-06-activity-agenda`
 
 - [ ] T7 — Actividades agenda grouped by day in the event time zone, kind filters, search, archived toggle, workshop empty state. Playwright coverage.
 
-### PR 5 — `feat/136-05-check-in-restyle`
+### PR 7 — `feat/136-07-check-in-restyle`
 
 - [ ] T8 — Check-in visual restyle only; existing specs unchanged and passing.
 - [ ] T9 — Contrast and phone-width pass across screens; docs update.
@@ -70,4 +70,4 @@ See issue #136. Mapped: themes/contrast/targets → T1–T3, T9; persistence →
 
 ## Next step
 
-PR 1 review and delivery; then T4 on `feat/136-02-admin-overview`.
+Slices split by the chained-pr pass (one pass; each slice verified alone: build, lint, full e2e). Review: `review-c590b22230a870f6` approved and acknowledged on fdd9477..5f5e609 (medium, granted, 1 reliability lens, 3 advisory findings fixed in d7fcf86, 649337a, 3e67302 — each assessed medium/under_budget, pending in the slice from boundary 5f5e609). The hook-issued review of everything since `df49d48` was declined per standing user instruction. Open PRs 1–3 stacked to `dev`; then T4 on `feat/136-04-admin-overview` from `feat/136-03-admin-theme-pages`.

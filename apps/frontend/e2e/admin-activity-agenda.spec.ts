@@ -325,3 +325,14 @@ test('keeps the selected kind chip when hiding archived activities', async ({ pa
   await toggle.check();
   await expect(page.getByRole('main').getByRole('heading', { level: 3 })).toHaveText(['Bgirl 1v1']);
 });
+
+test('marks a time range that ends on the next event day', async ({ page }) => {
+  await mockCatalog(page);
+  await page.goto(activitiesPath);
+
+  const nightly = page.getByRole('listitem').filter({ hasText: 'Cypher nocturno' });
+  await expect(nightly).toContainText('22:30–00:00 (+1 día)');
+  const crews = page.getByRole('listitem').filter({ hasText: 'Batalla de crews' });
+  await expect(crews).toContainText('16:00–18:00');
+  await expect(crews).not.toContainText('+1');
+});

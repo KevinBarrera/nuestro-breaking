@@ -1,6 +1,6 @@
-import { formatEventClock, type CatalogActivity } from '@/entities/event-catalog';
+import type { CatalogActivity } from '@/entities/event-catalog';
 import { useId } from 'react';
-import type { AgendaDay } from './activity-agenda-model';
+import { formatTimeRange, type AgendaDay } from './activity-agenda-model';
 import { activityKindLabel, activityStatusLabels, styles } from './catalog-copy';
 
 type ActivityListProps = {
@@ -67,8 +67,7 @@ function ActivityRow({
     <li className="p-4">
       <div className="grid gap-3 sm:grid-cols-[7.5rem_minmax(0,1fr)_auto] sm:items-center">
         <p className="font-mono text-sm font-semibold text-fg">
-          {formatEventClock(activity.startsAt, timeZone)}–
-          {formatEventClock(activity.endsAt, timeZone)}
+          {formatTimeRange(activity, timeZone)}
         </p>
         <div className="min-w-0">
           <h3 className="font-bold break-words text-heading">{activity.name}</h3>

@@ -1,4 +1,9 @@
-import { eventDayKey, formatEventDay, type CatalogActivity } from '@/entities/event-catalog';
+import {
+  eventDayKey,
+  formatEventClock,
+  formatEventDay,
+  type CatalogActivity,
+} from '@/entities/event-catalog';
 import { activityKindLabel } from './catalog-copy';
 
 // The one kind with its own empty state: workshops are announced after the competitions.
@@ -75,4 +80,19 @@ export function agendaDays(
     days.set(key, day);
   }
   return [...days.values()];
+}
+
+const dayMs = 24 * 60 * 60 * 1000;
+
+// "HH:mm–HH:mm" on the event's clock; an end on a later event day is marked ("+1 día"), since
+// the row sits under its start day and a bare "00:00" end would read as the same day.
+export function formatTimeRange(activity: CatalogActivity, timeZone: string): string {
+  const range = `${formatEventClock(activity.startsAt, timeZone)}–${formatEventClock(activity.endsAt, timeZone)}`;
+  const days = Math.round(
+    (Date.parse(eventDayKey(activity.endsAt, timeZone)) -
+      Date.parse(eventDayKey(activity.startsAt, timeZone))) /
+      dayMs,
+  );
+  if (days <= 0) return range;
+  return `${range} (+${days} ${days === 1 ? 'día' : 'días'})`;
 }

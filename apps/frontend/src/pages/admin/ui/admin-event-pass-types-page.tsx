@@ -19,14 +19,16 @@ import {
   CatalogRefreshFailure,
   type Notice,
 } from './catalog-notice';
-import { PassTypeAccessEditor } from './pass-type-access-editor';
+import { PassAccessMap } from './pass-access-map';
 import { PassTypeForm } from './pass-type-form';
 import { PassTypeList } from './pass-type-list';
 import { useCatalogLoad } from './use-catalog-load';
 
-// The edited pass is kept by id and read from the latest data. Its forms are keyed by id and
-// version, so a reload that brings a newer version remounts them with the server values instead
-// of pairing stale field values with the new expectedVersion.
+// The edited pass is kept by id and read from the latest data, so a save always sends its current
+// version. The form is keyed by the version of the last server read: a reload that brings a newer
+// version remounts it with the server values instead of pairing stale fields with the new
+// expectedVersion, while our own access save (applied in place, only activity links change)
+// keeps unsaved field edits. The access map is keyed by the current version, so a save resets it.
 type Editor = { mode: 'create' } | { mode: 'edit'; passTypeId: string } | null;
 
 export function AdminEventPassTypesPage() {
@@ -46,15 +48,19 @@ function EventPassTypes({ eventId }: { eventId: string }) {
     },
     [eventId],
   );
-  const { state, reload } = useCatalogLoad(load);
+  const { state, reload, update } = useCatalogLoad(load);
   const [editor, setEditor] = useState<Editor>(null);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<Notice | null>(null);
+  const [accessConflict, setAccessConflict] = useState(false);
+  // Bumped by the conflict reload so the access map discards local edits.
+  const [accessReset, setAccessReset] = useState(0);
 
   async function run(action: () => Promise<unknown>, success: string) {
     if (busy) return;
     setBusy(true);
     setNotice(null);
+    setAccessConflict(false);
     try {
       await action();
       setEditor(null);
@@ -76,15 +82,43 @@ function EventPassTypes({ eventId }: { eventId: string }) {
     }
   }
 
-  function saveAccess(passType: CatalogPassType, activities: PassTypeActivity[]) {
-    void run(
-      () => replacePassTypeActivities(eventId, passType.id, passType.version, activities),
-      'Acceso actualizado.',
-    );
+  // Keeps the pass selected and applies the confirmed response (new version) in place.
+  async function saveAccess(passType: CatalogPassType, activities: PassTypeActivity[]) {
+    if (busy) return;
+    setBusy(true);
+    setNotice(null);
+    setAccessConflict(false);
+    try {
+      const saved = await replacePassTypeActivities(
+        eventId,
+        passType.id,
+        passType.version,
+        activities,
+      );
+      update((data) => ({
+        ...data,
+        passTypes: data.passTypes.map((entry) => (entry.id === saved.id ? saved : entry)),
+      }));
+      setNotice({ kind: 'success', text: 'Acceso actualizado.' });
+    } catch (error) {
+      const failure = catalogFailure(error);
+      if (failure === 'conflict') setAccessConflict(true);
+      else setNotice({ kind: 'failure', failure });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function reloadAccess() {
+    setNotice(null);
+    setAccessConflict(false);
+    setAccessReset((value) => value + 1);
+    reload();
   }
 
   function open(next: Editor) {
     setNotice(null);
+    setAccessConflict(false);
     setEditor(next);
   }
 
@@ -101,6 +135,11 @@ function EventPassTypes({ eventId }: { eventId: string }) {
       ? data?.passTypes.find(
           (passType) => passType.id === editor.passTypeId && passType.status === 'active',
         )
+      : undefined;
+  const panelOpen = editor?.mode === 'create' || selected !== undefined;
+  const loadedVersion =
+    state.status === 'ready'
+      ? state.loaded.passTypes.find((passType) => passType.id === selected?.id)?.version
       : undefined;
 
   return (
@@ -139,36 +178,47 @@ function EventPassTypes({ eventId }: { eventId: string }) {
                 onSelect={(passType) => open({ mode: 'edit', passTypeId: passType.id })}
               />
             </section>
-            {(editor?.mode === 'create' || selected) && (
-              <aside aria-label="Panel del pase" className="max-w-xl space-y-4">
-                <PassTypeForm
-                  key={selected ? `${selected.id}:${selected.version}` : 'new'}
-                  title={selected ? 'Editar pase' : 'Nuevo pase'}
-                  passType={selected}
-                  busy={busy}
-                  onSubmit={(input) => save(selected, input)}
-                  onCancel={() => setEditor(null)}
-                  onArchive={
-                    selected &&
-                    (() =>
-                      void run(
-                        () => archivePassType(eventId, selected.id, selected.version),
-                        'Pase archivado.',
-                      ))
-                  }
-                />
-                {selected && (
-                  <PassTypeAccessEditor
-                    key={`access-${selected.id}:${selected.version}`}
+            <div
+              className={`grid items-start gap-6 ${
+                panelOpen ? 'lg:grid-cols-[minmax(0,1fr)_22rem]' : ''
+              }`}
+            >
+              {panelOpen && (
+                <aside
+                  aria-label="Panel del pase"
+                  className="min-w-0 lg:col-start-2 lg:row-start-1"
+                >
+                  <PassTypeForm
+                    key={selected ? `${selected.id}:${loadedVersion ?? selected.version}` : 'new'}
+                    title={selected ? 'Editar pase' : 'Nuevo pase'}
                     passType={selected}
-                    activities={data.activities}
                     busy={busy}
-                    onSubmit={(activities) => saveAccess(selected, activities)}
+                    onSubmit={(input) => save(selected, input)}
                     onCancel={() => setEditor(null)}
+                    onArchive={
+                      selected &&
+                      (() =>
+                        void run(
+                          () => archivePassType(eventId, selected.id, selected.version),
+                          'Pase archivado.',
+                        ))
+                    }
                   />
-                )}
-              </aside>
-            )}
+                </aside>
+              )}
+              <div className="min-w-0 lg:col-start-1 lg:row-start-1">
+                <PassAccessMap
+                  key={`${selected?.id ?? 'none'}:${selected?.version ?? 0}:${accessReset}`}
+                  passTypes={data.passTypes}
+                  activities={data.activities}
+                  selected={selected}
+                  busy={busy}
+                  conflict={accessConflict}
+                  onSave={(activities) => selected && void saveAccess(selected, activities)}
+                  onReload={reloadAccess}
+                />
+              </div>
+            </div>
           </>
         )}
       </div>

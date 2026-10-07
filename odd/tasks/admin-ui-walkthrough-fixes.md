@@ -63,6 +63,8 @@ See issue #145; mapped to evidence at closure.
 - Remaining `git grep -niI "nuestro breaking" -- apps`: the seed organization name (intended) and `apps/backend/README.md` (repository/project description, out of the allowed edit surfaces).
 - Seed note: `docs/contracts/event-catalog.md` "Local seed" documents the rename-row or volume-reset steps; no dedicated reset script exists.
 
+- Parent: `apps/backend/README.md` brand line fixed in `ca6d94d`. Spot check: `npx playwright test e2e/admin-shell.spec.ts e2e/route-placeholders.spec.ts` gave 26 passed. Review assess for `9f8ce8f..ca6d94d`: medium, `review_due` false (`under_budget`), so it stays pending in the slice.
+
 ## Next step
 
 T2 on `feat/145-02-shared-select`, stacked on PR 1.

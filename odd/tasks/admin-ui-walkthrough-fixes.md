@@ -28,7 +28,7 @@ Forecast: ~1,200 authored lines over 4 PRs.
 
 ### PR 1 — `feat/145-01-brand-rename`
 
-- [ ] T1 — Rename the visible product name to "Los más pesados": `index.html` title, the admin shell brand, the sign-in, foundation and page-shell headings, the `/admin` eyebrow, and the backend Swagger title and description. Update the e2e specs. Rename the seed event to "Los más pesados - Preliminares - Noviembre 2026" and document the local DB step, because a re-run creates a second event.
+- [x] T1 — Rename the visible product name to "Los más pesados": `index.html` title, the admin shell brand, the sign-in, foundation and page-shell headings, the `/admin` eyebrow, and the backend Swagger title and description. Update the e2e specs. Rename the seed event to "Los más pesados - Preliminares - Noviembre 2026" and document the local DB step, because a re-run creates a second event.
 
 ### PR 2 — `feat/145-02-shared-select`
 
@@ -51,8 +51,18 @@ See issue #145; mapped to evidence at closure.
 
 ## Progress and evidence
 
-(none yet)
+### PR 1 — T1
+
+- Route: delegated direct — one bounded writer (trigger: 2+ non-trivial files across frontend, backend and e2e).
+- Commits: `6383515` feat(frontend): show Los más pesados as the product name; `66f68bd` chore(seed): rename the November seed event.
+- RED: the updated e2e assertions failed against the old copy (3 failed, 23 passed in `admin-shell.spec.ts` + `route-placeholders.spec.ts`).
+- GREEN: same two specs 26 passed; full mocked `npx playwright test` 113 passed.
+- Frontend `npm run lint`: 0 errors, 2 pre-existing warnings in `admin-check-in-page.tsx` (same on the base); `npm run build`: passed.
+- Backend `npm run lint`: passed; `npm run build`: passed; `npx jest` (unit): 35 passed. No backend test asserts the event name; DB e2e not run.
+- Prettier check on changed files: passed.
+- Remaining `git grep -niI "nuestro breaking" -- apps`: the seed organization name (intended) and `apps/backend/README.md` (repository/project description, out of the allowed edit surfaces).
+- Seed note: `docs/contracts/event-catalog.md` "Local seed" documents the rename-row or volume-reset steps; no dedicated reset script exists.
 
 ## Next step
 
-T1 on `feat/145-01-brand-rename` (route: delegated direct — one bounded writer; trigger: 2+ non-trivial files across frontend, backend and e2e).
+T2 on `feat/145-02-shared-select`, stacked on PR 1.

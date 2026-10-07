@@ -98,6 +98,7 @@ See issue #145; mapped to evidence below under "Acceptance criteria evidence".
 - T7: new `--nb-chip-selected-bg`/`-fg` tokens (light `#21185f`/`#fff4a8`, dark `#f3e9a6`/`#21185f`) exposed as `bg-chip-selected`/`text-chip-selected-fg`; unselected chips are transparent with a border; the selected chip shows `CheckIcon`, now exported from `@/shared/ui` and shared with `Select`. Pass cards: the visible "Editar" button is gone; an `absolute inset-0` button named "Editar <pass name>" (screen-reader text) covers the card, with a card-sized focus outline, `aria-pressed` kept; archived cards have no button.
 - T7 RED: 24 failed (missing chip token, chip luminance/contrast per theme, pass-card name and target specs). GREEN: affected specs 74 passed after one spec fix (the price click now uses mouse coordinates because the overlay intercepts element clicks by design).
 - Verification: frontend `npm run lint` 0 problems (the 2 old warnings are gone); `npm run build` passed (after folding a `use-event-name.ts` null-check fix into `b029ad6`); full mocked `npx playwright test` 140 passed; Prettier check passed.
+- T3–T7 review: `review-a52873433910900f` (medium, reliability lens, granted, approved and acknowledged; range `086e8ba..b8e01cb`) with two non-blocking findings. R3-event-name-fallback-negative-race fixed in `ac9aeaf`: `useEventName` reports `loading`/`resolved`/`unavailable` as `data-event-name-state` on the eyebrow, and the fallback specs wait for `unavailable` (set only after the page handled its own response, not the shell selector's) before asserting no name and no UUID; reintroducing the UUID in the fallback made both specs fail (then reverted). Frontend lint 0 problems; build passed; full mocked `npx playwright test` 140 passed. R3-live-check-in-unexecuted-path: `e2e/live-check-in.spec.ts` (updated for the single-event redirect and the overview's "Abrir check-in" link at `admin-event-overview-page.tsx:89`) still needs a run against the live backend (`npm run test:e2e:live`) by the user.
 
 ## Acceptance criteria evidence
 
@@ -113,4 +114,4 @@ See issue #145; mapped to evidence below under "Acceptance criteria evidence".
 
 ## Next step
 
-Review the PR 3–4 slice, then open the chained PRs (user decision).
+Open the chained PRs (user decision); run `npm run test:e2e:live` against the live backend first.

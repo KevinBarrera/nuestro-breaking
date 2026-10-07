@@ -62,7 +62,7 @@ export const novemberCatalog: CatalogSeedDefinition = {
   organizationName: 'Nuestro Breaking',
   venueName: 'Estudio principal',
   event: {
-    name: 'Nuestro Breaking Noviembre 2026',
+    name: 'Los más pesados - Preliminares - Noviembre 2026',
     timeZone: 'America/Mexico_City',
     startsAt: `${day1}T09:00:00-06:00`,
     endsAt: `${day2}T22:00:00-06:00`,

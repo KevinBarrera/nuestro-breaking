@@ -33,8 +33,8 @@ Forecast: ~900 authored lines over 3 PRs.
 
 ### PR 1 — `ci/split-guard-and-path-filters`
 
-- [ ] T1 — Move `quality / branch-flow-guard` to its own workflow, which keeps the `edited` trigger. Remove `edited` from `pr-checks.yml`.
-- [ ] T2 — Add a `changes` job (paths-filter) with `backend` and `frontend` outputs. Backend jobs run only on backend changes, and frontend jobs only on frontend changes. `live-check-in` runs on either. On pushes to `dev`, everything runs. The `frontend / playwright` aggregator succeeds when its shards are skipped and fails when any shard fails. Update the docs.
+- [x] T1 — Move `quality / branch-flow-guard` to its own workflow, which keeps the `edited` trigger. Remove `edited` from `pr-checks.yml`.
+- [x] T2 — Add a `changes` job (paths-filter) with `backend` and `frontend` outputs. Backend jobs run only on backend changes, and frontend jobs only on frontend changes. `live-check-in` runs on either. On pushes to `dev`, everything runs. The `frontend / playwright` aggregator succeeds when its shards are skipped and fails when any shard fails. Update the docs.
 
 ### PR 2 — `test/frontend-unit-runner`
 
@@ -53,3 +53,6 @@ Forecast: ~900 authored lines over 3 PRs.
 ## Progress
 
 - 2026-10-07: #152 merged (`b0d1206`). Feature document created. Branch `ci/split-guard-and-path-filters` created from `dev`.
+- 2026-10-07: PR 1 is #153 (route: delegated writer, then an inline follow-up fix). Commits: `93c6249` (T1), `5d027ab` (T2), `c78e6fd` (plan), `9151a5a` (fail-safe follow-up from review findings: unclassified files and failed change detection run every area). Native reviews `review-037af3d9921f537b` (T1+T2, high, granted, approved) and a second high-risk review of `9151a5a` (granted, approved), both acknowledged. Open suggestions: the `predicate-quantifier` comment and the README "outside `apps/`" wording.
+- Checks: YAML parses, `pnpm format:check` passes, and all 10 checks on #153 pass. Throwaway backend-only PR #154 (closed): `frontend / lint-build` and the Playwright shards were skipped, `frontend / playwright` passed, and the backend and live jobs ran.
+- Next: T3 on `test/frontend-unit-runner`, stacked on `ci/split-guard-and-path-filters`.

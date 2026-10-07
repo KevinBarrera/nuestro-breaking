@@ -77,8 +77,8 @@ const passTypes = [
 ];
 
 // Rows carry the event id from the request path, so any event in the selector can load.
-async function mockCatalog(page: Page, status = 200) {
-  const catalog = { activities, 'pass-types': passTypes };
+async function mockCatalog(page: Page, status = 200, rows = { activities, passTypes }) {
+  const catalog = { activities: rows.activities, 'pass-types': rows.passTypes };
   await page.route(
     (url) => api(url) && /^\/admin\/events\/[^/]+\/(activities|pass-types)$/.test(url.pathname),
     (route) => {
@@ -167,6 +167,92 @@ test('lists active pass types with class, derived access and formatted price', a
   await expect(table.getByText('Pase anticipado')).toHaveCount(0);
   const price = row('Pase completo').getByRole('cell').last();
   await expect(price).toHaveCSS('text-align', 'right');
+});
+
+test('summarizes access from active activities only and names unknown kinds as sent', async ({
+  page,
+}) => {
+  const toprockId = 'd5b2c3d4-1234-4567-89ab-123456789abc';
+  const powerId = 'd6b2c3d4-1234-4567-89ab-123456789abc';
+  const cypherId = 'd7b2c3d4-1234-4567-89ab-123456789abc';
+  const link = (activityId: string, access: string) => ({ activityId, access });
+  await mockCatalog(page, 200, {
+    activities: [
+      ...activities,
+      activity(toprockId, 'workshop', 'Taller de toprock'),
+      activity(powerId, 'workshop', 'Taller de power'),
+      activity(cypherId, 'cypher', 'Cypher abierto'),
+    ],
+    passTypes: [
+      passType({
+        id: 'f1b2c3d4-1234-4567-89ab-123456789abc',
+        name: 'Pase talleres',
+        passClass: 'full',
+        priceCents: 90000,
+        activities: [
+          link(workshopId, 'included'),
+          link(toprockId, 'included'),
+          link(powerId, 'included'),
+          link(oldId, 'included'),
+        ],
+      }),
+      passType({
+        id: 'f2b2c3d4-1234-4567-89ab-123456789abc',
+        name: 'Pase mixto',
+        passClass: 'full',
+        priceCents: 80000,
+        activities: [
+          link(battleId, 'selectable'),
+          link(oldId, 'selectable'),
+          link(workshopId, 'included'),
+        ],
+      }),
+      passType({
+        id: 'f3b2c3d4-1234-4567-89ab-123456789abc',
+        name: 'Pase cancelado',
+        passClass: 'general',
+        priceCents: 10000,
+        activities: [link(oldId, 'selectable')],
+      }),
+    ],
+  });
+  await page.goto(overviewPath);
+  const table = page.getByRole('table', { name: 'Pases a la venta' });
+  const row = (name: string) =>
+    table.getByRole('row').filter({ has: page.getByRole('rowheader', { name, exact: true }) });
+  // The archived inclusion is not counted: three, not four, and above two they are counted.
+  await expect(row('Pase talleres')).toContainText('3 actividades incluidas');
+  await expect(row('Pase talleres')).not.toContainText('Incluye');
+  await expect(row('Pase mixto')).toContainText(
+    '1 actividad a elegir · Incluye Taller de footwork',
+  );
+  await expect(row('Pase cancelado')).toContainText('Sin actividades');
+  await expect(table.getByText('Batalla cancelada')).toHaveCount(0);
+
+  const catalog = page.getByRole('region', { name: 'Catálogo' });
+  const stat = (label: string) => catalog.getByRole('listitem').filter({ hasText: label });
+  await expect(stat('talleres')).toContainText('3');
+  await expect(stat('cypher')).toContainText('1');
+});
+
+test('keeps the catalog summary when the event list fails', async ({ page }) => {
+  await page.route(
+    (url) => api(url) && url.pathname === '/admin/events',
+    (route) => route.fulfill({ status: 500, json: { message: 'private' } }),
+  );
+  await mockCatalog(page);
+  await page.goto(overviewPath);
+  await expect(page.getByRole('heading', { level: 1, name: 'Resumen del evento' })).toBeVisible();
+  const catalog = page.getByRole('region', { name: 'Catálogo' });
+  await expect(catalog.getByRole('listitem').filter({ hasText: 'pases activos' })).toContainText(
+    '3',
+  );
+  await expect(page.getByRole('table', { name: 'Pases a la venta' }).getByRole('row')).toHaveCount(
+    4,
+  );
+  await expect(page.getByRole('main')).not.toContainText('Encuentro del barrio');
+  await expect(page.getByRole('alert')).toHaveCount(0);
+  await expect(page.getByText('private')).toHaveCount(0);
 });
 
 test('keeps the overview when switching events', async ({ page }) => {

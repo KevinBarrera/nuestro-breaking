@@ -157,7 +157,7 @@ function EventActivities({ eventId }: { eventId: string }) {
               >
                 <ActivityAgendaFilters
                   filters={filters}
-                  kinds={kindOptions(data.activities, filters.showArchived)}
+                  kinds={kindOptions(data.activities, filters.showArchived, filters.kind)}
                   total={countVisible(data.activities, filters.showArchived)}
                   onChange={setFilters}
                 />

@@ -264,3 +264,64 @@ test('fits a 375px screen without horizontal page overflow', async ({ page }) =>
   const box = await edit.boundingBox();
   expect(box?.height).toBeGreaterThanOrEqual(44);
 });
+
+const pressed = (page: Page) => kinds(page).locator('button[aria-pressed="true"]');
+
+test('keeps the selected kind chip after archiving its last active activity', async ({ page }) => {
+  let rows = activities;
+  await mockCatalog(page);
+  await page.route(
+    (url) => api(url) && url.pathname === activitiesPath,
+    (route) => route.fulfill({ json: rows }),
+  );
+  await page.route(
+    (url) => api(url) && url.pathname.endsWith('/archive'),
+    (route) => {
+      rows = rows.map((entry) =>
+        entry.name === 'Bgirl 1v1' ? { ...entry, status: 'archived', version: 2 } : entry,
+      );
+      return route.fulfill({ json: rows.find((entry) => entry.name === 'Bgirl 1v1') });
+    },
+  );
+  await page.goto(activitiesPath);
+
+  await kinds(page)
+    .getByRole('button', { name: /^Competencia/ })
+    .click();
+  const bgirl = page.getByRole('listitem').filter({ hasText: 'Bgirl 1v1' });
+  await bgirl.getByRole('button', { name: 'Archivar' }).click();
+  await bgirl.getByRole('button', { name: 'Confirmar archivo' }).click();
+  await expect(page.getByRole('status')).toContainText('Actividad archivada');
+
+  await expect(pressed(page)).toHaveText('Competencia · 0');
+  await expect(page.getByText('Ninguna actividad coincide con los filtros.')).toBeVisible();
+  await kinds(page)
+    .getByRole('button', { name: /^Todas/ })
+    .click();
+  await expect(pressed(page)).toHaveText('Todas · 3');
+  await expect(kinds(page).getByRole('button', { name: /^Competencia/ })).toHaveCount(0);
+});
+
+test('keeps the selected kind chip when hiding archived activities', async ({ page }) => {
+  await mockCatalog(
+    page,
+    activities.map((entry) =>
+      entry.name === 'Bgirl 1v1' ? { ...entry, status: 'archived' } : entry,
+    ),
+  );
+  await page.goto(activitiesPath);
+
+  const toggle = page.getByRole('checkbox', { name: 'Mostrar archivadas' });
+  await expect(kinds(page).getByRole('button', { name: /^Competencia/ })).toHaveCount(0);
+  await toggle.check();
+  await kinds(page)
+    .getByRole('button', { name: /^Competencia/ })
+    .click();
+  await expect(pressed(page)).toHaveText('Competencia · 1');
+
+  await toggle.uncheck();
+  await expect(pressed(page)).toHaveText('Competencia · 0');
+  await expect(page.getByText('Ninguna actividad coincide con los filtros.')).toBeVisible();
+  await toggle.check();
+  await expect(page.getByRole('main').getByRole('heading', { level: 3 })).toHaveText(['Bgirl 1v1']);
+});

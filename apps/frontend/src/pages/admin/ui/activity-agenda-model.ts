@@ -27,9 +27,16 @@ const visible = (activities: CatalogActivity[], showArchived: boolean) =>
   showArchived ? activities : activities.filter((activity) => activity.status === 'active');
 
 // Kind filter options from the kinds actually present (respecting the archived toggle), sorted
-// by Spanish label. Workshops always get an option so their empty state stays reachable.
-export function kindOptions(activities: CatalogActivity[], showArchived: boolean): KindOption[] {
+// by Spanish label. Workshops always get an option so their empty state stays reachable, and the
+// selected kind keeps its chip (count 0) when its last visible activity is archived or hidden,
+// so the pressed chip always explains why the agenda is filtered.
+export function kindOptions(
+  activities: CatalogActivity[],
+  showArchived: boolean,
+  selected: string | null,
+): KindOption[] {
   const counts = new Map<string, number>([[workshopKind, 0]]);
+  if (selected !== null) counts.set(selected, 0);
   for (const activity of visible(activities, showArchived))
     counts.set(activity.kind, (counts.get(activity.kind) ?? 0) + 1);
   return [...counts]

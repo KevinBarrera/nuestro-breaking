@@ -162,7 +162,9 @@ test('signs out an admin using the session CSRF header and clears local identity
   expect(signOutRequests).toBe(1);
   expect(
     await page.evaluate(async () => {
-      const module: unknown = await import('/src/entities/session/model/session-store.ts');
+      // A runtime path served by Vite in the browser, not resolvable by the Node typecheck.
+      const source = '/src/entities/session/model/session-store.ts';
+      const module: unknown = await import(source);
       const store = module as { useSessionStore: { getState: () => { session: unknown } } };
       return store.useSessionStore.getState().session;
     }),

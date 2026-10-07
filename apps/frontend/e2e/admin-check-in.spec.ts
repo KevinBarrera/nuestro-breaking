@@ -365,6 +365,6 @@ test('mobile operator can search and hand off without horizontal overflow', asyn
   await expect(
     page
       .getByRole('navigation', { name: 'Navegación administrativa' })
-      .getByRole('link', { name: 'Inicio' }),
+      .getByRole('link', { name: 'Resumen' }),
   ).toBeVisible();
 });

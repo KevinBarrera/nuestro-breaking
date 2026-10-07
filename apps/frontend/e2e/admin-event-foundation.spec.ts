@@ -98,10 +98,10 @@ test('shows foundation context and navigates to the only global admin destinatio
   const header = page.getByRole('banner', { name: 'Espacio de administración' });
   await expect(header.getByText('Fundamentos del evento')).toBeVisible();
   await expect(header.getByText(eventId)).toHaveCount(0);
-  const nav = header.getByRole('navigation', { name: 'Navegación administrativa' });
-  const home = nav.getByRole('link', { name: 'Inicio' });
+  const nav = page.getByRole('navigation', { name: 'Navegación administrativa' });
+  const home = nav.getByRole('link', { name: 'Resumen' });
   await expect(home).not.toHaveAttribute('aria-current', 'page');
-  await expect(header.getByRole('link')).toHaveCount(1);
+  await expect(header.getByRole('link')).toHaveCount(0);
   await home.click();
   await expect(page).toHaveURL(/\/admin$/);
   await expect(home).toHaveAttribute('aria-current', 'page');
@@ -117,18 +117,20 @@ test('keeps event context and the only usable destination accessible at 375px', 
   const header = page.getByRole('banner', { name: 'Espacio de administración' });
   await expect(header.getByText('Fundamentos del evento')).toBeVisible();
   await expect(header.getByText(eventId)).toHaveCount(0);
-  const home = header
+  const home = page
     .getByRole('navigation', { name: 'Navegación administrativa' })
-    .getByRole('link', { name: 'Inicio' });
+    .getByRole('link', { name: 'Resumen' });
   await expect(home).not.toHaveAttribute('aria-current', 'page');
-  await expect(header.getByRole('link')).toHaveCount(1);
+  await expect(header.getByRole('link')).toHaveCount(0);
+  const signOut = header.getByRole('button', { name: 'Cerrar sesión' });
+  await page.keyboard.press('Tab');
+  await expect(header.getByRole('button', { name: 'Tema oscuro' })).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(signOut).toBeFocused();
+  await expect(signOut).toHaveCSS('outline-style', 'solid');
   await page.keyboard.press('Tab');
   await expect(home).toBeFocused();
   await expect(home).toHaveCSS('outline-style', 'solid');
-  await page.keyboard.press('Tab');
-  const signOut = header.getByRole('button', { name: 'Cerrar sesión' });
-  await expect(signOut).toBeFocused();
-  await expect(signOut).toHaveCSS('outline-style', 'solid');
   const scrollWidth = await page.evaluate(
     () =>
       (globalThis as unknown as { document: { documentElement: { scrollWidth: number } } }).document

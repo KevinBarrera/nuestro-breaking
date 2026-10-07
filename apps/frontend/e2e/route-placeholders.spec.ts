@@ -208,19 +208,14 @@ test('shows the authenticated admin shell with only the available navigation and
   await page.route(sessionEndpoint, (route) => route.fulfill({ json: { user } }));
   await page.goto('/admin');
   const header = page.getByRole('banner', { name: 'Espacio de administración' });
-  await expect(header.getByText('Administración', { exact: true })).toBeVisible();
-  const content = header.locator('div.mx-auto').first();
-  const bounds = await content.boundingBox();
-  expect(bounds).not.toBeNull();
-  expect(bounds!.width).toBeLessThanOrEqual(1152);
-  expect(Math.abs(bounds!.x + bounds!.width / 2 - 640)).toBeLessThan(2);
-  const nav = header.getByRole('navigation', { name: 'Navegación administrativa' });
-  await expect(nav.getByRole('link', { name: 'Inicio' })).toHaveAttribute('href', '/admin');
-  const home = nav.getByRole('link', { name: 'Inicio' });
+  await expect(header.getByText('NUESTRO BREAKING')).toBeVisible();
+  const nav = page.getByRole('navigation', { name: 'Navegación administrativa' });
+  await expect(nav.getByRole('link', { name: 'Resumen' })).toHaveAttribute('href', '/admin');
+  const home = nav.getByRole('link', { name: 'Resumen' });
   await expect(home).toHaveAttribute('aria-current', 'page');
   await expect(home).not.toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
   await expect(header.getByRole('button', { name: 'Cerrar sesión' })).toBeVisible();
-  await expect(header.getByRole('link')).toHaveCount(1);
+  await expect(header.getByRole('link')).toHaveCount(0);
   await expect(page.getByText('Vista de planificación · Datos de ejemplo')).toBeVisible();
 });
 
@@ -231,20 +226,22 @@ test('keeps the planning label distinct from live data on a narrow keyboard-acce
   await page.route(sessionEndpoint, (route) => route.fulfill({ json: { user } }));
   await page.goto('/admin');
   const header = page.getByRole('banner', { name: 'Espacio de administración' });
-  const home = header
+  const home = page
     .getByRole('navigation', { name: 'Navegación administrativa' })
-    .getByRole('link', { name: 'Inicio' });
+    .getByRole('link', { name: 'Resumen' });
   const signOut = header.getByRole('button', { name: 'Cerrar sesión' });
   await expect(home).toHaveAttribute('aria-current', 'page');
-  await expect(header.getByRole('link')).toHaveCount(1);
+  await expect(header.getByRole('link')).toHaveCount(0);
   await expect(page.getByText('Vista de planificación · Datos de ejemplo')).toBeVisible();
   await expect(page.getByRole('region', { name: 'Evento de ejemplo' })).toBeVisible();
   await page.keyboard.press('Tab');
-  await expect(home).toBeFocused();
-  await expect(home).toHaveCSS('outline-style', 'solid');
+  await expect(header.getByRole('button', { name: 'Tema oscuro' })).toBeFocused();
   await page.keyboard.press('Tab');
   await expect(signOut).toBeFocused();
   await expect(signOut).toHaveCSS('outline-style', 'solid');
+  await page.keyboard.press('Tab');
+  await expect(home).toBeFocused();
+  await expect(home).toHaveCSS('outline-style', 'solid');
   for (const control of [home, signOut]) {
     const bounds = await control.boundingBox();
     expect(bounds).not.toBeNull();

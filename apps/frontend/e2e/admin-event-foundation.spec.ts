@@ -91,9 +91,7 @@ test('loads the endpoint-backed foundation for the event in the URL', async ({ p
   await expect(page.getByText('Borrador')).toBeVisible();
 });
 
-test('shows foundation context and navigates to the only global admin destination', async ({
-  page,
-}) => {
+test('shows foundation context and navigates to the event overview', async ({ page }) => {
   await page.route(foundationEndpoint, (route) => route.fulfill({ json: foundation }));
   // The account manages this event, so the header shows the event selector first in Tab order.
   await page.route(adminEventsEndpoint, (route) =>
@@ -109,10 +107,12 @@ test('shows foundation context and navigates to the only global admin destinatio
   const home = nav.getByRole('link', { name: 'Resumen' });
   await expect(home).not.toHaveAttribute('aria-current', 'page');
   await expect(header.getByRole('link')).toHaveCount(0);
+  // With an event in the URL, Resumen opens that event's overview.
+  await expect(home).toHaveAttribute('href', `/admin/events/${eventId}`);
   await home.click();
-  await expect(page).toHaveURL(/\/admin$/);
+  await expect(page).toHaveURL(new RegExp(`/admin/events/${eventId}$`));
   await expect(home).toHaveAttribute('aria-current', 'page');
-  await expect(page.getByText('Vista de planificación · Datos de ejemplo')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Resumen del evento' })).toBeVisible();
 });
 
 test('keeps event context and the only usable destination accessible at 375px', async ({
@@ -152,10 +152,12 @@ test('keeps event context and the only usable destination accessible at 375px', 
         .documentElement.scrollWidth,
   );
   expect(scrollWidth).toBeLessThanOrEqual(375);
+  // With an event in the URL, Resumen opens that event's overview.
+  await expect(home).toHaveAttribute('href', `/admin/events/${eventId}`);
   await home.click();
-  await expect(page).toHaveURL(/\/admin$/);
+  await expect(page).toHaveURL(new RegExp(`/admin/events/${eventId}$`));
   await expect(home).toHaveAttribute('aria-current', 'page');
-  await expect(page.getByText('Vista de planificación · Datos de ejemplo')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Resumen del evento' })).toBeVisible();
 });
 
 test('shows an empty activities state for a persisted event', async ({ page }) => {

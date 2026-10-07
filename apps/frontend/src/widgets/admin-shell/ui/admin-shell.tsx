@@ -55,7 +55,7 @@ export function AdminShell({ signingOut, signOutFailed, onSignOut, children }: A
       </header>
       <div aria-hidden="true" className="h-[5px] bg-brand-bar" />
       <div className="flex flex-1 flex-col md:flex-row">
-        <AdminSideNav location={location} onOverview={pathname === routes.admin} />
+        <AdminSideNav location={location} onLanding={pathname === routes.admin} />
         <div className="min-w-0 flex-1">{children}</div>
       </div>
     </div>

@@ -5,6 +5,7 @@ import {
   requiredPassClasses,
   type CatalogActivity,
   type CatalogEventContext,
+  type CatalogEventSummary,
   type CatalogPassType,
   type PassTypeActivity,
 } from './types';
@@ -46,6 +47,11 @@ export function isCatalogActivity(value: unknown, eventId: string): value is Cat
     oneOf(catalogStatuses, row.status) &&
     version(row.version)
   );
+}
+
+export function isCatalogEventSummary(value: unknown): value is CatalogEventSummary {
+  const row = record(value);
+  return !!row && text(row.id) && text(row.name);
 }
 
 function isPassTypeActivity(value: unknown): value is PassTypeActivity {

@@ -52,6 +52,9 @@ export type PassTypeInput = {
 
 export type CatalogVenue = { id: string; name: string };
 
+// An event the signed-in account may administer, as listed by `GET /admin/events`.
+export type CatalogEventSummary = { id: string; name: string };
+
 // The part of the event foundation the catalog forms need: venues and the event time zone.
 export type CatalogEventContext = { timeZone: string; venues: CatalogVenue[] };
 

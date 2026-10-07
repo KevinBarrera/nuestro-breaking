@@ -1,9 +1,15 @@
 import { apiUrl } from '@/shared/api';
-import { isCatalogActivity, isCatalogPassType, readEventContext } from './readers';
+import {
+  isCatalogActivity,
+  isCatalogEventSummary,
+  isCatalogPassType,
+  readEventContext,
+} from './readers';
 import type {
   ActivityInput,
   CatalogActivity,
   CatalogEventContext,
+  CatalogEventSummary,
   CatalogFailure,
   CatalogPassType,
   PassTypeActivity,
@@ -78,6 +84,13 @@ async function write(path: string, method: 'POST' | 'PATCH' | 'PUT', body: unkno
 function ensure<T>(value: unknown, guard: (value: unknown) => value is T): T {
   if (!guard(value)) throw new CatalogError('error');
   return value;
+}
+
+export async function listCatalogEvents(signal: AbortSignal): Promise<CatalogEventSummary[]> {
+  const rows = await request('/admin/events', { signal });
+  const guard = (value: unknown): value is CatalogEventSummary[] =>
+    Array.isArray(value) && value.every(isCatalogEventSummary);
+  return ensure(rows, guard);
 }
 
 export async function readCatalogEventContext(

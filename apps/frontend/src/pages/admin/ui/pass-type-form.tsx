@@ -109,7 +109,7 @@ export function PassTypeForm({ title, passType, busy, onSubmit, onCancel }: Pass
         )}
       </div>
       {error && (
-        <p role="alert" className="text-sm text-rose-200">
+        <p role="alert" className="text-sm text-danger-fg">
           {error}
         </p>
       )}

@@ -137,13 +137,13 @@ export function ActivityForm({
         </label>
       </div>
       {noVenues && (
-        <p className="text-sm text-amber-200">
+        <p className="text-sm text-warning-fg">
           El evento aún no tiene sedes. Agrega una sede al evento antes de guardar actividades.
         </p>
       )}
-      <p className="text-xs text-slate-400">Horarios en la zona horaria del evento: {timeZone}.</p>
+      <p className="text-xs text-muted">Horarios en la zona horaria del evento: {timeZone}.</p>
       {error && (
-        <p role="alert" className="text-sm text-rose-200">
+        <p role="alert" className="text-sm text-danger-fg">
           {error}
         </p>
       )}

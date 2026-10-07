@@ -38,13 +38,13 @@ export const accessLabels: Record<ActivityAccess, string> = {
 
 export const styles = {
   primary:
-    'min-h-11 rounded-lg bg-cyan-300 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-cyan-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-300 disabled:cursor-wait disabled:opacity-50',
+    'min-h-11 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-fg hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus disabled:cursor-wait disabled:opacity-50',
   secondary:
-    'min-h-11 rounded-lg border border-slate-600 px-4 py-2 text-sm font-semibold text-slate-100 hover:bg-slate-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-300 disabled:cursor-wait disabled:opacity-50',
+    'min-h-11 rounded-lg border border-line px-4 py-2 text-sm font-semibold text-fg hover:bg-row focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus disabled:cursor-wait disabled:opacity-50',
   danger:
-    'min-h-11 rounded-lg border border-rose-500 px-4 py-2 text-sm font-semibold text-rose-100 hover:bg-rose-950 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-300 disabled:cursor-wait disabled:opacity-50',
+    'min-h-11 rounded-lg border border-danger-fg px-4 py-2 text-sm font-semibold text-danger-fg hover:bg-danger focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus disabled:cursor-wait disabled:opacity-50',
   field:
-    'mt-1 block min-h-11 w-full rounded-lg border border-slate-500 bg-slate-950 px-3 py-2 text-base text-white focus-visible:border-cyan-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300',
-  label: 'block text-sm font-semibold text-slate-200',
-  card: 'rounded-xl border border-slate-700 bg-slate-900 p-5',
+    'mt-1 block min-h-11 w-full rounded-lg border border-input-line bg-input px-3 py-2 text-base text-fg focus-visible:border-focus focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus',
+  label: 'block text-sm font-semibold text-fg',
+  card: 'rounded-xl border border-line bg-surface p-5',
 };

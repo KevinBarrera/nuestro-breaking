@@ -13,7 +13,7 @@ export function CatalogNotice({ notice, onReload }: CatalogNoticeProps) {
     return (
       <p
         role="status"
-        className="rounded-lg border border-emerald-700 bg-emerald-950/50 px-4 py-3 text-sm text-emerald-100"
+        className="rounded-lg border border-success-fg bg-success px-4 py-3 text-sm text-success-fg"
       >
         {notice.text}
       </p>
@@ -21,7 +21,7 @@ export function CatalogNotice({ notice, onReload }: CatalogNoticeProps) {
   return (
     <div
       role="alert"
-      className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-rose-700 bg-rose-950/40 px-4 py-3 text-sm text-rose-100"
+      className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-danger-fg bg-danger px-4 py-3 text-sm text-danger-fg"
     >
       <p>{failureMessages[notice.failure]}</p>
       {(notice.failure === 'conflict' || notice.failure === 'not-found') && (
@@ -41,7 +41,7 @@ export function CatalogRefreshFailure({ failure, onRetry }: RefreshFailureProps)
   return (
     <div
       role="alert"
-      className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-600 bg-amber-950/40 px-4 py-3 text-sm text-amber-100"
+      className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-warning-fg bg-warning px-4 py-3 text-sm text-warning-fg"
     >
       <p>
         {failure === 'denied'
@@ -59,7 +59,7 @@ type LoadFailureProps = { failure: CatalogFailure };
 
 export function CatalogLoadFailure({ failure }: LoadFailureProps) {
   return (
-    <p role="alert" className="rounded-lg border border-rose-700 bg-rose-950/40 p-4 text-rose-100">
+    <p role="alert" className="rounded-lg border border-danger-fg bg-danger p-4 text-danger-fg">
       {failure === 'denied'
         ? failureMessages.denied
         : 'No se pudo cargar el catálogo del evento. Comprueba el enlace o inténtalo más tarde.'}

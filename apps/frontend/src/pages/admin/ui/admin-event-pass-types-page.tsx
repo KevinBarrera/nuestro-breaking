@@ -103,7 +103,7 @@ function EventPassTypes({ eventId }: { eventId: string }) {
   const activityById = new Map(data?.activities.map((activity) => [activity.id, activity]));
 
   return (
-    <main className="min-h-screen bg-slate-950 px-4 py-8 text-slate-100 sm:px-8 lg:py-12">
+    <main className="px-4 py-8 text-fg sm:px-8 lg:py-12">
       <div className="mx-auto max-w-5xl space-y-6">
         <CatalogPageHeader eventId={eventId} title="Pases" current="pass-types" />
         {state.status === 'loading' && <p role="status">Cargando pases…</p>}

@@ -21,7 +21,7 @@ type Notice = { kind: 'success' | 'duplicate' | 'error'; text: string };
 
 const eligible = new Set(['workshop', 'battle', 'competition']);
 const button =
-  'min-h-11 rounded-lg bg-cyan-300 px-4 py-2 font-semibold text-slate-950 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-300 disabled:cursor-wait disabled:opacity-50';
+  'min-h-11 rounded-lg bg-primary px-4 py-2 font-semibold text-primary-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus disabled:cursor-wait disabled:opacity-50';
 
 function validRow(value: unknown, eventId: string): value is Registration {
   if (!value || typeof value !== 'object') return false;
@@ -242,18 +242,18 @@ function EventCheckIn({ eventId }: { eventId: string | undefined }) {
   }
 
   return (
-    <main className="min-h-screen bg-slate-950 px-4 py-8 text-slate-100 sm:px-8">
+    <main className="px-4 py-8 text-fg sm:px-8">
       <div className="mx-auto max-w-4xl space-y-6">
         <header>
-          <p className="text-sm text-cyan-300">Administración · Evento {eventId}</p>
+          <p className="text-sm text-link">Administración · Evento {eventId}</p>
           <h1 className="mt-2 text-3xl font-bold">Control de entrada</h1>
-          <p className="mt-2 text-slate-300">
+          <p className="mt-2 text-muted">
             Verifica la inscripción antes de registrar cada entrada.
           </p>
         </header>
         <form
           onSubmit={(event) => void search(event)}
-          className="rounded-xl border border-slate-700 bg-slate-900 p-4 sm:p-6"
+          className="rounded-xl border border-line bg-surface p-4 sm:p-6"
         >
           <label htmlFor="registration-query" className="block font-semibold">
             Buscar inscripción
@@ -274,7 +274,7 @@ function EventCheckIn({ eventId }: { eventId: string | undefined }) {
               minLength={2}
               maxLength={200}
               required
-              className="min-h-11 min-w-0 flex-1 rounded-lg border border-slate-500 bg-slate-950 px-3 text-white focus-visible:outline-2 focus-visible:outline-cyan-300"
+              className="min-h-11 min-w-0 flex-1 rounded-lg border border-input-line bg-input px-3 text-fg focus-visible:outline-2 focus-visible:outline-focus"
               placeholder="Nombre, correo o folio"
             />
             <button
@@ -309,10 +309,10 @@ function EventCheckIn({ eventId }: { eventId: string | undefined }) {
                   setSelectedId(row.registration.id);
                   setNotice(null);
                 }}
-                className="block min-h-14 w-full rounded-lg border border-slate-600 bg-slate-900 p-4 text-left hover:border-cyan-300 focus-visible:outline-2 focus-visible:outline-cyan-300 disabled:opacity-50"
+                className="block min-h-14 w-full rounded-lg border border-line bg-surface p-4 text-left hover:border-focus focus-visible:outline-2 focus-visible:outline-focus disabled:opacity-50"
               >
                 <span className="block font-semibold">{row.participant.fullName}</span>
-                <span className="block text-sm text-slate-300">
+                <span className="block text-sm text-muted">
                   {row.registration.folio ?? 'Sin folio'} ·{' '}
                   {row.participant.stageName ?? row.participant.email ?? 'Sin alias'}
                 </span>
@@ -323,7 +323,7 @@ function EventCheckIn({ eventId }: { eventId: string | undefined }) {
         {selected && (
           <section
             aria-label="Inscripción seleccionada"
-            className="space-y-5 rounded-xl border border-slate-700 bg-slate-900 p-4 sm:p-6"
+            className="space-y-5 rounded-xl border border-line bg-surface p-4 sm:p-6"
           >
             <h2 className="text-xl font-semibold">{selected.participant.fullName}</h2>
             <p>
@@ -331,7 +331,7 @@ function EventCheckIn({ eventId }: { eventId: string | undefined }) {
                 ? 'Inscripción confirmada'
                 : 'Inscripción no confirmada · No registrar entrada'}
             </p>
-            <div className="space-y-2 border-t border-slate-700 pt-4">
+            <div className="space-y-2 border-t border-line pt-4">
               <h3 className="font-semibold">Entrada al evento</h3>
               <p>
                 {selected.registration.checkedInAt
@@ -350,14 +350,14 @@ function EventCheckIn({ eventId }: { eventId: string | undefined }) {
                   </button>
                 )}
             </div>
-            <div className="space-y-4 border-t border-slate-700 pt-4">
+            <div className="space-y-4 border-t border-line pt-4">
               <h3 className="font-semibold">Actividades inscritas</h3>
               {selected.activities.filter((activity) => eligible.has(activity.kind)).length ===
                 0 && <p>Sin actividades elegibles.</p>}
               {selected.activities
                 .filter((activity) => eligible.has(activity.kind))
                 .map((activity) => (
-                  <div key={activity.id} className="rounded-lg border border-slate-700 p-4">
+                  <div key={activity.id} className="rounded-lg border border-line p-4">
                     <h4 className="font-semibold">{activity.name}</h4>
                     <p className="my-2">
                       {activity.checkedInAt
@@ -384,16 +384,16 @@ function EventCheckIn({ eventId }: { eventId: string | undefined }) {
         {notice && (
           <p
             role={notice.kind === 'error' ? 'alert' : 'status'}
-            className="rounded-lg border border-amber-500 p-4"
+            className="rounded-lg border border-warning-fg p-4"
           >
             {notice.text}
           </p>
         )}
-        <p className="border-t border-slate-700 pt-5 text-sm text-slate-300">
+        <p className="border-t border-line pt-5 text-sm text-muted">
           Si el estado no se puede verificar, no repitas la entrada. Consulta al responsable o
           vuelve a{' '}
           <Link
-            className="underline focus-visible:outline-2 focus-visible:outline-cyan-300"
+            className="underline focus-visible:outline-2 focus-visible:outline-focus"
             to={routes.admin}
           >
             Inicio

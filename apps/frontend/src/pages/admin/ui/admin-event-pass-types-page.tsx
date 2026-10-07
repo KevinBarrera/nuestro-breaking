@@ -19,17 +19,15 @@ import {
   CatalogRefreshFailure,
   type Notice,
 } from './catalog-notice';
-import { CatalogPageHeader } from './catalog-page-header';
 import { PassTypeAccessEditor } from './pass-type-access-editor';
 import { PassTypeForm } from './pass-type-form';
 import { PassTypeList } from './pass-type-list';
 import { useCatalogLoad } from './use-catalog-load';
 
-type Editor =
-  | { mode: 'create' }
-  | { mode: 'edit'; passType: CatalogPassType }
-  | { mode: 'access'; passType: CatalogPassType }
-  | null;
+// The edited pass is kept by id and read from the latest data. Its forms are keyed by id and
+// version, so a reload that brings a newer version remounts them with the server values instead
+// of pairing stale field values with the new expectedVersion.
+type Editor = { mode: 'create' } | { mode: 'edit'; passTypeId: string } | null;
 
 export function AdminEventPassTypesPage() {
   const { eventId } = useParams<'eventId'>();
@@ -50,7 +48,6 @@ function EventPassTypes({ eventId }: { eventId: string }) {
   );
   const { state, reload } = useCatalogLoad(load);
   const [editor, setEditor] = useState<Editor>(null);
-  const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<Notice | null>(null);
 
@@ -61,7 +58,6 @@ function EventPassTypes({ eventId }: { eventId: string }) {
     try {
       await action();
       setEditor(null);
-      setConfirmingId(null);
       setNotice({ kind: 'success', text: success });
       reload();
     } catch (error) {
@@ -71,9 +67,9 @@ function EventPassTypes({ eventId }: { eventId: string }) {
     }
   }
 
-  function save(input: PassTypeInput) {
-    if (editor?.mode === 'edit') {
-      const { id, version } = editor.passType;
+  function save(selected: CatalogPassType | undefined, input: PassTypeInput) {
+    if (selected) {
+      const { id, version } = selected;
       void run(() => updatePassType(eventId, id, version, input), 'Pase actualizado.');
     } else {
       void run(() => createPassType(eventId, input), 'Pase creado.');
@@ -89,7 +85,6 @@ function EventPassTypes({ eventId }: { eventId: string }) {
 
   function open(next: Editor) {
     setNotice(null);
-    setConfirmingId(null);
     setEditor(next);
   }
 
@@ -101,65 +96,79 @@ function EventPassTypes({ eventId }: { eventId: string }) {
   const data = state.status === 'ready' ? state.data : null;
   const refreshFailure = state.status === 'ready' ? state.refreshFailure : null;
   const activityById = new Map(data?.activities.map((activity) => [activity.id, activity]));
+  const selected =
+    editor?.mode === 'edit'
+      ? data?.passTypes.find(
+          (passType) => passType.id === editor.passTypeId && passType.status === 'active',
+        )
+      : undefined;
 
   return (
     <main className="px-4 py-8 text-fg sm:px-8 lg:py-12">
-      <div className="mx-auto max-w-5xl space-y-6">
-        <CatalogPageHeader eventId={eventId} title="Pases" current="pass-types" />
+      <div className="mx-auto max-w-6xl space-y-6">
+        <header className="flex flex-wrap items-end justify-between gap-4 border-b border-line pb-6">
+          <div className="min-w-0">
+            <h1 className="text-3xl font-bold tracking-tight text-heading">Pases</h1>
+            <p className="mt-1 text-sm text-muted">
+              Qué se vende y a qué da acceso cada pase. Los cambios de precio no afectan lo ya
+              vendido.
+            </p>
+          </div>
+          {data && (
+            <button
+              type="button"
+              className={styles.primary}
+              onClick={() => open({ mode: 'create' })}
+            >
+              Nuevo pase
+            </button>
+          )}
+        </header>
         {state.status === 'loading' && <p role="status">Cargando pases…</p>}
         {state.status === 'failed' && <CatalogLoadFailure failure={state.failure} />}
         {data && (
           <>
             <CatalogNotice notice={notice} onReload={refresh} />
             <CatalogRefreshFailure failure={refreshFailure} onRetry={reload} />
-            {editor?.mode === 'access' ? (
-              <PassTypeAccessEditor
-                key={editor.passType.id}
-                passType={editor.passType}
-                activities={data.activities}
-                busy={busy}
-                onSubmit={(activities) => saveAccess(editor.passType, activities)}
-                onCancel={() => setEditor(null)}
-              />
-            ) : editor ? (
-              <PassTypeForm
-                key={editor.mode === 'edit' ? editor.passType.id : 'new'}
-                title={editor.mode === 'edit' ? 'Editar pase' : 'Nuevo pase'}
-                passType={editor.mode === 'edit' ? editor.passType : undefined}
-                busy={busy}
-                onSubmit={save}
-                onCancel={() => setEditor(null)}
-              />
-            ) : (
-              <button
-                type="button"
-                className={styles.primary}
-                onClick={() => open({ mode: 'create' })}
-              >
-                Nuevo pase
-              </button>
-            )}
             <section aria-label="Lista de pases">
               <PassTypeList
                 passTypes={data.passTypes}
                 activities={activityById}
-                confirmingId={confirmingId}
+                selectedId={selected?.id ?? null}
                 busy={busy}
-                onEdit={(passType) => open({ mode: 'edit', passType })}
-                onEditAccess={(passType) => open({ mode: 'access', passType })}
-                onArchiveRequest={(passType) => {
-                  open(null);
-                  setConfirmingId(passType.id);
-                }}
-                onArchiveConfirm={(passType) =>
-                  void run(
-                    () => archivePassType(eventId, passType.id, passType.version),
-                    'Pase archivado.',
-                  )
-                }
-                onArchiveCancel={() => setConfirmingId(null)}
+                onSelect={(passType) => open({ mode: 'edit', passTypeId: passType.id })}
               />
             </section>
+            {(editor?.mode === 'create' || selected) && (
+              <aside aria-label="Panel del pase" className="max-w-xl space-y-4">
+                <PassTypeForm
+                  key={selected ? `${selected.id}:${selected.version}` : 'new'}
+                  title={selected ? 'Editar pase' : 'Nuevo pase'}
+                  passType={selected}
+                  busy={busy}
+                  onSubmit={(input) => save(selected, input)}
+                  onCancel={() => setEditor(null)}
+                  onArchive={
+                    selected &&
+                    (() =>
+                      void run(
+                        () => archivePassType(eventId, selected.id, selected.version),
+                        'Pase archivado.',
+                      ))
+                  }
+                />
+                {selected && (
+                  <PassTypeAccessEditor
+                    key={`access-${selected.id}:${selected.version}`}
+                    passType={selected}
+                    activities={data.activities}
+                    busy={busy}
+                    onSubmit={(activities) => saveAccess(selected, activities)}
+                    onCancel={() => setEditor(null)}
+                  />
+                )}
+              </aside>
+            )}
           </>
         )}
       </div>

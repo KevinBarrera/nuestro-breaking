@@ -317,14 +317,13 @@ test('lists pass types with MXN prices, required class and activity access', asy
     .filter({ has: page.getByRole('heading', { name: 'Pase completo' }) });
   await expect(full).toContainText('Completo');
   await expect(full).toContainText('$1,500.00');
-  await expect(full).toContainText('Batalla de crews · Seleccionable');
-  await expect(full).toContainText('Taller de footwork · Incluida');
+  await expect(full).toContainText('1 actividad a elegir · Incluye Taller de footwork');
   const open = page
     .getByRole('listitem')
     .filter({ has: page.getByRole('heading', { name: 'Open Styles' }) });
   await expect(open).toContainText('Adicional');
   await expect(open).toContainText('$250.00');
-  await expect(open).toContainText('Requiere pase Completo');
+  await expect(open).toContainText('Sin actividades · Requiere pase completo');
 });
 
 test('creates an add-on pass type that requires a pass class', async ({ page }) => {
@@ -346,8 +345,9 @@ test('creates an add-on pass type that requires a pass class', async ({ page }) 
   await page.getByRole('button', { name: 'Nuevo pase' }).click();
   const form = page.getByRole('form', { name: 'Nuevo pase' });
   await expect(form.getByLabel('Requiere pase')).toHaveCount(0);
+  await expect(form.getByRole('radio', { name: 'Completo' })).toBeChecked();
   await form.getByLabel('Nombre').fill('Open Styles');
-  await form.getByLabel('Clase').selectOption('add_on');
+  await form.getByRole('radio', { name: 'Adicional' }).check();
   await form.getByLabel('Precio (MXN)').fill('250');
   await form.getByLabel('Requiere pase').selectOption('full');
   await form.getByRole('button', { name: 'Guardar' }).click();
@@ -384,8 +384,8 @@ test('saves activity access for a pass type with its expected version', async ({
   await page.goto(passTypesPath);
   await page
     .getByRole('listitem')
-    .filter({ hasText: 'Pase completo' })
-    .getByRole('button', { name: 'Editar acceso' })
+    .filter({ has: page.getByRole('heading', { name: 'Pase completo' }) })
+    .getByRole('button', { name: 'Editar', exact: true })
     .click();
   const editor = page.getByRole('form', { name: 'Acceso de Pase completo' });
   await expect(editor.getByLabel('Batalla de crews')).toHaveValue('selectable');
@@ -397,11 +397,11 @@ test('saves activity access for a pass type with its expected version', async ({
     expectedVersion: 2,
     activities: [{ activityId: workshopId, access: 'selectable' }],
   });
-  await expect(
-    page
-      .getByRole('listitem')
-      .filter({ has: page.getByRole('heading', { name: 'Pase completo' }) }),
-  ).toContainText('Taller de footwork · Seleccionable');
+  const card = page
+    .getByRole('listitem')
+    .filter({ has: page.getByRole('heading', { name: 'Pase completo' }) });
+  await expect(card).not.toContainText('Incluye Taller de footwork');
+  await expect(card).toContainText('1 actividad a elegir');
 });
 
 test('a judge or denied session sees a no-access state on both catalogs', async ({ page }) => {
@@ -546,16 +546,25 @@ test('edits a pass type with its expected version', async ({ page }) => {
     },
   );
   await page.goto(passTypesPath);
-  await page
+  const card = page
     .getByRole('listitem')
-    .filter({ has: page.getByRole('heading', { name: 'Pase completo' }) })
-    .getByRole('button', { name: 'Editar', exact: true })
-    .click();
+    .filter({ has: page.getByRole('heading', { name: 'Pase completo' }) });
+  await expect(card.getByRole('button', { name: 'Editar', exact: true })).toHaveAttribute(
+    'aria-pressed',
+    'false',
+  );
+  await card.getByRole('button', { name: 'Editar', exact: true }).click();
+  await expect(card.getByRole('button', { name: 'Editar', exact: true })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
   const form = page.getByRole('form', { name: 'Editar pase' });
+  await expect(form).toContainText('v2');
+  await expect(form.getByRole('radio', { name: 'Completo' })).toBeChecked();
   await expect(form.getByLabel('Precio (MXN)')).toHaveValue('1500.00');
   await form.getByLabel('Nombre').fill('Pase completo VIP');
   await form.getByLabel('Precio (MXN)').fill('1750,50');
-  await form.getByRole('button', { name: 'Guardar' }).click();
+  await form.getByRole('button', { name: 'Guardar cambios' }).click();
   await expect(page.getByRole('status')).toContainText('Pase actualizado');
   expect(body).toEqual({
     expectedVersion: 2,
@@ -569,6 +578,80 @@ test('edits a pass type with its expected version', async ({ page }) => {
       .getByRole('listitem')
       .filter({ has: page.getByRole('heading', { name: 'Pase completo VIP' }) }),
   ).toContainText('$1,750.50');
+});
+
+test('a reload while the pass panel is open refreshes its values with the new version', async ({
+  page,
+}) => {
+  await page.route(
+    (url) => api(url) && url.pathname === activitiesPath,
+    (route) => route.fulfill({ json: [activity(), workshop] }),
+  );
+  let rows: unknown[] = [fullPass, openStyles];
+  let failReads = false;
+  await page.route(
+    (url) => api(url) && url.pathname === passTypesPath,
+    (route) => {
+      if (failReads) return route.fulfill({ status: 500, json: {} });
+      return route.fulfill({ json: rows });
+    },
+  );
+  await page.route(
+    (url) => api(url) && url.pathname === `${passTypesPath}/${openPassId}`,
+    (route) => {
+      failReads = true;
+      return route.fulfill({ json: { ...openStyles, name: 'Open Styles 2026', version: 2 } });
+    },
+  );
+  let body: Record<string, unknown> | undefined;
+  await page.route(
+    (url) => api(url) && url.pathname === `${passTypesPath}/${fullPassId}`,
+    (route) => {
+      body = json(route);
+      return route.fulfill({ json: { ...fullPass, version: 6 } });
+    },
+  );
+  await page.goto(passTypesPath);
+  const card = (name: string) =>
+    page.getByRole('listitem').filter({ has: page.getByRole('heading', { name }) });
+  await card('Open Styles').getByRole('button', { name: 'Editar', exact: true }).click();
+  const form = page.getByRole('form', { name: 'Editar pase' });
+  await form.getByLabel('Nombre').fill('Open Styles 2026');
+  await form.getByRole('button', { name: 'Guardar cambios' }).click();
+  const reloadAlert = page.getByRole('alert').filter({ hasText: 'No se pudo recargar' });
+  await expect(reloadAlert).toBeVisible();
+
+  await card('Pase completo').getByRole('button', { name: 'Editar', exact: true }).click();
+  await expect(form).toContainText('v2');
+  const access = page.getByRole('form', { name: /^Acceso de Pase completo/ });
+  await expect(access.getByLabel('Batalla de crews')).toHaveValue('selectable');
+  // Another writer changed the pass meanwhile; the retried reload brings version 5.
+  rows = [
+    {
+      ...fullPass,
+      name: 'Pase completo plus',
+      priceCents: 160000,
+      version: 5,
+      activities: [{ activityId: workshopId, access: 'included' }],
+    },
+    openStyles,
+  ];
+  failReads = false;
+  await reloadAlert.getByRole('button', { name: 'Recargar' }).click();
+  await expect(reloadAlert).toHaveCount(0);
+  await expect(form).toContainText('v5');
+  await expect(form.getByLabel('Nombre')).toHaveValue('Pase completo plus');
+  await expect(form.getByLabel('Precio (MXN)')).toHaveValue('1600.00');
+  await expect(access.getByLabel('Batalla de crews')).toHaveValue('none');
+  await form.getByRole('button', { name: 'Guardar cambios' }).click();
+  await expect(page.getByRole('status')).toContainText('Pase actualizado');
+  expect(body).toEqual({
+    expectedVersion: 5,
+    name: 'Pase completo plus',
+    passClass: 'full',
+    priceCents: 160000,
+    requiresPassClass: null,
+  });
 });
 
 test('shows a reload request when a pass type edit conflicts', async ({ page }) => {
@@ -610,12 +693,15 @@ test('archives a pass type only after confirmation', async ({ page }) => {
   const row = page
     .getByRole('listitem')
     .filter({ has: page.getByRole('heading', { name: 'Pase completo' }) });
-  await row.getByRole('button', { name: 'Archivar' }).click();
-  await expect(row.getByText('¿Archivar Pase completo?')).toBeVisible();
-  await row.getByRole('button', { name: 'Cancelar' }).click();
+  await expect(row.getByRole('button', { name: 'Archivar' })).toHaveCount(0);
+  await row.getByRole('button', { name: 'Editar', exact: true }).click();
+  const panel = page.getByRole('form', { name: 'Editar pase' });
+  await panel.getByRole('button', { name: 'Archivar' }).click();
+  await expect(panel.getByText('¿Archivar Pase completo?')).toBeVisible();
+  await panel.getByRole('button', { name: 'Cancelar' }).click();
   expect(bodies).toHaveLength(0);
-  await row.getByRole('button', { name: 'Archivar' }).click();
-  await row.getByRole('button', { name: 'Confirmar archivo' }).click();
+  await panel.getByRole('button', { name: 'Archivar' }).click();
+  await panel.getByRole('button', { name: 'Confirmar archivo' }).click();
   await expect(page.getByRole('status')).toContainText('Pase archivado');
   await expect(row).toContainText('Archivado');
   await expect(row.getByRole('button', { name: 'Editar', exact: true })).toHaveCount(0);

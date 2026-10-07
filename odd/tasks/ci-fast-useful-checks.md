@@ -43,7 +43,7 @@ Forecast: ~900 authored lines over 3 PRs.
 
 ### PR 3 — `ci/sweeps-off-pr-path`
 
-- [ ] T5 — Tag the accessibility and phone-width sweeps `@sweep`. PR shards run `--grep-invert @sweep`. A push to `dev` and a nightly schedule run the full suite. Per-feature 375/390px checks stay on PRs. Update the docs.
+- [x] T5 — PR shards skip the accessibility and phone-width sweeps (`NB_E2E_SKIP_SWEEPS=1` → Playwright `testIgnore`). A push to `dev` runs the full suite. The nightly schedule was dropped: scheduled workflows run on the default branch (`main`), so they would test stale code, and every merge to `dev` already runs the sweeps. Per-feature 375/390px checks stay on PRs. Update the docs.
 
 ## Checks
 
@@ -58,3 +58,5 @@ Forecast: ~900 authored lines over 3 PRs.
 - Next: T3 on `test/frontend-unit-runner`, stacked on `ci/split-guard-and-path-filters`.
 - 2026-10-07: PR 2 `test/frontend-unit-runner` (route: delegated writer). Commits: `c170024` (T3), `dd5461f` (T4). `vitest@^5.0.3` runs 7 files and 105 tests in about 0.3s. E2E went from 140 to 133 tests (1 catalog, 4 agenda and 2 overview tests became unit tests or one flow test each). Every new test file was mutation-checked once. Deviation: the session-store dev-server probe and its CI re-run stay. Signing out has no UI reader of the store, so only that probe proves `clearSession()` is wired; `session-store.test.ts` covers the store itself. Native review (high, granted) approved and acknowledged. Open suggestions: comment the state reset in the merged agenda flow test, type the overview fixture `status`, and note that the Intl strings depend on the Node CLDR data.
 - Next: T5 on `ci/sweeps-off-pr-path`, stacked on `test/frontend-unit-runner`.
+- 2026-10-07: PR 3 `ci/sweeps-off-pr-path` (route: inline; 3 files, 10 lines). Commit `0c33b58` (T5). `playwright test --list` shows 109 tests with `NB_E2E_SKIP_SWEEPS=1` and 133 without. Format, YAML and build pass. Native review (high, granted) approved and acknowledged. Accepted tradeoff (R3-001): a PR that breaks a sweep is caught on the next push to `dev`, not before merge. Open suggestions: use one term for the sweeps, and guard the hardcoded sweep filenames.
+- Next: wait for green CI on #153, #155 and the PR 3 PR, then the user merges them in order (#153 → #155 → PR 3), using rebase onto dev and a merge commit.

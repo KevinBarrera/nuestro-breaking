@@ -265,3 +265,60 @@ test('fits a 375px viewport and scrolls the access map inside its box', async ({
   await expect(box).toHaveCSS('overflow-x', 'auto');
   expect(await box.evaluate((node) => node.scrollWidth > node.clientWidth)).toBe(true);
 });
+
+test('a reload still in flight when access is saved cannot restore the older version', async ({
+  page,
+}) => {
+  let current = fullPass;
+  let holdReads = false;
+  let heldReads = 0;
+  let release = () => {};
+  const held = new Promise<void>((resolve) => (release = resolve));
+  let staleServed: Promise<unknown> = Promise.resolve();
+  await page.route(
+    (url) => api(url) && url.pathname === `/admin/events/${eventId}/activities`,
+    (route) => route.fulfill({ json: activities }),
+  );
+  await page.route(
+    (url) => api(url) && url.pathname === passTypesPath,
+    (route) => {
+      if (!holdReads) return route.fulfill({ json: [current, generalPass] });
+      heldReads++;
+      // The conflict reload reads version 2 now but answers only after the next save lands.
+      const snapshot = [current, generalPass];
+      staleServed = held.then(() => route.fulfill({ json: snapshot }).catch(() => undefined));
+      return staleServed;
+    },
+  );
+  let puts = 0;
+  await page.route(
+    (url) => api(url) && url.pathname === accessPath,
+    (route) => {
+      puts++;
+      if (puts === 1) return route.fulfill({ status: 409, json: { message: 'conflict' } });
+      const body = route.request().postDataJSON() as { activities: Access[] };
+      current = { ...fullPass, version: 3, activities: body.activities };
+      return route.fulfill({ json: current });
+    },
+  );
+  await page.goto(passTypesPath);
+  await selectPass(page, 'Pase completo');
+  await cell(page, 'Pase completo', 'Batalla 2 vs 2').selectOption('included');
+  await map(page).getByRole('button', { name: 'Guardar acceso' }).click();
+  const conflict = page.getByRole('alert').filter({ hasText: 'Otra persona cambió este pase' });
+  holdReads = true;
+  await conflict.getByRole('button', { name: 'Recargar' }).click();
+  await expect.poll(() => heldReads).toBe(1);
+  await cell(page, 'Pase completo', 'Batalla 2 vs 2').selectOption('included');
+  await map(page).getByRole('button', { name: 'Guardar acceso' }).click();
+  await expect(page.getByRole('status')).toContainText('Acceso actualizado');
+  const form = page.getByRole('form', { name: 'Editar pase' });
+  await expect(form).toContainText('v3');
+  release();
+  await staleServed;
+  // Let the page settle any late response before checking it was ignored.
+  await page.evaluate(() => new Promise((resolve) => setTimeout(resolve, 100)));
+  await expect(form).toContainText('v3');
+  await expect(cell(page, 'Pase completo', 'Batalla 2 vs 2')).toHaveValue('included');
+  await expect(map(page).getByRole('button', { name: 'Guardar acceso' })).toBeDisabled();
+});

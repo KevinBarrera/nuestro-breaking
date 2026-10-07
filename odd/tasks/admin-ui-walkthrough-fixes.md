@@ -74,6 +74,7 @@ See issue #145; mapped to evidence at closure.
 - Frontend `npm run lint`: 0 errors, the 2 pre-existing warnings in `admin-check-in-page.tsx`; `npm run build`: passed; Prettier check: passed; `git grep -n "<select" -- apps/frontend/src`: no matches.
 - Caveat: React Aria always renders an `aria-hidden`, untabbable native `<select>` for autofill and `FormData`, so specs assert that no _exposed_ native select remains instead of a zero `select` count. No admin form reads `FormData`; all keep controlled state.
 - Interaction specs now use `e2e/support/select.ts` (`selectTrigger`, `chooseOption`, `expectSelected`); the trigger's accessible name is the value followed by the label.
+- T2 review: `review-c6f7dac9bb7b79c4` (medium, reliability lens, granted, approved and acknowledged; range `9f8ce8f..086e8ba`) with two non-blocking findings. R3-activity-venue-required-dropped fixed in `b94fea6` (shared Select `isRequired` with a Spanish `FieldError`; a saved venue missing from the event venues counts as unselected and shows "Elige una sede"; RED observed first). R3-space-open-untested fixed in `04d9dc2` (Space in the keyboard-open loop, Escape closes and refocuses the trigger). Frontend lint: 0 errors, the 2 known warnings; build: passed; full mocked `npx playwright test`: 128 passed.
 
 ## Next step
 

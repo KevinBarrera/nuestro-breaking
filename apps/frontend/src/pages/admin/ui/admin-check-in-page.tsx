@@ -2,6 +2,7 @@ import { apiUrl } from '@/shared/api';
 import { type FormEvent, useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { routes } from '@/shared/config';
+import { useEventName } from './use-event-name';
 
 type Registration = {
   participant: { id: string; fullName: string; email: string | null; stageName: string | null };
@@ -69,12 +70,13 @@ function EventCheckIn({ eventId }: { eventId: string | undefined }) {
   const controller = useRef<AbortController | null>(null);
   const locked = useRef(false);
   const sequence = useRef(0);
+  const eventName = useEventName(eventId);
 
   useEffect(() => {
     // Cleanup must abort the latest request, not the one active when the effect ran.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     return () => {
       controller.current?.abort();
+      // eslint-disable-next-line react-hooks/exhaustive-deps
       sequence.current++;
     };
   }, [eventId]);
@@ -254,7 +256,9 @@ function EventCheckIn({ eventId }: { eventId: string | undefined }) {
     <main className="px-4 py-8 text-fg sm:px-8 lg:py-12">
       <div className="mx-auto max-w-4xl space-y-6">
         <header>
-          <p className="text-sm break-all text-muted">Administración · Evento {eventId}</p>
+          <p className="text-sm break-words text-muted">
+            {eventName ? `Administración · ${eventName}` : 'Administración'}
+          </p>
           <h1 className="mt-2 text-3xl font-extrabold tracking-tight text-heading">
             Control de entrada
           </h1>
@@ -445,12 +449,12 @@ function EventCheckIn({ eventId }: { eventId: string | undefined }) {
         )}
         <p className="border-t border-line pt-5 text-sm text-muted">
           Si el estado no se puede verificar, no repitas la entrada. Consulta al responsable o
-          vuelve a{' '}
+          vuelve al{' '}
           <Link
             className="font-semibold text-link underline hover:text-link-hover focus-visible:outline-2 focus-visible:outline-focus"
-            to={routes.admin}
+            to={eventId ? routes.adminEventOverview.replace(':eventId', eventId) : routes.admin}
           >
-            Inicio
+            resumen del evento
           </Link>
           .
         </p>

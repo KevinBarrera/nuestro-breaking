@@ -128,8 +128,15 @@ jobs:
     # Browsers and their OS dependencies ship in the official image, so no
     # `playwright install --with-deps` (its apt step has hung on Ubuntu mirrors).
     # The image tag MUST match the exact `@playwright/test` version in pnpm-lock.yaml.
-    container:
+    # `container.image` cannot read the `env` context, so the tag stays literal:
+    # PLAYWRIGHT_IMAGE_VERSION and the image tag must change together. The
+    # container block is shared with frontend_playwright_shard via a YAML anchor.
+    env:
+      PLAYWRIGHT_IMAGE_VERSION: 1.62.1
+    container: &playwright-container
       image: mcr.microsoft.com/playwright:v1.62.1-noble
+      # UID 1001 matches the GitHub-hosted runner user, so the checked-out
+      # workspace and the pnpm/tool cache stay writable (Playwright CI docs).
       options: --user 1001
     steps:
       - uses: actions/checkout@v6
@@ -142,6 +149,16 @@ jobs:
       - name: Install dependencies
         timeout-minutes: 5
         run: pnpm install --frozen-lockfile
+      - name: Check @playwright/test matches the Playwright image
+        run: |
+          set -euo pipefail
+          INSTALLED="$(pnpm --filter @nuestro-breaking/frontend exec playwright --version | sed -n 's/^Version //p')"
+          echo "Playwright image version: ${PLAYWRIGHT_IMAGE_VERSION}"
+          echo "Installed @playwright/test: ${INSTALLED}"
+          if [[ "${INSTALLED}" != "${PLAYWRIGHT_IMAGE_VERSION}" ]]; then
+            echo "::error::@playwright/test ${INSTALLED} does not match the Playwright image ${PLAYWRIGHT_IMAGE_VERSION}. Bump the container image tag and PLAYWRIGHT_IMAGE_VERSION in .github/workflows/pr-checks.yml together with pnpm-lock.yaml."
+            exit 1
+          fi
       - run: pnpm --filter @nuestro-breaking/frontend test:e2e:live
       - name: Upload live Playwright failure artifacts
         if: failure()
@@ -171,19 +188,19 @@ jobs:
       - run: pnpm --filter @nuestro-breaking/frontend build
 
   frontend_playwright_shard:
-    name: frontend / playwright shard (${{ matrix.shard }}/2)
+    name: frontend / playwright shard (${{ matrix.shard }}/${{ matrix.total }})
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    # Browsers and their OS dependencies ship in the official image, so no
-    # `playwright install --with-deps` (its apt step has hung on Ubuntu mirrors).
-    # The image tag MUST match the exact `@playwright/test` version in pnpm-lock.yaml.
-    container:
-      image: mcr.microsoft.com/playwright:v1.62.1-noble
-      options: --user 1001
+    # Same official Playwright image as frontend_live_check_in (YAML anchor);
+    # PLAYWRIGHT_IMAGE_VERSION must change together with that image tag.
+    env:
+      PLAYWRIGHT_IMAGE_VERSION: 1.62.1
+    container: *playwright-container
     strategy:
       fail-fast: false
       matrix:
         shard: [1, 2]
+        total: [2]
     steps:
       - uses: actions/checkout@v6
       - uses: pnpm/action-setup@v4
@@ -195,7 +212,17 @@ jobs:
       - name: Install dependencies
         timeout-minutes: 5
         run: pnpm install --frozen-lockfile
-      - run: pnpm --filter @nuestro-breaking/frontend test:e2e --shard=${{ matrix.shard }}/2
+      - name: Check @playwright/test matches the Playwright image
+        run: |
+          set -euo pipefail
+          INSTALLED="$(pnpm --filter @nuestro-breaking/frontend exec playwright --version | sed -n 's/^Version //p')"
+          echo "Playwright image version: ${PLAYWRIGHT_IMAGE_VERSION}"
+          echo "Installed @playwright/test: ${INSTALLED}"
+          if [[ "${INSTALLED}" != "${PLAYWRIGHT_IMAGE_VERSION}" ]]; then
+            echo "::error::@playwright/test ${INSTALLED} does not match the Playwright image ${PLAYWRIGHT_IMAGE_VERSION}. Bump the container image tag and PLAYWRIGHT_IMAGE_VERSION in .github/workflows/pr-checks.yml together with pnpm-lock.yaml."
+            exit 1
+          fi
+      - run: pnpm --filter @nuestro-breaking/frontend test:e2e --shard=${{ matrix.shard }}/${{ matrix.total }}
       - name: Upload Playwright failure artifacts
         if: failure()
         uses: actions/upload-artifact@v4

@@ -101,5 +101,5 @@ Work branches use a typed prefix (`feat/`, `fix/`, `chore/`, `docs/`, `test/`, `
 Chained (stacked) PRs are allowed: a typed work branch in this repository may target its parent typed work branch.
 
 - Merge the chain bottom-up.
-- With "Automatically delete head branches" enabled, deleting a merged parent branch makes GitHub retarget its child PRs to `dev`.
+- With "Automatically delete head branches" enabled, deleting a merged parent branch makes GitHub retarget its child PRs to the parent PR's own base branch (to `dev` only when the parent targeted `dev`). Merging bottom-up therefore moves each next PR in the chain to `dev` in turn.
 - If `dev` moves mid-chain and a parent is rebased, rebase each child onto the new parent with `git rebase --onto <new-parent> <old-parent-tip> <child>`.

@@ -310,6 +310,33 @@ test('saving access keeps unsaved pass edits and the next save sends the new ver
   ]);
 });
 
+test('disables the editable column and Guardar acceso while the save is in flight', async ({
+  page,
+}) => {
+  await mockCatalog(page, () => [fullPass, generalPass]);
+  let release = () => {};
+  const held = new Promise<void>((resolve) => (release = resolve));
+  await page.route(
+    (url) => api(url) && url.pathname === accessPath,
+    async (route) => {
+      await held;
+      await route.fulfill({ json: { ...fullPass, version: 3 } });
+    },
+  );
+  await page.goto(passTypesPath);
+  await selectPass(page, 'Pase completo');
+  await cell(page, 'Pase completo', 'Batalla 2 vs 2').selectOption('included');
+  await map(page).getByRole('button', { name: 'Guardar acceso' }).click();
+  const saving = map(page).getByRole('button', { name: 'Guardando…' });
+  await expect(saving).toBeDisabled();
+  for (const name of ['Batalla 2 vs 2', 'Batalla de crews', 'Taller de footwork'])
+    await expect(cell(page, 'Pase completo', name)).toBeDisabled();
+  release();
+  await expect(page.getByRole('status')).toContainText('Acceso actualizado');
+  await expect(map(page).getByRole('button', { name: 'Guardar acceso' })).toBeDisabled();
+  await expect(cell(page, 'Pase completo', 'Batalla 2 vs 2')).toBeEnabled();
+});
+
 test('a reload still in flight when access is saved cannot restore the older version', async ({
   page,
 }) => {

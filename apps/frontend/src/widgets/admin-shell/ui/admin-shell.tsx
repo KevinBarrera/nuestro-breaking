@@ -26,7 +26,7 @@ export function AdminShell({ signingOut, signOutFailed, onSignOut, children }: A
       <header aria-label="Espacio de administración" className="bg-header px-4 py-3 sm:px-7">
         <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-header-fg">
-            <span className="text-base font-extrabold tracking-[0.08em]">NUESTRO BREAKING</span>
+            <span className="text-base font-extrabold tracking-[0.08em]">LOS MÁS PESADOS</span>
             <span className="rounded border border-header-line px-2 py-0.5 text-xs font-semibold tracking-[0.06em] text-header-muted">
               ADMIN
             </span>

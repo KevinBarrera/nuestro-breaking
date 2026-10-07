@@ -26,7 +26,7 @@ test('presents a centered, responsive and accessible Spanish admin sign-in panel
     await page.setViewportSize({ width, height: 800 });
     await page.goto('/admin');
     const panel = page.getByRole('region', { name: 'Acceso administrativo' });
-    await expect(panel.getByText('Nuestro Breaking · Administración')).toBeVisible();
+    await expect(panel.getByText('Los más pesados · Administración')).toBeVisible();
     await expect(panel.getByRole('heading', { name: 'Iniciar sesión' })).toBeVisible();
     await expect(
       panel.getByText('Accede con tu cuenta del equipo organizador o de jueces.'),
@@ -211,7 +211,7 @@ test('shows the authenticated admin shell with only the available navigation and
   await page.route(sessionEndpoint, (route) => route.fulfill({ json: { user } }));
   await page.goto('/admin');
   const header = page.getByRole('banner', { name: 'Espacio de administración' });
-  await expect(header.getByText('NUESTRO BREAKING')).toBeVisible();
+  await expect(header.getByText('LOS MÁS PESADOS')).toBeVisible();
   const nav = page.getByRole('navigation', { name: 'Navegación administrativa' });
   await expect(nav.getByRole('link', { name: 'Resumen' })).toHaveAttribute('href', '/admin');
   const home = nav.getByRole('link', { name: 'Resumen' });

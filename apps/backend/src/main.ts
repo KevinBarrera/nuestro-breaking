@@ -13,8 +13,8 @@ async function bootstrap() {
   });
 
   const swaggerConfig = new DocumentBuilder()
-    .setTitle('Nuestro Breaking API')
-    .setDescription('HTTP API for the Nuestro Breaking application.')
+    .setTitle('Los más pesados API')
+    .setDescription('HTTP API for the Los más pesados application.')
     .setVersion('0.1.0')
     .build();
   const document = SwaggerModule.createDocument(app, swaggerConfig);

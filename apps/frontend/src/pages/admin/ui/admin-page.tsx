@@ -74,7 +74,7 @@ export function AdminPage() {
         <header className="flex flex-wrap items-start justify-between gap-4 border-b border-line pb-6">
           <div>
             <p className="text-xs font-semibold uppercase tracking-widest text-link">
-              Nuestro Breaking
+              Los más pesados
             </p>
             <h1 className="mt-2 text-3xl font-semibold tracking-tight">Administración</h1>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">

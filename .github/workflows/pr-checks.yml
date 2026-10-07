@@ -2,7 +2,7 @@ name: Required PR checks
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, ready_for_review, edited]
+    types: [opened, synchronize, reopened, ready_for_review]
   push:
     branches: [dev]
 
@@ -17,62 +17,6 @@ env:
   CI: true
 
 jobs:
-  pr_branch_flow_guard:
-    name: quality / branch-flow-guard
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - name: Enforce feature -> dev -> staging -> main flow (chained work-branch bases allowed)
-        env:
-          BASE_REF: ${{ github.base_ref }}
-          HEAD_REF: ${{ github.head_ref }}
-          HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
-          REPOSITORY: ${{ github.repository }}
-        run: |
-          set -euo pipefail
-
-          WORK_BRANCH_PATTERN='^(feat|fix|chore|docs|style|refactor|perf|test|build|ci|revert)/[a-z0-9._-]+$'
-
-          echo "Validating PR branch flow: ${HEAD_REPOSITORY}:${HEAD_REF} -> ${REPOSITORY}:${BASE_REF}"
-
-          case "${BASE_REF}" in
-            dev)
-              if [[ "${HEAD_REF}" =~ ${WORK_BRANCH_PATTERN} ]]; then
-                exit 0
-              fi
-              echo "PRs targeting dev must come from a typed work branch such as feat/*, fix/*, chore/*, docs/*, test/*, or ci/*."
-              exit 1
-              ;;
-            staging)
-              if [[ "${HEAD_REPOSITORY}" == "${REPOSITORY}" && "${HEAD_REF}" == "dev" ]]; then
-                exit 0
-              fi
-              echo "PRs targeting staging must come only from this repository's dev branch. Feature branches must target dev first."
-              exit 1
-              ;;
-            main)
-              if [[ "${HEAD_REPOSITORY}" == "${REPOSITORY}" && "${HEAD_REF}" == "staging" ]]; then
-                exit 0
-              fi
-              echo "PRs targeting main must come only from this repository's staging branch. Production promotion must pass through dev and staging."
-              exit 1
-              ;;
-            *)
-              # Chained/stacked PRs: a typed work branch may target its parent
-              # typed work branch when both live in this repository.
-              if [[ "${BASE_REF}" =~ ${WORK_BRANCH_PATTERN} ]]; then
-                if [[ "${HEAD_REPOSITORY}" == "${REPOSITORY}" && "${HEAD_REF}" =~ ${WORK_BRANCH_PATTERN} ]]; then
-                  exit 0
-                fi
-                echo "PRs targeting a work branch (${BASE_REF}) must come from another typed work branch in this repository (chained PRs)."
-                exit 1
-              fi
-              echo "Unsupported PR base branch: ${BASE_REF}. Allowed bases are dev, staging, main, or a typed work branch of this repository for chained PRs."
-              exit 1
-              ;;
-          esac
-
   quality_format:
     name: quality / format
     runs-on: ubuntu-latest

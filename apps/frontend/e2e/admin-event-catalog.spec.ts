@@ -397,11 +397,11 @@ test('saves activity access for a pass type with its expected version', async ({
     expectedVersion: 2,
     activities: [{ activityId: workshopId, access: 'selectable' }],
   });
-  await expect(
-    page
-      .getByRole('listitem')
-      .filter({ has: page.getByRole('heading', { name: 'Pase completo' }) }),
-  ).toContainText('1 actividad a elegir');
+  const card = page
+    .getByRole('listitem')
+    .filter({ has: page.getByRole('heading', { name: 'Pase completo' }) });
+  await expect(card).not.toContainText('Incluye Taller de footwork');
+  await expect(card).toContainText('1 actividad a elegir');
 });
 
 test('a judge or denied session sees a no-access state on both catalogs', async ({ page }) => {

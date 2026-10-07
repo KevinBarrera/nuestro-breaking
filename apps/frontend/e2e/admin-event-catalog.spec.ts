@@ -2,7 +2,7 @@ import { expect, test, type Page, type Route } from '@playwright/test';
 import { chooseOption, expectSelected, selectTrigger } from './support/select.ts';
 // The e2e tsconfig has no `@/` alias; this pure module has no imports, so Node can load it directly.
 // eslint-disable-next-line no-restricted-imports
-import { parseMxnToCents } from '../src/entities/event-catalog/model/money.js';
+import { parseMxnToCents } from '../src/entities/event-catalog/model/money.ts';
 
 const eventId = 'a1b2c3d4-1234-4567-89ab-123456789abc';
 const venueId = 'e1b2c3d4-1234-4567-89ab-123456789abc';

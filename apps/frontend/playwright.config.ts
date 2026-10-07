@@ -47,6 +47,8 @@ export default defineConfig({
       ? `corepack pnpm exec vite build && corepack pnpm exec vite preview --host 127.0.0.1 --port ${port} --strictPort`
       : `corepack pnpm exec vite --host 127.0.0.1 --port ${port} --strictPort`,
     url: baseURL,
+    // Preview mode builds before serving, so allow more time than the 60s default.
+    timeout: preview ? 120_000 : 60_000,
     env: live ? { VITE_API_BASE_URL: `http://127.0.0.1:${process.env.NB_LIVE_API_PORT}` } : {},
     reuseExistingServer: !live && !process.env.CI,
   },

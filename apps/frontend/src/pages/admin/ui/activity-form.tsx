@@ -44,6 +44,8 @@ export function ActivityForm({
   const [endsAt, setEndsAt] = useState(initialEndsAt);
   const [error, setError] = useState<string | null>(null);
   const noVenues = venues.length === 0;
+  // A saved venue that is no longer among the event venues (e.g. archived) counts as unselected.
+  const selectedVenueId = venues.some((venue) => venue.id === venueId) ? venueId : '';
 
   function instant(value: string, initial: string, stored: string | undefined) {
     return stored !== undefined && value === initial ? stored : fromZonedInput(value, timeZone);
@@ -54,7 +56,7 @@ export function ActivityForm({
     if (busy || noVenues) return;
     const start = instant(startsAt, initialStartsAt, activity?.startsAt);
     const end = instant(endsAt, initialEndsAt, activity?.endsAt);
-    if (!name.trim() || !kind.trim() || !venueId) {
+    if (!name.trim() || !kind.trim() || !selectedVenueId) {
       setError('Completa nombre, tipo y sede.');
       return;
     }
@@ -67,7 +69,13 @@ export function ActivityForm({
       return;
     }
     setError(null);
-    onSubmit({ name: name.trim(), kind: kind.trim(), venueId, startsAt: start, endsAt: end });
+    onSubmit({
+      name: name.trim(),
+      kind: kind.trim(),
+      venueId: selectedVenueId,
+      startsAt: start,
+      endsAt: end,
+    });
   }
 
   return (
@@ -111,9 +119,11 @@ export function ActivityForm({
           label="Sede"
           className="sm:col-span-2 lg:col-span-1"
           options={venues.map((venue) => ({ id: venue.id, label: venue.name }))}
-          selectedKey={venueId}
+          selectedKey={selectedVenueId}
           isDisabled={noVenues}
-          placeholder="Sin sedes"
+          isRequired
+          requiredMessage="Elige la sede de la actividad."
+          placeholder={noVenues ? 'Sin sedes' : 'Elige una sede'}
           onSelectionChange={setVenueId}
         />
         <label className={styles.label}>

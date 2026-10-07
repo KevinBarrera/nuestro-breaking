@@ -247,6 +247,45 @@ test('edits an activity with its expected version', async ({ page }) => {
   });
 });
 
+test('requires a venue when the saved one is no longer among the event venues', async ({
+  page,
+}) => {
+  await mockFoundation(page);
+  const missingVenueId = 'e9b2c3d4-1234-4567-89ab-123456789abc';
+  await mockActivityList(page, () => [activity({ venueId: missingVenueId })]);
+  const writes: string[] = [];
+  await page.route(
+    (url) => api(url) && url.pathname === `${activitiesPath}/${battleId}`,
+    (route) => {
+      writes.push(route.request().method());
+      return route.fulfill({ json: activity() });
+    },
+  );
+  await page.goto(activitiesPath);
+  await page
+    .getByRole('listitem')
+    .filter({ hasText: 'Batalla de crews' })
+    .getByRole('button', { name: 'Editar' })
+    .click();
+  const form = page.getByRole('form', { name: 'Editar actividad' });
+  const venue = selectTrigger(form, 'Sede');
+  // Venues exist, so the empty state reads as a choice to make, not as "no venues".
+  await expect(venue).toHaveText('Elige una sede');
+  await expect(form.getByText('Sin sedes')).toHaveCount(0);
+
+  await form.getByRole('button', { name: 'Guardar' }).click();
+  await expect(form.getByText('Elige la sede de la actividad.')).toBeVisible();
+  await expect(venue).toHaveAccessibleDescription('Elige la sede de la actividad.');
+  await expect(page.getByText('Actividad actualizada')).toHaveCount(0);
+  expect(writes).toEqual([]);
+
+  await chooseOption(venue, 'Centro cultural');
+  await expect(form.getByText('Elige la sede de la actividad.')).toHaveCount(0);
+  await form.getByRole('button', { name: 'Guardar' }).click();
+  await expect(page.getByRole('status')).toContainText('Actividad actualizada');
+  expect(writes).toEqual(['PATCH']);
+});
+
 test('shows a reload request on a version conflict without claiming success', async ({ page }) => {
   await mockFoundation(page);
   await mockActivityList(page, () => [activity()]);

@@ -1,5 +1,6 @@
 import {
   Button,
+  FieldError,
   Label,
   ListBox,
   ListBoxItem,
@@ -24,6 +25,9 @@ type SelectProps = {
   // Mirrors the value into React Aria's hidden native select so FormData can read it.
   name?: string;
   isDisabled?: boolean;
+  // Blocks form submission while nothing is selected and then shows `requiredMessage`.
+  isRequired?: boolean;
+  requiredMessage?: string;
   placeholder?: string;
   variant?: SelectVariant;
   className?: string;
@@ -90,6 +94,8 @@ export function Select({
   onSelectionChange,
   name,
   isDisabled,
+  isRequired,
+  requiredMessage = 'Selecciona una opción.',
   placeholder = 'Selecciona una opción',
   variant = 'field',
   className = '',
@@ -107,6 +113,7 @@ export function Select({
       onChange={change}
       name={name}
       isDisabled={isDisabled}
+      isRequired={isRequired}
       placeholder={placeholder}
       className={`${roots[variant]} ${className}`}
     >
@@ -118,6 +125,10 @@ export function Select({
         </SelectValue>
         <ChevronIcon />
       </Button>
+      {/* Native validation: the browser's own message would not be in Spanish. */}
+      <FieldError className="mt-1 block text-sm font-normal text-danger-fg">
+        {requiredMessage}
+      </FieldError>
       <Popover
         offset={4}
         className="max-h-80 max-w-[calc(100vw-2rem)] min-w-(--trigger-width) overflow-auto rounded-lg border border-line bg-surface p-1 shadow-lg"

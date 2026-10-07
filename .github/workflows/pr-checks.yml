@@ -236,6 +236,8 @@ jobs:
         env:
           # Serve a production build (vite build + preview) instead of the dev server.
           NB_E2E_PREVIEW: '1'
+          # PRs skip the accessibility and phone-width sweeps; pushes to dev run them.
+          NB_E2E_SKIP_SWEEPS: ${{ github.event_name == 'pull_request' && '1' || '' }}
       - name: Run dev-server-only assertions
         if: matrix.shard == 1
         # This spec reads the in-memory session store as a /src module, which only the

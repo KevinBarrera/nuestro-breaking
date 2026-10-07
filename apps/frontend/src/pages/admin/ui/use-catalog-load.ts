@@ -32,5 +32,13 @@ export function useCatalogLoad<T>(load: (signal: AbortSignal) => Promise<T>) {
   }, [load, revision]);
 
   const reload = useCallback(() => setRevision((value) => value + 1), []);
-  return { state, reload };
+  // Applies a confirmed write response to the loaded data without another read.
+  const update = useCallback(
+    (change: (data: T) => T) =>
+      setState((previous) =>
+        previous.status === 'ready' ? { ...previous, data: change(previous.data) } : previous,
+      ),
+    [],
+  );
+  return { state, reload, update };
 }

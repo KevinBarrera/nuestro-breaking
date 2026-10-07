@@ -32,9 +32,19 @@ export const passClassLabels: Record<PassClass, string> = {
 };
 
 export const accessLabels: Record<ActivityAccess, string> = {
-  selectable: 'Seleccionable',
+  selectable: 'Elegible',
   included: 'Incluida',
 };
+
+const activityKindLabels: Record<string, string> = {
+  battle: 'Batalla',
+  competition: 'Competencia',
+  workshop: 'Taller',
+  social: 'Social',
+};
+
+// Known kinds read in Spanish; any other kind is shown as stored.
+export const activityKindLabel = (kind: string) => activityKindLabels[kind] ?? kind;
 
 export const styles = {
   primary:

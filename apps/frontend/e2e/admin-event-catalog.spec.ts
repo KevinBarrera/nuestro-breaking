@@ -387,10 +387,10 @@ test('saves activity access for a pass type with its expected version', async ({
     .filter({ has: page.getByRole('heading', { name: 'Pase completo' }) })
     .getByRole('button', { name: 'Editar', exact: true })
     .click();
-  const editor = page.getByRole('form', { name: 'Acceso de Pase completo' });
-  await expect(editor.getByLabel('Batalla de crews')).toHaveValue('selectable');
-  await editor.getByLabel('Batalla de crews').selectOption('none');
-  await editor.getByLabel('Taller de footwork').selectOption('selectable');
+  const editor = page.getByRole('region', { name: 'Mapa de acceso' });
+  await expect(editor.getByLabel('Pase completo · Batalla de crews')).toHaveValue('selectable');
+  await editor.getByLabel('Pase completo · Batalla de crews').selectOption('none');
+  await editor.getByLabel('Pase completo · Taller de footwork').selectOption('selectable');
   await editor.getByRole('button', { name: 'Guardar acceso' }).click();
   await expect(page.getByRole('status')).toContainText('Acceso actualizado');
   expect(body).toEqual({

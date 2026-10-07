@@ -1,4 +1,5 @@
 import { getSession, signIn, signOut, useSessionStore } from '@/entities/session';
+import { ThemeToggle } from '@/features/theme-toggle';
 import { routes } from '@/shared/config';
 import type { FormEvent } from 'react';
 import { useEffect, useState } from 'react';
@@ -119,6 +120,7 @@ export function AdminSessionBoundary() {
               >
                 Cerrar sesión
               </button>
+              <ThemeToggle className="border-slate-600 text-[var(--event-cream)] hover:bg-slate-800 focus-visible:outline-[var(--event-cyan)]" />
             </div>
           </div>
           {error && (

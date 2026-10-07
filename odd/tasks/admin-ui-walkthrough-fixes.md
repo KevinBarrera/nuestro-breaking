@@ -32,7 +32,7 @@ Forecast: ~1,200 authored lines over 4 PRs.
 
 ### PR 2 — `feat/145-02-shared-select`
 
-- [ ] T2 — Add `react-aria-components` and a shared `Select` in `shared/ui` styled with tokens. Replace the native selects: topbar `event-selector.tsx`, `activity-form.tsx`, `pass-type-form.tsx` and `pass-access-map.tsx`. Keyboard and accessible-name coverage.
+- [x] T2 — Add `react-aria-components` and a shared `Select` in `shared/ui` styled with tokens. Replace the native selects: topbar `event-selector.tsx`, `activity-form.tsx`, `pass-type-form.tsx` and `pass-access-map.tsx`. Keyboard and accessible-name coverage.
 
 ### PR 3 — `feat/145-03-shell-and-theme-toggle`
 
@@ -65,6 +65,16 @@ See issue #145; mapped to evidence at closure.
 
 - Parent: `apps/backend/README.md` brand line fixed in `ca6d94d`. Spot check: `npx playwright test e2e/admin-shell.spec.ts e2e/route-placeholders.spec.ts` gave 26 passed. Review assess for `9f8ce8f..ca6d94d`: medium, `review_due` false (`under_budget`), so it stays pending in the slice.
 
+### PR 2 — T2
+
+- Route: delegated direct — one bounded writer (trigger: 2+ non-trivial files across shared UI, widget, pages and e2e).
+- Commit: `1a99d9b` feat(admin): replace native selects with a shared accessible Select (`react-aria-components` 1.21.1).
+- RED: new `e2e/admin-select.spec.ts` failed against the native selects (4 failed: no exposed native select, Enter and ArrowDown open the topbar listbox and navigate, re-choosing the current event does not navigate).
+- GREEN: `admin-select`, `admin-accessibility` and `admin-phone-width` 26 passed; full mocked `npx playwright test` 125 passed (113 base + 4 select + 4 listbox target/contrast + 4 listbox phone width).
+- Frontend `npm run lint`: 0 errors, the 2 pre-existing warnings in `admin-check-in-page.tsx`; `npm run build`: passed; Prettier check: passed; `git grep -n "<select" -- apps/frontend/src`: no matches.
+- Caveat: React Aria always renders an `aria-hidden`, untabbable native `<select>` for autofill and `FormData`, so specs assert that no _exposed_ native select remains instead of a zero `select` count. No admin form reads `FormData`; all keep controlled state.
+- Interaction specs now use `e2e/support/select.ts` (`selectTrigger`, `chooseOption`, `expectSelected`); the trigger's accessible name is the value followed by the label.
+
 ## Next step
 
-T2 on `feat/145-02-shared-select`, stacked on PR 1.
+T3 on `feat/145-03-shell-and-theme-toggle`, stacked on PR 2.

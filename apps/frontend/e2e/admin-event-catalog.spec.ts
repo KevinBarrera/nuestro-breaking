@@ -1,5 +1,8 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
 import { chooseOption, expectSelected, selectTrigger } from './support/select.ts';
+// The e2e tsconfig has no `@/` alias; this pure module has no imports, so Node can load it directly.
+// eslint-disable-next-line no-restricted-imports
+import { parseMxnToCents } from '../src/entities/event-catalog/model/money.ts';
 
 const eventId = 'a1b2c3d4-1234-4567-89ab-123456789abc';
 const venueId = 'e1b2c3d4-1234-4567-89ab-123456789abc';
@@ -848,7 +851,7 @@ test('rejects ambiguous pass prices before sending them', async ({ page }) => {
   expect(writes).toBe(0);
 });
 
-test('parses MXN prices with a dot or comma decimal separator', async ({ page }) => {
+test('parses MXN prices with a dot or comma decimal separator', () => {
   const inputs = [
     '1500',
     ' 1500.5 ',
@@ -865,15 +868,8 @@ test('parses MXN prices with a dot or comma decimal separator', async ({ page })
     ',50',
     '',
   ];
-  await page.goto('/');
-  // No unit runner exists, so the pure parser is loaded from the Vite dev server in the page.
-  const parsed = await page.evaluate(async (values) => {
-    const modulePath = '/src/entities/event-catalog/model/money.ts';
-    const money = (await import(/* @vite-ignore */ modulePath)) as {
-      parseMxnToCents: (value: string) => number | null;
-    };
-    return values.map((value) => money.parseMxnToCents(value));
-  }, inputs);
+  // No unit runner exists; the parser is pure, so Playwright runs it directly in Node.
+  const parsed = inputs.map((value) => parseMxnToCents(value));
   expect(Object.fromEntries(inputs.map((input, index) => [input, parsed[index]]))).toEqual({
     '1500': 150000,
     ' 1500.5 ': 150050,

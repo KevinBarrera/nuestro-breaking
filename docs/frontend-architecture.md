@@ -23,6 +23,8 @@ pnpm --filter @nuestro-breaking/frontend test:e2e
 
 Playwright specs in `apps/frontend/e2e` are typechecked: `tsconfig.node.json` includes `e2e` and `playwright.config.ts`, so `build` (`tsc -b`) fails on type errors in specs and ESLint lints them with type information. Specs mock the API with `page.route`; `e2e/support/` holds shared mocks for sweeps across every admin screen.
 
+CI runs the mocked suite inside the official `mcr.microsoft.com/playwright:v<version>-noble` image, which ships the browsers, split into two shards (`test:e2e --shard=<n>/2`) behind the aggregated `frontend / playwright` check. The shards set `NB_E2E_PREVIEW=1`, so Playwright serves a production build (`vite build` + `vite preview`) instead of the on-demand dev server; import pure modules directly in the Node test instead of loading `/src/...` in the browser. The one dev-server-only assertion (session store cleared on sign-out) runs again without preview in shard 1. The live check-in job stays on the host runner because its backend starts PostgreSQL with Testcontainers, which needs the host Docker daemon. The image tag in `.github/workflows/pr-checks.yml` must match the exact `@playwright/test` version in `pnpm-lock.yaml`; bump both together.
+
 ## FSD Layers
 
 - `app/` contains application bootstrap, global styles, providers, and router wiring.

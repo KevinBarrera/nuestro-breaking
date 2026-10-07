@@ -161,15 +161,20 @@ test('signs out an admin using the session CSRF header and clears local identity
   await expect(page.locator('html')).toHaveAttribute('data-sign-out-credentials', 'include');
   expect(sessionRequests).toBeGreaterThanOrEqual(2);
   expect(signOutRequests).toBe(1);
-  expect(
-    await page.evaluate(async () => {
-      // A runtime path served by Vite in the browser, not resolvable by the Node typecheck.
-      const source = '/src/entities/session/model/session-store.ts';
-      const module: unknown = await import(source);
-      const store = module as { useSessionStore: { getState: () => { session: unknown } } };
-      return store.useSessionStore.getState().session;
-    }),
-  ).toEqual({ user: null });
+  // The in-memory store is only reachable as a source module on the Vite dev server.
+  // CI shards serve a production build (NB_E2E_PREVIEW=1), so shard 1 re-runs this test
+  // against the dev server (see .github/workflows/pr-checks.yml).
+  if (process.env.NB_E2E_PREVIEW !== '1') {
+    expect(
+      await page.evaluate(async () => {
+        // A runtime path served by Vite in the browser, not resolvable by the Node typecheck.
+        const source = '/src/entities/session/model/session-store.ts';
+        const module: unknown = await import(source);
+        const store = module as { useSessionStore: { getState: () => { session: unknown } } };
+        return store.useSessionStore.getState().session;
+      }),
+    ).toEqual({ user: null });
+  }
 });
 
 test('does not sign out without a session CSRF header', async ({ page }) => {

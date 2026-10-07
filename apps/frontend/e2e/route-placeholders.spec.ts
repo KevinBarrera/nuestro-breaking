@@ -3,6 +3,7 @@ import { expect, test } from '@playwright/test';
 const sessionEndpoint = (url: URL) => url.port === '3000' && url.pathname === '/auth/session';
 const signInEndpoint = (url: URL) => url.port === '3000' && url.pathname === '/auth/admin/sign-in';
 const signOutEndpoint = (url: URL) => url.port === '3000' && url.pathname === '/auth/sign-out';
+const adminEventsEndpoint = (url: URL) => url.port === '3000' && url.pathname === '/admin/events';
 const user = { id: 'admin-1', email: 'admin@example.com', displayName: 'Admin', roles: ['admin'] };
 
 test('guards admin content when the backend session is missing', async ({ page }) => {
@@ -224,8 +225,18 @@ test('keeps the planning label distinct from live data on a narrow keyboard-acce
 }) => {
   await page.setViewportSize({ width: 375, height: 800 });
   await page.route(sessionEndpoint, (route) => route.fulfill({ json: { user } }));
+  // Even with a manageable event loaded, /admin has no event in the URL, so no selector.
+  let eventsRequested = false;
+  await page.route(adminEventsEndpoint, (route) => {
+    eventsRequested = true;
+    return route.fulfill({
+      json: [{ id: 'a1b2c3d4-1234-4567-89ab-123456789abc', name: 'Encuentro del barrio' }],
+    });
+  });
   await page.goto('/admin');
   const header = page.getByRole('banner', { name: 'Espacio de administración' });
+  await expect.poll(() => eventsRequested).toBe(true);
+  await expect(header.getByRole('combobox', { name: 'Evento' })).toHaveCount(0);
   const home = page
     .getByRole('navigation', { name: 'Navegación administrativa' })
     .getByRole('link', { name: 'Resumen' });

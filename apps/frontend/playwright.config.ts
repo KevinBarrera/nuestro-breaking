@@ -26,7 +26,16 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      use: {
+        ...devices['Desktop Chrome'],
+        // Keeps every spec offline-deterministic: font hosts fail DNS instantly instead of
+        // reaching the network. Fonts load non-blocking, so pages render with fallbacks.
+        launchOptions: {
+          args: [
+            '--host-resolver-rules=MAP fonts.googleapis.com ~NOTFOUND, MAP fonts.gstatic.com ~NOTFOUND',
+          ],
+        },
+      },
     },
   ],
   webServer: {

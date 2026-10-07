@@ -43,7 +43,7 @@ Route per task: delegated writer (2+ non-trivial files each). Test-first: Postgr
 - [x] T4 Entitlements: assign passes to a registration and change competition selections (admin, audited); rules: add-on requires its pass class, selections must be `selectable` activities of that pass, general entry grants no activity; read model registration → accessible activities.
 - [x] T5 Admin frontend: activities and pass types screens (list, create, edit, archive, link activities) with Playwright coverage.
 - [x] T6 Local-only seed for the November event (venue, activities, pass types) following `scripts/provision-local-admin.ts` guards.
-- [ ] T7 Docs: catalog contract, update event/activity boundary contract, and replace F1–F4 with #124–#127 in the delivery slices matrix.
+- [x] T7 Docs: catalog contract, update event/activity boundary contract, and replace F1–F4 with #124–#127 in the delivery slices matrix.
 - [ ] T8 UI hardening from T5 review findings: make the judge test exercise the catalog routes; handle the venue-missing activity form state; keep the success message when the post-write reload fails; add Playwright cases for pass type edit and archive; parse money entered with a comma decimal separator; keep seconds when editing activity times.
 
 ## Constraints
@@ -74,14 +74,15 @@ Route per task: delegated writer (2+ non-trivial files each). Test-first: Postgr
 - Strategy: `ask-on-risk`; chain strategy `stacked-to-main` targeting `dev` (user, 2026-10-06).
 - Slices: one PR per task, branches `feat/124-NN-<slug>`, each targets `dev` after its parent merges (retarget/rebase so only the current slice shows).
 
-| Slice | Branch                                  | PR   | Commits                                                   |
-| ----- | --------------------------------------- | ---- | --------------------------------------------------------- |
-| T1    | `feat/124-01-catalog-schema`            | #128 | `feat(catalog): add event catalog schema and migration`   |
-| T2    | `feat/124-02-activity-admin-api`        | #129 | `feat(catalog): add admin activity catalog API`           |
-| T3    | `feat/124-03-pass-type-admin-api`       | #130 | `feat(catalog): add admin pass type catalog API`          |
-| T4    | `feat/124-04-registration-entitlements` | #131 | `feat(catalog): add admin registration entitlements`      |
-| T5    | `feat/124-05-admin-catalog-screens`     | #132 | `feat(catalog): add admin activity and pass type screens` |
-| T6    | `feat/124-06-november-catalog-seed`     | —    | `feat(catalog): add local November catalog seed`          |
+| Slice | Branch                                  | PR   | Commits                                                           |
+| ----- | --------------------------------------- | ---- | ----------------------------------------------------------------- |
+| T1    | `feat/124-01-catalog-schema`            | #128 | `feat(catalog): add event catalog schema and migration`           |
+| T2    | `feat/124-02-activity-admin-api`        | #129 | `feat(catalog): add admin activity catalog API`                   |
+| T3    | `feat/124-03-pass-type-admin-api`       | #130 | `feat(catalog): add admin pass type catalog API`                  |
+| T4    | `feat/124-04-registration-entitlements` | #131 | `feat(catalog): add admin registration entitlements`              |
+| T5    | `feat/124-05-admin-catalog-screens`     | #132 | `feat(catalog): add admin activity and pass type screens`         |
+| T6    | `feat/124-06-november-catalog-seed`     | #133 | `feat(catalog): add local November catalog seed`                  |
+| T7    | `docs/124-07-event-catalog-docs`        | —    | `docs(catalog): document event catalog contract and slice status` |
 
 ## Progress
 
@@ -108,8 +109,10 @@ Route per task: delegated writer (2+ non-trivial files each). Test-first: Postgr
 - T5 outcome: PR #132 opened; native review approved. Findings pending, tracked as T8: the judge test may not exercise the catalog routes, the venue-missing form state, a reload failure hides the success message, untested pass type edit and archive, comma money parsing, seconds truncated on edit.
 - T6 (delegated writer): `apps/backend/src/events/catalog-seed/` (`november-catalog.ts` data definition, `local-seed-guard.ts`, `seed-november-catalog.ts`, `index.ts`), thin CLI `apps/backend/scripts/seed-november-catalog.ts`, npm script `catalog:seed:november` (ts-node plus `register-tsconfig-paths.cjs`, like `admin:provision`). Usage: `LOCAL_CATALOG_SEED=I_UNDERSTAND_THIS_IS_LOCAL_ONLY pnpm --filter @nuestro-breaking/backend catalog:seed:november --confirm-local-only=seed-november-catalog` (no `--` separator: pnpm forwards it literally and the strict flag parser rejects it). Test-first: `test/november-catalog-seed.e2e-spec.ts` RED 14/15 failing against a stub module (the guard accept case passed trivially), GREEN 15/15. Lint, build, unit tests (35) pass; full e2e 117/117 (15 suites); `pnpm format:check` clean. CLI smoke test against a throwaway Postgres container: first run created 1 organization, venue, event, event venue, 15 activities, 6 pass types, 15 links; second run created 0. Refusals print only the safe guard message. Route: delegated writer (trigger: 2+ non-trivial files).
 - T6 design: one transaction under `pg_advisory_xact_lock` so concurrent runs cannot duplicate. Natural keys are names compared case-insensitively after trim: organization `Nuestro Breaking`, venue `Estudio principal` and event `Nuestro Breaking Noviembre 2026` within the organization, activities and pass types within the event, in any status, so admin archives are not undone. Existing records are never updated (an admin-edited price survives re-runs, covered by e2e); access links are only written for pass types created in that run and skip archived activities, so an admin-edited access list is never rewritten. Activities use kind `competition` (eligible for check-in, `check-in.service.ts` and migration `0010`); no workshops. Sample dates 21–22 November 2026, `America/Mexico_City`, one hour per competition, Open Styles after all full-pass competitions; marked in code as pending organizer confirmation. No `event_catalog_audit` rows: that table requires a real admin user and auth session (non-null FKs), and seed data is local bootstrap data, not an admin operation; fabricating an actor or session would make the audit trail lie. The guard duplicates the environment checks of `identity-access/local-admin-provisioning.ts` because that file was outside the allowed edit surface.
+- T6 outcome: PR #133 opened; native review approved. Findings pending later handling: seed CLI untested, URI decode outside the try block, natural-key normalization untested, unordered pass type lookup, archived-skip on create untested.
+- T7 (delegated writer): new `docs/contracts/event-catalog.md` (data model, every admin endpoint with auth and 400/401/403/404/409 errors, rules, audit semantics, UI, local seed, known gaps), verified against controllers, services and migrations `0011`/`0012`. Minimal updates to `event-activity-api-boundary.md` (no longer the only event/activity API; price lives on pass types; foundation lists archived activities without status) and `event-activity-foundation.md` (update callout; general entry and price questions marked resolved by #124; #60 readback kept as history). `november-2026-mvp-delivery-slices.md`: F1–F4 replaced by #124–#127 with GitHub titles; Slice 1 marked delivered via PRs #128–#133 plus this docs PR; other slices untouched. Contradiction found while verifying: auth failures for judges and other-event admins return 401 (not 403); 403 is only for origin/CSRF failures. Passive docs: no RED/GREEN; structural checks only. Route: delegated writer (trigger: 4 files, preparation reading).
 - T6 open: the local-only guard is duplicated from local admin provisioning (extract a shared guard later); if an admin narrows the event window, a re-run that must create a missing activity outside it fails as a whole (generic CLI error, nothing written).
 
 ## Next step
 
-T7 docs (catalog contract, boundary contract, delivery slices matrix), then T8 UI hardening.
+T8 UI hardening; then close #124.

@@ -1,6 +1,6 @@
 # November 2026 MVP delivery slices
 
-> **Status:** Proposed planning document; not a contract and not a record of delivered work.\
+> **Status:** Proposed planning document; not a contract. Exception: Slice 1 is delivered (#124, see its delivery status).\
 > **Date:** 2026-10-06\
 > **Sources:** [November 2026 MVP proposal](november-2026-mvp-proposal.md) (organizer-facing, Spanish) and the [contracts](../contracts/) it depends on.
 
@@ -25,7 +25,7 @@ Source shorthand:
 
 | #   | Slice                                          | Main gap today                                                                           | Suggested order                      |
 | --- | ---------------------------------------------- | ---------------------------------------------------------------------------------------- | ------------------------------------ |
-| 1   | Pass entitlements and optional activities      | No pass, price, or entitlement model; activities are neutral rows.                       | 1st                                  |
+| 1   | Pass entitlements and optional activities      | Delivered via #124; see the [event catalog contract](../contracts/event-catalog.md).     | 1st                                  |
 | 2   | Manual registration, duplicates, cash receipt  | Duplicates are hard-blocked; receipt is optional; fields differ from #58.                | 2nd (parallel with 1 where possible) |
 | 3   | One-action check-in with on-arrival enrollment | Two visible actions; activity check-in needs prior event fact and prior enrollment.      | 3rd                                  |
 | 4   | Paper lists and paper contingency              | No list or print view exists; contingency is a runbook only.                             | 4th (can start after 1)              |
@@ -36,6 +36,8 @@ Source shorthand:
 ## Slice 1 — Entitlements for multiple full passes and optional activities
 
 **Goal:** model what a person bought (passes) separately from what they chose to take part in (competitions, workshops), so access checks and lists can be derived from entitlements.
+
+> **Delivery status:** delivered through #124 "Model event catalog: admin-managed activities and pass entitlements", PRs #128–#133 plus the documentation PR for its contract. The delivered behavior is the [event catalog contract](../contracts/event-catalog.md). Discipline eligibility is data, not code: a pass type grants its discipline's workshops through `included` access and its competitions through `selectable` access. The "Delivered", "Proposed design" and "Gap" sections below are the pre-#124 planning record. UI hardening (T8) and check-in use of entitlements (#126) remain open.
 
 ### Confirmed decisions
 
@@ -75,7 +77,7 @@ New persistence and validation for passes, discipline-to-activity mapping, and t
 - Selection deadline date and owner (P §1; Q 1 open).
 - Workshop list, dates, times and venues (P §1; Q 1 open).
 - How the equal-price discipline swap works for a holder of several full passes (P "Correcciones acotadas").
-- Whether general entry is an activity-like row or a separate concept (`docs/contracts/event-activity-foundation.md`, deferred).
+- ~~Whether general entry is an activity-like row or a separate concept.~~ Resolved by #124: a `general` pass type with no activity access.
 
 ### Dependencies
 
@@ -376,34 +378,36 @@ These are documentation follow-ups, not code claims:
 
 ## Issue matrix
 
-Read-only GitHub review of `KevinBarrera/nuestro-breaking` on 2026-10-06. No issue was modified. Closed issues keep their delivered history; changes to delivered behavior become new follow-ups. Follow-up IDs (F1–F4) are proposals, not created issues.
+Read-only GitHub review of `KevinBarrera/nuestro-breaking` on 2026-10-06. No issue was modified. Closed issues keep their delivered history; changes to delivered behavior become new follow-ups. The proposed follow-ups were later created as #124–#127; references below use those numbers.
 
 ### Existing issues
 
-| Issue                                                              | Remote state (2026-10-06) | Slice | Proposed action                                                                                                                                                                                                                                                                      |
-| ------------------------------------------------------------------ | ------------------------- | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| #57 Track November 2026 MVP delivery plan                          | Open epic                 | All   | Update: link this document and the follow-ups F1–F4 as tracks.                                                                                                                                                                                                                       |
-| #58 Validate organizer-facing MVP assumptions                      | Closed (completed)        | 2     | None. Decisions are recorded; field alignment goes to F2.                                                                                                                                                                                                                            |
-| #60 Define event and activity foundation                           | Closed (completed)        | 1     | None. Pass entitlements go to F1.                                                                                                                                                                                                                                                    |
-| #62 Model participant identity and event activity registration     | Closed (completed)        | 1     | None. Pass entitlements go to F1.                                                                                                                                                                                                                                                    |
-| #64 Prepare check-in operational model                             | Closed (completed)        | 3     | None. Single-action admission goes to F3.                                                                                                                                                                                                                                            |
-| #101 Define audit facts and correction policy                      | Closed (completed)        | 5     | None. Receipt-based cash correction is carried by #104 and the contract update in F4.                                                                                                                                                                                                |
-| #103 Add authorized manual registration and cash-payment recording | Closed (completed)        | 2     | None. Duplicate confirmation and mandatory receipt folio go to F2.                                                                                                                                                                                                                   |
-| #112 Add MVP event-day admin check-in screen                       | Closed (completed)        | 3     | None. One visible action and on-arrival workshop enrollment go to F3.                                                                                                                                                                                                                |
-| #65 Deliver printable attendee lists and paper fallback            | Open, `status:ready`      | 4     | Update: add lists per pass (Breaking/Popping/Locking/Dancehall, Open Styles, general), provisional cash collection with numbered receipt, provisional paper access, and post-recovery manual verification. Add dependency on F1 for pass grouping.                                   |
-| #104 Add audited, authorized correction of registration errors     | Open, `status:blocked`    | 5     | Update: replace "minimum supporting evidence" with verification against the original numbered receipt plus reason; add name/AKA identity warning with explicit confirmation; keep pending decisions (missing or disputed receipt, multi-pass swap, retention). Add dependency on F2. |
-| #105 Add admin registration operations UI                          | Open, `status:blocked`    | 2, 5  | Update: depend on F2 (backend duplicate confirmation and mandatory receipt folio) in addition to #102/#103/#104; require the receipt folio field in the cash flow. Its possible-duplicate confirmation scope already matches the design.                                             |
-| #59 Validate Mercado Pago production constraints                   | Open                      | —     | Out of scope for these slices.                                                                                                                                                                                                                                                       |
+| Issue                                                              | Remote state (2026-10-06) | Slice | Proposed action                                                                                                                                                                                                                                                                        |
+| ------------------------------------------------------------------ | ------------------------- | ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| #57 Track November 2026 MVP delivery plan                          | Open epic                 | All   | Update: link this document and the follow-ups #124–#127 as tracks.                                                                                                                                                                                                                     |
+| #58 Validate organizer-facing MVP assumptions                      | Closed (completed)        | 2     | None. Decisions are recorded; field alignment goes to #125.                                                                                                                                                                                                                            |
+| #60 Define event and activity foundation                           | Closed (completed)        | 1     | None. Pass entitlements go to #124.                                                                                                                                                                                                                                                    |
+| #62 Model participant identity and event activity registration     | Closed (completed)        | 1     | None. Pass entitlements go to #124.                                                                                                                                                                                                                                                    |
+| #64 Prepare check-in operational model                             | Closed (completed)        | 3     | None. Single-action admission goes to #126.                                                                                                                                                                                                                                            |
+| #101 Define audit facts and correction policy                      | Closed (completed)        | 5     | None. Receipt-based cash correction is carried by #104 and the contract update in #127.                                                                                                                                                                                                |
+| #103 Add authorized manual registration and cash-payment recording | Closed (completed)        | 2     | None. Duplicate confirmation and mandatory receipt folio go to #125.                                                                                                                                                                                                                   |
+| #112 Add MVP event-day admin check-in screen                       | Closed (completed)        | 3     | None. One visible action and on-arrival workshop enrollment go to #126.                                                                                                                                                                                                                |
+| #65 Deliver printable attendee lists and paper fallback            | Open, `status:ready`      | 4     | Update: add lists per pass (Breaking/Popping/Locking/Dancehall, Open Styles, general), provisional cash collection with numbered receipt, provisional paper access, and post-recovery manual verification. Add dependency on #124 for pass grouping.                                   |
+| #104 Add audited, authorized correction of registration errors     | Open, `status:blocked`    | 5     | Update: replace "minimum supporting evidence" with verification against the original numbered receipt plus reason; add name/AKA identity warning with explicit confirmation; keep pending decisions (missing or disputed receipt, multi-pass swap, retention). Add dependency on #125. |
+| #105 Add admin registration operations UI                          | Open, `status:blocked`    | 2, 5  | Update: depend on #125 (backend duplicate confirmation and mandatory receipt folio) in addition to #102/#103/#104; require the receipt folio field in the cash flow. Its possible-duplicate confirmation scope already matches the design.                                             |
+| #59 Validate Mercado Pago production constraints                   | Open                      | —     | Out of scope for these slices.                                                                                                                                                                                                                                                         |
 
-### Proposed follow-ups
+### Follow-up issues
 
-| ID  | Slice | Proposed title                                                                                                                         | Depends on                                                               |
-| --- | ----- | -------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| F1  | 1     | Model pass entitlements: multiple full passes, Open Styles add-on and per-pass competition selection                                   | #60, #62 (delivered)                                                     |
-| F2  | 2     | Replace manual-registration duplicate block with explicit admin confirmation and require cash receipt folio                            | #103 (delivered); can run alongside F1                                   |
-| F3  | 3     | Single-action activity check-in with implicit event attendance and on-arrival workshop enrollment                                      | #64, #112 (delivered), F1                                                |
-| F4  | 2–5   | Align contracts with organizer decisions (DRAFT status, general-only check-in, cash correction evidence) and refresh the proposal HTML | This document; can be folded into F2/F3/#104 instead of a separate issue |
+The proposed follow-ups F1–F4 were created on GitHub as #124–#127.
+
+| Issue | Slice | Title                                                                              | Depends on                  | Delivery status                              |
+| ----- | ----- | ---------------------------------------------------------------------------------- | --------------------------- | -------------------------------------------- |
+| #124  | 1     | Model event catalog: admin-managed activities and pass entitlements                | #60, #62 (delivered)        | Delivered via PRs #128–#133 plus its docs PR |
+| #125  | 2     | Confirm possible duplicates and require cash receipt number in manual registration | #103 (delivered)            | Open                                         |
+| #126  | 3     | Single-action activity check-in with on-arrival workshop enrollment                | #64, #112 (delivered), #124 | Open                                         |
+| #127  | 2–5   | Align MVP contracts and docs with confirmed organizer decisions                    | This document               | Open                                         |
 
 ## Next step
 
-Decide whether to apply the updates to #57, #65, #104 and #105 and create F1–F4 on GitHub. That requires a separate explicit authorization for remote writes. Delivered work (#58, #60, #62, #64, #101, #103, #112) stays as recorded.
+Decide whether to apply the updates to #57, #65, #104 and #105 on GitHub. That requires a separate explicit authorization for remote writes. Delivered work (#58, #60, #62, #64, #101, #103, #112) stays as recorded.

@@ -2,6 +2,8 @@
 
 This document defines the implemented read-only API boundary for the event/activity foundation. It does not approve the November 2026 MVP proposal.
 
+> **Update (#124):** the foundation view below stays read-only, but it is no longer the only event/activity API. Admin write endpoints for activities, pass types (with price) and registration entitlements are delivered and documented in the [event catalog contract](event-catalog.md).
+
 ## Current answer
 
 The safe API boundary is a read-only foundation view for administration:
@@ -34,7 +36,7 @@ GET /admin/events/:eventId/foundation
 | Scope      | One event foundation view. Cross-event search/list behavior is out of scope.                                                     |
 | Mutability | Read-only. No state changes, commands, idempotency keys, or version preconditions.                                               |
 
-The current backend route is implemented in `apps/backend/src/events/foundation/` and remains read-only.
+The current backend route is implemented in `apps/backend/src/events/foundation/` and remains read-only. Activity and pass type writes use the separate catalog endpoints in the [event catalog contract](event-catalog.md); the foundation view still lists archived activities and does not expose `status`.
 
 ## Implemented response shape
 
@@ -109,11 +111,12 @@ The implemented boundary distinguishes these cases without leaking unrelated eve
 
 ## Relationship to issue #60
 
-This boundary closes the read API gap from the foundation contract: the model now has a documented and implemented endpoint, with a first frontend route consuming it. Event-window containment is also implemented in migration `0003_event_window_containment`. Remaining product decisions, such as price/capacity persistence and controlled activity kinds, stay deferred to focused follow-up work rather than blocking issue #60.
+This boundary closes the read API gap from the foundation contract: the model now has a documented and implemented endpoint, with a first frontend route consuming it. Event-window containment is also implemented in migration `0003_event_window_containment`. Remaining product decisions, such as price/capacity persistence and controlled activity kinds, stay deferred to focused follow-up work rather than blocking issue #60. Since #124, price lives on pass types, not activities ([event catalog contract](event-catalog.md)); capacity and controlled activity kinds remain deferred.
 
 ## Cross-references
 
 - [Event/activity foundation contract](event-activity-foundation.md)
+- [Event catalog contract](event-catalog.md)
 - [API and event versioning contract](api-event-versioning.md)
 - [Admin authentication boundary](admin-auth-boundary.md)
 - [November 2026 MVP proposal](../product/november-2026-mvp-proposal.md) — draft pending organizer validation

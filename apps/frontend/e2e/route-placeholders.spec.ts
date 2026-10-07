@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { selectTrigger } from './support/select.ts';
 
 const sessionEndpoint = (url: URL) => url.port === '3000' && url.pathname === '/auth/session';
 const signInEndpoint = (url: URL) => url.port === '3000' && url.pathname === '/auth/admin/sign-in';
@@ -238,7 +239,7 @@ test('keeps the planning label distinct from live data on a narrow keyboard-acce
   await page.goto('/admin');
   const header = page.getByRole('banner', { name: 'Espacio de administración' });
   await expect.poll(() => eventsRequested).toBe(true);
-  await expect(header.getByRole('combobox', { name: 'Evento' })).toHaveCount(0);
+  await expect(selectTrigger(header, 'Evento')).toHaveCount(0);
   const home = page
     .getByRole('navigation', { name: 'Navegación administrativa' })
     .getByRole('link', { name: 'Resumen' });

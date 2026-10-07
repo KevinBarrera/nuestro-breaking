@@ -1,4 +1,5 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
+import { chooseOption, expectSelected, selectTrigger } from './support/select.ts';
 
 const eventId = 'a1b2c3d4-1234-4567-89ab-123456789abc';
 const venueId = 'e1b2c3d4-1234-4567-89ab-123456789abc';
@@ -192,7 +193,7 @@ test('creates an activity with CSRF and event-time instants, then refreshes the 
   const form = page.getByRole('form', { name: 'Nueva actividad' });
   await form.getByLabel('Nombre').fill('Taller de toprock');
   await form.getByLabel('Tipo').fill('workshop');
-  await form.getByLabel('Sede').selectOption(venueId);
+  await chooseOption(selectTrigger(form, 'Sede'), 'Centro cultural');
   await form.getByLabel('Inicio').fill('2026-11-14T12:00');
   await form.getByLabel('Fin').fill('2026-11-14T13:30');
   await form.getByRole('button', { name: 'Guardar' }).click();
@@ -348,12 +349,13 @@ test('creates an add-on pass type that requires a pass class', async ({ page }) 
   await page.goto(passTypesPath);
   await page.getByRole('button', { name: 'Nuevo pase' }).click();
   const form = page.getByRole('form', { name: 'Nuevo pase' });
-  await expect(form.getByLabel('Requiere pase')).toHaveCount(0);
+  await expect(selectTrigger(form, 'Requiere pase')).toHaveCount(0);
   await expect(form.getByRole('radio', { name: 'Completo' })).toBeChecked();
   await form.getByLabel('Nombre').fill('Open Styles');
   await form.getByRole('radio', { name: 'Adicional' }).check();
   await form.getByLabel('Precio (MXN)').fill('250');
-  await form.getByLabel('Requiere pase').selectOption('full');
+  await expectSelected(selectTrigger(form, 'Requiere pase'), 'Ninguno');
+  await chooseOption(selectTrigger(form, 'Requiere pase'), 'Completo');
   await form.getByRole('button', { name: 'Guardar' }).click();
   await expect(page.getByRole('status')).toContainText('Pase creado');
   await expect(
@@ -392,9 +394,9 @@ test('saves activity access for a pass type with its expected version', async ({
     .getByRole('button', { name: 'Editar', exact: true })
     .click();
   const editor = page.getByRole('region', { name: 'Mapa de acceso' });
-  await expect(editor.getByLabel('Pase completo · Batalla de crews')).toHaveValue('selectable');
-  await editor.getByLabel('Pase completo · Batalla de crews').selectOption('none');
-  await editor.getByLabel('Pase completo · Taller de footwork').selectOption('selectable');
+  await expectSelected(selectTrigger(editor, 'Pase completo · Batalla de crews'), 'Elegible');
+  await chooseOption(selectTrigger(editor, 'Pase completo · Batalla de crews'), 'Sin acceso');
+  await chooseOption(selectTrigger(editor, 'Pase completo · Taller de footwork'), 'Elegible');
   await editor.getByRole('button', { name: 'Guardar acceso' }).click();
   await expect(page.getByRole('status')).toContainText('Acceso actualizado');
   expect(body).toEqual({
@@ -458,7 +460,7 @@ test('an event without venues explains why activities cannot be saved', async ({
   const form = page.getByRole('form', { name: 'Nueva actividad' });
   await expect(form.getByText('El evento aún no tiene sedes')).toBeVisible();
   await expect(form.getByRole('button', { name: 'Guardar' })).toBeDisabled();
-  await expect(form.getByLabel('Sede')).toBeDisabled();
+  await expect(selectTrigger(form, 'Sede')).toBeDisabled();
   expect(writes).toBe(0);
 });
 
@@ -628,8 +630,8 @@ test('a reload while the pass panel is open refreshes its values with the new ve
   await card('Pase completo').getByRole('button', { name: 'Editar', exact: true }).click();
   await expect(form).toContainText('v2');
   const access = page.getByRole('region', { name: 'Mapa de acceso' });
-  await expect(access.getByLabel('Pase completo · Batalla de crews')).toHaveValue('selectable');
-  await access.getByLabel('Pase completo · Batalla de crews').selectOption('included');
+  await expectSelected(selectTrigger(access, 'Pase completo · Batalla de crews'), 'Elegible');
+  await chooseOption(selectTrigger(access, 'Pase completo · Batalla de crews'), 'Incluida');
   // Another writer changed the pass meanwhile; the retried reload brings version 5.
   rows = [
     {
@@ -647,7 +649,10 @@ test('a reload while the pass panel is open refreshes its values with the new ve
   await expect(form).toContainText('v5');
   await expect(form.getByLabel('Nombre')).toHaveValue('Pase completo plus');
   await expect(form.getByLabel('Precio (MXN)')).toHaveValue('1600.00');
-  await expect(access.getByLabel('Pase completo plus · Batalla de crews')).toHaveValue('none');
+  await expectSelected(
+    selectTrigger(access, 'Pase completo plus · Batalla de crews'),
+    'Sin acceso',
+  );
   await form.getByRole('button', { name: 'Guardar cambios' }).click();
   await expect(page.getByRole('status')).toContainText('Pase actualizado');
   expect(body).toEqual({

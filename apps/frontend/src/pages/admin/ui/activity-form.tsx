@@ -5,6 +5,7 @@ import {
   type CatalogActivity,
   type CatalogVenue,
 } from '@/entities/event-catalog';
+import { Select } from '@/shared/ui';
 import { type FormEvent, useId, useState } from 'react';
 import { styles } from './catalog-copy';
 
@@ -106,22 +107,15 @@ export function ActivityForm({
             ))}
           </datalist>
         </label>
-        <label className={`${styles.label} sm:col-span-2 lg:col-span-1`}>
-          Sede
-          <select
-            className={styles.field}
-            value={venueId}
-            required
-            disabled={noVenues}
-            onChange={(event) => setVenueId(event.target.value)}
-          >
-            {venues.map((venue) => (
-              <option key={venue.id} value={venue.id}>
-                {venue.name}
-              </option>
-            ))}
-          </select>
-        </label>
+        <Select
+          label="Sede"
+          className="sm:col-span-2 lg:col-span-1"
+          options={venues.map((venue) => ({ id: venue.id, label: venue.name }))}
+          selectedKey={venueId}
+          isDisabled={noVenues}
+          placeholder="Sin sedes"
+          onSelectionChange={setVenueId}
+        />
         <label className={styles.label}>
           Inicio
           <input

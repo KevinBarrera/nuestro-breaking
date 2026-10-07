@@ -4,6 +4,7 @@ import type {
   CatalogPassType,
   PassTypeActivity,
 } from '@/entities/event-catalog';
+import { Select } from '@/shared/ui';
 import { useId, useState } from 'react';
 import { accessLabels, activityKindLabel, styles } from './catalog-copy';
 
@@ -27,6 +28,12 @@ const chipTone: Record<Choice, string> = {
   included: 'border-included bg-included text-included-fg',
   none: 'border-input-line bg-input text-fg',
 };
+
+const accessOptions = [
+  { id: 'none', label: 'Sin acceso' },
+  { id: 'selectable', label: accessLabels.selectable },
+  { id: 'included', label: accessLabels.included },
+];
 
 const rowLabel = (activity: CatalogActivity) =>
   `${activityKindLabel(activity.kind)} · ${activity.name}`;
@@ -155,22 +162,18 @@ export function PassAccessMap({
                   {passes.map((passType) =>
                     passType.id === selected?.id ? (
                       <td key={passType.id} className="bg-chip px-3 py-1">
-                        <select
-                          aria-label={`${passType.name} · ${activity.name}`}
-                          value={choiceOf(activity.id)}
-                          disabled={busy}
-                          onChange={(event) =>
-                            setDraft((current) => ({
-                              ...current,
-                              [activity.id]: event.target.value as Choice,
-                            }))
+                        <Select
+                          label={`${passType.name} · ${activity.name}`}
+                          hideLabel
+                          variant="chip"
+                          triggerClassName={chipTone[choiceOf(activity.id)]}
+                          options={accessOptions}
+                          selectedKey={choiceOf(activity.id)}
+                          isDisabled={busy}
+                          onSelectionChange={(key) =>
+                            setDraft((current) => ({ ...current, [activity.id]: key as Choice }))
                           }
-                          className={`${chip} ${chipTone[choiceOf(activity.id)]} min-h-11 cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus disabled:cursor-wait`}
-                        >
-                          <option value="none">Sin acceso</option>
-                          <option value="selectable">{accessLabels.selectable}</option>
-                          <option value="included">{accessLabels.included}</option>
-                        </select>
+                        />
                       </td>
                     ) : (
                       <td key={passType.id} className="px-3 py-2">

@@ -1,4 +1,5 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
+import { expectSelected, selectTrigger } from './support/select.ts';
 
 const firstId = 'a1b2c3d4-1234-4567-89ab-123456789abc';
 const secondId = 'b1b2c3d4-1234-4567-89ab-123456789abc';
@@ -68,10 +69,13 @@ test('links event sections, marks the active one and switches events in place', 
   );
   await expect(nav.getByRole('link', { name: 'Resumen' })).not.toHaveAttribute('aria-current');
 
-  const selector = page.getByRole('combobox', { name: 'Evento' });
-  await expect(selector.getByRole('option')).toHaveText(events.map((event) => event.name));
-  await expect(selector).toHaveValue(firstId);
-  await selector.selectOption(secondId);
+  const selector = selectTrigger(page, 'Evento');
+  await expectSelected(selector, events[0].name);
+  await selector.click();
+  await expect(page.getByRole('listbox').getByRole('option')).toHaveText(
+    events.map((event) => event.name),
+  );
+  await page.getByRole('option', { name: events[1].name }).click();
   await expect(page).toHaveURL(new RegExp(`/admin/events/${secondId}/activities$`));
   await expect(activities).toHaveAttribute('href', `/admin/events/${secondId}/activities`);
 });
@@ -79,7 +83,7 @@ test('links event sections, marks the active one and switches events in place', 
 test('hides the event selector when no event is selected', async ({ page }) => {
   await page.goto('/admin');
   await expect(sideNav(page)).toBeVisible();
-  await expect(page.getByRole('combobox', { name: 'Evento' })).toHaveCount(0);
+  await expect(selectTrigger(page, 'Evento')).toHaveCount(0);
 });
 
 const selectorGuardCases: {
@@ -120,7 +124,7 @@ for (const { name, respond } of selectorGuardCases) {
       'aria-current',
       'page',
     );
-    await expect(page.getByRole('combobox', { name: 'Evento' })).toHaveCount(0);
+    await expect(selectTrigger(page, 'Evento')).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Cerrar sesión' })).toBeVisible();
   });
 }

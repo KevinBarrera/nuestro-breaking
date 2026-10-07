@@ -63,6 +63,15 @@ The admin UI has a light and a dark theme built on CSS custom properties in `src
 - **No flash.** An inline script in `index.html` sets `data-theme` on `<html>` before first paint; keep its key in sync with `theme.ts`.
 - **Fonts.** Archivo (UI) and IBM Plex Mono (prices, times, folios: `font-mono`) load from Google Fonts through a non-blocking `rel="preload"` that swaps to a stylesheet on load, with a `<noscript>` fallback. `--font-sans` and `--font-mono` end in system fonts, so the UI stays usable when the font host fails. Playwright blocks the font hosts by DNS so specs stay offline.
 
+## Shared Select
+
+`@/shared/ui` exports `Select`, built on React Aria Components (`react-aria-components`, the only third-party UI dependency). Admin screens use it instead of native `<select>` elements so the trigger and the open listbox follow the theme tokens.
+
+- **API.** `label`, `options` (`{ id, label, isDisabled? }`), `selectedKey`, `onSelectionChange(key)`, optional `name`, `isDisabled`, `placeholder`, `hideLabel` (screen-reader-only label), `variant` (`field` for forms, `header` for the topbar, `chip` for table cells) and `triggerClassName` (for example a chip tone). Keys are non-empty strings; map an empty value such as "Ninguno" to an explicit key. Re-choosing the current option does not call `onSelectionChange`.
+- **Accessibility.** The trigger is a `button` with `aria-haspopup="listbox"` whose name is the selected value followed by the label (for example "Encuentro del barrio Evento"). Enter, Space or the arrow keys open the listbox with focus on the selected option, which is marked `aria-selected` and shows a check icon. Options are at least 44px tall.
+- **Hidden native select.** React Aria renders an `aria-hidden`, untabbable native `<select>` beside the trigger for autofill and `FormData`; specs ignore it (`e2e/support/select.ts`) and must not interact with it.
+- **Specs.** Use `selectTrigger`, `chooseOption` and `expectSelected` from `e2e/support/select.ts`; the listbox renders in a popover at the end of `<body>`, outside the trigger's form or region.
+
 ## Admin Shell
 
 `@/widgets/admin-shell` (`AdminShell`) wraps every protected `/admin` page through `AdminSessionBoundary`. It renders the header (brand, event selector from `GET /admin/events`, theme toggle, sign-out), the brand bar, and the full-height side navigation with Operación and Catálogo groups. Screens without a backend (Inscripciones, Listas de respaldo) are shown disabled with "Próximamente". Below the `md` breakpoint the navigation stacks above the page content. Pages render only their own `<main>`.

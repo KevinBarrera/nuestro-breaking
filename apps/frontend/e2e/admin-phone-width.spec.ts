@@ -6,6 +6,7 @@ import {
   themes,
   useTheme,
 } from './support/admin-mocks.ts';
+import { selectTrigger } from './support/select.ts';
 
 const width = 375;
 
@@ -45,6 +46,33 @@ for (const theme of themes) {
         expect(table.boxed).toBe(true);
         expect(table.right).toBeLessThanOrEqual(width);
       }
+    });
+  }
+}
+
+// Open listboxes render in a popover: at 375px it stays inside the viewport in both themes.
+for (const theme of themes) {
+  for (const [screen, trigger] of [
+    [adminScreens[0], 'Evento'],
+    [adminScreens[3], 'Pase completo · Batalla de crews con nombre largo para pantallas angostas'],
+  ] as const) {
+    test(`${screen.name} open listbox for ${trigger.split(' · ')[0]} fits ${width}px in the ${theme} theme`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 800 });
+      await useTheme(page, theme);
+      await mockAdminApi(page);
+      await page.goto(screen.path);
+      await revealControls(page, screen.name);
+      await selectTrigger(page, trigger).click();
+      const listbox = page.getByRole('listbox');
+      await expect(listbox).toBeVisible();
+      const box = await listbox.boundingBox();
+      expect(box!.x).toBeGreaterThanOrEqual(0);
+      expect(box!.x + box!.width).toBeLessThanOrEqual(width);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+        width,
+      );
     });
   }
 }

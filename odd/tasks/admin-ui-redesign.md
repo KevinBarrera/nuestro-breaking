@@ -34,7 +34,7 @@ Forecast: ~1,900 authored lines over 5 PRs.
 
 ### PR 4 — `feat/136-04-admin-overview`
 
-- [ ] T4 — Resumen: quick actions (Abrir check-in active; unsupported actions disabled), catalog counts from catalog APIs, pass table in a scroll box.
+- [x] T4 — Resumen: quick actions (Abrir check-in active; unsupported actions disabled), catalog counts from catalog APIs, pass table in a scroll box.
 
 ### PR 5 — `feat/136-05-pass-access-map`
 
@@ -68,6 +68,13 @@ See issue #136. Mapped: themes/contrast/targets → T1–T3, T9; persistence →
   - R3-selector-guard-uncovered — `test(admin): cover event selector guards` (this commit). Selector stays hidden on an event route when the list lacks the current event, on 500, on entries without `name`, and on a non-JSON body.
   - Checks: lint (0 errors, 2 pre-existing warnings), build, full Playwright suite (65 passed), `pnpm format:check`, `git diff --check`.
 
+### PR 4 (route: delegated direct — one bounded writer; trigger: 2+ non-trivial files)
+
+- Tooling — `46902ba chore(frontend): typecheck e2e specs through tsconfig.node`. A ninth e2e spec exceeded typescript-eslint's 8-file `allowDefaultProject` limit; per user decision, `playwright.config.ts` and `e2e` joined `tsconfig.node.json` (`lib` gains `DOM`, `DOM.Iterable`), and `eslint.config.js` uses `projectService: true`, so `tsc -b` now typechecks specs. Minimal type fixes in `admin-check-in.spec.ts` (nullable `checkedInAt`) and `route-placeholders.spec.ts` (browser-only dynamic import path held in a variable). Verified alone: lint, build, e2e (65 passed).
+- T4 — `11fa996 feat(admin): list manageable events from the catalog client` (`listCatalogEvents` with a guard; verified alone: lint, build, e2e 65 passed) and `eb5a0d8 feat(admin): add event overview with quick actions, catalog counts and pass table`. Route `/admin/events/:eventId` is an `overview` section in `admin-location.ts`, so side-nav Resumen links there (and is `aria-current`) when an event is in the URL, falls back to `/admin` otherwise, and the event selector keeps the overview. Event name from `GET /admin/events` (failure omits it; no invented dates/venues; "Por confirmar" list omitted). Counts: active pass types plus one entry per active activity kind (known kinds labelled in Spanish, unknown kinds shown raw; zero-count kinds and the workshop note omitted). Includes column counts only active activities: "N actividad(es) a elegir", "Incluye A y B" (or "N actividades incluidas" above two), "Sin actividades", plus "Requiere pase completo/general" for add-ons. Registrar en el lugar and Imprimir listas are `aria-disabled` buttons with "Próximamente". `admin-event-foundation.spec.ts` updated: Resumen from an event route now opens that event's overview. The page commit is about 520 authored lines (spec about 230), above the advisory 400 heuristic, kept whole so route, page and tests land together.
+- RED observed: `e2e/admin-overview.spec.ts` 8/8 failed before the route existed; GREEN 8/8 after (two spec defects fixed on the way: mocks now take `eventId` from the request path, rows matched by row header).
+- Checks: lint (0 errors, 2 pre-existing warnings), build, full Playwright suite (73 passed), `pnpm format:check`, `git diff --check`.
+
 ## Next step
 
-Slices split by the chained-pr pass (one pass; each slice verified alone: build, lint, full e2e). Review: `review-c590b22230a870f6` approved and acknowledged on fdd9477..5f5e609 (medium, granted, 1 reliability lens, 3 advisory findings fixed in d7fcf86, 649337a, 3e67302 — each assessed medium/under_budget, pending in the slice from boundary 5f5e609). The hook-issued review of everything since `df49d48` was declined per standing user instruction. Open PRs 1–3 stacked to `dev`; then T4 on `feat/136-04-admin-overview` from `feat/136-03-admin-theme-pages`.
+Slices split by the chained-pr pass (one pass; each slice verified alone: build, lint, full e2e). Review: `review-c590b22230a870f6` approved and acknowledged on fdd9477..5f5e609 (medium, granted, 1 reliability lens, 3 advisory findings fixed in d7fcf86, 649337a, 3e67302 — each assessed medium/under_budget, pending in the slice from boundary 5f5e609). The hook-issued review of everything since `df49d48` was declined per standing user instruction. Open PRs 1–3 stacked to `dev`; then T4 on `feat/136-04-admin-overview` from `feat/136-03-admin-theme-pages`. T4 done on `feat/136-04-admin-overview`; next T5–T6 on `feat/136-05-pass-access-map`.

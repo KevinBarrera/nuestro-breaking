@@ -120,6 +120,16 @@ const foundation = {
   deferredFields: [],
 };
 
+// Open with both dates set, so the overview shows the status detail and both "Quitar" buttons.
+const sales = {
+  slug: 'encuentro-del-barrio-con-nombre-largo-para-pantallas-angostas',
+  salesEnabled: true,
+  salesOpensAt: '2026-10-01T15:00:00.000Z',
+  salesClosesAt: '2026-11-20T06:00:00.000Z',
+  state: 'open',
+  reason: null,
+};
+
 const registration = {
   participant: {
     id: 'person',
@@ -144,6 +154,7 @@ export async function mockAdminApi(page: Page) {
     [(url) => url.pathname.endsWith('/foundation'), foundation],
     [(url) => url.pathname.endsWith('/activities'), activities],
     [(url) => url.pathname.endsWith('/pass-types'), passTypes],
+    [(url) => url.pathname.endsWith('/sales'), sales],
     [
       (url) => url.pathname.endsWith('/participants'),
       { total: 1, limit: 20, offset: 0, results: [registration] },
@@ -180,7 +191,10 @@ export async function revealControls(page: Page, name: AdminScreenName) {
   }
   if (name === 'Pase' || name === 'Nuevo pase') await accessTriggers(page).first().waitFor();
   if (name === 'Actividades') await page.getByRole('button', { name: /^Todas/ }).waitFor();
-  if (name === 'Resumen') await page.getByRole('table', { name: 'Pases a la venta' }).waitFor();
+  if (name === 'Resumen') {
+    await page.getByRole('table', { name: 'Pases a la venta' }).waitFor();
+    await page.getByRole('button', { name: 'Quitar fecha de cierre' }).waitFor();
+  }
 }
 
 // The catalog dialogs, each opened from its screen (after `revealControls`) without writing:

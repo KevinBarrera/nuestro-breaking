@@ -148,7 +148,7 @@ for (const screen of adminScreens) {
     // Guards against a vacuous pass: the sweep must see the sampled control kinds.
     expect(tagged('a ').length).toBeGreaterThanOrEqual(4);
     expect(tagged('button ').length).toBeGreaterThanOrEqual(2);
-    // Every event screen has the topbar event select; Pases adds one per access-map cell.
+    // Every event screen has the topbar event select; Pases adds one per access-list row.
     expect(tagged('select ').length).toBeGreaterThanOrEqual(screen.name === 'Pases' ? 2 : 1);
     if (screen.name === 'Actividades')
       expect(targets.some((target) => target.name.startsWith('button Todas'))).toBe(true);
@@ -158,13 +158,13 @@ for (const screen of adminScreens) {
 
 // The open listbox renders in a popover outside the shell, so it gets its own sweep: options
 // keep 44px targets and every option text keeps 4.5:1 on its painted background, including
-// the focused and selected option, in both themes and in both the header and a table cell.
+// the focused and selected option, in both themes and in both the header and an access-list row.
 const popoverCases = [
   { name: 'topbar event selector', screen: adminScreens[0], trigger: 'Evento' },
   {
-    name: 'access map cell',
+    name: 'access list row',
     screen: adminScreens[3],
-    trigger: 'Pase completo · Taller de footwork',
+    trigger: 'Acceso a Taller de footwork',
   },
 ] as const;
 

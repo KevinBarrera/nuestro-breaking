@@ -50,6 +50,9 @@ export type PassTypeInput = {
   requiresPassClass: RequiredPassClass | null;
 };
 
+// Creating a pass may also set its access in the same POST; later changes use the PUT.
+export type NewPassTypeInput = PassTypeInput & { activities?: PassTypeActivity[] };
+
 export type CatalogVenue = { id: string; name: string };
 
 // An event the signed-in account may administer, as listed by `GET /admin/events`.

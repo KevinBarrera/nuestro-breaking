@@ -1,6 +1,7 @@
 import type {
   CatalogActivity,
   CatalogPassType,
+  NewPassTypeInput,
   PassTypeActivity,
   PassTypeInput,
 } from '@/entities/event-catalog';
@@ -22,9 +23,9 @@ export type PassesContext = {
   notices: ReactNode;
   // The pass whose access save hit a version conflict, if any.
   accessConflictFor: string | null;
-  // Bumped by the conflict reload so the access map discards local edits.
+  // Bumped by the conflict reload so the access editor discards local edits.
   accessReset: number;
-  create: (input: PassTypeInput) => void;
+  create: (input: NewPassTypeInput) => void;
   update: (passType: CatalogPassType, input: PassTypeInput) => void;
   archive: (passType: CatalogPassType) => void;
   saveAccess: (passType: CatalogPassType, activities: PassTypeActivity[]) => void;

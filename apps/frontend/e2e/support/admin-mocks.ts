@@ -144,7 +144,7 @@ export async function revealControls(page: Page, name: (typeof adminScreens)[num
       .getByRole('link', { name: /^Editar / })
       .click();
     await page
-      .getByRole('region', { name: 'Mapa de acceso' })
+      .getByRole('region', { name: 'Acceso a actividades' })
       .locator('button[aria-haspopup="listbox"]')
       .first()
       .waitFor();

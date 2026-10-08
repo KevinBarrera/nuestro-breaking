@@ -110,7 +110,7 @@ test('a pass card opens its detail route and the breadcrumb leads back to the li
   await expect(page.getByRole('form', { name: 'Editar pase' }).getByLabel('Nombre')).toHaveValue(
     'Pase completo',
   );
-  await expect(page.getByRole('region', { name: 'Mapa de acceso' })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Acceso a actividades' })).toBeVisible();
   await expectPasesHighlighted(page);
 
   const trail = breadcrumb(page);

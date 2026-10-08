@@ -58,6 +58,53 @@ describe('participant registration persistence (e2e)', () => {
     });
   });
 
+  it('stores the optional #58 profile and rejects blank, oversized or half-split values', async () => {
+    const [legacy] = await client<{ firstName: string | null; birthDate: string | null }[]>`
+      INSERT INTO participants (full_name, phone) VALUES ('Admin Name', '5512345678')
+      RETURNING first_name AS "firstName", birth_date::text AS "birthDate"`;
+    expect(legacy).toEqual({ firstName: null, birthDate: null });
+    const [profile] = await client`
+      INSERT INTO participants (full_name, email, phone, stage_name, first_name, first_last_name,
+        second_last_name, city, instagram, level, birth_date)
+      VALUES ('Ana López García', 'ana@example.com', '5512345678', 'Ani', 'Ana', 'López', 'García',
+        'Puebla', 'ani.breaks', 'Intermedio', '2001-05-09')
+      RETURNING first_name, first_last_name, second_last_name, city, instagram, level,
+        birth_date::text AS birth_date`;
+    expect(profile).toEqual({
+      first_name: 'Ana',
+      first_last_name: 'López',
+      second_last_name: 'García',
+      city: 'Puebla',
+      instagram: 'ani.breaks',
+      level: 'Intermedio',
+      birth_date: '2001-05-09',
+    });
+    const invalid: [string, string, string][] = [
+      ['first_name', 'participants_first_name_ck', ' '],
+      ['second_last_name', 'participants_second_last_name_ck', ''],
+      ['city', 'participants_city_ck', 'x'.repeat(101)],
+      ['instagram', 'participants_instagram_ck', '  '],
+      ['level', 'participants_level_ck', 'x'.repeat(51)],
+      ['birth_date', 'participants_birth_date_ck', '1899-12-31'],
+    ];
+    for (const [column, constraint, value] of invalid) {
+      const pair = column === 'first_name' ? ', first_last_name' : '';
+      const pairValue = column === 'first_name' ? ", 'López'" : '';
+      await expect(
+        client.unsafe(
+          `INSERT INTO participants (full_name, ${column}${pair}) VALUES ('Name', $1${pairValue})`,
+          [value],
+        ),
+      ).rejects.toMatchObject({ code: '23514', constraint_name: constraint });
+    }
+    await expect(
+      client`INSERT INTO participants (full_name, first_name) VALUES ('Ana', 'Ana')`,
+    ).rejects.toMatchObject({ code: '23514', constraint_name: 'participants_name_parts_ck' });
+    await expect(
+      client`INSERT INTO participants (full_name, first_last_name) VALUES ('López', 'López')`,
+    ).rejects.toMatchObject({ code: '23514', constraint_name: 'participants_name_parts_ck' });
+  });
+
   it('registers a person once per event, with nullable event-scoped folios', async () => {
     const [{ organizationId }] = await client<{ organizationId: string }[]>`
       INSERT INTO organizations (name) VALUES ('Registration org') RETURNING id AS "organizationId"

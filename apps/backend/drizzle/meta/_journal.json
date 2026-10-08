@@ -113,6 +113,13 @@
       "when": 1786562775602,
       "tag": "0015_participant_profile",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1786562775603,
+      "tag": "0016_non_admin_audit_actor",
+      "breakpoints": true
     }
   ]
 }

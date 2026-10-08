@@ -175,6 +175,7 @@ describe('admin registration commands (e2e)', () => {
     const [fact] = await client<
       {
         operation_type: string;
+        actor_kind: string;
         actor_user_id: string;
         session_id: string;
         affected_activity_ids: string[];
@@ -182,9 +183,10 @@ describe('admin registration commands (e2e)', () => {
         after_state: { status: string };
       }[]
     >`
-      SELECT operation_type, actor_user_id, session_id, affected_activity_ids, before_state, after_state FROM registration_operation_audit WHERE id = ${auditId} AND event_id = ${event} AND registration_id = ${registrationId} AND participant_id = ${participantId}`;
+      SELECT operation_type, actor_kind, actor_user_id, session_id, affected_activity_ids, before_state, after_state FROM registration_operation_audit WHERE id = ${auditId} AND event_id = ${event} AND registration_id = ${registrationId} AND participant_id = ${participantId}`;
     expect(fact).toMatchObject({
       operation_type: 'manual_registration',
+      actor_kind: 'admin',
       actor_user_id: userId,
       session_id: sessionId,
       affected_activity_ids: [activity],

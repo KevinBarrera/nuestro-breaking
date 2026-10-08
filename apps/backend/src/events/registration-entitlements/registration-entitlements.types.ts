@@ -15,5 +15,3 @@ export type RegistrationEntitlements = {
   passes: HeldPass[];
   accessibleActivityIds: string[];
 };
-
-export type EntitlementActor = { userId: string; sessionId: string };

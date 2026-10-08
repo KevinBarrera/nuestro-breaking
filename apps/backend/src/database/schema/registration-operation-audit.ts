@@ -12,12 +12,10 @@ export const registrationOperationAudit = pgTable(
     id: uuid('id').defaultRandom().primaryKey(),
     operationType: text('operation_type').notNull(),
     outcome: text('outcome').notNull().default('accepted'),
-    actorUserId: uuid('actor_user_id')
-      .notNull()
-      .references(() => users.id),
-    sessionId: uuid('session_id')
-      .notNull()
-      .references(() => authSessions.id),
+    // `admin` facts carry a user and session; `public` and `system` facts carry neither (#174 D4).
+    actorKind: text('actor_kind').notNull(),
+    actorUserId: uuid('actor_user_id').references(() => users.id),
+    sessionId: uuid('session_id').references(() => authSessions.id),
     eventId: uuid('event_id')
       .notNull()
       .references(() => events.id),
@@ -43,7 +41,15 @@ export const registrationOperationAudit = pgTable(
   (table) => [
     check(
       'registration_operation_audit_operation_type_check',
-      sql`${table.operationType} IN ('manual_registration', 'cash_confirmation', 'pass_assignment', 'pass_selection_change')`,
+      sql`${table.operationType} IN ('manual_registration', 'cash_confirmation', 'pass_assignment', 'pass_selection_change', 'online_registration', 'payment_approval')`,
+    ),
+    check(
+      'registration_operation_audit_actor_kind_check',
+      sql`${table.actorKind} IN ('admin', 'public', 'system')`,
+    ),
+    check(
+      'registration_operation_audit_actor_ck',
+      sql`CASE WHEN ${table.actorKind} = 'admin' THEN ${table.actorUserId} IS NOT NULL AND ${table.sessionId} IS NOT NULL ELSE ${table.actorUserId} IS NULL AND ${table.sessionId} IS NULL END`,
     ),
     check('registration_operation_audit_outcome_check', sql`${table.outcome} = 'accepted'`),
     check(
@@ -52,7 +58,7 @@ export const registrationOperationAudit = pgTable(
     ),
     check(
       'registration_operation_audit_amount_ck',
-      sql`(${table.operationType} = 'cash_confirmation') = (${table.amountCents} IS NOT NULL)`,
+      sql`(${table.operationType} IN ('cash_confirmation', 'payment_approval')) = (${table.amountCents} IS NOT NULL)`,
     ),
   ],
 );

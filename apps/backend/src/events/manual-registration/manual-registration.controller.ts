@@ -12,6 +12,7 @@ import type { Request, Response } from 'express';
 import { SessionAccessService } from '@/identity-access/session-access.service';
 import { normalizeEmail } from '@/events/participant-profile/participant-normalization';
 import { ManualRegistrationService } from './manual-registration.service';
+import type { AdminRegistrationAuditActor } from '@/events/registration-audit/registration-audit-actor';
 
 function required(value: unknown, max: number): string {
   if (typeof value !== 'string' || !value.trim() || value.trim().length > max)
@@ -44,7 +45,8 @@ export class ManualRegistrationController {
     @Res({ passthrough: true }) response: Response,
     @Body() body: unknown,
   ) {
-    const actor = await this.sessions.authorizeEventAdminMutation(request, response, eventId);
+    const session = await this.sessions.authorizeEventAdminMutation(request, response, eventId);
+    const actor: AdminRegistrationAuditActor = { kind: 'admin', ...session };
     const input = object(body);
     const fullName = required(input.fullName, 200);
     const phone = required(input.phone, 100);
@@ -78,7 +80,8 @@ export class ManualRegistrationController {
     @Res({ passthrough: true }) response: Response,
     @Body() body: unknown,
   ) {
-    const actor = await this.sessions.authorizeEventAdminMutation(request, response, eventId);
+    const session = await this.sessions.authorizeEventAdminMutation(request, response, eventId);
+    const actor: AdminRegistrationAuditActor = { kind: 'admin', ...session };
     const input = object(body);
     if (
       !Number.isSafeInteger(input.amount) ||

@@ -40,8 +40,7 @@ for (const theme of themes) {
           return { boxed: !!box, right: box?.getBoundingClientRect().right ?? Infinity };
         }),
       );
-      if (screen.name === 'Resumen' || screen.name === 'Pases')
-        expect(tables.length).toBeGreaterThan(0);
+      if (screen.name === 'Resumen') expect(tables.length).toBeGreaterThan(0);
       for (const table of tables) {
         expect(table.boxed).toBe(true);
         expect(table.right).toBeLessThanOrEqual(width);
@@ -52,11 +51,15 @@ for (const theme of themes) {
 
 // Open listboxes render in a popover: at 375px it stays inside the viewport in both themes.
 for (const theme of themes) {
-  for (const [screen, trigger] of [
-    [adminScreens[0], 'Evento'],
-    [adminScreens[3], 'Pase completo · Batalla de crews con nombre largo para pantallas angostas'],
+  for (const [screen, trigger, control] of [
+    [adminScreens[0], 'Evento', 'Evento'],
+    [
+      adminScreens[3],
+      'Acceso a Batalla de crews con nombre largo para pantallas angostas',
+      'access list row',
+    ],
   ] as const) {
-    test(`${screen.name} open listbox for ${trigger.split(' · ')[0]} fits ${width}px in the ${theme} theme`, async ({
+    test(`${screen.name} open listbox for ${control} fits ${width}px in the ${theme} theme`, async ({
       page,
     }) => {
       await page.setViewportSize({ width, height: 800 });

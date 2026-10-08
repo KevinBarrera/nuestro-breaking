@@ -6,7 +6,9 @@ import {
   listPassTypes,
   replacePassTypeActivities,
   updatePassType,
+  type CatalogFailure,
   type CatalogPassType,
+  type NewPassTypeInput,
   type PassTypeActivity,
   type PassTypeInput,
 } from '@/entities/event-catalog';
@@ -26,6 +28,9 @@ import { useCatalogLoad } from './use-catalog-load';
 // (create → detail, archive → list) files its notice under the destination path, and any
 // other navigation leaves the notice behind.
 type ScreenNotice = { at: string; notice: Notice };
+
+const invalidActivityText =
+  'No se pudo crear el pase: alguna actividad elegida ya no está activa en este evento. Recarga para ver las actividades actuales y revisa el acceso antes de guardar.';
 
 // Layout route for the pass list, create and detail screens: it reads the catalog once and
 // runs every write, so moving between the screens keeps the data and the notices.
@@ -55,11 +60,13 @@ function EventPasses({ eventId }: { eventId: string }) {
   const [accessReset, setAccessReset] = useState(0);
 
   // Runs one write; on success it reports at `destination` (when given, it also goes there)
-  // and refreshes the catalog. Failures stay on the screen that started the write.
+  // and refreshes the catalog. Failures stay on the screen that started the write, with the
+  // more specific `failureText` message when it gives one.
   async function run<T>(
     action: () => Promise<T>,
     success: string,
     destination?: (result: T) => string,
+    failureText?: (failure: CatalogFailure) => string | undefined,
   ) {
     if (busy) return;
     setBusy(true);
@@ -72,15 +79,18 @@ function EventPasses({ eventId }: { eventId: string }) {
       if (to) void navigate(to);
       reload();
     } catch (error) {
-      setNotice({ at: pathname, notice: { kind: 'failure', failure: catalogFailure(error) } });
+      const failure = catalogFailure(error);
+      const text = failureText?.(failure);
+      setNotice({ at: pathname, notice: { kind: 'failure', failure, ...(text && { text }) } });
     } finally {
       setBusy(false);
     }
   }
 
-  // The new pass opens on its own screen so its access can be set next. It is added in place
-  // first, so that screen finds it before the refreshed list arrives.
-  function create(input: PassTypeInput) {
+  // The new pass, with any access chosen on the create screen, opens on its own screen. It is
+  // added in place first, so that screen finds it before the refreshed list arrives. A 400 with
+  // access almost always means a chosen activity was archived meanwhile (`Invalid activity`).
+  function create(input: NewPassTypeInput) {
     void run(
       async () => {
         const created = await createPassType(eventId, input);
@@ -92,6 +102,8 @@ function EventPasses({ eventId }: { eventId: string }) {
       },
       'Pase creado.',
       (created) => passDetailPath(eventId, created.id),
+      (failure) =>
+        failure === 'invalid' && input.activities?.length ? invalidActivityText : undefined,
     );
   }
 

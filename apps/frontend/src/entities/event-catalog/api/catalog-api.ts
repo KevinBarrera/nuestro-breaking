@@ -12,6 +12,7 @@ import type {
   CatalogEventSummary,
   CatalogFailure,
   CatalogPassType,
+  NewPassTypeInput,
   PassTypeActivity,
   PassTypeInput,
 } from './types';
@@ -158,7 +159,7 @@ export async function listPassTypes(
   return ensure(rows, guard);
 }
 
-export async function createPassType(eventId: string, input: PassTypeInput) {
+export async function createPassType(eventId: string, input: NewPassTypeInput) {
   return ensure(
     await write(eventPath(eventId, '/pass-types'), 'POST', input),
     passTypeGuard(eventId),

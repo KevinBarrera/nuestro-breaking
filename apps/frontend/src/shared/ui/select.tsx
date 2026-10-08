@@ -13,7 +13,7 @@ import { CheckIcon } from './check-icon';
 
 export type SelectOption = { id: string; label: string; isDisabled?: boolean };
 
-// `field` sits in forms, `header` in the dark admin topbar, `chip` in dense table cells.
+// `field` sits in forms, `header` in the dark admin topbar, `chip` in dense list rows.
 export type SelectVariant = 'field' | 'header' | 'chip';
 
 type SelectProps = {
@@ -44,7 +44,7 @@ const roots: Record<SelectVariant, string> = {
 
 const focusRing = 'outline-none data-focus-visible:outline-2 data-focus-visible:outline-offset-2';
 
-// The chip variant is only disabled while its table saves, hence the wait cursor.
+// The chip variant is only disabled while its list saves, hence the wait cursor.
 const triggers: Record<SelectVariant, string> = {
   field: `mt-1 flex min-h-11 w-full items-center justify-between gap-2 rounded-lg border border-input-line bg-input py-2 pr-3 pl-3 text-left text-base text-fg data-focus-visible:border-focus ${focusRing} data-focus-visible:outline-focus data-disabled:cursor-not-allowed data-disabled:opacity-60`,
   header: `flex min-h-11 max-w-[60vw] min-w-0 items-center gap-2 rounded-md border border-header-line bg-header-control pr-3 pl-3 font-semibold text-header-fg ${focusRing} data-focus-visible:outline-header-fg data-disabled:cursor-not-allowed data-disabled:opacity-60`,

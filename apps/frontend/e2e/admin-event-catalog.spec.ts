@@ -492,6 +492,7 @@ test('creates an add-on pass type that requires a pass class', async ({ page }) 
     passClass: 'add_on',
     priceCents: 25000,
     requiresPassClass: 'full',
+    activities: [],
   });
 });
 
@@ -519,10 +520,10 @@ test('saves activity access for a pass type with its expected version', async ({
     .filter({ has: page.getByRole('heading', { name: 'Pase completo' }) })
     .getByRole('link', { name: /^Editar / })
     .click();
-  const editor = page.getByRole('region', { name: 'Mapa de acceso' });
-  await expectSelected(selectTrigger(editor, 'Pase completo · Batalla de crews'), 'Elegible');
-  await chooseOption(selectTrigger(editor, 'Pase completo · Batalla de crews'), 'Sin acceso');
-  await chooseOption(selectTrigger(editor, 'Pase completo · Taller de footwork'), 'Elegible');
+  const editor = page.getByRole('region', { name: 'Acceso a actividades' });
+  await expectSelected(selectTrigger(editor, 'Acceso a Batalla de crews'), 'Elegible');
+  await chooseOption(selectTrigger(editor, 'Acceso a Batalla de crews'), 'Sin acceso');
+  await chooseOption(selectTrigger(editor, 'Acceso a Taller de footwork'), 'Elegible');
   await editor.getByRole('button', { name: 'Guardar acceso' }).click();
   await expect(page.getByRole('status')).toContainText('Acceso actualizado');
   expect(body).toEqual({
@@ -759,9 +760,9 @@ test('a reload while a pass is open refreshes its values with the new version', 
     .getByRole('link', { name: /^Editar / })
     .click();
   await expect(form).toContainText('v2');
-  const access = page.getByRole('region', { name: 'Mapa de acceso' });
-  await expectSelected(selectTrigger(access, 'Pase completo · Batalla de crews'), 'Elegible');
-  await chooseOption(selectTrigger(access, 'Pase completo · Batalla de crews'), 'Incluida');
+  const access = page.getByRole('region', { name: 'Acceso a actividades' });
+  await expectSelected(selectTrigger(access, 'Acceso a Batalla de crews'), 'Elegible');
+  await chooseOption(selectTrigger(access, 'Acceso a Batalla de crews'), 'Incluida');
   // Another writer changed the pass meanwhile; the retried reload brings version 5.
   rows = [
     {
@@ -779,10 +780,7 @@ test('a reload while a pass is open refreshes its values with the new version', 
   await expect(form).toContainText('v5');
   await expect(form.getByLabel('Nombre')).toHaveValue('Pase completo plus');
   await expect(form.getByLabel('Precio (MXN)')).toHaveValue('1600.00');
-  await expectSelected(
-    selectTrigger(access, 'Pase completo plus · Batalla de crews'),
-    'Sin acceso',
-  );
+  await expectSelected(selectTrigger(access, 'Acceso a Batalla de crews'), 'Sin acceso');
   await form.getByRole('button', { name: 'Guardar cambios' }).click();
   await expect(page.getByRole('status')).toContainText('Pase actualizado');
   expect(body).toEqual({

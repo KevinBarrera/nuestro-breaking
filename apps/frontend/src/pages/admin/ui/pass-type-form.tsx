@@ -9,7 +9,7 @@ import {
   type RequiredPassClass,
 } from '@/entities/event-catalog';
 import { Select } from '@/shared/ui';
-import { type FormEvent, useId, useState } from 'react';
+import { type FormEvent, type ReactNode, useId, useState } from 'react';
 import { passClassLabels, styles } from './catalog-copy';
 
 type PassTypeFormProps = {
@@ -20,6 +20,8 @@ type PassTypeFormProps = {
   onCancel: () => void;
   // Only an existing active pass can be archived; archiving asks for confirmation first.
   onArchive?: () => void;
+  // Extra fields shown before the actions, e.g. the new pass's access list.
+  children?: ReactNode;
 };
 
 // "Ninguno" stands for no required class (stored as ''), so it gets an explicit key.
@@ -38,6 +40,7 @@ export function PassTypeForm({
   onSubmit,
   onCancel,
   onArchive,
+  children,
 }: PassTypeFormProps) {
   const id = useId();
   const [confirmingArchive, setConfirmingArchive] = useState(false);
@@ -133,6 +136,7 @@ export function PassTypeForm({
           />
         )}
       </div>
+      {children}
       {error && (
         <p role="alert" className="text-sm text-danger-fg">
           {error}

@@ -1,8 +1,9 @@
 import type { CatalogFailure } from '@/entities/event-catalog';
 import { failureMessages, styles } from './catalog-copy';
 
+// A failure may carry a more specific safe message (`text`) that also offers a reload.
 export type Notice =
-  { kind: 'success'; text: string } | { kind: 'failure'; failure: CatalogFailure };
+  { kind: 'success'; text: string } | { kind: 'failure'; failure: CatalogFailure; text?: string };
 
 type CatalogNoticeProps = { notice: Notice | null; onReload: () => void };
 
@@ -23,8 +24,8 @@ export function CatalogNotice({ notice, onReload }: CatalogNoticeProps) {
       role="alert"
       className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-danger-fg bg-danger px-4 py-3 text-sm text-danger-fg"
     >
-      <p>{failureMessages[notice.failure]}</p>
-      {(notice.failure === 'conflict' || notice.failure === 'not-found') && (
+      <p>{notice.text ?? failureMessages[notice.failure]}</p>
+      {(notice.failure === 'conflict' || notice.failure === 'not-found' || notice.text) && (
         <button type="button" className={styles.secondary} onClick={onReload}>
           Recargar
         </button>

@@ -1,7 +1,9 @@
 import { Breadcrumbs } from '@/shared/ui';
+import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { styles } from './catalog-copy';
-import { PassAccessMap } from './pass-access-map';
+import { AccessList, AccessSection, PassAccessEditor } from './pass-access-list';
+import { accessGroups, accessList, type AccessChoices } from './pass-access-model';
 import { PassTypeForm } from './pass-type-form';
 import { PassTypeList } from './pass-type-list';
 import { passDetailPath, passListPath, passNewPath, usePassesContext } from './passes-context';
@@ -48,9 +50,12 @@ export function PassListScreen() {
   );
 }
 
+// A new pass sets its access in the same step: the form sends it with the single POST.
 export function PassCreateScreen() {
-  const { eventId, busy, notices, create } = usePassesContext();
+  const { eventId, activities, busy, notices, create } = usePassesContext();
   const navigate = useNavigate();
+  const [choices, setChoices] = useState<AccessChoices>({});
+  const groups = accessGroups(activities);
   return (
     <>
       <header className={headerClass}>
@@ -64,9 +69,25 @@ export function PassCreateScreen() {
         <PassTypeForm
           title="Nuevo pase"
           busy={busy}
-          onSubmit={create}
+          onSubmit={(input) => create({ ...input, activities: accessList(groups, choices) })}
           onCancel={() => void navigate(passListPath(eventId))}
-        />
+        >
+          <AccessSection
+            level={3}
+            intro="Elige qué actividades da este pase. Puedes cambiarlo después."
+            className="border-t border-line pt-4"
+          >
+            <AccessList
+              groups={groups}
+              choices={choices}
+              level={3}
+              busy={busy}
+              onChange={(activityId, choice) =>
+                setChoices((current) => ({ ...current, [activityId]: choice }))
+              }
+            />
+          </AccessSection>
+        </PassTypeForm>
       </div>
     </>
   );
@@ -76,7 +97,7 @@ export function PassCreateScreen() {
 // The form is keyed by the version of the last server read: a reload that brings a newer
 // version remounts it with the server values instead of pairing stale fields with the new
 // expectedVersion, while our own access save (applied in place, only activity links change)
-// keeps unsaved field edits. The access map is keyed by the current version, so a save resets it.
+// keeps unsaved field edits. The access editor is keyed by the current version, so a save resets it.
 export function PassDetailScreen() {
   const { passTypeId } = useParams<'passTypeId'>();
   const context = usePassesContext();
@@ -112,11 +133,10 @@ export function PassDetailScreen() {
           />
         </div>
         <div className="min-w-0 lg:col-start-1 lg:row-start-1">
-          <PassAccessMap
+          <PassAccessEditor
             key={`${selected.id}:${selected.version}:${context.accessReset}`}
-            passTypes={context.passTypes}
-            activities={context.activities}
-            selected={selected}
+            groups={accessGroups(context.activities)}
+            passType={selected}
             busy={busy}
             conflict={context.accessConflictFor === selected.id}
             onSave={(activities) => context.saveAccess(selected, activities)}

@@ -24,6 +24,7 @@ export type {
   CatalogPassType,
   CatalogStatus,
   CatalogVenue,
+  NewPassTypeInput,
   PassClass,
   PassTypeActivity,
   PassTypeInput,

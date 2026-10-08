@@ -180,6 +180,7 @@ test('renders the agenda on the event clock and wires its filters', async ({ pag
   const archived = page.getByRole('listitem').filter({ hasText: 'Cypher cancelado' });
   await expect(archived).toContainText('Archivada');
   await expect(archived.getByRole('button', { name: 'Editar' })).toHaveCount(0);
+  await expect(archived.getByRole('button', { name: 'Restaurar Cypher cancelado' })).toBeVisible();
   await expect(kinds(page).getByRole('button', { name: /^Social/ })).toHaveText('Social · 2');
   await toggle.uncheck();
   await expect(page.getByText('Cypher cancelado')).toHaveCount(0);

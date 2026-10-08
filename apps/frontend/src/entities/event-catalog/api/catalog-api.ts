@@ -144,6 +144,17 @@ export async function archiveActivity(
   return ensure(await write(path, 'POST', { expectedVersion }), activityGuard(eventId));
 }
 
+// The backend answers 409 when the activity is not archived, the version is stale, or it no
+// longer fits its venue or the event window; the client only sees the status.
+export async function restoreActivity(
+  eventId: string,
+  activityId: string,
+  expectedVersion: number,
+) {
+  const path = eventPath(eventId, `/activities/${encodeURIComponent(activityId)}/restore`);
+  return ensure(await write(path, 'POST', { expectedVersion }), activityGuard(eventId));
+}
+
 const passTypeGuard =
   (eventId: string) =>
   (value: unknown): value is CatalogPassType =>

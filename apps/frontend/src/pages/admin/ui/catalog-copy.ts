@@ -15,6 +15,12 @@ export const failureMessages: Record<CatalogFailure, string> = {
   error: 'No se pudo completar la operación. Inténtalo de nuevo más tarde.',
 };
 
+// A restore 409 means the activity is no longer archived, someone else changed it, or it no
+// longer fits its venue or the event window. The client only sees the status, so this covers
+// every case.
+export const activityRestoreConflict =
+  'No se pudo restaurar: puede que la actividad ya no quepa en su sede o en las fechas del evento, o que otra persona la haya cambiado o restaurado. Recarga la lista y revísala.';
+
 export const activityStatusLabels: Record<CatalogStatus, string> = {
   active: 'Activa',
   archived: 'Archivada',

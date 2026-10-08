@@ -11,6 +11,8 @@ type ActivityListProps = {
   onEdit: (activity: CatalogActivity) => void;
   // Asks for confirmation; the page archives only after it.
   onArchive: (activity: CatalogActivity) => void;
+  // Asks for confirmation on an archived row; the page restores only after it.
+  onRestore: (activity: CatalogActivity) => void;
 };
 
 type RowProps = Omit<ActivityListProps, 'days'> & { activity: CatalogActivity };
@@ -49,7 +51,15 @@ function AgendaDaySection({
   );
 }
 
-function ActivityRow({ activity, venueNames, timeZone, busy, onEdit, onArchive }: RowProps) {
+function ActivityRow({
+  activity,
+  venueNames,
+  timeZone,
+  busy,
+  onEdit,
+  onArchive,
+  onRestore,
+}: RowProps) {
   const active = activity.status === 'active';
   return (
     <li className="p-4">
@@ -77,12 +87,14 @@ function ActivityRow({ activity, venueNames, timeZone, busy, onEdit, onArchive }
             </span>
           </div>
         </div>
-        {active && (
+        {active ? (
           <div className="flex flex-wrap gap-2">
+            {/* The page looks this button up to focus it after a restore. */}
             <button
               type="button"
               disabled={busy}
               className={styles.secondary}
+              data-edit-activity={activity.id}
               onClick={() => onEdit(activity)}
             >
               Editar
@@ -94,6 +106,19 @@ function ActivityRow({ activity, venueNames, timeZone, busy, onEdit, onArchive }
               onClick={() => onArchive(activity)}
             >
               Archivar
+            </button>
+          </div>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              disabled={busy}
+              className={styles.secondary}
+              // The name says which activity; the visible "Restaurar" stays at its start.
+              aria-label={`Restaurar ${activity.name}`}
+              onClick={() => onRestore(activity)}
+            >
+              Restaurar
             </button>
           </div>
         )}

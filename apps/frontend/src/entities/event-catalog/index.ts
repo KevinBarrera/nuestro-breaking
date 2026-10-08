@@ -10,6 +10,7 @@ export {
   listPassTypes,
   readCatalogEventContext,
   replacePassTypeActivities,
+  restoreActivity,
   updateActivity,
   updatePassType,
 } from './api/catalog-api';

@@ -4,6 +4,7 @@ import {
   createActivity,
   listActivities,
   readCatalogEventContext,
+  restoreActivity,
   updateActivity,
   type ActivityInput,
   type CatalogActivity,
@@ -29,7 +30,7 @@ import {
 } from './activity-agenda-model';
 import { ActivityForm } from './activity-form';
 import { ActivityList } from './activity-list';
-import { styles } from './catalog-copy';
+import { activityRestoreConflict, styles } from './catalog-copy';
 import {
   CatalogLoadFailure,
   CatalogNotice,
@@ -40,6 +41,15 @@ import { useCatalogLoad } from './use-catalog-load';
 
 type Editor = { mode: 'create' } | { mode: 'edit'; activity: CatalogActivity } | null;
 type Review = { input: ActivityInput; rows: ChangeRow[] };
+// After an archive or restore the button that opened the dialog is gone. Focus goes to the
+// restored row's "Editar" (`editOf`) when it is shown, otherwise to the page heading.
+type FocusRequest = { editOf: string | null };
+type RunOptions<T> = {
+  success: string;
+  onSuccess?: (result: T) => void;
+  // Safe copy for a 409 that is more specific than the generic conflict message.
+  conflict?: string;
+};
 
 // A stale or missing record cannot be saved from these values, so its alert (with "Recargar")
 // belongs on the page, not inside a dialog the person would have to close first.
@@ -62,11 +72,12 @@ function EventActivities({ eventId }: { eventId: string }) {
     },
     [eventId],
   );
-  const { state, reload } = useCatalogLoad(load);
+  const { state, reload, update } = useCatalogLoad(load);
   const formId = useId();
   const [editor, setEditor] = useState<Editor>(null);
   const [review, setReview] = useState<Review | null>(null);
   const [archiving, setArchiving] = useState<CatalogActivity | null>(null);
+  const [restoring, setRestoring] = useState<CatalogActivity | null>(null);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [filters, setFilters] = useState<AgendaFilters>({
@@ -75,35 +86,48 @@ function EventActivities({ eventId }: { eventId: string }) {
     showArchived: false,
   });
   const headingRef = useRef<HTMLHeadingElement>(null);
-  const [focusHeading, setFocusHeading] = useState(0);
+  const agendaRef = useRef<HTMLElement>(null);
+  const [focusRequest, setFocusRequest] = useState<FocusRequest | null>(null);
 
-  // An archived row loses its "Archivar" button, so the confirmation dialog has nowhere to
-  // return focus. The page heading takes it instead (on the next frame, after the dialog's own
-  // focus restore), and the success notice under it is announced.
+  // An archived row loses its "Archivar" button and a restored row its "Restaurar" button, so
+  // the confirmation dialog has nowhere to return focus. On the next frame (after the dialog's
+  // own focus restore) a restored row's "Editar" takes it if it is shown; otherwise the page
+  // heading does, and the success notice under it is announced.
   useEffect(() => {
-    if (focusHeading === 0) return;
-    const frame = requestAnimationFrame(() => headingRef.current?.focus());
+    if (!focusRequest) return;
+    const frame = requestAnimationFrame(() => {
+      const { editOf } = focusRequest;
+      const edit = editOf
+        ? agendaRef.current?.querySelector<HTMLButtonElement>(
+            `[data-edit-activity="${CSS.escape(editOf)}"]`,
+          )
+        : null;
+      (edit ?? headingRef.current)?.focus();
+    });
     return () => cancelAnimationFrame(frame);
-  }, [focusHeading]);
+  }, [focusRequest]);
 
-  async function run(action: () => Promise<unknown>, success: string, onSuccess?: () => void) {
+  async function run<T>(action: () => Promise<T>, { success, onSuccess, conflict }: RunOptions<T>) {
     if (busy) return;
     setBusy(true);
     setNotice(null);
     try {
-      await action();
+      const result = await action();
       setEditor(null);
       setReview(null);
       setArchiving(null);
+      setRestoring(null);
       setNotice({ kind: 'success', text: success });
-      onSuccess?.();
+      onSuccess?.(result);
       reload();
     } catch (error) {
       const failure = catalogFailure(error);
-      setNotice({ kind: 'failure', failure });
+      const text = failure === 'conflict' ? conflict : undefined;
+      setNotice({ kind: 'failure', failure, ...(text && { text }) });
       // Other failures go back to the form with the edits intact, where the alert is shown.
       setReview(null);
       setArchiving(null);
+      setRestoring(null);
       if (needsReload(failure)) setEditor(null);
     } finally {
       setBusy(false);
@@ -113,9 +137,11 @@ function EventActivities({ eventId }: { eventId: string }) {
   function save({ input }: Review) {
     if (editor?.mode === 'edit') {
       const { id, version } = editor.activity;
-      void run(() => updateActivity(eventId, id, version, input), 'Actividad actualizada.');
+      void run(() => updateActivity(eventId, id, version, input), {
+        success: 'Actividad actualizada.',
+      });
     } else {
-      void run(() => createActivity(eventId, input), 'Actividad creada.');
+      void run(() => createActivity(eventId, input), { success: 'Actividad creada.' });
     }
   }
 
@@ -247,15 +273,48 @@ function EventActivities({ eventId }: { eventId: string }) {
                 tone="destructive"
                 isPending={busy}
                 onConfirm={() =>
-                  void run(
-                    () => archiveActivity(eventId, archiving.id, archiving.version),
-                    'Actividad archivada.',
-                    () => setFocusHeading((value) => value + 1),
-                  )
+                  void run(() => archiveActivity(eventId, archiving.id, archiving.version), {
+                    success: 'Actividad archivada.',
+                    onSuccess: () => setFocusRequest({ editOf: null }),
+                  })
                 }
               />
             )}
-            <section aria-label="Agenda de actividades" className="min-w-0 space-y-6">
+            {restoring && (
+              <ConfirmDialog
+                isOpen
+                onOpenChange={(open) => {
+                  if (!open && !busy) setRestoring(null);
+                }}
+                title={`¿Restaurar ${restoring.name}?`}
+                consequence="Volverá a estar activa y aparecerá de nuevo en los pases que todavía la incluyen."
+                confirmLabel="Restaurar"
+                pendingLabel="Restaurando…"
+                isPending={busy}
+                onConfirm={() =>
+                  void run(() => restoreActivity(eventId, restoring.id, restoring.version), {
+                    success: 'Actividad restaurada.',
+                    conflict: activityRestoreConflict,
+                    // Show the confirmed active row right away; the reload that follows
+                    // refreshes the rest of the agenda.
+                    onSuccess: (restored) => {
+                      update((current) => ({
+                        ...current,
+                        activities: current.activities.map((activity) =>
+                          activity.id === restored.id ? restored : activity,
+                        ),
+                      }));
+                      setFocusRequest({ editOf: restored.id });
+                    },
+                  })
+                }
+              />
+            )}
+            <section
+              ref={agendaRef}
+              aria-label="Agenda de actividades"
+              className="min-w-0 space-y-6"
+            >
               <ActivityAgendaFilters
                 filters={filters}
                 kinds={kindOptions(data.activities, filters.showArchived, filters.kind)}
@@ -277,6 +336,10 @@ function EventActivities({ eventId }: { eventId: string }) {
                     onArchive={(activity) => {
                       setNotice(null);
                       setArchiving(activity);
+                    }}
+                    onRestore={(activity) => {
+                      setNotice(null);
+                      setRestoring(activity);
                     }}
                   />
                 )}

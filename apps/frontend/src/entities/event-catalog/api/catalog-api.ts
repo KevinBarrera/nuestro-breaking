@@ -205,3 +205,15 @@ export async function archivePassType(
   const path = eventPath(eventId, `/pass-types/${encodeURIComponent(passTypeId)}/archive`);
   return ensure(await write(path, 'POST', { expectedVersion }), passTypeGuard(eventId));
 }
+
+// The backend answers 409 when the pass type is not archived, the version is stale, or an
+// active pass type already uses its name; the client only sees the status. Access links come
+// back as they were when it was archived.
+export async function restorePassType(
+  eventId: string,
+  passTypeId: string,
+  expectedVersion: number,
+) {
+  const path = eventPath(eventId, `/pass-types/${encodeURIComponent(passTypeId)}/restore`);
+  return ensure(await write(path, 'POST', { expectedVersion }), passTypeGuard(eventId));
+}

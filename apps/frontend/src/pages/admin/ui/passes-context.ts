@@ -30,6 +30,7 @@ export type PassesContext = {
   create: (input: NewPassTypeInput) => Promise<boolean>;
   update: (passType: CatalogPassType, input: PassTypeInput) => Promise<boolean>;
   archive: (passType: CatalogPassType) => Promise<boolean>;
+  restore: (passType: CatalogPassType) => Promise<boolean>;
   saveAccess: (passType: CatalogPassType, activities: PassTypeActivity[]) => Promise<boolean>;
   reloadAccess: () => void;
 };

@@ -5,6 +5,7 @@ import {
   listActivities,
   listPassTypes,
   replacePassTypeActivities,
+  restorePassType,
   updatePassType,
   type CatalogFailure,
   type CatalogPassType,
@@ -14,6 +15,7 @@ import {
 } from '@/entities/event-catalog';
 import { type ReactNode, useCallback, useState } from 'react';
 import { Outlet, useLocation, useNavigate, useParams } from 'react-router';
+import { passRestoreConflict } from './catalog-copy';
 import {
   CatalogLoadFailure,
   CatalogNotice,
@@ -146,6 +148,17 @@ function EventPasses({ eventId }: { eventId: string }) {
     );
   }
 
+  // The restored pass (new version) is applied in place, so it moves to the main list at once
+  // and the list screen can focus its card; the reload that follows refreshes the rest.
+  function restore(passType: CatalogPassType) {
+    return run(
+      async () => replacePass(await restorePassType(eventId, passType.id, passType.version)),
+      'Pase restaurado.',
+      undefined,
+      (failure) => (failure === 'conflict' ? passRestoreConflict : undefined),
+    );
+  }
+
   // Keeps the pass on screen and applies the confirmed response (new version) in place.
   async function saveAccess(
     passType: CatalogPassType,
@@ -216,6 +229,7 @@ function EventPasses({ eventId }: { eventId: string }) {
     create,
     update: updatePass,
     archive,
+    restore,
     saveAccess,
     reloadAccess,
   };

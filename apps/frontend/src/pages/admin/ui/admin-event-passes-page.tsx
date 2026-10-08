@@ -26,11 +26,14 @@ import { useCatalogLoad } from './use-catalog-load';
 
 // A notice belongs to the screen it was raised for: a write that moves to another screen
 // (create → detail, archive → list) files its notice under the destination path, and any
-// other navigation leaves the notice behind.
+// other navigation drops the notice, so coming back later does not show a stale one.
 type ScreenNotice = { at: string; notice: Notice };
 
+// The client keeps only the status, and the form already validates the fields, so a 400 on a
+// create with access most likely names an activity archived meanwhile; the copy says so
+// without ruling out the fields.
 const invalidActivityText =
-  'No se pudo crear el pase: alguna actividad elegida ya no está activa en este evento. Recarga para ver las actividades actuales y revisa el acceso antes de guardar.';
+  'No se pudo crear el pase: lo más probable es que alguna actividad elegida ya no esté activa en este evento. Recarga para ver las actividades actuales y revisa el acceso y los datos antes de guardar.';
 
 // Layout route for the pass list, create and detail screens: it reads the catalog once and
 // runs every write, so moving between the screens keeps the data and the notices.
@@ -59,16 +62,25 @@ function EventPasses({ eventId }: { eventId: string }) {
   const [accessConflictFor, setAccessConflictFor] = useState<string | null>(null);
   const [accessReset, setAccessReset] = useState(0);
 
-  // Runs one write; on success it reports at `destination` (when given, it also goes there)
-  // and refreshes the catalog. Failures stay on the screen that started the write, with the
-  // more specific `failureText` message when it gives one.
+  // Moving to another screen drops a notice filed for a different one (adjusted while
+  // rendering, so the stale notice never paints on the new screen).
+  const [shownAt, setShownAt] = useState(pathname);
+  if (shownAt !== pathname) {
+    setShownAt(pathname);
+    if (notice && notice.at !== pathname) setNotice(null);
+  }
+
+  // Runs one write and resolves to whether it succeeded, so the screen can close its dialog.
+  // On success it reports at `destination` (when given, it also goes there) and refreshes the
+  // catalog. Failures stay on the screen that started the write, with the more specific
+  // `failureText` message when it gives one.
   async function run<T>(
     action: () => Promise<T>,
     success: string,
     destination?: (result: T) => string,
     failureText?: (failure: CatalogFailure) => string | undefined,
-  ) {
-    if (busy) return;
+  ): Promise<boolean> {
+    if (busy) return false;
     setBusy(true);
     setNotice(null);
     setAccessConflictFor(null);
@@ -78,10 +90,12 @@ function EventPasses({ eventId }: { eventId: string }) {
       setNotice({ at: to ?? pathname, notice: { kind: 'success', text: success } });
       if (to) void navigate(to);
       reload();
+      return true;
     } catch (error) {
       const failure = catalogFailure(error);
       const text = failureText?.(failure);
       setNotice({ at: pathname, notice: { kind: 'failure', failure, ...(text && { text }) } });
+      return false;
     } finally {
       setBusy(false);
     }
@@ -91,7 +105,7 @@ function EventPasses({ eventId }: { eventId: string }) {
   // added in place first, so that screen finds it before the refreshed list arrives. A 400 with
   // access almost always means a chosen activity was archived meanwhile (`Invalid activity`).
   function create(input: NewPassTypeInput) {
-    void run(
+    return run(
       async () => {
         const created = await createPassType(eventId, input);
         update((data) => ({
@@ -107,13 +121,25 @@ function EventPasses({ eventId }: { eventId: string }) {
     );
   }
 
+  // The confirmed response (new version) is applied in place before the refresh, so the
+  // screen reads as saved at once and a following access save sends the new version.
   function updatePass(passType: CatalogPassType, input: PassTypeInput) {
     const { id, version } = passType;
-    void run(() => updatePassType(eventId, id, version, input), 'Pase actualizado.');
+    return run(async () => {
+      const saved = await updatePassType(eventId, id, version, input);
+      replacePass(saved);
+    }, 'Pase actualizado.');
+  }
+
+  function replacePass(saved: CatalogPassType) {
+    update((data) => ({
+      ...data,
+      passTypes: data.passTypes.map((entry) => (entry.id === saved.id ? saved : entry)),
+    }));
   }
 
   function archive(passType: CatalogPassType) {
-    void run(
+    return run(
       () => archivePassType(eventId, passType.id, passType.version),
       'Pase archivado.',
       () => passListPath(eventId),
@@ -121,8 +147,11 @@ function EventPasses({ eventId }: { eventId: string }) {
   }
 
   // Keeps the pass on screen and applies the confirmed response (new version) in place.
-  async function saveAccess(passType: CatalogPassType, activities: PassTypeActivity[]) {
-    if (busy) return;
+  async function saveAccess(
+    passType: CatalogPassType,
+    activities: PassTypeActivity[],
+  ): Promise<boolean> {
+    if (busy) return false;
     setBusy(true);
     setNotice(null);
     setAccessConflictFor(null);
@@ -133,15 +162,16 @@ function EventPasses({ eventId }: { eventId: string }) {
         passType.version,
         activities,
       );
-      update((data) => ({
-        ...data,
-        passTypes: data.passTypes.map((entry) => (entry.id === saved.id ? saved : entry)),
-      }));
+      replacePass(saved);
+      // The editor restarts from the confirmed links, whatever the response holds.
+      setAccessReset((value) => value + 1);
       setNotice({ at: pathname, notice: { kind: 'success', text: 'Acceso actualizado.' } });
+      return true;
     } catch (error) {
       const failure = catalogFailure(error);
       if (failure === 'conflict') setAccessConflictFor(passType.id);
       else setNotice({ at: pathname, notice: { kind: 'failure', failure } });
+      return false;
     } finally {
       setBusy(false);
     }
@@ -186,7 +216,7 @@ function EventPasses({ eventId }: { eventId: string }) {
     create,
     update: updatePass,
     archive,
-    saveAccess: (passType, activities) => void saveAccess(passType, activities),
+    saveAccess,
     reloadAccess,
   };
 

@@ -169,6 +169,10 @@ test('the create route saves a new pass and lands on its detail route', async ({
   await form.getByRole('radio', { name: 'General' }).check();
   await form.getByLabel('Precio (MXN)').fill('300');
   await form.getByRole('button', { name: 'Guardar' }).click();
+  await page
+    .getByRole('dialog', { name: 'Revisar cambios' })
+    .getByRole('button', { name: 'Guardar cambios' })
+    .click();
 
   await expect(page).toHaveURL(`${passesPath}/${createdPassId}`);
   await expect(page.getByRole('status')).toContainText('Pase creado');
@@ -200,7 +204,10 @@ test('archiving a pass returns to the list with the success notice', async ({ pa
   await page.goto(`${passesPath}/${fullPassId}`);
   const form = page.getByRole('form', { name: 'Editar pase' });
   await form.getByRole('button', { name: 'Archivar' }).click();
-  await form.getByRole('button', { name: 'Confirmar archivo' }).click();
+  await page
+    .getByRole('alertdialog', { name: '¿Archivar Pase completo?' })
+    .getByRole('button', { name: 'Archivar' })
+    .click();
   await expect(page).toHaveURL(passesPath);
   await expect(page.getByRole('status')).toContainText('Pase archivado');
   await expect(passCard(page, 'Pase completo')).toContainText('Archivado');

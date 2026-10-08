@@ -245,5 +245,7 @@ test('archives only after the confirmation dialog, which blocks repeats while pe
 
   await expect(confirm).toHaveCount(0);
   await expect(page.getByRole('status')).toContainText('Actividad archivada');
+  // The archived row's button goes away, so focus lands on the page heading, not the body.
+  await expect(page.getByRole('heading', { name: 'Actividades', level: 1 })).toBeFocused();
   expect(bodies).toEqual([{ expectedVersion: 3 }]);
 });

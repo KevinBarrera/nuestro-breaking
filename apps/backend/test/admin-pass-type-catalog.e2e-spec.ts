@@ -127,6 +127,8 @@ describe('admin pass type catalog (e2e)', () => {
     server().put(`/admin/events/${event}/pass-types/${id}/activities`);
   const archive = (event: string, id: string) =>
     server().post(`/admin/events/${event}/pass-types/${id}/archive`);
+  const restore = (event: string, id: string) =>
+    server().post(`/admin/events/${event}/pass-types/${id}/restore`);
   async function audits() {
     return client<
       AuditRow[]
@@ -538,6 +540,149 @@ describe('admin pass type catalog (e2e)', () => {
     expect(await audits()).toHaveLength(1);
   });
 
+  it('restores an archived pass type with the expected version, keeps its access links and audits', async () => {
+    const { event, battle, workshop } = await fixture();
+    const { cookie, userId, sessionId } = await session('admin', event);
+    const passType = await seedPassType(event, 'Full pass');
+    await client`INSERT INTO event_pass_type_activities (event_id, pass_type_id, activity_id, access)
+      VALUES (${event}, ${passType}, ${battle}, 'included'), (${event}, ${passType}, ${workshop}, 'selectable')`;
+    const notArchived = await restore(event, passType)
+      .set(headers(cookie))
+      .send({ expectedVersion: 1 })
+      .expect(409);
+    expect(notArchived.body).toMatchObject({ message: 'Pass type is not archived' });
+    const archived = (
+      await archive(event, passType).set(headers(cookie)).send({ expectedVersion: 1 }).expect(201)
+    ).body as PassType;
+    // A linked activity archived meanwhile keeps its link; restoring the pass type does not prune it.
+    await client`UPDATE activities SET status = 'archived' WHERE id = ${workshop}`;
+    const before = await snapshot();
+    const stale = await restore(event, passType)
+      .set(headers(cookie))
+      .send({ expectedVersion: 1 })
+      .expect(409);
+    expect(stale.body).toMatchObject({ message: 'Pass type version conflict' });
+    expect(await snapshot()).toEqual(before);
+
+    const response = await restore(event, passType)
+      .set(headers(cookie))
+      .send({ expectedVersion: 2 })
+      .expect(201);
+    const restored = response.body as PassType;
+    expect(restored).toEqual({
+      ...archived,
+      status: 'active',
+      version: 3,
+      activities: [
+        { activityId: battle, access: 'included' },
+        { activityId: workshop, access: 'selectable' },
+      ].sort(byActivity),
+    });
+    expect((await snapshot()).links).toEqual(before.links);
+    const [, fact] = await audits();
+    expect(fact).toEqual({
+      event_id: event,
+      actor_user_id: userId,
+      actor_session_id: sessionId,
+      entity_type: 'pass_type',
+      entity_id: passType,
+      operation: 'restore',
+      before: archived,
+      after: restored,
+    });
+    // Both default to the transaction start, so equality proves the restore set `updated_at`.
+    const [{ touched }] = await client<{ touched: boolean }[]>`
+      SELECT p.updated_at = a.occurred_at AS touched
+      FROM event_pass_types p JOIN event_catalog_audit a ON a.entity_id = p.id
+      WHERE p.id = ${passType} AND a.operation = 'restore'`;
+    expect(touched).toBe(true);
+    const again = await restore(event, passType)
+      .set(headers(cookie))
+      .send({ expectedVersion: 3 })
+      .expect(409);
+    expect(again.body).toMatchObject({ message: 'Pass type is not archived' });
+    expect(await audits()).toHaveLength(2);
+  });
+
+  it('rejects restoring a pass type whose name an active pass type now uses, without writes', async () => {
+    const { event } = await fixture();
+    const { cookie } = await session('admin', event);
+    const passType = await seedPassType(event, 'Full pass');
+    await archive(event, passType).set(headers(cookie)).send({ expectedVersion: 1 }).expect(201);
+    await create(event)
+      .set(headers(cookie))
+      .send({ name: ' FULL PASS ', passClass: 'full', priceCents: 1 })
+      .expect(201);
+    const before = await snapshot();
+    const conflict = await restore(event, passType)
+      .set(headers(cookie))
+      .send({ expectedVersion: 2 })
+      .expect(409);
+    expect(conflict.body).toMatchObject({
+      message:
+        'An active pass type with this name already exists; rename one of them before restoring',
+    });
+    expect(await snapshot()).toEqual(before);
+    expect(await audits()).toHaveLength(2);
+  });
+
+  it('archives and restores a sold pass type without touching held passes, selections or entitlements', async () => {
+    const { event, battle, workshop } = await fixture();
+    const { cookie } = await session('admin', event);
+    const passType = await seedPassType(event, 'Full pass');
+    await client`INSERT INTO event_pass_type_activities (event_id, pass_type_id, activity_id, access)
+      VALUES (${event}, ${passType}, ${battle}, 'included'), (${event}, ${passType}, ${workshop}, 'selectable')`;
+    const registration = async () => {
+      const [{ id: participant }] = await client<
+        { id: string }[]
+      >`INSERT INTO participants (full_name) VALUES ('Dancer') RETURNING id`;
+      const [{ id }] = await client<
+        { id: string }[]
+      >`INSERT INTO event_registrations (event_id, participant_id) VALUES (${event}, ${participant}) RETURNING id`;
+      return id;
+    };
+    const holder = await registration();
+    const [{ id: held }] = await client<{ id: string }[]>`
+      INSERT INTO event_registration_passes (event_id, event_registration_id, pass_type_id, price_cents)
+      VALUES (${event}, ${holder}, ${passType}, 120000) RETURNING id`;
+    await client`INSERT INTO event_registration_pass_selections (event_id, registration_pass_id, activity_id)
+      VALUES (${event}, ${held}, ${workshop})`;
+    const newcomer = await registration();
+    const sold = async () => ({
+      passes:
+        await client`SELECT * FROM event_registration_passes WHERE event_id = ${event} ORDER BY id`,
+      selections:
+        await client`SELECT * FROM event_registration_pass_selections WHERE event_id = ${event} ORDER BY registration_pass_id, activity_id`,
+    });
+    const entitlements = async () =>
+      (
+        await server()
+          .get(`/admin/events/${event}/registrations/${holder}/entitlements`)
+          .set(headers(cookie))
+          .expect(200)
+      ).body as unknown;
+    const assign = () =>
+      server()
+        .post(`/admin/events/${event}/registrations/${newcomer}/passes`)
+        .set(headers(cookie))
+        .send({ passTypeId: passType });
+    const soldBefore = await sold();
+    const entitledBefore = await entitlements();
+    expect(entitledBefore).toMatchObject({
+      accessibleActivityIds: [battle, workshop].sort(),
+    });
+
+    await archive(event, passType).set(headers(cookie)).send({ expectedVersion: 1 }).expect(201);
+    expect(await sold()).toEqual(soldBefore);
+    expect(await entitlements()).toEqual(entitledBefore);
+    await assign().expect(409);
+
+    await restore(event, passType).set(headers(cookie)).send({ expectedVersion: 2 }).expect(201);
+    expect(await sold()).toEqual(soldBefore);
+    expect(await entitlements()).toEqual(entitledBefore);
+    await assign().expect(201);
+  });
+
   it('returns 404 for pass types of another event and unknown ids without writes', async () => {
     const { event, other } = await fixture();
     const { cookie } = await session('admin', event);
@@ -553,6 +698,7 @@ describe('admin pass type catalog (e2e)', () => {
         .send({ expectedVersion: 1, activities: [] })
         .expect(404);
       await archive(event, id).set(headers(cookie)).send({ expectedVersion: 1 }).expect(404);
+      await restore(event, id).set(headers(cookie)).send({ expectedVersion: 1 }).expect(404);
     }
     expect(await snapshot()).toEqual(before);
     expect(await audits()).toHaveLength(0);
@@ -564,12 +710,14 @@ describe('admin pass type catalog (e2e)', () => {
     const judge = await session('judge', event);
     const otherAdmin = await session('admin', other);
     const passType = await seedPassType(event, 'Full pass');
+    const retired = await seedPassType(event, 'Old pass', 'full', 'archived');
     const before = await snapshot();
     const commands = [
       () => create(event).send({ name: 'X', passClass: 'full', priceCents: 1 }),
       () => update(event, passType).send({ expectedVersion: 1, name: 'X' }),
       () => access(event, passType).send({ expectedVersion: 1, activities: [] }),
       () => archive(event, passType).send({ expectedVersion: 1 }),
+      () => restore(event, retired).send({ expectedVersion: 1 }),
     ];
     for (const command of commands) {
       await command().set('Origin', trustedOrigin).expect(401);
@@ -594,6 +742,7 @@ describe('admin pass type catalog (e2e)', () => {
     const { event, battle } = await fixture();
     const { cookie } = await session('admin', event);
     const passType = await seedPassType(event, 'Full pass');
+    const retired = await seedPassType(event, 'Old pass', 'full', 'archived');
     const before = await snapshot();
     await client`ALTER TABLE event_catalog_audit ADD CONSTRAINT reject_pass_type_test CHECK (entity_type <> 'pass_type') NOT VALID`;
     try {
@@ -615,6 +764,7 @@ describe('admin pass type catalog (e2e)', () => {
         .send({ expectedVersion: 1, activities: [{ activityId: battle, access: 'included' }] })
         .expect(500);
       await archive(event, passType).set(headers(cookie)).send({ expectedVersion: 1 }).expect(500);
+      await restore(event, retired).set(headers(cookie)).send({ expectedVersion: 1 }).expect(500);
     } finally {
       await client`ALTER TABLE event_catalog_audit DROP CONSTRAINT reject_pass_type_test`;
     }

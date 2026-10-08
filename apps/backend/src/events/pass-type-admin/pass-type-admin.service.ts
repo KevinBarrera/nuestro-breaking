@@ -21,6 +21,7 @@ import type {
   PassTypeChanges,
   PassTypeDraft,
   PassTypeFields,
+  PassTypeStatus,
 } from './pass-type-admin.types';
 
 type Database = DatabaseService['db'];
@@ -182,12 +183,38 @@ export class PassTypeAdminService {
     });
   }
 
+  // Access links survive archive untouched, so the restored pass type keeps exactly the access it
+  // had, including links to activities archived meanwhile. Held passes are never rewritten.
+  async restore(eventId: string, passTypeId: string, expectedVersion: number, actor: CatalogActor) {
+    return this.db.transaction(async (tx) => {
+      const current = await this.lock(tx, eventId, passTypeId, expectedVersion, 'archived');
+      const access = await this.readAccess(tx, eventId, passTypeId);
+      const [row] = await this.guardName(
+        () =>
+          tx
+            .update(eventPassTypes)
+            .set({ status: 'active', version: current.version + 1, updatedAt: sql`now()` })
+            .where(and(eq(eventPassTypes.id, passTypeId), eq(eventPassTypes.eventId, eventId)))
+            .returning(),
+        'An active pass type with this name already exists; rename one of them before restoring',
+      );
+      const after = toPassType(row, access);
+      await this.audit(tx, eventId, actor, 'restore', toPassType(current, access), after);
+      return after;
+    });
+  }
+
+  private lockEditable(tx: Transaction, eventId: string, passTypeId: string, version: number) {
+    return this.lock(tx, eventId, passTypeId, version, 'active');
+  }
+
   // Row lock serializes concurrent edits so the version check and increment cannot interleave.
-  private async lockEditable(
+  private async lock(
     tx: Transaction,
     eventId: string,
     passTypeId: string,
     expectedVersion: number,
+    status: PassTypeStatus,
   ): Promise<PassTypeRow> {
     const [current] = await tx
       .select()
@@ -195,7 +222,10 @@ export class PassTypeAdminService {
       .where(and(eq(eventPassTypes.id, passTypeId), eq(eventPassTypes.eventId, eventId)))
       .for('update');
     if (!current) throw new NotFoundException('Pass type not found');
-    if (current.status === 'archived') throw new ConflictException('Pass type is archived');
+    if (current.status !== status)
+      throw new ConflictException(
+        status === 'active' ? 'Pass type is archived' : 'Pass type is not archived',
+      );
     if (current.version !== expectedVersion)
       throw new ConflictException('Pass type version conflict');
     return current;
@@ -254,12 +284,14 @@ export class PassTypeAdminService {
       .values(access.map((entry) => ({ eventId, passTypeId, ...entry })));
   }
 
-  private async guardName<T>(write: () => Promise<T>): Promise<T> {
+  private async guardName<T>(
+    write: () => Promise<T>,
+    message = 'An active pass type with this name already exists',
+  ): Promise<T> {
     try {
       return await write();
     } catch (error) {
-      if (isActiveNameConflict(error))
-        throw new ConflictException('An active pass type with this name already exists');
+      if (isActiveNameConflict(error)) throw new ConflictException(message);
       throw error;
     }
   }

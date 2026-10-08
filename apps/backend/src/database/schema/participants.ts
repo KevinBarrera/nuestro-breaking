@@ -7,6 +7,7 @@ export const participants = pgTable(
     id: uuid('id').defaultRandom().notNull(),
     fullName: text('full_name').notNull(),
     email: text('email'),
+    phone: text('phone'),
     stageName: text('stage_name'),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
@@ -14,5 +15,9 @@ export const participants = pgTable(
   (table) => [
     primaryKey({ columns: [table.id], name: 'participants_pk' }),
     check('participants_full_name_ck', sql`length(btrim(${table.fullName})) > 0`),
+    check(
+      'participants_phone_ck',
+      sql`${table.phone} IS NULL OR length(btrim(${table.phone})) > 0`,
+    ),
   ],
 );

@@ -1,4 +1,5 @@
 import { getSession, signIn, signOut, useSessionStore } from '@/entities/session';
+import { AdminShell } from '@/widgets/admin-shell';
 import type { FormEvent } from 'react';
 import { useEffect, useState } from 'react';
 import { Outlet } from 'react-router';
@@ -81,13 +82,9 @@ export function AdminSessionBoundary() {
   if (status === 'loading') return <p role="status">Comprobando sesión…</p>;
   if (status === 'signed-in')
     return (
-      <>
-        <button type="button" disabled={submitting} onClick={() => void leave()}>
-          Cerrar sesión
-        </button>
-        {error && <p role="alert">No se pudo cerrar sesión.</p>}
+      <AdminShell signingOut={submitting} signOutFailed={error} onSignOut={() => void leave()}>
         <Outlet />
-      </>
+      </AdminShell>
     );
   return (
     <main className="flex min-h-screen items-center justify-center px-4 py-10 text-[var(--event-cream)] sm:px-6">
@@ -97,7 +94,7 @@ export function AdminSessionBoundary() {
       >
         <div aria-hidden="true" className="mb-8 h-1 w-16 rounded-full bg-[var(--event-magenta)]" />
         <p className="text-xs font-bold uppercase tracking-[0.18em] text-[var(--event-cyan)]">
-          Nuestro Breaking · Administración
+          Los más pesados · Administración
         </p>
         <h1 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">Iniciar sesión</h1>
         <p className="mt-3 text-sm leading-6 text-slate-300">

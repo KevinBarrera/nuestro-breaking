@@ -25,12 +25,24 @@ decisions remain deferred.
 2. Use only the future server-authoritative workflow; treat safe denials,
    stale-version outcomes, and duplicate outcomes as instructions to obtain the
    current authoritative state.
-3. For a completed check-in, score, assignment, or incident update, rely on
+3. On the event day, designate a specific event-authorized administrator and
+   record when that person takes ownership of the paper fallback. Before each
+   activity, that administrator may print the current list from the browser or
+   save it as PDF. Include name, AKA, pass, activity, registration and
+   attendance status (event and activity where relevant) only; exclude contact
+   information. A print/PDF is a
+   snapshot and may already be stale; check current authoritative state before
+   any permitted connected write. If connectivity fails, the designated
+   administrator records day-of incidents on paper, then checks for duplicates
+   and manually reconciles each case against current authoritative state.
+   Paper is not an offline platform or a queued command; never blindly replay
+   registrations, payments, or check-ins.
+4. For a completed check-in, score, assignment, or incident update, rely on
    the returned current status rather than a remembered or cached result.
-4. For public competition results, request publication only for authorized,
+5. For public competition results, request publication only for authorized,
    finalized event-scoped outcomes. Do not expose participant, credential,
    incident, financial, audit, notification, or export data.
-5. Record only minimum operational context for escalation. Do not place
+6. Record only minimum operational context for escalation. Do not place
    passwords, QR values, PINs, session identifiers, or sensitive participant
    details in general notes.
 
@@ -46,7 +58,27 @@ decisions remain deferred.
   financial, or country-specific policy.
 
 Stop the affected action, preserve the current safe status, and escalate. Do
-not use offline workarounds, local queues, or manual event replay.
+not use offline platform writes, local queues, automatic sync, or blind manual
+replay. Paper may keep the event moving, but does not authorize a platform write
+when connectivity, scope, status, or audit is uncertain.
+
+## Registration correction boundary
+
+Only event-authorized administrators, not judges, may perform bounded audited
+name/AKA corrections after confirming shared cross-event identity impact;
+equal-price Breaking/Popping/Locking/Dancehall swaps; or justified pending
+voids. All event-scoped administrators may use those bounded corrections and
+read their event's operation history, never judges; access mechanics remain
+pending. A separate bounded cash correction is approved in principle, requiring
+coordination staff verification, reason, minimum evidence and preserved original
+confirmation/payment facts; its allowed transitions and guards must be defined
+before use. Escalate paid cases requiring reversal to the principal organizer
+outside automated MVP correction; no generic confirmed-state edit or void,
+Mercado Pago payment edit or refund is authorized.
+Transfers, general-to-participant upgrades and folio edits are excluded.
+Two years of history is desired subject to feasibility and legal review, not
+an implemented retention policy. None of these commands is made live by this
+runbook.
 
 ## Escalation and ownership gaps
 

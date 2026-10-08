@@ -1,0 +1,7 @@
+# Operational check-in boundary
+
+An authenticated event-scoped admin may `POST /admin/events/:eventId/registrations/:registrationId/check-in` once for a confirmed registration. The server records an immutable event attendance fact with actor, session and server timestamp; this does not alter registration or payment state.
+
+After event check-in, the same authority may `POST /admin/events/:eventId/registrations/:registrationId/activities/:activityId/check-in` once per actual same-event enrollment in a workshop or competition. The currently recognized `activities.kind` values are `workshop`, `battle` and `competition` (`battle` is the foundation's competition example). Other kinds, including general entry or party, are denied even when enrolled; new labels require an explicit product classification before admission. A general-pass-only registration has no activity enrollment. Activity facts bind the enrollment and earlier event fact, actor/session and server time; concurrent repeats return a conflict rather than a second fact.
+
+Missing/invalid event admission, unenrolled, ineligible-kind or cross-event activity, pending/voided registration and general-only requests are explicitly denied without writing attendance or changing registration/payment. Missing or unauthorized admin credentials, origin or CSRF are denied before mutation. Exceptions require authorized human resolution outside this endpoint; no staff role, override or automatic correction is implied.

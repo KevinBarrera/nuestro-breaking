@@ -2,7 +2,7 @@ name: Required PR checks
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, ready_for_review, edited]
+    types: [opened, synchronize, reopened, ready_for_review]
   push:
     branches: [dev]
 
@@ -17,50 +17,59 @@ env:
   CI: true
 
 jobs:
-  pr_branch_flow_guard:
-    name: quality / branch-flow-guard
-    if: github.event_name == 'pull_request'
+  # Decides which areas a PR touches. It runs on every event so dependent jobs can
+  # always read its outputs: pushes to dev and shared inputs run everything.
+  changes:
+    name: quality / changes
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    permissions:
+      contents: read
+      # paths-filter lists the PR's changed files through the API (no checkout needed).
+      pull-requests: read
+    outputs:
+      backend: ${{ steps.areas.outputs.backend }}
+      frontend: ${{ steps.areas.outputs.frontend }}
     steps:
-      - name: Enforce feature -> dev -> staging -> main flow
+      - name: Detect changed paths
+        id: filter
+        if: github.event_name == 'pull_request'
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        with:
+          # Fail toward running: any file outside the app folders and the docs
+          # (lockfile, workspace or tool config, workflows, scripts) runs every area.
+          predicate-quantifier: every
+          filters: |
+            other:
+              - '!apps/backend/**'
+              - '!apps/frontend/**'
+              - '!docs/**'
+              - '!odd/**'
+              - '!openspec/**'
+              - '!**/*.md'
+            backend:
+              - 'apps/backend/**'
+            frontend:
+              - 'apps/frontend/**'
+      - name: Decide which areas run
+        id: areas
         env:
-          BASE_REF: ${{ github.base_ref }}
-          HEAD_REF: ${{ github.head_ref }}
-          HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
-          REPOSITORY: ${{ github.repository }}
+          EVENT_NAME: ${{ github.event_name }}
+          OTHER: ${{ steps.filter.outputs.other }}
+          BACKEND: ${{ steps.filter.outputs.backend }}
+          FRONTEND: ${{ steps.filter.outputs.frontend }}
         run: |
           set -euo pipefail
-
-          echo "Validating PR branch flow: ${HEAD_REPOSITORY}:${HEAD_REF} -> ${REPOSITORY}:${BASE_REF}"
-
-          case "${BASE_REF}" in
-            dev)
-              if [[ "${HEAD_REF}" =~ ^(feat|fix|chore|docs|style|refactor|perf|test|build|ci|revert)/[a-z0-9._-]+$ ]]; then
-                exit 0
-              fi
-              echo "PRs targeting dev must come from a typed work branch such as feat/*, fix/*, chore/*, docs/*, test/*, or ci/*."
-              exit 1
-              ;;
-            staging)
-              if [[ "${HEAD_REPOSITORY}" == "${REPOSITORY}" && "${HEAD_REF}" == "dev" ]]; then
-                exit 0
-              fi
-              echo "PRs targeting staging must come only from this repository's dev branch. Feature branches must target dev first."
-              exit 1
-              ;;
-            main)
-              if [[ "${HEAD_REPOSITORY}" == "${REPOSITORY}" && "${HEAD_REF}" == "staging" ]]; then
-                exit 0
-              fi
-              echo "PRs targeting main must come only from this repository's staging branch. Production promotion must pass through dev and staging."
-              exit 1
-              ;;
-            *)
-              echo "Unsupported PR base branch: ${BASE_REF}. Allowed bases are dev, staging, and main."
-              exit 1
-              ;;
-          esac
+          if [[ "${EVENT_NAME}" != "pull_request" || "${OTHER}" == "true" ]]; then
+            backend=true
+            frontend=true
+          else
+            backend="${BACKEND:-false}"
+            frontend="${FRONTEND:-false}"
+          fi
+          echo "event=${EVENT_NAME} other=${OTHER:-n/a} -> backend=${backend} frontend=${frontend}"
+          echo "backend=${backend}" >> "${GITHUB_OUTPUT}"
+          echo "frontend=${frontend}" >> "${GITHUB_OUTPUT}"
 
   quality_format:
     name: quality / format
@@ -79,6 +88,8 @@ jobs:
 
   backend_lint_build_unit:
     name: backend / lint-build-unit
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.backend == 'true') }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -96,6 +107,8 @@ jobs:
 
   backend_postgres_e2e:
     name: backend / postgres-e2e
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.backend == 'true') }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -110,8 +123,52 @@ jobs:
       - name: Run disposable PostgreSQL 16 E2E tests
         run: pnpm --filter @nuestro-breaking/backend test:e2e --runInBand
 
+  frontend_live_check_in:
+    name: frontend / live-check-in
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.backend == 'true' || needs.changes.outputs.frontend == 'true') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # Runs on the host runner, not in the Playwright image: the forked backend
+    # starts PostgreSQL with Testcontainers, which needs the host Docker daemon.
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Install dependencies
+        timeout-minutes: 5
+        run: pnpm install --frozen-lockfile
+      - name: Install Chromium and its OS dependencies
+        timeout-minutes: 8
+        # The apt step behind --with-deps has hung on Ubuntu mirrors: bound each attempt and retry.
+        run: |
+          for attempt in 1 2 3; do
+            if timeout 150 pnpm --filter @nuestro-breaking/frontend exec playwright install --with-deps chromium; then
+              exit 0
+            fi
+            echo "Playwright install attempt ${attempt} failed or timed out; retrying."
+          done
+          exit 1
+      - run: pnpm --filter @nuestro-breaking/frontend test:e2e:live
+      - name: Upload live Playwright failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-live-artifacts-${{ github.run_id }}
+          path: |
+            apps/frontend/test-results/
+            apps/frontend/playwright-report/
+          if-no-files-found: ignore
+          retention-days: 7
+
   frontend_lint_build:
     name: frontend / lint-build
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.frontend == 'true') }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -124,12 +181,35 @@ jobs:
           cache-dependency-path: pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @nuestro-breaking/frontend lint
+      - run: pnpm --filter @nuestro-breaking/frontend test
       - run: pnpm --filter @nuestro-breaking/frontend build
 
-  frontend_playwright:
-    name: frontend / playwright
+  frontend_playwright_shard:
+    name: frontend / playwright shard (${{ matrix.shard }}/${{ matrix.total }})
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.frontend == 'true') }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    # Browsers and their OS dependencies ship in the official image, so no
+    # `playwright install --with-deps` (its apt step has hung on Ubuntu mirrors).
+    # The image tag MUST match the exact `@playwright/test` version in pnpm-lock.yaml;
+    # the "Check the image ships the browser" step fails fast when the installed
+    # version needs a browser build the image does not contain.
+    defaults:
+      run:
+        # Container steps default to `sh`; the scripts below need bash.
+        shell: bash
+    container:
+      image: mcr.microsoft.com/playwright:v1.62.1-noble
+      # UID 1001 matches the GitHub-hosted runner user, so the checked-out
+      # workspace and the pnpm/tool cache stay writable (Playwright CI docs).
+      options: --user 1001
+    strategy:
+      fail-fast: false
+      matrix:
+        # `total` must equal the number of entries in `shard`.
+        shard: [1, 2]
+        total: [2]
     steps:
       - uses: actions/checkout@v6
       - uses: pnpm/action-setup@v4
@@ -138,16 +218,64 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter @nuestro-breaking/frontend exec playwright install --with-deps chromium
-      - run: pnpm --filter @nuestro-breaking/frontend test:e2e
+      - name: Install dependencies
+        timeout-minutes: 5
+        run: pnpm install --frozen-lockfile
+      - name: Check the image ships the browser for the installed @playwright/test
+        working-directory: apps/frontend
+        run: |
+          set -euo pipefail
+          INSTALLED="$(pnpm exec playwright --version)"
+          BROWSER="$(node -e "console.log(require('@playwright/test').chromium.executablePath())")"
+          echo "Installed: ${INSTALLED}; expected Chromium at ${BROWSER}"
+          if [[ ! -x "${BROWSER}" ]]; then
+            echo "::error::The Playwright container image has no Chromium for ${INSTALLED}. Bump the image tag in .github/workflows/pr-checks.yml to match @playwright/test in pnpm-lock.yaml."
+            exit 1
+          fi
+      - run: pnpm --filter @nuestro-breaking/frontend test:e2e --shard=${{ matrix.shard }}/${{ matrix.total }}
+        env:
+          # Serve a production build (vite build + preview) instead of the dev server.
+          NB_E2E_PREVIEW: '1'
+          # PRs skip the accessibility and phone-width sweeps; pushes to dev run them.
+          NB_E2E_SKIP_SWEEPS: ${{ github.event_name == 'pull_request' && '1' || '' }}
+      - name: Run dev-server-only assertions
+        if: matrix.shard == 1
+        # This spec reads the in-memory session store as a /src module, which only the
+        # Vite dev server serves; run it once without NB_E2E_PREVIEW.
+        run: pnpm --filter @nuestro-breaking/frontend test:e2e e2e/route-placeholders.spec.ts -g "clears local identity"
       - name: Upload Playwright failure artifacts
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-artifacts-${{ github.run_id }}
+          name: playwright-artifacts-${{ github.run_id }}-shard-${{ matrix.shard }}
           path: |
             apps/frontend/test-results/
             apps/frontend/playwright-report/
           if-no-files-found: ignore
           retention-days: 7
+
+  # Stable required-check name that aggregates the shard matrix. It always runs, so
+  # the check reports on every PR: shards skipped because change detection found no
+  # frontend change pass, while a failed or cancelled shard fails it. If change
+  # detection fails, the shards run anyway, so their own result decides.
+  frontend_playwright:
+    name: frontend / playwright
+    needs: [changes, frontend_playwright_shard]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require every Playwright shard to pass or be skipped
+        env:
+          CHANGES_RESULT: ${{ needs.changes.result }}
+          SHARD_RESULT: ${{ needs.frontend_playwright_shard.result }}
+        run: |
+          echo "Change detection result: ${CHANGES_RESULT}; Playwright shard job result: ${SHARD_RESULT}"
+          if [[ "${SHARD_RESULT}" == "skipped" && "${CHANGES_RESULT}" != "success" ]]; then
+            echo "::error::The Playwright shards were skipped without a successful change detection (quality / changes)."
+            exit 1
+          fi
+          if [[ "${SHARD_RESULT}" != "success" && "${SHARD_RESULT}" != "skipped" ]]; then
+            echo "::error::At least one Playwright shard did not pass (result: ${SHARD_RESULT})."
+            exit 1
+          fi

@@ -11,6 +11,7 @@ pnpm format
 pnpm format:check
 pnpm --filter @nuestro-breaking/frontend lint
 pnpm --filter @nuestro-breaking/frontend build
+pnpm --filter @nuestro-breaking/frontend test
 pnpm --filter @nuestro-breaking/backend lint
 pnpm --filter @nuestro-breaking/backend build
 pnpm --filter @nuestro-breaking/backend test

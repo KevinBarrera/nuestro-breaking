@@ -43,6 +43,62 @@
       "when": 1786562775592,
       "tag": "0005_participant_registration_model",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1786562775593,
+      "tag": "0006_registration_lifecycle_states",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1786562775594,
+      "tag": "0007_admin_registration_operations",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1786562775595,
+      "tag": "0008_event_check_ins",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1786562775596,
+      "tag": "0009_activity_check_ins",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1786562775597,
+      "tag": "0010_activity_check_in_kind",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1786562775598,
+      "tag": "0011_event_catalog",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1786562775599,
+      "tag": "0012_registration_entitlement_audit",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1786562775600,
+      "tag": "0013_catalog_restore_audit",
+      "breakpoints": true
     }
   ]
 }

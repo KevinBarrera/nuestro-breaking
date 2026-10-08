@@ -27,7 +27,7 @@ type Database = DatabaseService['db'];
 type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0];
 type Executor = Database | Transaction;
 type PassTypeRow = typeof eventPassTypes.$inferSelect;
-type Operation = 'create' | 'update' | 'archive' | 'access_change';
+type Operation = 'create' | 'update' | 'archive' | 'restore' | 'access_change';
 
 const ACTIVE_NAME_INDEX = 'event_pass_types_event_active_name_uq';
 

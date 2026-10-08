@@ -33,7 +33,7 @@ flowchart TD
 La unidad de venta es el pase, no cada actividad:
 
 - Pase completo de **Breaking**, **Popping**, **Locking** o **Dancehall**: **$2000** cada uno. En el MVP, una persona puede comprar varios pases completos y elegir las competencias de cada disciplina adquirida.
-- Entrada general: **$1000**; no incluye competencias ni workshops.
+- Entrada general: **$1000**; no incluye competencias ni workshops. Cada pase completo ya incluye la entrada general, por lo que no se compran juntos.
 - Open Styles: adicional opcional de **$800**, requiere al menos un pase completo; competencia **1vs1**, sin workshops propios.
 
 Competencias a seleccionar con el pase completo:
@@ -47,7 +47,7 @@ La persona elige sus competencias de cada disciplina adquirida al comprar sus pa
 
 ### 2. Registrarse y pagar
 
-La persona completa un registro sencillo con los datos necesarios para asistir o competir. El registro mostrará este aviso antes del pago: “Algunas competencias o workshops pueden coincidir en horario. Puedes elegir libremente a cuáles asistir; intentaremos evitar cruces entre competencias, pero no podemos garantizarlos. Open Styles no coincidirá con competencias de pase completo, aunque podría coincidir parcialmente con workshops.” Después pasa a una pantalla de pago segura.
+La persona completa un registro sencillo con los datos necesarios para asistir o competir. El registro mostrará este aviso antes del pago: “Algunas competencias o workshops pueden coincidir en horario. Puedes elegir libremente a cuáles asistir; intentaremos evitar cruces entre competencias, pero no podemos garantizarlos. Open Styles no coincidirá con competencias de pase completo, aunque podría coincidir parcialmente con workshops.” Antes de pagar, la persona debe aceptar el Reglamento oficial, el Aviso de privacidad y la Política de cancelación. Después pasa a una pantalla de pago segura de Mercado Pago. En el MVP solo se aceptan pagos desde México.
 
 Cuando el pago está aprobado, recibe:
 
@@ -140,6 +140,7 @@ flowchart TD
 
 - Brackets, puntuaciones, jueces o selección de ganadores.
 - Reembolsos o edición de pagos en Mercado Pago.
+- Pagos desde fuera de México; los pagos internacionales quedan para después del MVP.
 - Transferencias, cambio de entrada general a participante y edición de folio.
 - CSV/Excel, escrituras sin conexión, sincronización automática o reproducción ciega de anotaciones en papel.
 - Administración de hoteles, viajes, mercancía o patrocinadores.
@@ -163,4 +164,4 @@ Esta propuesta busca confirmar la experiencia deseada, no pedir al organizador q
 
 ## Validaciones a cargo del equipo de producto
 
-Antes de abrir ventas, el equipo de producto debe validar la cuenta de venta, los medios de pago disponibles, el comportamiento de pagos aprobados, pendientes o rechazados, y la experiencia de compradores internacionales que se acuerde soportar. Estas validaciones no son decisiones técnicas que deba tomar el organizador.
+Antes de abrir ventas, el equipo de producto debe validar la cuenta de venta, los medios de pago disponibles, el comportamiento de pagos aprobados, pendientes o rechazados. En el MVP solo se aceptan pagos desde México; los pagos internacionales quedan para después del MVP. Estas validaciones no son decisiones técnicas que deba tomar el organizador.

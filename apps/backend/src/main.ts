@@ -1,16 +1,13 @@
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from '@/app.module';
+import { configureHttp } from '@/http';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
   app.enableShutdownHooks();
-  app.enableCors({
-    origin: process.env.AUTH_TRUSTED_ORIGIN ?? 'http://localhost:5173',
-    credentials: true,
-    exposedHeaders: ['X-CSRF-Token'],
-  });
+  configureHttp(app);
 
   const swaggerConfig = new DocumentBuilder()
     .setTitle('Los más pesados API')

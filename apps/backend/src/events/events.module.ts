@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { DatabaseModule } from '@/database/database.module';
 import { IdentityAccessModule } from '@/identity-access/identity-access.module';
+import { PublicRateLimitModule } from '@/http';
 import { EventFoundationGuard } from './foundation/event-foundation.guard';
 import { EventFoundationController } from './foundation/event-foundation.controller';
 import { EventFoundationService } from './foundation/event-foundation.service';
@@ -24,7 +25,7 @@ import { PublicCatalogController } from './public-catalog/public-catalog.control
 import { PublicCatalogService } from './public-catalog/public-catalog.service';
 
 @Module({
-  imports: [DatabaseModule, IdentityAccessModule],
+  imports: [DatabaseModule, IdentityAccessModule, PublicRateLimitModule],
   controllers: [
     EventFoundationController,
     RegistrationSearchController,

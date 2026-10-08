@@ -43,6 +43,16 @@ This check validates the pinned Node.js runtime, the existing pnpm workspace ins
 
 Copy `.env.example` to `.env` and replace the placeholder values. Keep `.env` local; it is ignored by Git.
 
+Optional backend variables for the public API (see the [public event catalog contract](docs/contracts/public-event-catalog.md#cors)):
+
+| Variable                   | Default | Meaning                                                                                            |
+| -------------------------- | ------- | -------------------------------------------------------------------------------------------------- |
+| `PUBLIC_ALLOWED_ORIGINS`   | empty   | Comma-separated exact origins allowed to call `/public/...` routes, besides `AUTH_TRUSTED_ORIGIN`. |
+| `PUBLIC_RATE_LIMIT_LIMIT`  | `60`    | Public requests per client IP and route per window.                                                |
+| `PUBLIC_RATE_LIMIT_TTL_MS` | `60000` | Public rate-limit window in milliseconds.                                                          |
+
+Behind a reverse proxy, Express `trust proxy` must be configured for the rate limit to see real client IPs; see the contract's deployment note.
+
 Start PostgreSQL 16 from the repository root:
 
 ```bash

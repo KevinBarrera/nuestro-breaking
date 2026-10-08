@@ -50,7 +50,7 @@ Forecast: ~1,300–1,600 authored lines over 4 PRs.
 
 ### PR 2 — `feat/175-02-public-catalog-api`
 
-- [ ] T2 — `GET /public/events/:slug/catalog`: 404 for unknown slug; event summary and sales state; when open, active passes with prices, Open Styles requirement and active selectable/included activities; archived rows never appear (D4, D5). Reusable sales-open check for #174. Contract doc. Jest + PostgreSQL e2e.
+- [ ] T2 — Fix the T1 advisories (calendar-date rollover → 400, seed slug conflict handled and tested). `GET /public/events/:slug/catalog`: 404 for unknown slug; event summary and sales state; when open, active passes with prices, Open Styles requirement and active selectable/included activities; archived rows never appear (D4, D5). Reusable sales-open check for #174. Contract doc. Jest + PostgreSQL e2e.
 
 ### PR 3 — `feat/175-03-public-rate-limit-cors`
 
@@ -67,7 +67,7 @@ See issue #175. Evidence is recorded per task below.
 ## Progress
 
 - 2026-10-08 — D1 and D2 answered. Exploration done (delegated read-only explorer). Feature doc created. Next: T1.
-- 2026-10-08 — T1 implemented by the delegated writer, pending parent check and commit. Migration `0014_event_sales_state` adds `events.slug` (unique, kebab-case check, deterministic `event-<id>` backfill, random default for new rows), `sales_enabled` (default false), `sales_opens_at`, `sales_closes_at` (window check). Seed sets `los-mas-pesados-nov-2026` and replaces a generated slug on re-run. Pure `salesState` in `apps/backend/src/events/sales/` (opening inclusive, closing exclusive, switch wins). Admin `GET`/`PUT /admin/events/:eventId/sales`. Sales changes are not audited (`event_catalog_audit` entity check excludes events); recorded as a known gap in `docs/contracts/event-sales.md`. RED observed: unit spec (3 failing against a stub), seed e2e (2 failing), admin sales e2e (6 failing before the controller).
+- 2026-10-08 — T1 done in `3d34329` (schema, seed) and `f5af324` (sales service, admin API, contract). Migration `0014_event_sales_state` adds `events.slug` (unique, kebab-case check, deterministic `event-<id>` backfill, random default for new rows), `sales_enabled` (default false), `sales_opens_at`, `sales_closes_at` (window check). Seed sets `los-mas-pesados-nov-2026` and replaces a generated slug on re-run. Pure `salesState` in `apps/backend/src/events/sales/` (opening inclusive, closing exclusive, switch wins). Admin `GET`/`PUT /admin/events/:eventId/sales`. Sales changes are not audited (`event_catalog_audit` entity check excludes events); recorded as a known gap in `docs/contracts/event-sales.md`. RED observed: unit spec (3 failing against a stub), seed e2e (2 failing), admin sales e2e (6 failing before the controller). Checks: backend lint, unit 42/42, build, full e2e 138/138, format. Parent spot check: unit 42/42. Review: medium (742 lines), consent granted, reliability lens approved and acknowledged (lineage `review-37fb773147462fc5`). Advisory, carried into T2: impossible calendar dates like `2026-02-31` roll over instead of 400 (`event-sales.controller.ts:18`); the seed insert can hit the slug unique index when an event with that slug exists under another name (`seed-november-catalog.ts:114`); the slug-taken branch is untested (`seed-november-catalog.ts:212-218`). Next boundary: `f5af324`.
 
 ## Route per task
 

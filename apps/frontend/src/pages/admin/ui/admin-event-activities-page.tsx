@@ -7,8 +7,16 @@ import {
   updateActivity,
   type ActivityInput,
   type CatalogActivity,
+  type CatalogFailure,
 } from '@/entities/event-catalog';
-import { type ReactNode, useCallback, useState } from 'react';
+import {
+  buttonClass,
+  ConfirmDialog,
+  Modal,
+  ReviewChangesDialog,
+  type ChangeRow,
+} from '@/shared/ui';
+import { type ReactNode, useCallback, useId, useState } from 'react';
 import { useParams } from 'react-router';
 import { ActivityAgendaFilters } from './activity-agenda-filters';
 import {
@@ -31,6 +39,11 @@ import {
 import { useCatalogLoad } from './use-catalog-load';
 
 type Editor = { mode: 'create' } | { mode: 'edit'; activity: CatalogActivity } | null;
+type Review = { input: ActivityInput; rows: ChangeRow[] };
+
+// A stale or missing record cannot be saved from these values, so its alert (with "Recargar")
+// belongs on the page, not inside a dialog the person would have to close first.
+const needsReload = (failure: CatalogFailure) => failure === 'conflict' || failure === 'not-found';
 
 export function AdminEventActivitiesPage() {
   const { eventId } = useParams<'eventId'>();
@@ -50,8 +63,10 @@ function EventActivities({ eventId }: { eventId: string }) {
     [eventId],
   );
   const { state, reload } = useCatalogLoad(load);
+  const formId = useId();
   const [editor, setEditor] = useState<Editor>(null);
-  const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  const [review, setReview] = useState<Review | null>(null);
+  const [archiving, setArchiving] = useState<CatalogActivity | null>(null);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [filters, setFilters] = useState<AgendaFilters>({
@@ -67,17 +82,23 @@ function EventActivities({ eventId }: { eventId: string }) {
     try {
       await action();
       setEditor(null);
-      setConfirmingId(null);
+      setReview(null);
+      setArchiving(null);
       setNotice({ kind: 'success', text: success });
       reload();
     } catch (error) {
-      setNotice({ kind: 'failure', failure: catalogFailure(error) });
+      const failure = catalogFailure(error);
+      setNotice({ kind: 'failure', failure });
+      // Other failures go back to the form with the edits intact, where the alert is shown.
+      setReview(null);
+      setArchiving(null);
+      if (needsReload(failure)) setEditor(null);
     } finally {
       setBusy(false);
     }
   }
 
-  function save(input: ActivityInput) {
+  function save({ input }: Review) {
     if (editor?.mode === 'edit') {
       const { id, version } = editor.activity;
       void run(() => updateActivity(eventId, id, version, input), 'Actividad actualizada.');
@@ -87,9 +108,7 @@ function EventActivities({ eventId }: { eventId: string }) {
   }
 
   function refresh() {
-    setEditor(null);
-    setConfirmingId(null);
-    setNotice(null);
+    closeEditor();
     reload();
   }
 
@@ -99,8 +118,15 @@ function EventActivities({ eventId }: { eventId: string }) {
 
   function openEditor(next: Editor) {
     setNotice(null);
-    setConfirmingId(null);
     setEditor(next);
+  }
+
+  // Esc and "Cancelar" discard the edits: the form unmounts and the dialog returns focus to the
+  // button that opened it.
+  function closeEditor() {
+    setNotice(null);
+    setReview(null);
+    setEditor(null);
   }
 
   return (
@@ -129,67 +155,114 @@ function EventActivities({ eventId }: { eventId: string }) {
         {state.status === 'failed' && <CatalogLoadFailure failure={state.failure} />}
         {data && (
           <>
-            <CatalogNotice notice={notice} onReload={refresh} />
+            {/* While the form is open its failures show inside the dialog instead. */}
+            {!editor && <CatalogNotice notice={notice} onReload={refresh} />}
             <CatalogRefreshFailure failure={refreshFailure} onRetry={reload} />
-            <div
-              className={`grid items-start gap-6 ${editor ? 'lg:grid-cols-[minmax(0,1fr)_24rem]' : ''}`}
-            >
-              {editor && (
-                <aside
-                  aria-label="Panel de la actividad"
-                  className="min-w-0 lg:col-start-2 lg:row-start-1"
-                >
+            {editor && (
+              <Modal
+                title={editor.mode === 'edit' ? 'Editar actividad' : 'Nueva actividad'}
+                isOpen
+                onOpenChange={(open) => {
+                  if (!open && !busy) closeEditor();
+                }}
+                isKeyboardDismissDisabled={busy}
+                actions={
+                  <>
+                    <button
+                      type="button"
+                      disabled={busy}
+                      className={buttonClass('secondary')}
+                      onClick={closeEditor}
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="submit"
+                      form={formId}
+                      disabled={busy || data.context.venues.length === 0}
+                      className={buttonClass('primary')}
+                    >
+                      Guardar
+                    </button>
+                  </>
+                }
+              >
+                <div className="space-y-4 pb-1">
+                  <CatalogNotice notice={notice} onReload={refresh} />
                   <ActivityForm
                     key={editor.mode === 'edit' ? editor.activity.id : 'new'}
+                    id={formId}
                     title={editor.mode === 'edit' ? 'Editar actividad' : 'Nueva actividad'}
                     activity={editor.mode === 'edit' ? editor.activity : undefined}
                     venues={data.context.venues}
                     timeZone={data.context.timeZone}
                     busy={busy}
-                    onSubmit={save}
-                    onCancel={() => setEditor(null)}
+                    onReview={(input, rows) => {
+                      setNotice(null);
+                      setReview({ input, rows });
+                    }}
                   />
-                </aside>
-              )}
-              <section
-                aria-label="Agenda de actividades"
-                className="min-w-0 space-y-6 lg:col-start-1 lg:row-start-1"
+                </div>
+              </Modal>
+            )}
+            <ReviewChangesDialog
+              isOpen={review !== null}
+              onOpenChange={(open) => {
+                if (!open) setReview(null);
+              }}
+              rows={review?.rows ?? []}
+              onConfirm={() => {
+                if (review) save(review);
+              }}
+              isPending={busy}
+            />
+            {archiving && (
+              <ConfirmDialog
+                isOpen
+                onOpenChange={(open) => {
+                  if (!open && !busy) setArchiving(null);
+                }}
+                title={`¿Archivar ${archiving.name}?`}
+                consequence="Dejará de estar disponible para nuevos pases."
+                confirmLabel="Archivar"
+                pendingLabel="Archivando…"
+                tone="destructive"
+                isPending={busy}
+                onConfirm={() =>
+                  void run(
+                    () => archiveActivity(eventId, archiving.id, archiving.version),
+                    'Actividad archivada.',
+                  )
+                }
+              />
+            )}
+            <section aria-label="Agenda de actividades" className="min-w-0 space-y-6">
+              <ActivityAgendaFilters
+                filters={filters}
+                kinds={kindOptions(data.activities, filters.showArchived, filters.kind)}
+                total={countVisible(data.activities, filters.showArchived)}
+                onChange={setFilters}
+              />
+              <Agenda
+                activities={data.activities}
+                filters={filters}
+                timeZone={data.context.timeZone}
               >
-                <ActivityAgendaFilters
-                  filters={filters}
-                  kinds={kindOptions(data.activities, filters.showArchived, filters.kind)}
-                  total={countVisible(data.activities, filters.showArchived)}
-                  onChange={setFilters}
-                />
-                <Agenda
-                  activities={data.activities}
-                  filters={filters}
-                  timeZone={data.context.timeZone}
-                >
-                  {(days) => (
-                    <ActivityList
-                      days={days}
-                      venueNames={venueNames}
-                      timeZone={data.context.timeZone}
-                      confirmingId={confirmingId}
-                      busy={busy}
-                      onEdit={(activity) => openEditor({ mode: 'edit', activity })}
-                      onArchiveRequest={(activity) => {
-                        setNotice(null);
-                        setConfirmingId(activity.id);
-                      }}
-                      onArchiveConfirm={(activity) =>
-                        void run(
-                          () => archiveActivity(eventId, activity.id, activity.version),
-                          'Actividad archivada.',
-                        )
-                      }
-                      onArchiveCancel={() => setConfirmingId(null)}
-                    />
-                  )}
-                </Agenda>
-              </section>
-            </div>
+                {(days) => (
+                  <ActivityList
+                    days={days}
+                    venueNames={venueNames}
+                    timeZone={data.context.timeZone}
+                    busy={busy}
+                    onEdit={(activity) => openEditor({ mode: 'edit', activity })}
+                    onArchive={(activity) => {
+                      setNotice(null);
+                      setArchiving(activity);
+                    }}
+                  />
+                )}
+              </Agenda>
+            </section>
           </>
         )}
       </div>

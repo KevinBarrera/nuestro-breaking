@@ -111,6 +111,16 @@ async function mockActivityList(page: Page, rows: () => Activity[]) {
   return () => reads;
 }
 
+// The activity form's "Guardar" sits in its dialog footer and opens "Revisar cambios"; only
+// "Guardar cambios" there writes.
+async function saveActivity(page: Page) {
+  await page.getByRole('dialog').getByRole('button', { name: 'Guardar', exact: true }).click();
+  await page
+    .getByRole('dialog', { name: 'Revisar cambios' })
+    .getByRole('button', { name: 'Guardar cambios' })
+    .click();
+}
+
 test.beforeEach(async ({ page }) => {
   await page.route(
     (url) => api(url) && url.pathname === '/auth/session',
@@ -204,7 +214,7 @@ test('creates an activity with CSRF and event-time instants, then refreshes the 
   await chooseOption(selectTrigger(form, 'Sede'), 'Centro cultural');
   await form.getByLabel('Inicio').fill('2026-11-14T12:00');
   await form.getByLabel('Fin').fill('2026-11-14T13:30');
-  await form.getByRole('button', { name: 'Guardar' }).click();
+  await saveActivity(page);
   await expect(page.getByRole('status')).toContainText('Actividad creada');
   await expect(page.getByText('Taller de toprock')).toBeVisible();
   expect(body).toEqual({
@@ -242,7 +252,7 @@ test('edits an activity with its expected version', async ({ page }) => {
   const form = page.getByRole('form', { name: 'Editar actividad' });
   await expect(form.getByLabel('Inicio')).toHaveValue('2026-11-14T10:00');
   await form.getByLabel('Nombre').fill('Batalla 2 vs 2');
-  await form.getByRole('button', { name: 'Guardar' }).click();
+  await saveActivity(page);
   await expect(page.getByRole('status')).toContainText('Actividad actualizada');
   await expect(page.getByText('Batalla 2 vs 2')).toBeVisible();
   expect(body).toEqual({
@@ -281,7 +291,7 @@ test('requires a venue when the saved one is no longer among the event venues', 
   await expect(venue).toHaveText('Elige una sede');
   await expect(form.getByText('Sin sedes')).toHaveCount(0);
 
-  await form.getByRole('button', { name: 'Guardar' }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Guardar', exact: true }).click();
   await expect(form.getByText('Elige la sede de la actividad.')).toBeVisible();
   await expect(venue).toHaveAccessibleDescription('Elige la sede de la actividad.');
   await expect(page.getByText('Actividad actualizada')).toHaveCount(0);
@@ -289,7 +299,7 @@ test('requires a venue when the saved one is no longer among the event venues', 
 
   await chooseOption(venue, 'Centro cultural');
   await expect(form.getByText('Elige la sede de la actividad.')).toHaveCount(0);
-  await form.getByRole('button', { name: 'Guardar' }).click();
+  await saveActivity(page);
   await expect(page.getByRole('status')).toContainText('Actividad actualizada');
   expect(writes).toEqual(['PATCH']);
 });
@@ -309,7 +319,7 @@ test('shows a reload request on a version conflict without claiming success', as
     .click();
   const form = page.getByRole('form', { name: 'Editar actividad' });
   await form.getByLabel('Nombre').fill('Otro nombre');
-  await form.getByRole('button', { name: 'Guardar' }).click();
+  await saveActivity(page);
   await expect(page.getByRole('alert')).toContainText('Recarga');
   await expect(page.getByText('Activity version conflict')).toHaveCount(0);
   await expect(page.getByText('Actividad actualizada')).toHaveCount(0);
@@ -334,12 +344,13 @@ test('archives an activity only after confirmation', async ({ page }) => {
   await page.goto(activitiesPath);
   const row = page.getByRole('listitem').filter({ hasText: 'Batalla de crews' });
   await row.getByRole('button', { name: 'Archivar' }).click();
-  await expect(row.getByText('¿Archivar Batalla de crews?')).toBeVisible();
+  const confirm = page.getByRole('alertdialog', { name: '¿Archivar Batalla de crews?' });
+  await expect(confirm).toContainText('Dejará de estar disponible para nuevos pases.');
   expect(bodies).toHaveLength(0);
-  await row.getByRole('button', { name: 'Cancelar' }).click();
+  await confirm.getByRole('button', { name: 'Cancelar' }).click();
   expect(bodies).toHaveLength(0);
   await row.getByRole('button', { name: 'Archivar' }).click();
-  await row.getByRole('button', { name: 'Confirmar archivo' }).click();
+  await confirm.getByRole('button', { name: 'Archivar' }).click();
   await expect(page.getByRole('status')).toContainText('Actividad archivada');
   await expect(row).toHaveCount(0);
   await page.getByRole('checkbox', { name: 'Mostrar archivadas' }).check();
@@ -562,7 +573,9 @@ test('an event without venues explains why activities cannot be saved', async ({
   await page.getByRole('button', { name: 'Nueva actividad' }).click();
   const form = page.getByRole('form', { name: 'Nueva actividad' });
   await expect(form.getByText('El evento aún no tiene sedes')).toBeVisible();
-  await expect(form.getByRole('button', { name: 'Guardar' })).toBeDisabled();
+  await expect(
+    page.getByRole('dialog').getByRole('button', { name: 'Guardar', exact: true }),
+  ).toBeDisabled();
   await expect(selectTrigger(form, 'Sede')).toBeDisabled();
   expect(writes).toBe(0);
 });
@@ -591,7 +604,7 @@ test('keeps the success message when the refresh after a write fails', async ({ 
   await form.getByLabel('Tipo').fill('battle');
   await form.getByLabel('Inicio').fill('2026-11-14T12:00');
   await form.getByLabel('Fin').fill('2026-11-14T13:30');
-  await form.getByRole('button', { name: 'Guardar' }).click();
+  await saveActivity(page);
   const reloadAlert = page.getByRole('alert').filter({ hasText: 'No se pudo recargar' });
   await expect(reloadAlert).toBeVisible();
   await expect(page.getByRole('status')).toContainText('Actividad creada');
@@ -622,8 +635,9 @@ test('editing an activity keeps stored seconds when the times are unchanged', as
   const row = page.getByRole('listitem').filter({ hasText: 'Batalla de crews' });
   await row.getByRole('button', { name: 'Editar' }).click();
   let form = page.getByRole('form', { name: 'Editar actividad' });
-  await form.getByLabel('Nombre').fill('Batalla de crews');
-  await form.getByRole('button', { name: 'Guardar' }).click();
+  // Only the name changes; the untouched times must keep their stored seconds.
+  await form.getByLabel('Nombre').fill('Batalla de crews 2');
+  await saveActivity(page);
   await expect(page.getByRole('status')).toContainText('Actividad actualizada');
   expect(bodies[0]).toMatchObject({
     startsAt: '2026-11-14T16:00:45.000Z',
@@ -632,7 +646,7 @@ test('editing an activity keeps stored seconds when the times are unchanged', as
   await row.getByRole('button', { name: 'Editar' }).click();
   form = page.getByRole('form', { name: 'Editar actividad' });
   await form.getByLabel('Fin').fill('2026-11-14T12:30');
-  await form.getByRole('button', { name: 'Guardar' }).click();
+  await saveActivity(page);
   await expect.poll(() => bodies.length).toBe(2);
   expect(bodies[1]).toMatchObject({
     startsAt: '2026-11-14T16:00:45.000Z',

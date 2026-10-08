@@ -50,7 +50,8 @@ function EventOverview({ eventId }: { eventId: string }) {
           {data?.eventName && <p className="text-muted">{data.eventName}</p>}
         </header>
         <QuickActions eventId={eventId} />
-        <SalesSection eventId={eventId} />
+        {/* Keyed so another event never shows, or saves over, the previous settings. */}
+        <SalesSection key={eventId} eventId={eventId} />
         {state.status === 'loading' && <p role="status">Cargando resumen…</p>}
         {state.status === 'failed' && <CatalogLoadFailure failure={state.failure} />}
         {data && (

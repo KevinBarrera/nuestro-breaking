@@ -81,3 +81,4 @@ See issue #175. Evidence is recorded per task below.
 
 
 - 2026-10-08 — All four tasks done; acceptance criteria of #175 covered by backend e2e (`admin-event-sales`, `public-event-catalog`, `public-rate-limit`, `november-catalog-seed`) and frontend specs (`admin-event-sales`, sweeps). Pending: root `.env.example` vars, publishing the four chained PRs (user decision).
+- 2026-10-08 — Product owner tested locally (migration, seed, admin sales, public catalog). Published with user approval: #184 (PR 1 → `dev`), #185 → #184's branch, #186 → #185's, #187 → #186's (`Closes #175`), all labeled `type:feature`. Next: CI, then the user merges bottom-up and asks Claude to verify; then #174.

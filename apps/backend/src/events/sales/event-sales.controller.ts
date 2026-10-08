@@ -11,11 +11,10 @@ import {
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { SessionAccessService } from '@/identity-access/session-access.service';
+import { parseOffsetDateTime } from './date-time';
 import { EventSalesService } from './event-sales.service';
 import type { AdminEventSales, EventSalesChanges } from './event-sales.types';
 
-// ISO 8601 date-time with an explicit offset, so a value never depends on the server time zone.
-const DATE_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d{1,6})?)?(Z|[+-]\d{2}:\d{2})$/;
 const KEYS: readonly string[] = ['salesEnabled', 'salesOpensAt', 'salesClosesAt'];
 
 function changes(value: unknown): EventSalesChanges {
@@ -36,9 +35,8 @@ function changes(value: unknown): EventSalesChanges {
 
 function dateTime(value: unknown, message: string): Date | null {
   if (value === null) return null;
-  if (typeof value !== 'string' || !DATE_TIME.test(value)) throw new BadRequestException(message);
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) throw new BadRequestException(message);
+  const date = typeof value === 'string' ? parseOffsetDateTime(value) : null;
+  if (!date) throw new BadRequestException(message);
   return date;
 }
 

@@ -181,6 +181,8 @@ describe('admin event sales (e2e)', () => {
       { salesEnabled: true, salesOpensAt: 'tomorrow', salesClosesAt: null },
       { salesEnabled: true, salesOpensAt: '2026-11-01', salesClosesAt: null },
       { salesEnabled: true, salesOpensAt: '2026-13-01T00:00:00Z', salesClosesAt: null },
+      { salesEnabled: true, salesOpensAt: '2026-02-31T10:00:00Z', salesClosesAt: null },
+      { salesEnabled: true, salesOpensAt: null, salesClosesAt: '2026-11-20T24:00:00-05:00' },
       { salesEnabled: true, salesOpensAt: 1785000000000, salesClosesAt: null },
       { salesEnabled: true, salesOpensAt: at, salesClosesAt: at },
       { salesEnabled: true, salesOpensAt: fromNow(2 * DAY), salesClosesAt: at },

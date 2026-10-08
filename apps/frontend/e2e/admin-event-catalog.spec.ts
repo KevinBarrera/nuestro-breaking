@@ -443,7 +443,7 @@ test('each active pass card is one named link with no separate Editar control', 
   await page.mouse.click(price!.x + price!.width / 2, price!.y + price!.height / 2);
   await expect(page.getByRole('form', { name: 'Editar pase' })).toBeVisible();
   await expect(page).toHaveURL(`${passesPath}/${fullPassId}`);
-  // Archived cards stay non-interactive.
+  // Archived cards (under "Archivados") have no link to the pass screen.
   await page.getByRole('navigation', { name: 'Ruta de navegación' }).getByRole('link').click();
   await expect(card('Open Styles').getByRole('link')).toHaveCount(0);
 });

@@ -92,6 +92,18 @@ const passTypes = [
     version: 1,
     activities: [],
   },
+  // Listed under "Archivados" on the pass list; it opens the pass restore confirmation.
+  {
+    id: 'f3b2c3d4-1234-4567-89ab-123456789abc',
+    eventId,
+    name: 'Pase archivado con nombre largo para pantallas angostas',
+    passClass: 'general',
+    priceCents: 20000,
+    requiresPassClass: null,
+    status: 'archived',
+    version: 3,
+    activities: [{ activityId: workshopId, access: 'included' }],
+  },
 ];
 
 const foundation = {
@@ -161,8 +173,11 @@ export async function revealControls(page: Page, name: AdminScreenName) {
     await page.getByRole('button', { name: /Luz Rivera/ }).click();
     await page.getByRole('button', { name: 'Registrar entrada al evento' }).waitFor();
   }
-  // The list only holds cards; the controls live on each pass's own screen.
-  if (name === 'Pases') await page.getByRole('link', { name: 'Editar Pase completo' }).waitFor();
+  // The list holds cards: links to each pass's own screen and "Restaurar" on archived ones.
+  if (name === 'Pases') {
+    await page.getByRole('link', { name: 'Editar Pase completo' }).waitFor();
+    await page.getByRole('button', { name: /^Restaurar Pase archivado/ }).waitFor();
+  }
   if (name === 'Pase' || name === 'Nuevo pase') await accessTriggers(page).first().waitFor();
   if (name === 'Actividades') await page.getByRole('button', { name: /^Todas/ }).waitFor();
   if (name === 'Resumen') await page.getByRole('table', { name: 'Pases a la venta' }).waitFor();
@@ -170,7 +185,7 @@ export async function revealControls(page: Page, name: AdminScreenName) {
 
 // The catalog dialogs, each opened from its screen (after `revealControls`) without writing:
 // the activity form modal, "Revisar cambios", the destructive archive confirmation, the
-// activity restore confirmation and the unsaved-changes warning. `open` returns the open dialog.
+// activity and pass restore confirmations and the unsaved-changes warning. `open` returns the open dialog.
 export const adminDialogs: {
   name: string;
   screen: AdminScreenName;
@@ -208,12 +223,20 @@ export const adminDialogs: {
     },
   },
   {
-    name: 'restore confirmation',
+    name: 'activity restore confirmation',
     screen: 'Actividades',
     open: async (page) => {
       await page.getByRole('checkbox', { name: 'Mostrar archivadas' }).check();
       await page.getByRole('button', { name: /^Restaurar Cypher archivado/ }).click();
       return page.getByRole('alertdialog', { name: /^¿Restaurar Cypher archivado/ });
+    },
+  },
+  {
+    name: 'pass restore confirmation',
+    screen: 'Pases',
+    open: async (page) => {
+      await page.getByRole('button', { name: /^Restaurar Pase archivado/ }).click();
+      return page.getByRole('alertdialog', { name: /^¿Restaurar Pase archivado/ });
     },
   },
   {

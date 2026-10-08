@@ -1,11 +1,18 @@
 import type {
   CatalogActivity,
+  CatalogPassType,
   NewPassTypeInput,
   PassTypeActivity,
   PassTypeInput,
 } from '@/entities/event-catalog';
-import { Breadcrumbs, ReviewChangesDialog, UnsavedChangesGuard, type ChangeRow } from '@/shared/ui';
-import { useState } from 'react';
+import {
+  Breadcrumbs,
+  ConfirmDialog,
+  ReviewChangesDialog,
+  UnsavedChangesGuard,
+  type ChangeRow,
+} from '@/shared/ui';
+import { type Ref, useEffect, useId, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { styles } from './catalog-copy';
 import { AccessList, AccessSection, PassAccessEditor } from './pass-access-list';
@@ -17,20 +24,27 @@ import {
 } from './pass-access-model';
 import { passAccessRows, passFieldRows } from './pass-changes';
 import { PassTypeForm } from './pass-type-form';
-import { PassTypeList } from './pass-type-list';
+import { ArchivedPassList, PassTypeList } from './pass-type-list';
 import { passDetailPath, passListPath, passNewPath, usePassesContext } from './passes-context';
 
 const headerClass = 'space-y-2 border-b border-line pb-6';
 const titleClass = 'text-3xl font-bold tracking-tight break-words text-heading';
 
-type PassesHeaderProps = { eventId: string; canCreate?: boolean };
+type PassesHeaderProps = {
+  eventId: string;
+  canCreate?: boolean;
+  headingRef?: Ref<HTMLHeadingElement>;
+};
 
-// The list header; "Nuevo pase" only shows once the catalog is readable.
-export function PassesHeader({ eventId, canCreate = false }: PassesHeaderProps) {
+// The list header; "Nuevo pase" only shows once the catalog is readable. The heading takes
+// focus after a restore when the restored card is not shown.
+export function PassesHeader({ eventId, canCreate = false, headingRef }: PassesHeaderProps) {
   return (
     <header className="flex flex-wrap items-end justify-between gap-4 border-b border-line pb-6">
       <div className="min-w-0">
-        <h1 className={titleClass}>Pases</h1>
+        <h1 ref={headingRef} tabIndex={-1} className={`${titleClass} outline-none`}>
+          Pases
+        </h1>
         <p className="mt-1 text-sm text-muted">
           Qué se vende y a qué da acceso cada pase. Los cambios de precio no afectan lo ya vendido.
         </p>
@@ -44,20 +58,75 @@ export function PassesHeader({ eventId, canCreate = false }: PassesHeaderProps) 
   );
 }
 
+// Active passes fill the main list; archived ones sit in "Archivados" below, each with a
+// "Restaurar" that asks first. A confirmed restore moves the pass to the main list, and focus
+// goes to its card link (the "Restaurar" that opened the dialog is gone), or to the heading.
 export function PassListScreen() {
-  const { eventId, passTypes, activities, notices } = usePassesContext();
+  const { eventId, passTypes, activities, busy, notices, restore } = usePassesContext();
+  const [restoring, setRestoring] = useState<CatalogPassType | null>(null);
+  const [focusPass, setFocusPass] = useState<{ id: string } | null>(null);
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const listRef = useRef<HTMLElement>(null);
+  const archivedHeadingId = useId();
   const activityById = new Map(activities.map((activity) => [activity.id, activity]));
+  const active = passTypes.filter((passType) => passType.status === 'active');
+  const archived = passTypes.filter((passType) => passType.status !== 'active');
+
+  // On the next frame, after the dialog's own focus restore.
+  useEffect(() => {
+    if (!focusPass) return;
+    const frame = requestAnimationFrame(() => {
+      const link = listRef.current?.querySelector<HTMLAnchorElement>(
+        `[data-pass-link="${CSS.escape(focusPass.id)}"]`,
+      );
+      (link ?? headingRef.current)?.focus();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [focusPass]);
+
+  // A failure closes the dialog too, so the alert under the header is in view.
+  async function confirmRestore(passType: CatalogPassType) {
+    const restored = await restore(passType);
+    setRestoring(null);
+    if (restored) setFocusPass({ id: passType.id });
+  }
+
   return (
     <>
-      <PassesHeader eventId={eventId} canCreate />
+      <PassesHeader eventId={eventId} canCreate headingRef={headingRef} />
       {notices}
-      <section aria-label="Lista de pases">
+      <section ref={listRef} aria-label="Lista de pases">
         <PassTypeList
-          passTypes={passTypes}
+          passTypes={active}
           activities={activityById}
           detailPath={(passTypeId) => passDetailPath(eventId, passTypeId)}
+          emptyText={
+            archived.length > 0 ? 'No hay pases activos.' : 'Aún no hay pases para este evento.'
+          }
         />
       </section>
+      {archived.length > 0 && (
+        <section aria-labelledby={archivedHeadingId} className="space-y-3">
+          <h2 id={archivedHeadingId} className="text-lg font-bold text-heading">
+            Archivados
+          </h2>
+          <ArchivedPassList passTypes={archived} busy={busy} onRestore={setRestoring} />
+        </section>
+      )}
+      {restoring && (
+        <ConfirmDialog
+          isOpen
+          onOpenChange={(open) => {
+            if (!open && !busy) setRestoring(null);
+          }}
+          title={`¿Restaurar ${restoring.name}?`}
+          consequence="Volverá a estar activo con los mismos accesos que tenía y se podrá asignar de nuevo."
+          confirmLabel="Restaurar"
+          pendingLabel="Restaurando…"
+          isPending={busy}
+          onConfirm={() => void confirmRestore(restoring)}
+        />
+      )}
     </>
   );
 }
@@ -255,7 +324,8 @@ export function PassDetailScreen() {
   );
 }
 
-// An unknown id, or a pass that is archived (archived passes cannot be edited).
+// An unknown id, or a pass that is archived (archived passes cannot be edited until they are
+// restored from the list's "Archivados" section).
 function PassNotFound({ eventId }: { eventId: string }) {
   return (
     <>
@@ -266,8 +336,9 @@ function PassNotFound({ eventId }: { eventId: string }) {
         <h1 className={titleClass}>No encontramos este pase</h1>
       </header>
       <p className="text-muted">
-        Puede que el enlace esté incompleto o que el pase esté archivado; los pases archivados ya no
-        se pueden editar.
+        Puede que el enlace esté incompleto o que el pase esté archivado. Los pases archivados están
+        en la sección «Archivados» de la lista de pases, donde puedes restaurarlos para volver a
+        editarlos.
       </p>
       <Link to={passListPath(eventId)} className={`${styles.secondary} inline-flex items-center`}>
         Volver a Pases

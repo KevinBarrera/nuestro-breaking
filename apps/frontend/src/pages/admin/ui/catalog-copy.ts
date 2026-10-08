@@ -21,6 +21,11 @@ export const failureMessages: Record<CatalogFailure, string> = {
 export const activityRestoreConflict =
   'No se pudo restaurar: puede que la actividad ya no quepa en su sede o en las fechas del evento, o que otra persona la haya cambiado o restaurado. Recarga la lista y revísala.';
 
+// A pass restore 409 means an active pass already uses its name, someone else changed it, or it
+// is no longer archived. The client only sees the status, so this says how to resolve each.
+export const passRestoreConflict =
+  'No se pudo restaurar: puede que ya exista un pase activo con ese nombre (cambia el nombre de uno de los dos y vuelve a intentarlo) o que otra persona lo haya cambiado. Recarga la lista y revísalo.';
+
 export const activityStatusLabels: Record<CatalogStatus, string> = {
   active: 'Activa',
   archived: 'Archivada',

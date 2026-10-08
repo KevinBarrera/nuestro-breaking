@@ -18,7 +18,7 @@ const groups: { title: string; items: NavItem[] }[] = [
     title: 'CATÁLOGO',
     items: [
       { label: 'Actividades', section: 'activities' },
-      { label: 'Pases', section: 'pass-types' },
+      { label: 'Pases', section: 'passes' },
     ],
   },
 ];

@@ -125,7 +125,7 @@ function CatalogSummary({ eventId, activities, passTypes }: CatalogProps & { eve
           Catálogo
         </h2>
         <Link
-          to={eventPath(routes.adminEventPassTypes, eventId)}
+          to={eventPath(routes.adminEventPasses, eventId)}
           className="inline-flex min-h-11 items-center rounded-md px-3 text-sm font-semibold text-link hover:text-link-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
         >
           Editar

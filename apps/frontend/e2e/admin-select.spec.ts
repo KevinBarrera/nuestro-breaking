@@ -38,7 +38,7 @@ test('admin screens and catalog forms expose no native select', async ({ page })
   expect(await exposedNativeSelects(page)).toBe(0);
 
   await page.goto(adminScreens[3].path);
-  await page.getByRole('button', { name: 'Nuevo pase' }).click();
+  await page.getByRole('link', { name: 'Nuevo pase' }).click();
   const passForm = page.getByRole('form', { name: 'Nuevo pase' });
   await passForm.getByRole('radio', { name: 'Adicional' }).check();
   await expect(selectTrigger(passForm, 'Requiere pase')).toBeVisible();
@@ -100,12 +100,12 @@ test('Escape closes the listbox and returns focus to the trigger', async ({ page
 
 test('choosing the current event again does not navigate', async ({ page }) => {
   await mockTwoEvents(page);
-  await page.goto(`/admin/events/${eventId}/pass-types`);
+  await page.goto(`/admin/events/${eventId}/passes`);
   const header = page.getByRole('banner', { name: 'Espacio de administración' });
   const trigger = selectTrigger(header, 'Evento');
   await trigger.click();
   await page.getByRole('option', { name: 'Encuentro del barrio' }).click();
   await expect(page.getByRole('listbox')).toHaveCount(0);
-  await expect(page).toHaveURL(new RegExp(`/admin/events/${eventId}/pass-types$`));
+  await expect(page).toHaveURL(new RegExp(`/admin/events/${eventId}/passes$`));
   await expect(trigger).toBeFocused();
 });

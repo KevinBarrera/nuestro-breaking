@@ -1,6 +1,7 @@
 import type { PropsWithChildren } from 'react';
-import { BrowserRouter } from 'react-router';
 
+// The router is created in `app/router` as a data router (`createBrowserRouter`), so no
+// router provider wraps the app here.
 export function AppProviders({ children }: PropsWithChildren) {
-  return <BrowserRouter>{children}</BrowserRouter>;
+  return <>{children}</>;
 }

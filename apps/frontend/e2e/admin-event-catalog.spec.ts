@@ -9,7 +9,9 @@ const createdId = 'd3b2c3d4-1234-4567-89ab-123456789abc';
 const fullPassId = 'f1b2c3d4-1234-4567-89ab-123456789abc';
 const openPassId = 'f2b2c3d4-1234-4567-89ab-123456789abc';
 const activitiesPath = `/admin/events/${eventId}/activities`;
+// The API path of the pass catalog; the admin screens live under `passesPath`.
 const passTypesPath = `/admin/events/${eventId}/pass-types`;
+const passesPath = `/admin/events/${eventId}/passes`;
 const api = (url: URL) => url.port === '3000';
 
 const foundation = {
@@ -151,7 +153,7 @@ test('admin landing links each event to its activity and pass catalogs', async (
   );
   await expect(card.getByRole('link', { name: 'Pases', exact: true })).toHaveAttribute(
     'href',
-    passTypesPath,
+    passesPath,
   );
 });
 
@@ -372,9 +374,17 @@ async function mockPassTypes(page: Page, rows: () => unknown[]) {
   );
 }
 
+// Each pass has its own screen; the breadcrumb leads back to the list of cards.
+async function backToPasses(page: Page) {
+  await page
+    .getByRole('navigation', { name: 'Ruta de navegación' })
+    .getByRole('link', { name: 'Pases' })
+    .click();
+}
+
 test('lists pass types with MXN prices, required class and activity access', async ({ page }) => {
   await mockPassTypes(page, () => [fullPass, openStyles]);
-  await page.goto(passTypesPath);
+  await page.goto(passesPath);
   const full = page
     .getByRole('listitem')
     .filter({ has: page.getByRole('heading', { name: 'Pase completo' }) });
@@ -389,18 +399,18 @@ test('lists pass types with MXN prices, required class and activity access', asy
   await expect(open).toContainText('Sin actividades · Requiere pase completo');
 });
 
-test('each active pass card is one named target with no separate Editar button', async ({
+test('each active pass card is one named link with no separate Editar control', async ({
   page,
 }) => {
   await mockPassTypes(page, () => [fullPass, { ...openStyles, status: 'archived', version: 4 }]);
-  await page.goto(passTypesPath);
+  await page.goto(passesPath);
   const card = (name: string) =>
     page.getByRole('listitem').filter({ has: page.getByRole('heading', { name }) });
   const full = card('Pase completo');
   // The only control in the card carries the pass name; no visible "Editar" text remains.
-  await expect(full.getByRole('button')).toHaveCount(1);
-  const target = full.getByRole('button', { name: 'Editar Pase completo', exact: true });
-  await expect(target).toHaveAttribute('aria-pressed', 'false');
+  await expect(full.getByRole('link')).toHaveCount(1);
+  await expect(full.getByRole('button')).toHaveCount(0);
+  const target = full.getByRole('link', { name: 'Editar Pase completo', exact: true });
   await expect(full.getByText('Editar', { exact: true })).toHaveCount(0);
   // The name lives only in screen-reader text, so nothing visible in the card says "Editar".
   await expect(target.locator('.sr-only')).toHaveText('Editar Pase completo');
@@ -424,15 +434,16 @@ test('each active pass card is one named target with no separate Editar button',
   const price = await full.getByText('$1,500.00').boundingBox();
   await page.mouse.click(price!.x + price!.width / 2, price!.y + price!.height / 2);
   await expect(page.getByRole('form', { name: 'Editar pase' })).toBeVisible();
-  await expect(target).toHaveAttribute('aria-pressed', 'true');
+  await expect(page).toHaveURL(`${passesPath}/${fullPassId}`);
   // Archived cards stay non-interactive.
-  await expect(card('Open Styles').getByRole('button')).toHaveCount(0);
+  await page.getByRole('navigation', { name: 'Ruta de navegación' }).getByRole('link').click();
+  await expect(card('Open Styles').getByRole('link')).toHaveCount(0);
 });
 
 test('a pass card is reachable by keyboard with a visible focus ring', async ({ page }) => {
   await mockPassTypes(page, () => [fullPass, openStyles]);
-  await page.goto(passTypesPath);
-  const target = page.getByRole('button', { name: 'Editar Open Styles', exact: true });
+  await page.goto(passesPath);
+  const target = page.getByRole('link', { name: 'Editar Open Styles', exact: true });
   await expect(target).toBeVisible();
   for (let step = 0; step < 30; step += 1) {
     if (await target.evaluate((node) => node === document.activeElement)) break;
@@ -460,8 +471,8 @@ test('creates an add-on pass type that requires a pass class', async ({ page }) 
       return route.fulfill({ status: 201, json: openStyles });
     },
   );
-  await page.goto(passTypesPath);
-  await page.getByRole('button', { name: 'Nuevo pase' }).click();
+  await page.goto(passesPath);
+  await page.getByRole('link', { name: 'Nuevo pase' }).click();
   const form = page.getByRole('form', { name: 'Nuevo pase' });
   await expect(selectTrigger(form, 'Requiere pase')).toHaveCount(0);
   await expect(form.getByRole('radio', { name: 'Completo' })).toBeChecked();
@@ -472,9 +483,10 @@ test('creates an add-on pass type that requires a pass class', async ({ page }) 
   await chooseOption(selectTrigger(form, 'Requiere pase'), 'Completo');
   await form.getByRole('button', { name: 'Guardar' }).click();
   await expect(page.getByRole('status')).toContainText('Pase creado');
-  await expect(
-    page.getByRole('listitem').filter({ has: page.getByRole('heading', { name: 'Open Styles' }) }),
-  ).toBeVisible();
+  await expect(page).toHaveURL(`${passesPath}/${openPassId}`);
+  await expect(page.getByRole('form', { name: 'Editar pase' }).getByLabel('Nombre')).toHaveValue(
+    'Open Styles',
+  );
   expect(body).toEqual({
     name: 'Open Styles',
     passClass: 'add_on',
@@ -501,11 +513,11 @@ test('saves activity access for a pass type with its expected version', async ({
       return route.fulfill({ json: current });
     },
   );
-  await page.goto(passTypesPath);
+  await page.goto(passesPath);
   await page
     .getByRole('listitem')
     .filter({ has: page.getByRole('heading', { name: 'Pase completo' }) })
-    .getByRole('button', { name: /^Editar / })
+    .getByRole('link', { name: /^Editar / })
     .click();
   const editor = page.getByRole('region', { name: 'Mapa de acceso' });
   await expectSelected(selectTrigger(editor, 'Pase completo · Batalla de crews'), 'Elegible');
@@ -517,6 +529,7 @@ test('saves activity access for a pass type with its expected version', async ({
     expectedVersion: 2,
     activities: [{ activityId: workshopId, access: 'selectable' }],
   });
+  await backToPasses(page);
   const card = page
     .getByRole('listitem')
     .filter({ has: page.getByRole('heading', { name: 'Pase completo' }) });
@@ -545,11 +558,11 @@ test('a judge or denied session sees a no-access state on both catalogs', async 
   await expect(page.getByRole('button', { name: 'Nueva actividad' })).toHaveCount(0);
   await expect(page.getByRole('region', { name: 'Lista de actividades' })).toHaveCount(0);
   expect(deniedReads).toContain(activitiesPath);
-  await page.goto(passTypesPath);
-  await expect(page).toHaveURL(passTypesPath);
+  await page.goto(passesPath);
+  await expect(page).toHaveURL(passesPath);
   await expect(page.getByRole('heading', { name: 'Pases', level: 1 })).toBeVisible();
   await expect(page.getByRole('alert')).toContainText('Sin acceso');
-  await expect(page.getByRole('button', { name: 'Nuevo pase' })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'Nuevo pase' })).toHaveCount(0);
   await expect(page.getByRole('region', { name: 'Lista de pases' })).toHaveCount(0);
   expect(deniedReads).toContain(passTypesPath);
 });
@@ -668,19 +681,11 @@ test('edits a pass type with its expected version', async ({ page }) => {
       return route.fulfill({ json: current });
     },
   );
-  await page.goto(passTypesPath);
+  await page.goto(passesPath);
   const card = page
     .getByRole('listitem')
     .filter({ has: page.getByRole('heading', { name: 'Pase completo' }) });
-  await expect(card.getByRole('button', { name: /^Editar / })).toHaveAttribute(
-    'aria-pressed',
-    'false',
-  );
-  await card.getByRole('button', { name: /^Editar / }).click();
-  await expect(card.getByRole('button', { name: /^Editar / })).toHaveAttribute(
-    'aria-pressed',
-    'true',
-  );
+  await card.getByRole('link', { name: /^Editar / }).click();
   const form = page.getByRole('form', { name: 'Editar pase' });
   await expect(form).toContainText('v2');
   await expect(form.getByRole('radio', { name: 'Completo' })).toBeChecked();
@@ -696,6 +701,8 @@ test('edits a pass type with its expected version', async ({ page }) => {
     priceCents: 175050,
     requiresPassClass: null,
   });
+  await expect(page.getByRole('form', { name: 'Editar pase' })).toContainText('v3');
+  await backToPasses(page);
   await expect(
     page
       .getByRole('listitem')
@@ -703,7 +710,7 @@ test('edits a pass type with its expected version', async ({ page }) => {
   ).toContainText('$1,750.50');
 });
 
-test('a reload while the pass panel is open refreshes its values with the new version', async ({
+test('a reload while a pass is open refreshes its values with the new version', async ({
   page,
 }) => {
   await page.route(
@@ -734,11 +741,11 @@ test('a reload while the pass panel is open refreshes its values with the new ve
       return route.fulfill({ json: { ...fullPass, version: 6 } });
     },
   );
-  await page.goto(passTypesPath);
+  await page.goto(passesPath);
   const card = (name: string) =>
     page.getByRole('listitem').filter({ has: page.getByRole('heading', { name }) });
   await card('Open Styles')
-    .getByRole('button', { name: /^Editar / })
+    .getByRole('link', { name: /^Editar / })
     .click();
   const form = page.getByRole('form', { name: 'Editar pase' });
   await form.getByLabel('Nombre').fill('Open Styles 2026');
@@ -746,8 +753,10 @@ test('a reload while the pass panel is open refreshes its values with the new ve
   const reloadAlert = page.getByRole('alert').filter({ hasText: 'No se pudo recargar' });
   await expect(reloadAlert).toBeVisible();
 
+  await backToPasses(page);
+  await expect(reloadAlert).toBeVisible();
   await card('Pase completo')
-    .getByRole('button', { name: /^Editar / })
+    .getByRole('link', { name: /^Editar / })
     .click();
   await expect(form).toContainText('v2');
   const access = page.getByRole('region', { name: 'Mapa de acceso' });
@@ -791,11 +800,11 @@ test('shows a reload request when a pass type edit conflicts', async ({ page }) 
     (url) => api(url) && url.pathname === `${passTypesPath}/${fullPassId}`,
     (route) => route.fulfill({ status: 409, json: { message: 'Pass type version conflict' } }),
   );
-  await page.goto(passTypesPath);
+  await page.goto(passesPath);
   await page
     .getByRole('listitem')
     .filter({ has: page.getByRole('heading', { name: 'Pase completo' }) })
-    .getByRole('button', { name: /^Editar / })
+    .getByRole('link', { name: /^Editar / })
     .click();
   const form = page.getByRole('form', { name: 'Editar pase' });
   await form.getByLabel('Nombre').fill('Otro pase');
@@ -820,12 +829,12 @@ test('archives a pass type only after confirmation', async ({ page }) => {
       return route.fulfill({ json: current });
     },
   );
-  await page.goto(passTypesPath);
+  await page.goto(passesPath);
   const row = page
     .getByRole('listitem')
     .filter({ has: page.getByRole('heading', { name: 'Pase completo' }) });
   await expect(row.getByRole('button', { name: 'Archivar' })).toHaveCount(0);
-  await row.getByRole('button', { name: /^Editar / }).click();
+  await row.getByRole('link', { name: /^Editar / }).click();
   const panel = page.getByRole('form', { name: 'Editar pase' });
   await panel.getByRole('button', { name: 'Archivar' }).click();
   await expect(panel.getByText('¿Archivar Pase completo?')).toBeVisible();
@@ -834,8 +843,9 @@ test('archives a pass type only after confirmation', async ({ page }) => {
   await panel.getByRole('button', { name: 'Archivar' }).click();
   await panel.getByRole('button', { name: 'Confirmar archivo' }).click();
   await expect(page.getByRole('status')).toContainText('Pase archivado');
+  await expect(page).toHaveURL(passesPath);
   await expect(row).toContainText('Archivado');
-  await expect(row.getByRole('button', { name: /^Editar / })).toHaveCount(0);
+  await expect(row.getByRole('link', { name: /^Editar / })).toHaveCount(0);
   expect(bodies).toEqual([{ expectedVersion: 2 }]);
 });
 
@@ -850,8 +860,8 @@ test('rejects ambiguous pass prices before sending them', async ({ page }) => {
       return route.fulfill({ status: 201, json: openStyles });
     },
   );
-  await page.goto(passTypesPath);
-  await page.getByRole('button', { name: 'Nuevo pase' }).click();
+  await page.goto(passesPath);
+  await page.getByRole('link', { name: 'Nuevo pase' }).click();
   const form = page.getByRole('form', { name: 'Nuevo pase' });
   await form.getByLabel('Nombre').fill('Pase general');
   // Which prices are ambiguous is covered by `money.test.ts`; this checks the form wiring.

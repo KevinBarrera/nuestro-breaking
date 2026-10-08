@@ -12,7 +12,7 @@ export const adminScreens = [
   { name: 'Resumen', path: `/admin/events/${eventId}` },
   { name: 'Check-in', path: `/admin/events/${eventId}/check-in` },
   { name: 'Actividades', path: `/admin/events/${eventId}/activities` },
-  { name: 'Pases', path: `/admin/events/${eventId}/pass-types` },
+  { name: 'Pases', path: `/admin/events/${eventId}/passes` },
 ] as const;
 
 export const themes = ['light', 'dark'] as const;
@@ -137,10 +137,11 @@ export async function revealControls(page: Page, name: (typeof adminScreens)[num
     await page.getByRole('button', { name: 'Registrar entrada al evento' }).waitFor();
   }
   if (name === 'Pases') {
+    // The list only holds cards; the controls live on the pass's own screen.
     await page
       .getByRole('listitem')
       .filter({ has: page.getByRole('heading', { name: 'Pase completo' }) })
-      .getByRole('button', { name: /^Editar / })
+      .getByRole('link', { name: /^Editar / })
       .click();
     await page
       .getByRole('region', { name: 'Mapa de acceso' })

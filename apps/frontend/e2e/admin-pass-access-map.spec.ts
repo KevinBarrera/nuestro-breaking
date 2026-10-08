@@ -10,7 +10,9 @@ const oldWorkshopId = 'd4b2c3d4-1234-4567-89ab-123456789abc';
 const fullPassId = 'f1b2c3d4-1234-4567-89ab-123456789abc';
 const generalPassId = 'f2b2c3d4-1234-4567-89ab-123456789abc';
 const oldPassId = 'f3b2c3d4-1234-4567-89ab-123456789abc';
+// The API path of the pass catalog; the admin screens live under `passesPath`.
 const passTypesPath = `/admin/events/${eventId}/pass-types`;
+const passesPath = `/admin/events/${eventId}/passes`;
 const accessPath = `${passTypesPath}/${fullPassId}/activities`;
 const api = (url: URL) => url.port === '3000';
 
@@ -94,11 +96,17 @@ async function mockAccessWrite(
   return bodies;
 }
 
+// Opens a pass's own screen from the list, going back through the breadcrumb when another
+// pass is open.
 async function selectPass(page: Page, name: string) {
+  const back = page
+    .getByRole('navigation', { name: 'Ruta de navegación' })
+    .getByRole('link', { name: 'Pases' });
+  if (await back.count()) await back.click();
   await page
     .getByRole('listitem')
     .filter({ has: page.getByRole('heading', { name }) })
-    .getByRole('button', { name: `Editar ${name}`, exact: true })
+    .getByRole('link', { name: `Editar ${name}`, exact: true })
     .click();
 }
 
@@ -119,7 +127,9 @@ test.beforeEach(async ({ page }) => {
 
 test('renders active activities against active passes with read-only chips', async ({ page }) => {
   await mockCatalog(page, () => [fullPass, generalPass, oldPass]);
-  await page.goto(passTypesPath);
+  await page.goto(passesPath);
+  // The map lives on a pass's screen; only that pass's column is editable.
+  await selectPass(page, 'Entrada general');
   const table = map(page).getByRole('table');
   await expect(map(page)).toContainText('Elegible (la persona escoge)');
   await expect(table.getByRole('columnheader')).toHaveText([
@@ -137,16 +147,17 @@ test('renders active activities against active passes with read-only chips', asy
       .getByRole('row')
       .filter({ has: page.getByRole('rowheader', { name }) })
       .getByRole('cell');
-  await expect(cellsOf('Batalla · Batalla 2 vs 2')).toHaveText([/Sin acceso/, /Sin acceso/]);
-  await expect(cellsOf('Batalla · Batalla de crews')).toHaveText(['Elegible', /Sin acceso/]);
-  await expect(cellsOf('Taller · Taller de footwork')).toHaveText(['Incluida', /Sin acceso/]);
-  await expect(table.getByRole('button')).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Guardar acceso' })).toHaveCount(0);
+  const readOnly = (name: string) => cellsOf(name).first();
+  await expect(readOnly('Batalla · Batalla 2 vs 2')).toHaveText(/Sin acceso/);
+  await expect(readOnly('Batalla · Batalla de crews')).toHaveText('Elegible');
+  await expect(readOnly('Taller · Taller de footwork')).toHaveText('Incluida');
+  for (const name of ['Batalla 2 vs 2', 'Batalla de crews', 'Taller de footwork'])
+    await expect(cell(page, 'Pase completo', name)).toHaveCount(0);
 });
 
-test('selecting a pass card makes its column editable and opens the panel', async ({ page }) => {
+test('opening a pass makes its column editable next to its form', async ({ page }) => {
   await mockCatalog(page, () => [fullPass, generalPass]);
-  await page.goto(passTypesPath);
+  await page.goto(passesPath);
   await selectPass(page, 'Pase completo');
   await expect(page.getByRole('form', { name: 'Editar pase' })).toBeVisible();
   await expectSelected(cell(page, 'Pase completo', 'Batalla de crews'), 'Elegible');
@@ -163,7 +174,7 @@ test('selecting a pass card makes its column editable and opens the panel', asyn
 test('keeps Guardar acceso disabled until the selected column changes', async ({ page }) => {
   await mockCatalog(page, () => [fullPass]);
   const bodies = await mockAccessWrite(page, () => ({ status: 200, json: fullPass }));
-  await page.goto(passTypesPath);
+  await page.goto(passesPath);
   await selectPass(page, 'Pase completo');
   const save = map(page).getByRole('button', { name: 'Guardar acceso' });
   await expect(save).toBeDisabled();
@@ -187,7 +198,7 @@ test('saves the selected column with one PUT carrying expectedVersion and the fu
     };
     return { status: 200, json: current };
   });
-  await page.goto(passTypesPath);
+  await page.goto(passesPath);
   await selectPass(page, 'Pase completo');
   await expect(map(page)).toContainText('se quitará al guardar');
   await chooseOption(cell(page, 'Pase completo', 'Batalla 2 vs 2'), 'Elegible');
@@ -218,7 +229,7 @@ test('a stale version shows a conflict with a reload that discards local edits',
     status: 409,
     json: { message: 'Pass type version conflict' },
   }));
-  await page.goto(passTypesPath);
+  await page.goto(passesPath);
   await selectPass(page, 'Pase completo');
   await chooseOption(cell(page, 'Pase completo', 'Batalla 2 vs 2'), 'Incluida');
   await map(page).getByRole('button', { name: 'Guardar acceso' }).click();
@@ -245,7 +256,7 @@ test('a stale version shows a conflict with a reload that discards local edits',
 test('other access failures show the generic failure notice', async ({ page }) => {
   await mockCatalog(page, () => [fullPass]);
   await mockAccessWrite(page, () => ({ status: 500, json: {} }));
-  await page.goto(passTypesPath);
+  await page.goto(passesPath);
   await selectPass(page, 'Pase completo');
   await chooseOption(cell(page, 'Pase completo', 'Batalla 2 vs 2'), 'Incluida');
   await map(page).getByRole('button', { name: 'Guardar acceso' }).click();
@@ -256,7 +267,7 @@ test('other access failures show the generic failure notice', async ({ page }) =
 test('fits a 375px viewport and scrolls the access map inside its box', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 800 });
   await mockCatalog(page, () => [fullPass, generalPass]);
-  await page.goto(passTypesPath);
+  await page.goto(passesPath);
   await selectPass(page, 'Pase completo');
   await expect(cell(page, 'Pase completo', 'Batalla de crews')).toBeVisible();
   expect(await page.evaluate<number>('document.documentElement.scrollWidth')).toBeLessThanOrEqual(
@@ -289,7 +300,7 @@ test('saving access keeps unsaved pass edits and the next save sends the new ver
       return route.fulfill({ json: current });
     },
   );
-  await page.goto(passTypesPath);
+  await page.goto(passesPath);
   await selectPass(page, 'Pase completo');
   const form = page.getByRole('form', { name: 'Editar pase' });
   await form.getByLabel('Nombre').fill('Pase completo VIP');
@@ -324,7 +335,7 @@ test('disables the editable column and Guardar acceso while the save is in fligh
       await route.fulfill({ json: { ...fullPass, version: 3 } });
     },
   );
-  await page.goto(passTypesPath);
+  await page.goto(passesPath);
   await selectPass(page, 'Pase completo');
   await chooseOption(cell(page, 'Pase completo', 'Batalla 2 vs 2'), 'Incluida');
   await map(page).getByRole('button', { name: 'Guardar acceso' }).click();
@@ -373,7 +384,7 @@ test('a reload still in flight when access is saved cannot restore the older ver
       return route.fulfill({ json: current });
     },
   );
-  await page.goto(passTypesPath);
+  await page.goto(passesPath);
   await selectPass(page, 'Pase completo');
   await chooseOption(cell(page, 'Pase completo', 'Batalla 2 vs 2'), 'Incluida');
   await map(page).getByRole('button', { name: 'Guardar acceso' }).click();
@@ -432,7 +443,7 @@ test('an access save during a retried reload re-reads instead of leaving the ref
       return route.fulfill({ json: current });
     },
   );
-  await page.goto(passTypesPath);
+  await page.goto(passesPath);
   await selectPass(page, 'Pase completo');
   await chooseOption(cell(page, 'Pase completo', 'Batalla 2 vs 2'), 'Incluida');
   await map(page).getByRole('button', { name: 'Guardar acceso' }).click();

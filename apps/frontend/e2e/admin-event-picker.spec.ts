@@ -52,7 +52,7 @@ test('several events show a picker built only from the returned events', async (
     for (const [name, section] of [
       ['Check-in', 'check-in'],
       ['Actividades', 'activities'],
-      ['Pases', 'pass-types'],
+      ['Pases', 'passes'],
     ])
       await expect(eventCard.getByRole('link', { name, exact: true })).toHaveAttribute(
         'href',

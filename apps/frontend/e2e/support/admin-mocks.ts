@@ -6,6 +6,7 @@ export const eventId = 'a1b2c3d4-1234-4567-89ab-123456789abc';
 const venueId = 'e1b2c3d4-1234-4567-89ab-123456789abc';
 const battleId = 'd1b2c3d4-1234-4567-89ab-123456789abc';
 const workshopId = 'd2b2c3d4-1234-4567-89ab-123456789abc';
+const cypherId = 'd3b2c3d4-1234-4567-89ab-123456789abc';
 const fullPassId = 'f1b2c3d4-1234-4567-89ab-123456789abc';
 const api = (url: URL) => url.port === '3000';
 
@@ -51,6 +52,18 @@ const activities = [
     '2026-11-21T16:00:00.000Z',
     '2026-11-21T18:00:00.000Z',
   ),
+  // Hidden until "Mostrar archivadas"; it opens the restore confirmation.
+  {
+    ...activity(
+      cypherId,
+      'social',
+      'Cypher archivado con nombre largo para pantallas angostas',
+      '2026-11-22T01:00:00.000Z',
+      '2026-11-22T02:00:00.000Z',
+    ),
+    status: 'archived',
+    version: 2,
+  },
 ];
 
 const passTypes = [
@@ -156,8 +169,8 @@ export async function revealControls(page: Page, name: AdminScreenName) {
 }
 
 // The catalog dialogs, each opened from its screen (after `revealControls`) without writing:
-// the activity form modal, "Revisar cambios", the destructive archive confirmation and the
-// unsaved-changes warning. `open` returns the open dialog.
+// the activity form modal, "Revisar cambios", the destructive archive confirmation, the
+// activity restore confirmation and the unsaved-changes warning. `open` returns the open dialog.
 export const adminDialogs: {
   name: string;
   screen: AdminScreenName;
@@ -192,6 +205,15 @@ export const adminDialogs: {
         .getByRole('button', { name: 'Archivar' })
         .click();
       return page.getByRole('alertdialog', { name: '¿Archivar Pase completo?' });
+    },
+  },
+  {
+    name: 'restore confirmation',
+    screen: 'Actividades',
+    open: async (page) => {
+      await page.getByRole('checkbox', { name: 'Mostrar archivadas' }).check();
+      await page.getByRole('button', { name: /^Restaurar Cypher archivado/ }).click();
+      return page.getByRole('alertdialog', { name: /^¿Restaurar Cypher archivado/ });
     },
   },
   {

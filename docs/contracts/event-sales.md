@@ -69,6 +69,16 @@ Dates are ISO 8601 in UTC, or `null`.
 - Dates must be ISO 8601 date-times with an explicit offset (`Z` or `±hh:mm`). Plain dates, numbers and impossible calendar values (such as `2026-02-31` or `24:00`) are rejected; they are never rolled over into the next day or month. Code: `parseOffsetDateTime` in `src/events/sales/date-time.ts`.
 - `salesOpensAt` must be before `salesClosesAt` when both are set. The database check is the backstop.
 
+## Admin UI
+
+The event overview (`/admin/events/:eventId`) has a "Venta en línea" section. Code: `apps/frontend/src/pages/admin/ui/sales-section.tsx` and `sales-model.ts`; the API client is `apps/frontend/src/entities/event-sales`.
+
+- It shows the state as "Abierta" or "Cerrada" with the reason: "La venta está apagada" (`disabled`), "Abre el <fecha>" (`not_yet_open`) or "Cerró el <fecha>" (`ended`). While open with a closing date it adds "Cierra el <fecha>".
+- It shows the public address `/e/<slug>` and the slug, read-only (D3). The public route itself is built in #176.
+- The form has the switch, optional opening and closing date-times (each can be cleared with "Quitar") and one "Guardar" that sends all three keys.
+- Dates are entered and shown as wall-clock times in the event time zone (read from the event foundation), the same rule as the activity form. They are sent as UTC instants (`Z`). If the time zone cannot be read, the browser zone is used and the label says so.
+- The client blocks a closing date at or before the opening date with a field message, and rejects values that do not exist on that clock. A server 400 still shows a safe notice; backend messages are never echoed.
+
 ## Known gaps
 
 | Gap                                                                                                                                                       | Follow-up                  |
@@ -76,7 +86,6 @@ Dates are ISO 8601 in UTC, or `null`.
 | Sales changes are **not audited**. `event_catalog_audit` only accepts `activity` and `pass_type` entities; auditing event settings needs a schema change. | Later hardening            |
 | `PUT` has no optimistic concurrency (`expectedVersion`); the last write wins.                                                                             | Later hardening            |
 | The slug cannot be changed through the API (by design, D3 in `odd/tasks/public-catalog-sales.md`).                                                        | Product decision if needed |
-| No admin UI yet.                                                                                                                                          | T4 of #175                 |
 
 ## Cross-references
 

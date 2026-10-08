@@ -12,6 +12,7 @@ import { Link, useParams } from 'react-router';
 import { passClassLabels, styles } from './catalog-copy';
 import { CatalogLoadFailure } from './catalog-notice';
 import { catalogStats, describeAccess } from './overview-model';
+import { SalesSection } from './sales-section';
 import { useCatalogLoad } from './use-catalog-load';
 
 const eventPath = (pattern: string, eventId: string) => pattern.replace(':eventId', eventId);
@@ -49,6 +50,7 @@ function EventOverview({ eventId }: { eventId: string }) {
           {data?.eventName && <p className="text-muted">{data.eventName}</p>}
         </header>
         <QuickActions eventId={eventId} />
+        <SalesSection eventId={eventId} />
         {state.status === 'loading' && <p role="status">Cargando resumen…</p>}
         {state.status === 'failed' && <CatalogLoadFailure failure={state.failure} />}
         {data && (

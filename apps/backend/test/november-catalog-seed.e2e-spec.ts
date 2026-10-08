@@ -258,6 +258,48 @@ describe('November catalog seed (e2e)', () => {
     ]);
   });
 
+  // The other event's slug, and whether the November event's slug is a generated one.
+  async function eventSlugs() {
+    return client<{ events: number; other: string; generated: boolean }[]>`
+      SELECT (SELECT count(*)::int FROM events) AS events,
+        (SELECT slug FROM events WHERE name = 'Another event') AS other,
+        (SELECT slug ~ '^event-[0-9a-f]{32}$' FROM events WHERE name <> 'Another event') AS generated`;
+  }
+  async function otherEventWithPublicSlug() {
+    const [{ id: org }] = await client<{ id: string }[]>`
+      INSERT INTO organizations (name) VALUES ('Other organization') RETURNING id`;
+    await client`INSERT INTO events (organization_id, name, time_zone, slug)
+      VALUES (${org}, 'Another event', 'Etc/UTC', 'los-mas-pesados-nov-2026')`;
+  }
+  it('creates the event with a generated slug when another event already holds the public slug', async () => {
+    await otherEventWithPublicSlug();
+
+    const summary = await seedNovemberCatalog(db);
+
+    expect(summary.created.events).toBe(1);
+    expect(await eventSlugs()).toEqual([
+      { events: 2, other: 'los-mas-pesados-nov-2026', generated: true },
+    ]);
+    // A later run still leaves both slugs alone while the public slug stays taken.
+    await seedNovemberCatalog(db);
+    expect(await eventSlugs()).toEqual([
+      { events: 2, other: 'los-mas-pesados-nov-2026', generated: true },
+    ]);
+  });
+
+  it('keeps a generated slug when another event already holds the public slug', async () => {
+    await seedNovemberCatalog(db);
+    await client`UPDATE events SET slug = 'event-' || replace(id::text, '-', '')`;
+    await otherEventWithPublicSlug();
+
+    const summary = await seedNovemberCatalog(db);
+
+    expect(summary.created.events).toBe(0);
+    expect(await eventSlugs()).toEqual([
+      { events: 2, other: 'los-mas-pesados-nov-2026', generated: true },
+    ]);
+  });
+
   it('keeps a slug that is not a generated one', async () => {
     await seedNovemberCatalog(db);
     await client`UPDATE events SET slug = 'custom-slug'`;

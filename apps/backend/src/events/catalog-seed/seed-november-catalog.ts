@@ -105,13 +105,15 @@ export async function seedNovemberCatalog(
       .orderBy(asc(events.id))
       .limit(1);
     count('events', !event);
+    // When another event already holds the public slug, the new event keeps the generated column
+    // default instead of failing on the unique index; a later run assigns the slug once it is free.
     event ??= (
       await tx
         .insert(events)
         .values({
           organizationId: organization.id,
           name: definition.event.name,
-          slug: definition.event.slug,
+          slug: (await slugTaken(tx, definition.event.slug)) ? undefined : definition.event.slug,
           timeZone: definition.event.timeZone,
           startsAt: new Date(definition.event.startsAt),
           endsAt: new Date(definition.event.endsAt),
@@ -204,18 +206,21 @@ const generatedSlug = /^event-[0-9a-f]{32}$/;
 
 // An event created before migration 0014 only has a generated slug. Give it the definition's public
 // slug unless another event already holds it; a chosen slug is never overwritten.
-async function assignSlug(
-  tx: Parameters<Parameters<SeedDatabase['transaction']>[0]>[0],
-  event: { id: string; slug: string },
-  slug: string,
-) {
-  if (event.slug === slug || !generatedSlug.test(event.slug)) return;
+type SeedTransaction = Parameters<Parameters<SeedDatabase['transaction']>[0]>[0];
+
+async function slugTaken(tx: SeedTransaction, slug: string): Promise<boolean> {
   const [taken] = await tx
     .select({ id: events.id })
     .from(events)
     .where(eq(events.slug, slug))
     .limit(1);
-  if (!taken) await tx.update(events).set({ slug }).where(eq(events.id, event.id));
+  return Boolean(taken);
+}
+
+async function assignSlug(tx: SeedTransaction, event: { id: string; slug: string }, slug: string) {
+  if (event.slug === slug || !generatedSlug.test(event.slug)) return;
+  if (!(await slugTaken(tx, slug)))
+    await tx.update(events).set({ slug }).where(eq(events.id, event.id));
 }
 
 function normalize(name: string): string {

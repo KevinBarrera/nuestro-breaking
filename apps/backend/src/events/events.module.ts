@@ -20,6 +20,8 @@ import { RegistrationEntitlementsController } from './registration-entitlements/
 import { RegistrationEntitlementsService } from './registration-entitlements/registration-entitlements.service';
 import { EventSalesController } from './sales/event-sales.controller';
 import { EventSalesService } from './sales/event-sales.service';
+import { PublicCatalogController } from './public-catalog/public-catalog.controller';
+import { PublicCatalogService } from './public-catalog/public-catalog.service';
 
 @Module({
   imports: [DatabaseModule, IdentityAccessModule],
@@ -33,6 +35,7 @@ import { EventSalesService } from './sales/event-sales.service';
     PassTypeAdminController,
     RegistrationEntitlementsController,
     EventSalesController,
+    PublicCatalogController,
   ],
   providers: [
     EventFoundationService,
@@ -45,6 +48,7 @@ import { EventSalesService } from './sales/event-sales.service';
     PassTypeAdminService,
     RegistrationEntitlementsService,
     EventSalesService,
+    PublicCatalogService,
   ],
 })
 export class EventsModule {}

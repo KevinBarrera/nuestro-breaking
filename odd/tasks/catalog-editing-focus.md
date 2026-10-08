@@ -55,7 +55,7 @@ Forecast: ~1,800 authored lines (source + specs) over 5 PRs.
 
 ### PR 3 — `feat/146-03-pass-routes`
 
-- [ ] T3 — Data router migration; pass list, `/passes/new` and `/passes/:passTypeId` routes with breadcrumb "Pases › <name>"; unknown pass shows not found; side nav stays highlighted on subroutes.
+- [x] T3 — Data router migration; pass list, `/passes/new` and `/passes/:passTypeId` routes with breadcrumb "Pases › <name>"; unknown pass shows not found; side nav stays highlighted on subroutes.
 
 ### PR 4 — `feat/146-04-pass-access-list`
 
@@ -73,13 +73,16 @@ See issue #146. Evidence is recorded per task below.
 
 - 2026-10-07 — Exploration done (delegated read-only explorer). Feature doc created.
 - 2026-10-07 — T1 done in `d5f3906`: `Modal`, `ConfirmDialog`, `ReviewChangesDialog`, `buttonClass` and the `changedRows`/`hasChanges` model in `shared/ui`; docs note in `docs/frontend-architecture.md`. RED observed (missing model module), then GREEN 5/5. Checks: frontend test 110/110, lint, build, format pass. Exception: no Playwright spec yet because no page uses the dialogs; focus trap, Esc, focus return and 375px fit are covered by T2 flow specs. Review: medium risk (`slice_budget_reached`, 411 lines), consent granted, one reliability lens approved and acknowledged (lineage `review-a48a2921e75d7f73`, authority burned). Advisory only: a custom `format` bypasses the empty "—" display, object comparison depends on key order, and the `ConfirmDialog` pending guard is untested (cover in T2 e2e). Next reviewed boundary: `2696011`.
-- 2026-10-07 — T2 done in `6af5a61`: activities create/edit in `Modal`, review before every save (create shows "—" before), unchanged edit blocked with an inline alert (button stays focusable), archive in a destructive `ConfirmDialog` with pending state, 409/not-found close the dialogs so the page alert with "Recargar" is visible. Pure `activityChangeRows` helper. RED observed (missing module; 7/7 new e2e failing), then GREEN. Checks: Vitest 114/114, lint, build, full e2e 140 passed (sweeps included), format. Parent spot check: `admin-activities-modal.spec.ts` 7/7. ~720 authored lines (250 are the new flow spec); kept as one unit. Review: medium (`slice_budget_reached`, 729 lines), consent granted, reliability lens approved and acknowledged (lineage `review-a75d466a647b1d5c`). Advisory only (R3-001/R3-002 warnings on failure handling at `admin-event-activities-page.tsx:92-95` and `:210-212`, R3-003 suggestion at `activity-form.tsx:83-87`); revisit in T5. Next reviewed boundary: T2 docs commit. Next: T3.
+- 2026-10-07 — T2 done in `6af5a61`: activities create/edit in `Modal`, review before every save (create shows "—" before), unchanged edit blocked with an inline alert (button stays focusable), archive in a destructive `ConfirmDialog` with pending state, 409/not-found close the dialogs so the page alert with "Recargar" is visible. Pure `activityChangeRows` helper. RED observed (missing module; 7/7 new e2e failing), then GREEN. Checks: Vitest 114/114, lint, build, full e2e 140 passed (sweeps included), format. Parent spot check: `admin-activities-modal.spec.ts` 7/7. ~720 authored lines (250 are the new flow spec); kept as one unit. Review: medium (`slice_budget_reached`, 729 lines), consent granted, reliability lens approved and acknowledged (lineage `review-a75d466a647b1d5c`). Advisory only (R3-001/R3-002 warnings on failure handling at `admin-event-activities-page.tsx:92-95` and `:210-212`, R3-003 suggestion at `activity-form.tsx:83-87`); revisit in T5. Next reviewed boundary: `85e47f5`.
+- 2026-10-07 — T3 done in `fbc8a86`: data router (`createBrowserRouter` + `RouterProvider`), pass routes `/passes`, `/passes/new`, `/passes/:passTypeId` as a layout route sharing catalog data through `Outlet` context, shared `Breadcrumbs`, not-found state for unknown or archived passes, `/pass-types` redirect, nav matcher for subroutes. After create → detail; after update → stay; after archive → list. The access matrix now shows only on the detail screen until T4. RED 9/9 failing on the new `admin-pass-routes.spec.ts`, then GREEN. Checks: Vitest 119/119, lint, build (pre-existing >500 kB chunk warning not compared), full e2e 149 passed (sweeps included), format. Parent spot check: `admin-pass-routes.spec.ts` 9/9. ~1,040 changed lines (renames and spec URL updates included). Next: T4.
 
 ## Route per task
 
 - T1 — delegated writer (writer trigger: 6 new files in `shared/ui`).
 
 - T2 — delegated writer (writer trigger: 3 non-trivial source files + 3 specs).
+
+- T3 — delegated writer (writer trigger: router, shell and pass pages).
 
 ## Notes for later tasks
 

@@ -1,9 +1,11 @@
 import { expect, test } from '@playwright/test';
+import { expectSelected, selectTrigger } from './support/select.ts';
 
 const eventId = 'a1b2c3d4-1234-4567-89ab-123456789abc';
 const foundationPath = `/admin/events/${eventId}/foundation`;
 const foundationEndpoint = (url: URL) => url.port === '3000' && url.pathname === foundationPath;
 const sessionEndpoint = (url: URL) => url.port === '3000' && url.pathname === '/auth/session';
+const adminEventsEndpoint = (url: URL) => url.port === '3000' && url.pathname === '/admin/events';
 
 test.beforeEach(async ({ page }) => {
   await page.route(sessionEndpoint, (route) =>
@@ -20,6 +22,7 @@ test('does not request protected foundation without a valid session', async ({ p
   });
   await page.goto(foundationPath);
   await expect(page.getByRole('heading', { name: 'Iniciar sesión' })).toBeVisible();
+  await expect(page.getByRole('banner', { name: 'Espacio de administración' })).toHaveCount(0);
   expect(requested).toBe(false);
 });
 
@@ -87,6 +90,75 @@ test('loads the endpoint-backed foundation for the event in the URL', async ({ p
     page.getByRole('region', { name: 'Sedes' }).getByText('Centro cultural'),
   ).toBeVisible();
   await expect(page.getByText('Borrador')).toBeVisible();
+});
+
+test('shows foundation context and navigates to the event overview', async ({ page }) => {
+  await page.route(foundationEndpoint, (route) => route.fulfill({ json: foundation }));
+  // The account manages this event, so the header shows the event selector first in Tab order.
+  await page.route(adminEventsEndpoint, (route) =>
+    route.fulfill({ json: [{ id: eventId, name: 'Encuentro del barrio' }] }),
+  );
+  await page.goto(foundationPath);
+  const header = page.getByRole('banner', { name: 'Espacio de administración' });
+  await expect(header.getByText('Fundamentos del evento')).toBeVisible();
+  const selector = selectTrigger(header, 'Evento');
+  await expectSelected(selector, 'Encuentro del barrio');
+  await expect(header.getByText(eventId)).toHaveCount(0);
+  const nav = page.getByRole('navigation', { name: 'Navegación administrativa' });
+  const home = nav.getByRole('link', { name: 'Resumen' });
+  await expect(home).not.toHaveAttribute('aria-current', 'page');
+  await expect(header.getByRole('link')).toHaveCount(0);
+  // With an event in the URL, Resumen opens that event's overview.
+  await expect(home).toHaveAttribute('href', `/admin/events/${eventId}`);
+  await home.click();
+  await expect(page).toHaveURL(new RegExp(`/admin/events/${eventId}$`));
+  await expect(home).toHaveAttribute('aria-current', 'page');
+  await expect(page.getByRole('heading', { name: 'Resumen del evento' })).toBeVisible();
+});
+
+test('keeps event context and the only usable destination accessible at 375px', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 375, height: 800 });
+  await page.route(foundationEndpoint, (route) => route.fulfill({ json: foundation }));
+  // The account manages this event, so the header shows the event selector first in Tab order.
+  await page.route(adminEventsEndpoint, (route) =>
+    route.fulfill({ json: [{ id: eventId, name: 'Encuentro del barrio' }] }),
+  );
+  await page.goto(foundationPath);
+  const header = page.getByRole('banner', { name: 'Espacio de administración' });
+  await expect(header.getByText('Fundamentos del evento')).toBeVisible();
+  const selector = selectTrigger(header, 'Evento');
+  await expectSelected(selector, 'Encuentro del barrio');
+  await expect(header.getByText(eventId)).toHaveCount(0);
+  const home = page
+    .getByRole('navigation', { name: 'Navegación administrativa' })
+    .getByRole('link', { name: 'Resumen' });
+  await expect(home).not.toHaveAttribute('aria-current', 'page');
+  await expect(header.getByRole('link')).toHaveCount(0);
+  const signOut = header.getByRole('button', { name: 'Cerrar sesión' });
+  await page.keyboard.press('Tab');
+  await expect(selector).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(header.getByRole('button', { name: 'Cambiar a tema oscuro' })).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(signOut).toBeFocused();
+  await expect(signOut).toHaveCSS('outline-style', 'solid');
+  await page.keyboard.press('Tab');
+  await expect(home).toBeFocused();
+  await expect(home).toHaveCSS('outline-style', 'solid');
+  const scrollWidth = await page.evaluate(
+    () =>
+      (globalThis as unknown as { document: { documentElement: { scrollWidth: number } } }).document
+        .documentElement.scrollWidth,
+  );
+  expect(scrollWidth).toBeLessThanOrEqual(375);
+  // With an event in the URL, Resumen opens that event's overview.
+  await expect(home).toHaveAttribute('href', `/admin/events/${eventId}`);
+  await home.click();
+  await expect(page).toHaveURL(new RegExp(`/admin/events/${eventId}$`));
+  await expect(home).toHaveAttribute('aria-current', 'page');
+  await expect(page.getByRole('heading', { name: 'Resumen del evento' })).toBeVisible();
 });
 
 test('shows an empty activities state for a persisted event', async ({ page }) => {

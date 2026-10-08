@@ -2,6 +2,7 @@ import { sql } from 'drizzle-orm';
 import {
   check,
   foreignKey,
+  integer,
   pgTable,
   primaryKey,
   text,
@@ -21,6 +22,8 @@ export const activities = pgTable(
     name: text('name').notNull(),
     startsAt: timestamp('starts_at', { withTimezone: true }).notNull(),
     endsAt: timestamp('ends_at', { withTimezone: true }).notNull(),
+    status: text('status').notNull().default('active'),
+    version: integer('version').notNull().default(1),
   },
   (table) => [
     primaryKey({ columns: [table.id], name: 'activities_pk' }),
@@ -35,5 +38,7 @@ export const activities = pgTable(
     check('activities_kind_ck', sql`length(btrim(${table.kind})) > 0`),
     check('activities_name_ck', sql`length(btrim(${table.name})) > 0`),
     check('activities_window_ck', sql`${table.startsAt} < ${table.endsAt}`),
+    check('activities_status_ck', sql`${table.status} IN ('active', 'archived')`),
+    check('activities_version_ck', sql`${table.version} > 0`),
   ],
 );

@@ -1,5 +1,55 @@
 @import 'tailwindcss';
 
+/*
+ * Semantic theme tokens. Values live in --nb-* custom properties selected by
+ * data-theme on <html>; @theme inline exposes them as Tailwind utilities
+ * (bg-surface, text-muted, border-line, bg-primary, ...) that follow the theme.
+ */
+@theme {
+  --font-sans: Archivo, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+@theme inline {
+  --color-header: var(--nb-header-bg);
+  --color-header-fg: var(--nb-header-fg);
+  --color-header-muted: var(--nb-header-muted);
+  --color-header-line: var(--nb-header-line);
+  --color-header-control: var(--nb-header-control);
+  --color-surface: var(--nb-surface);
+  --color-surface-inner: var(--nb-surface-inner);
+  --color-chip: var(--nb-chip);
+  --color-row: var(--nb-row);
+  --color-line: var(--nb-line);
+  --color-input: var(--nb-input-bg);
+  --color-input-line: var(--nb-input-line);
+  --color-fg: var(--nb-fg);
+  --color-heading: var(--nb-heading);
+  --color-muted: var(--nb-muted);
+  --color-link: var(--nb-link);
+  --color-link-hover: var(--nb-link-hover);
+  --color-focus: var(--nb-focus);
+  --color-primary: var(--event-magenta);
+  --color-primary-fg: var(--event-ink);
+  --color-eligible: var(--nb-eligible-bg);
+  --color-eligible-fg: var(--nb-eligible-fg);
+  --color-eligible-line: var(--nb-eligible-line);
+  --color-included: var(--nb-included-bg);
+  --color-included-fg: var(--nb-included-fg);
+  --color-success: var(--nb-success-bg);
+  --color-success-fg: var(--nb-success-fg);
+  --color-warning: var(--nb-warning-bg);
+  --color-warning-fg: var(--nb-warning-fg);
+  --color-danger: var(--nb-danger-bg);
+  --color-danger-fg: var(--nb-danger-fg);
+  --color-sidenav: var(--nb-sidenav-bg);
+  --color-sidenav-line: var(--nb-sidenav-line);
+  --color-nav-active: var(--nb-nav-active-bg);
+  --color-nav-active-fg: var(--nb-nav-active-fg);
+  --color-chip-selected: var(--nb-chip-selected-bg);
+  --color-chip-selected-fg: var(--nb-chip-selected-fg);
+}
+
 :root {
   /* Draft event-inspired palette; not final approved branding. */
   --event-cyan: #14e6ea;
@@ -10,11 +60,104 @@
   --event-cream: #fff4a8;
   --event-ink: #050505;
 
-  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  --nb-brand-bar: linear-gradient(90deg, #14e6ea 0%, #ec2f9b 50%, #f28a22 100%);
+
+  font-family: var(--font-sans);
   color: var(--event-cream);
   background: var(--event-indigo);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
+}
+
+:root,
+:root[data-theme='light'] {
+  --nb-page: linear-gradient(145deg, #fbf8ef 0%, #f1ecf6 55%, #f6e4ee 100%);
+  --nb-header-bg: #21185f;
+  --nb-header-fg: #fff4a8;
+  --nb-header-muted: #d9d2f2;
+  --nb-header-line: #4b3f8f;
+  --nb-header-control: #2d2470;
+  --nb-surface: #ffffff;
+  --nb-surface-inner: #fbf8ef;
+  --nb-chip: #eeebe5;
+  --nb-row: #eeebe5;
+  --nb-line: #dedad2;
+  --nb-input-bg: #ffffff;
+  --nb-input-line: #77728f;
+  --nb-fg: #21185f;
+  --nb-heading: #21185f;
+  --nb-muted: #5a5f6b;
+  --nb-link: #b0126f;
+  --nb-link-hover: #7a0c4c;
+  --nb-focus: #b0126f;
+  --nb-eligible-bg: #d3fafb;
+  --nb-eligible-fg: #21185f;
+  --nb-eligible-line: #0fb8bc;
+  --nb-included-bg: #21185f;
+  --nb-included-fg: #fff4a8;
+  --nb-success-bg: #e3f6ea;
+  --nb-success-fg: #14532d;
+  --nb-warning-bg: #fff1de;
+  --nb-warning-fg: #8a4500;
+  --nb-danger-bg: #fde8ee;
+  --nb-danger-fg: #9f1239;
+  --nb-sidenav-bg: rgb(255 255 255 / 0.5);
+  --nb-sidenav-line: #e3dceb;
+  --nb-nav-active-bg: #21185f;
+  --nb-nav-active-fg: #fff4a8;
+  /* Selected filter chip: a solid fill far darker than the unselected (transparent) chip. */
+  --nb-chip-selected-bg: #21185f;
+  --nb-chip-selected-fg: #fff4a8;
+  color-scheme: light;
+}
+
+:root[data-theme='dark'] {
+  --nb-page: linear-gradient(145deg, #121022 0%, #1f1a46 50%, #3b2848 100%);
+  --nb-header-bg: #15122c;
+  --nb-header-fg: #f3e9a6;
+  --nb-header-muted: #d9d2f2;
+  --nb-header-line: #4a4578;
+  --nb-header-control: #24204a;
+  --nb-surface: #24204a;
+  --nb-surface-inner: #2c2856;
+  --nb-chip: #353066;
+  --nb-row: #332e5c;
+  --nb-line: #3a3566;
+  --nb-input-bg: #1f1b40;
+  --nb-input-line: #4a4578;
+  --nb-fg: #e9e4d8;
+  --nb-heading: #f3e9a6;
+  --nb-muted: #aba5c8;
+  --nb-link: #ff7ac6;
+  --nb-link-hover: #ffb3de;
+  --nb-focus: #14e6ea;
+  --nb-eligible-bg: #0b4f5c;
+  --nb-eligible-fg: #b8fbfc;
+  --nb-eligible-line: #14e6ea;
+  --nb-included-bg: #f3e9a6;
+  --nb-included-fg: #21185f;
+  --nb-success-bg: #0f3d2a;
+  --nb-success-fg: #7ee2a8;
+  --nb-warning-bg: #3d2a14;
+  --nb-warning-fg: #ffb067;
+  --nb-danger-bg: #4a1426;
+  --nb-danger-fg: #ffb3c7;
+  --nb-sidenav-bg: rgb(13 11 30 / 0.35);
+  --nb-sidenav-line: #34305c;
+  --nb-nav-active-bg: #353066;
+  --nb-nav-active-fg: #f3e9a6;
+  /* Selected filter chip: a solid cream fill far lighter than the unselected chip. */
+  --nb-chip-selected-bg: #f3e9a6;
+  --nb-chip-selected-fg: #21185f;
+  color-scheme: dark;
+}
+
+@utility bg-page {
+  background: var(--nb-page);
+}
+
+@utility bg-brand-bar {
+  background: var(--nb-brand-bar);
 }
 
 body {

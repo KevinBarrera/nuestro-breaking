@@ -1,9 +1,39 @@
 <!doctype html>
-<html lang="en">
+<html lang="es">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Nuestro Breaking</title>
+    <title>Los más pesados</title>
+    <script>
+      // Applies the saved theme before first paint; keep the key in sync with shared/lib/theme.ts.
+      (function () {
+        var theme = 'light';
+        try {
+          if (window.localStorage.getItem('nb-theme') === 'dark') theme = 'dark';
+        } catch (error) {
+          theme = 'light';
+        }
+        document.documentElement.setAttribute('data-theme', theme);
+      })();
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!-- Loads the event fonts without blocking first render; system fallbacks apply until they arrive. -->
+    <link
+      rel="preload"
+      as="style"
+      href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap"
+      onload="
+        this.onload = null;
+        this.rel = 'stylesheet';
+      "
+    />
+    <noscript>
+      <link
+        rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap"
+      />
+    </noscript>
   </head>
   <body>
     <div id="root"></div>

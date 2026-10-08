@@ -1,4 +1,6 @@
+import { sql } from 'drizzle-orm';
 import {
+  check,
   foreignKey,
   pgTable,
   primaryKey,
@@ -18,6 +20,9 @@ export const eventRegistrations = pgTable(
     eventId: uuid('event_id').notNull(),
     participantId: uuid('participant_id').notNull(),
     folio: text('folio'),
+    status: text('status').notNull().default('pending_payment'),
+    confirmationSource: text('confirmation_source'),
+    confirmedAt: timestamp('confirmed_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
   },
@@ -26,6 +31,19 @@ export const eventRegistrations = pgTable(
     unique('event_registrations_event_id_id_uq').on(table.eventId, table.id),
     unique('event_registrations_event_participant_uq').on(table.eventId, table.participantId),
     unique('event_registrations_event_folio_uq').on(table.eventId, table.folio),
+    check(
+      'event_registrations_status_ck',
+      sql`${table.status} IN ('pending_payment', 'confirmed', 'voided')`,
+    ),
+    check(
+      'event_registrations_confirmation_source_ck',
+      sql`${table.confirmationSource} IS NULL OR ${table.confirmationSource} IN ('approved_payment', 'admin_cash')`,
+    ),
+    check(
+      'event_registrations_confirmation_metadata_ck',
+      sql`(${table.status} = 'confirmed' AND ${table.confirmationSource} IS NOT NULL AND ${table.confirmedAt} IS NOT NULL)
+        OR (${table.status} IN ('pending_payment', 'voided') AND ${table.confirmationSource} IS NULL AND ${table.confirmedAt} IS NULL)`,
+    ),
     foreignKey({
       columns: [table.eventId],
       foreignColumns: [events.id],
@@ -54,6 +72,12 @@ export const eventActivityRegistrations = pgTable(
     unique('event_activity_registrations_registration_activity_uq').on(
       table.eventRegistrationId,
       table.activityId,
+    ),
+    unique('event_activity_registrations_check_in_scope_uq').on(
+      table.eventId,
+      table.eventRegistrationId,
+      table.activityId,
+      table.id,
     ),
     foreignKey({
       columns: [table.eventId, table.eventRegistrationId],

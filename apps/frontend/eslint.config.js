@@ -58,10 +58,7 @@ export default defineConfig([
       ecmaVersion: 'latest',
       globals: globals.browser,
       parserOptions: {
-        projectService: {
-          allowDefaultProject: ['playwright.config.ts', 'e2e/*.ts'],
-          defaultProject: 'tsconfig.node.json',
-        },
+        projectService: true,
         tsconfigRootDir: import.meta.dirname,
       },
     },

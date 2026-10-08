@@ -68,6 +68,7 @@ See issue #174. Evidence is recorded per task below.
 
 - 2026-10-08 — D1 and D2 answered. Exploration done (delegated read-only explorer). Feature doc created. Next: T1.
 - 2026-10-08 — T1 implemented on `feat/174-01-participant-profile` (not yet committed): migration `0015_participant_profile` with nullable #58 columns and immutable checks (`level` free text ≤ 50, no country), pure normalization in `src/events/participant-profile/`, D1 as the pure `pass-class-rules.ts` check used by `addPass` (409 `A full pass already includes general entry`), admin e2e updated, contracts updated. RED observed for the unit specs (missing modules) and the new D1 e2e before the service change.
+- 2026-10-08 — T1 committed: `d07909f` (participant fields, migration `0015`), `283c988` (normalization), `cc861ff` (D1 rule), docs `6a7b553`. Parent spot check: unit 106/106. Review: medium (413 lines), consent granted per standing instruction, reliability lens approved and acknowledged (lineage `review-3dae1239392b5c67`). Advisory WARNING about concurrent general/full assignment checked by the parent and not acted on: `lockRegistration` takes `FOR UPDATE` on the registration row before reading held passes (`registration-entitlements.service.ts:229-234`), so concurrent `addPass` calls on one registration are serialized and the second sees the first insert. T4 must take the same lock. Next boundary: `cc861ff`. Next: T2.
 
 ## Route per task
 

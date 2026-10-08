@@ -172,4 +172,17 @@ export class PassTypeAdminController {
     const expectedVersion = version(object(body).expectedVersion);
     return this.catalog.archive(eventId, passTypeId, expectedVersion, actor);
   }
+
+  @Post(':eventId/pass-types/:passTypeId/restore')
+  async restore(
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+    @Param('passTypeId', ParseUUIDPipe) passTypeId: string,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+    @Body() body: unknown,
+  ): Promise<AdminPassType> {
+    const actor = await this.sessions.authorizeEventAdminMutation(request, response, eventId);
+    const expectedVersion = version(object(body).expectedVersion);
+    return this.catalog.restore(eventId, passTypeId, expectedVersion, actor);
+  }
 }

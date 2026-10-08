@@ -99,6 +99,13 @@
       "when": 1786562775600,
       "tag": "0013_catalog_restore_audit",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1786562775601,
+      "tag": "0014_event_sales_state",
+      "breakpoints": true
     }
   ]
 }

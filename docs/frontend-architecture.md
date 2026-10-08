@@ -81,6 +81,15 @@ The admin UI has a light and a dark theme built on CSS custom properties in `src
 - **Hidden native select.** React Aria renders an `aria-hidden`, untabbable native `<select>` beside the trigger for autofill and `FormData`; specs ignore it (`e2e/support/select.ts`) and must not interact with it.
 - **Specs.** Use `selectTrigger`, `chooseOption` and `expectSelected` from `e2e/support/select.ts`; the listbox renders in a popover at the end of `<body>`, outside the trigger's form or region.
 
+## Shared Dialogs
+
+`@/shared/ui` also exports dialog primitives built on React Aria's `ModalOverlay`, `Modal` and `Dialog`. Focus stays inside the open dialog, Esc closes it, and focus returns to the control that opened it. Dialogs fit a 375px screen, and a tall body scrolls while the title and buttons stay visible.
+
+- **`Modal`.** The base dialog. It needs a `title` (the accessible name) and takes an optional `description`, body `children` and `actions` (or a function that receives `close`). Use it inside `DialogTrigger` (also exported) or control it with `isOpen`/`onOpenChange`. Clicking the backdrop does not close it unless `isDismissable` is set.
+- **`ConfirmDialog`.** A controlled `alertdialog` for actions with consequences, such as archiving: `title`, `consequence`, `confirmLabel`, `cancelLabel` ("Cancelar" by default), `tone="destructive"` for a filled danger button, and `isPending` (with an optional `pendingLabel`), which disables both buttons and Esc while the action runs. The caller closes it once the action succeeds.
+- **`ReviewChangesDialog`.** A controlled "Revisar cambios" dialog for edit forms. It lists each changed field as label and before → after, with "Guardar cambios" and "Volver a editar" (which closes it and keeps the form's edits), plus `isPending`. Build its `rows` with `changedRows(fields)`, and use `hasChanges(fields)` to skip the review when nothing changed. Both compare displayed values, so pass a `format` (for example for prices) when two stored values display the same. Text is not trimmed.
+- **`buttonClass(tone)`.** Shared button classes (`primary`, `secondary`, `danger`, `destructive`) with 44px targets, for shared UI that cannot import page styles.
+
 ## Admin Shell
 
 `@/widgets/admin-shell` (`AdminShell`) wraps every protected `/admin` page through `AdminSessionBoundary`. It renders the header (brand, event selector from `GET /admin/events`, theme toggle, sign-out), the brand bar, and the full-height side navigation with Operación and Catálogo groups. Screens without a backend (Inscripciones, Listas de respaldo) are shown disabled with "Próximamente". Pages render only their own `<main>`.

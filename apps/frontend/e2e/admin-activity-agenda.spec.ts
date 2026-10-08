@@ -273,7 +273,7 @@ test('keeps the selected kind chip after archiving its last active activity', as
     .click();
   const bgirl = page.getByRole('listitem').filter({ hasText: 'Bgirl 1v1' });
   await bgirl.getByRole('button', { name: 'Archivar' }).click();
-  await bgirl.getByRole('button', { name: 'Confirmar archivo' }).click();
+  await page.getByRole('alertdialog').getByRole('button', { name: 'Archivar' }).click();
   await expect(page.getByRole('status')).toContainText('Actividad archivada');
 
   await expect(pressed(page)).toHaveText('Competencia · 0');

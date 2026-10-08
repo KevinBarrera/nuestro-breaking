@@ -5,30 +5,34 @@ import {
   type CatalogActivity,
   type CatalogVenue,
 } from '@/entities/event-catalog';
-import { Select } from '@/shared/ui';
+import { Select, type ChangeRow } from '@/shared/ui';
 import { type FormEvent, useId, useState } from 'react';
+import { activityChangeRows } from './activity-changes';
 import { styles } from './catalog-copy';
 
 type ActivityFormProps = {
+  // The form's accessible name; the surrounding dialog shows it as its title.
   title: string;
+  // Lets the dialog's footer buttons submit this form (`<button form={id}>`).
+  id: string;
   activity?: CatalogActivity;
   venues: CatalogVenue[];
   timeZone: string;
   busy: boolean;
-  onSubmit: (input: ActivityInput) => void;
-  onCancel: () => void;
+  // A valid submit hands over the input and its change rows for "Revisar cambios".
+  onReview: (input: ActivityInput, rows: ChangeRow[]) => void;
 };
 
 const kindSuggestions = ['battle', 'competition', 'workshop', 'social'];
 
 export function ActivityForm({
   title,
+  id: formId,
   activity,
   venues,
   timeZone,
   busy,
-  onSubmit,
-  onCancel,
+  onReview,
 }: ActivityFormProps) {
   const id = useId();
   const [name, setName] = useState(activity?.name ?? '');
@@ -68,27 +72,32 @@ export function ActivityForm({
       setError('El fin debe ser posterior al inicio.');
       return;
     }
-    setError(null);
-    onSubmit({
+    const input = {
       name: name.trim(),
       kind: kind.trim(),
       venueId: selectedVenueId,
       startsAt: start,
       endsAt: end,
-    });
+    };
+    const rows = activityChangeRows(activity, input, venues, timeZone);
+    // "Guardar" stays enabled and explains itself: a disabled button is skipped by the keyboard
+    // and would not tell anyone why nothing can be saved.
+    if (rows.length === 0) {
+      setError('No hay cambios para guardar.');
+      return;
+    }
+    setError(null);
+    onReview(input, rows);
   }
 
   return (
-    <form aria-label={title} onSubmit={submit} className={`${styles.card} space-y-4`}>
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="text-lg font-bold text-heading">{title}</h2>
-        {activity && (
-          <span className="font-mono text-sm text-muted">
-            <span className="sr-only">Versión </span>v{activity.version}
-          </span>
-        )}
-      </div>
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
+    <form id={formId} aria-label={title} onSubmit={submit} className="space-y-4">
+      {activity && (
+        <p className="font-mono text-sm text-muted">
+          <span className="sr-only">Versión </span>v{activity.version}
+        </p>
+      )}
+      <div className="grid gap-4">
         <label className={styles.label}>
           Nombre
           <input
@@ -117,7 +126,6 @@ export function ActivityForm({
         </label>
         <Select
           label="Sede"
-          className="sm:col-span-2 lg:col-span-1"
           options={venues.map((venue) => ({ id: venue.id, label: venue.name }))}
           selectedKey={selectedVenueId}
           isDisabled={noVenues}
@@ -158,14 +166,6 @@ export function ActivityForm({
           {error}
         </p>
       )}
-      <div className="flex flex-wrap gap-3">
-        <button type="submit" disabled={busy || noVenues} className={styles.primary}>
-          {busy ? 'Guardando…' : 'Guardar'}
-        </button>
-        <button type="button" disabled={busy} onClick={onCancel} className={styles.secondary}>
-          Cancelar
-        </button>
-      </div>
     </form>
   );
 }

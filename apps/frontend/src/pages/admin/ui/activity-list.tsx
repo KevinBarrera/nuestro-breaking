@@ -7,12 +7,10 @@ type ActivityListProps = {
   days: AgendaDay[];
   venueNames: Map<string, string>;
   timeZone: string;
-  confirmingId: string | null;
   busy: boolean;
   onEdit: (activity: CatalogActivity) => void;
-  onArchiveRequest: (activity: CatalogActivity) => void;
-  onArchiveConfirm: (activity: CatalogActivity) => void;
-  onArchiveCancel: () => void;
+  // Asks for confirmation; the page archives only after it.
+  onArchive: (activity: CatalogActivity) => void;
 };
 
 type RowProps = Omit<ActivityListProps, 'days'> & { activity: CatalogActivity };
@@ -51,17 +49,7 @@ function AgendaDaySection({
   );
 }
 
-function ActivityRow({
-  activity,
-  venueNames,
-  timeZone,
-  confirmingId,
-  busy,
-  onEdit,
-  onArchiveRequest,
-  onArchiveConfirm,
-  onArchiveCancel,
-}: RowProps) {
+function ActivityRow({ activity, venueNames, timeZone, busy, onEdit, onArchive }: RowProps) {
   const active = activity.status === 'active';
   return (
     <li className="p-4">
@@ -89,7 +77,7 @@ function ActivityRow({
             </span>
           </div>
         </div>
-        {active && confirmingId !== activity.id && (
+        {active && (
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
@@ -103,38 +91,13 @@ function ActivityRow({
               type="button"
               disabled={busy}
               className={styles.danger}
-              onClick={() => onArchiveRequest(activity)}
+              onClick={() => onArchive(activity)}
             >
               Archivar
             </button>
           </div>
         )}
       </div>
-      {active && confirmingId === activity.id && (
-        <div className="mt-3 space-y-3 border-t border-row pt-3">
-          <p className="text-sm text-warning-fg">
-            ¿Archivar {activity.name}? Dejará de estar disponible para nuevos pases.
-          </p>
-          <div className="flex flex-wrap gap-3">
-            <button
-              type="button"
-              disabled={busy}
-              className={styles.danger}
-              onClick={() => onArchiveConfirm(activity)}
-            >
-              Confirmar archivo
-            </button>
-            <button
-              type="button"
-              disabled={busy}
-              className={styles.secondary}
-              onClick={onArchiveCancel}
-            >
-              Cancelar
-            </button>
-          </div>
-        </div>
-      )}
     </li>
   );
 }

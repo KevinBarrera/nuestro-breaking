@@ -116,6 +116,24 @@ const list = (page: Page) => page.getByRole('region', { name: 'Acceso a activida
 const access = (page: Page, activityName: string) =>
   selectTrigger(list(page), `Acceso a ${activityName}`);
 const group = (page: Page, kind: string) => list(page).getByRole('list', { name: kind });
+const review = (page: Page) => page.getByRole('dialog', { name: 'Revisar cambios' });
+
+// Every save goes through "Revisar cambios"; only its "Guardar cambios" writes.
+async function confirmReview(page: Page) {
+  await review(page).getByRole('button', { name: 'Guardar cambios' }).click();
+}
+
+async function saveAccess(page: Page) {
+  await list(page).getByRole('button', { name: 'Guardar acceso' }).click();
+  await confirmReview(page);
+}
+
+// A clean editor has nothing to save: "Guardar acceso" says so instead of opening the review.
+async function expectNothingToSave(page: Page) {
+  await list(page).getByRole('button', { name: 'Guardar acceso' }).click();
+  await expect(list(page).getByRole('alert')).toHaveText('No hay cambios para guardar.');
+  await expect(review(page)).toHaveCount(0);
+}
 
 // No horizontal page scroll, and the access list itself never scrolls sideways.
 async function expectNoHorizontalScroll(page: Page, width: number) {
@@ -162,17 +180,21 @@ test('lists the open pass access grouped by kind, by start time then name', asyn
   await expectSelected(access(page, 'Batalla de crews'), 'Sin acceso');
 });
 
-test('keeps Guardar acceso disabled until the selected column changes', async ({ page }) => {
+test('Guardar acceso reviews only a changed list and explains an unchanged one', async ({
+  page,
+}) => {
   await mockCatalog(page, () => [fullPass]);
   const bodies = await mockAccessWrite(page, () => ({ status: 200, json: fullPass }));
   await page.goto(passesPath);
   await selectPass(page, 'Pase completo');
-  const save = list(page).getByRole('button', { name: 'Guardar acceso' });
-  await expect(save).toBeDisabled();
+  await expectNothingToSave(page);
   await chooseOption(access(page, 'Batalla de crews'), 'Incluida');
-  await expect(save).toBeEnabled();
+  await expect(list(page).getByRole('alert')).toHaveCount(0);
+  await list(page).getByRole('button', { name: 'Guardar acceso' }).click();
+  await expect(review(page)).toContainText('Batalla de crews');
+  await review(page).getByRole('button', { name: 'Volver a editar' }).click();
   await chooseOption(access(page, 'Batalla de crews'), 'Elegible');
-  await expect(save).toBeDisabled();
+  await expectNothingToSave(page);
   expect(bodies).toHaveLength(0);
 });
 
@@ -195,6 +217,13 @@ test('saves the selected column with one PUT carrying expectedVersion and the fu
   await chooseOption(access(page, 'Batalla 2 vs 2'), 'Elegible');
   await chooseOption(access(page, 'Taller de footwork'), 'Sin acceso');
   await list(page).getByRole('button', { name: 'Guardar acceso' }).click();
+  // The review also lists the link to the archived activity that the save drops.
+  await expect(review(page).getByRole('term')).toHaveText([
+    'Batalla 2 vs 2',
+    'Taller de footwork',
+    'Taller viejo',
+  ]);
+  await confirmReview(page);
   await expect(page.getByRole('status')).toContainText('Acceso actualizado');
   expect(bodies).toEqual([
     {
@@ -207,7 +236,7 @@ test('saves the selected column with one PUT carrying expectedVersion and the fu
   ]);
   await expect(page.getByRole('form', { name: 'Editar pase' })).toContainText('v3');
   await expectSelected(access(page, 'Taller de footwork'), 'Sin acceso');
-  await expect(list(page).getByRole('button', { name: 'Guardar acceso' })).toBeDisabled();
+  await expectNothingToSave(page);
   await expect(list(page)).not.toContainText('se quitará al guardar');
 });
 
@@ -223,7 +252,7 @@ test('a stale version shows a conflict with a reload that discards local edits',
   await page.goto(passesPath);
   await selectPass(page, 'Pase completo');
   await chooseOption(access(page, 'Batalla 2 vs 2'), 'Incluida');
-  await list(page).getByRole('button', { name: 'Guardar acceso' }).click();
+  await saveAccess(page);
   const conflict = page.getByRole('alert').filter({ hasText: 'Otra persona cambió este pase' });
   await expect(conflict).toBeVisible();
   await expect(page.getByText('Pass type version conflict')).toHaveCount(0);
@@ -240,7 +269,7 @@ test('a stale version shows a conflict with a reload that discards local edits',
   await expectSelected(access(page, 'Batalla de crews'), 'Incluida');
   await expectSelected(access(page, 'Batalla 2 vs 2'), 'Sin acceso');
   await expect(page.getByRole('form', { name: 'Editar pase' })).toContainText('v5');
-  await expect(list(page).getByRole('button', { name: 'Guardar acceso' })).toBeDisabled();
+  await expectNothingToSave(page);
   await expect(conflict).toHaveCount(0);
 });
 
@@ -250,7 +279,7 @@ test('other access failures show the generic failure notice', async ({ page }) =
   await page.goto(passesPath);
   await selectPass(page, 'Pase completo');
   await chooseOption(access(page, 'Batalla 2 vs 2'), 'Incluida');
-  await list(page).getByRole('button', { name: 'Guardar acceso' }).click();
+  await saveAccess(page);
   await expect(page.getByRole('alert')).toContainText('No se pudo completar la operación');
   await expectSelected(access(page, 'Batalla 2 vs 2'), 'Incluida');
 });
@@ -292,11 +321,12 @@ test('saving access keeps unsaved pass edits and the next save sends the new ver
   const form = page.getByRole('form', { name: 'Editar pase' });
   await form.getByLabel('Nombre').fill('Pase completo VIP');
   await chooseOption(access(page, 'Batalla 2 vs 2'), 'Elegible');
-  await list(page).getByRole('button', { name: 'Guardar acceso' }).click();
+  await saveAccess(page);
   await expect(page.getByRole('status')).toContainText('Acceso actualizado');
   await expect(form).toContainText('v3');
   await expect(form.getByLabel('Nombre')).toHaveValue('Pase completo VIP');
   await form.getByRole('button', { name: 'Guardar cambios' }).click();
+  await confirmReview(page);
   await expect(page.getByRole('status')).toContainText('Pase actualizado');
   expect(patches).toEqual([
     {
@@ -309,9 +339,7 @@ test('saving access keeps unsaved pass edits and the next save sends the new ver
   ]);
 });
 
-test('disables the editable column and Guardar acceso while the save is in flight', async ({
-  page,
-}) => {
+test('disables the access list and the review while the save is in flight', async ({ page }) => {
   await mockCatalog(page, () => [fullPass, generalPass]);
   let release = () => {};
   const held = new Promise<void>((resolve) => (release = resolve));
@@ -325,14 +353,14 @@ test('disables the editable column and Guardar acceso while the save is in fligh
   await page.goto(passesPath);
   await selectPass(page, 'Pase completo');
   await chooseOption(access(page, 'Batalla 2 vs 2'), 'Incluida');
-  await list(page).getByRole('button', { name: 'Guardar acceso' }).click();
-  const saving = list(page).getByRole('button', { name: 'Guardando…' });
-  await expect(saving).toBeDisabled();
-  for (const name of ['Batalla 2 vs 2', 'Batalla de crews', 'Taller de footwork'])
-    await expect(access(page, name)).toBeDisabled();
+  await saveAccess(page);
+  // The pending review dialog covers the editor and blocks every repeat until the save settles.
+  await expect(review(page).getByRole('button', { name: 'Guardando…' })).toBeDisabled();
+  await expect(review(page).getByRole('button', { name: 'Volver a editar' })).toBeDisabled();
+  await expect(list(page).locator('button[aria-haspopup="listbox"]').first()).toBeDisabled();
   release();
   await expect(page.getByRole('status')).toContainText('Acceso actualizado');
-  await expect(list(page).getByRole('button', { name: 'Guardar acceso' })).toBeDisabled();
+  await expectNothingToSave(page);
   await expect(access(page, 'Batalla 2 vs 2')).toBeEnabled();
 });
 
@@ -374,13 +402,13 @@ test('a reload still in flight when access is saved cannot restore the older ver
   await page.goto(passesPath);
   await selectPass(page, 'Pase completo');
   await chooseOption(access(page, 'Batalla 2 vs 2'), 'Incluida');
-  await list(page).getByRole('button', { name: 'Guardar acceso' }).click();
+  await saveAccess(page);
   const conflict = page.getByRole('alert').filter({ hasText: 'Otra persona cambió este pase' });
   holdReads = true;
   await conflict.getByRole('button', { name: 'Recargar' }).click();
   await expect.poll(() => heldReads).toBe(1);
   await chooseOption(access(page, 'Batalla 2 vs 2'), 'Incluida');
-  await list(page).getByRole('button', { name: 'Guardar acceso' }).click();
+  await saveAccess(page);
   await expect(page.getByRole('status')).toContainText('Acceso actualizado');
   const form = page.getByRole('form', { name: 'Editar pase' });
   await expect(form).toContainText('v3');
@@ -390,7 +418,7 @@ test('a reload still in flight when access is saved cannot restore the older ver
   await page.evaluate(() => new Promise((resolve) => setTimeout(resolve, 100)));
   await expect(form).toContainText('v3');
   await expectSelected(access(page, 'Batalla 2 vs 2'), 'Incluida');
-  await expect(list(page).getByRole('button', { name: 'Guardar acceso' })).toBeDisabled();
+  await expectNothingToSave(page);
 });
 
 test('an access save during a retried reload re-reads instead of leaving the refresh failure', async ({
@@ -433,7 +461,7 @@ test('an access save during a retried reload re-reads instead of leaving the ref
   await page.goto(passesPath);
   await selectPass(page, 'Pase completo');
   await chooseOption(access(page, 'Batalla 2 vs 2'), 'Incluida');
-  await list(page).getByRole('button', { name: 'Guardar acceso' }).click();
+  await saveAccess(page);
   const conflict = page.getByRole('alert').filter({ hasText: 'Otra persona cambió este pase' });
   reads = 'fail';
   await conflict.getByRole('button', { name: 'Recargar' }).click();
@@ -447,7 +475,7 @@ test('an access save during a retried reload re-reads instead of leaving the ref
   reads = 'ok';
   const readsBeforeSave = passReads;
   await chooseOption(access(page, 'Batalla 2 vs 2'), 'Incluida');
-  await list(page).getByRole('button', { name: 'Guardar acceso' }).click();
+  await saveAccess(page);
   await expect(page.getByRole('status')).toContainText('Acceso actualizado');
 
   await expect(refreshFailure).toHaveCount(0);
@@ -508,6 +536,7 @@ test('a new pass sets its access in the same single POST', async ({ page }) => {
   await chooseOption(access(page, 'Batalla de crews'), 'Incluida');
   await chooseOption(access(page, 'Taller de footwork'), 'Elegible');
   await form.getByRole('button', { name: 'Guardar' }).click();
+  await confirmReview(page);
   await expect(page.getByRole('status')).toContainText('Pase creado');
   expect(bodies).toEqual([
     {
@@ -536,9 +565,26 @@ test('a new pass whose access names an unavailable activity shows why it failed'
   const form = await fillNewPass(page);
   await chooseOption(access(page, 'Batalla 2 vs 2'), 'Elegible');
   await form.getByRole('button', { name: 'Guardar' }).click();
-  await expect(page.getByRole('alert')).toContainText('ya no está activa');
+  await confirmReview(page);
+  const failure = page.getByRole('alert').filter({ hasText: 'No se pudo crear el pase' });
+  await expect(failure).toContainText('ya no esté activa');
+  await expect(failure.getByRole('button', { name: 'Recargar' })).toBeVisible();
   await expect(page.getByText('Invalid activity')).toHaveCount(0);
-  expect(bodies).toHaveLength(1);
+  // The specific message only follows a POST that carried access.
+  expect(bodies).toEqual([
+    expect.objectContaining({ activities: [{ activityId: duoId, access: 'selectable' }] }),
+  ]);
   await expect(page).toHaveURL(`${passesPath}/new`);
   await expectSelected(access(page, 'Batalla 2 vs 2'), 'Elegible');
+});
+
+test('a 400 on a new pass without access keeps the generic invalid message', async ({ page }) => {
+  await mockCatalog(page, () => [fullPass]);
+  const bodies = await mockCreate(page, () => ({ status: 400, json: { message: 'Bad name' } }));
+  const form = await fillNewPass(page);
+  await form.getByRole('button', { name: 'Guardar' }).click();
+  await confirmReview(page);
+  await expect(page.getByRole('alert')).toContainText('Datos inválidos');
+  await expect(page.getByText('ya no esté activa')).toHaveCount(0);
+  expect(bodies).toEqual([expect.objectContaining({ activities: [] })]);
 });

@@ -1,6 +1,6 @@
 import type { CatalogPassType, PassTypeActivity } from '@/entities/event-catalog';
 import { Select } from '@/shared/ui';
-import { type ReactNode, useId, useState } from 'react';
+import { type ReactNode, useEffect, useId, useState } from 'react';
 import { accessLabels, styles } from './catalog-copy';
 import {
   accessList,
@@ -122,8 +122,11 @@ type PassAccessEditorProps = {
   passType: CatalogPassType;
   busy: boolean;
   conflict: boolean;
+  // A save that changes something hands over the whole desired list; the screen reviews it.
   onSave: (activities: PassTypeActivity[]) => void;
   onReload: () => void;
+  // Reports whether the choices differ from the pass's saved access.
+  onDirtyChange?: (dirty: boolean) => void;
 };
 
 // The open pass's access on its own screen. A save sends the whole desired list; links to
@@ -136,9 +139,11 @@ export function PassAccessEditor({
   conflict,
   onSave,
   onReload,
+  onDirtyChange,
 }: PassAccessEditorProps) {
   const saved = savedChoices(passType.activities);
   const [choices, setChoices] = useState<AccessChoices>(saved);
+  const [error, setError] = useState<string | null>(null);
   const changed = groups.some((group) =>
     group.activities.some(
       (activity) => (choices[activity.id] ?? 'none') !== (saved[activity.id] ?? 'none'),
@@ -146,8 +151,19 @@ export function PassAccessEditor({
   );
   const dropped = droppedLinks(passType.activities, groups);
 
+  useEffect(() => {
+    onDirtyChange?.(changed);
+    return () => onDirtyChange?.(false);
+  }, [changed, onDirtyChange]);
+
+  // "Guardar acceso" stays enabled and explains itself, like the pass form's save.
   function save() {
-    if (busy || !changed) return;
+    if (busy) return;
+    if (!changed) {
+      setError('No hay cambios para guardar.');
+      return;
+    }
+    setError(null);
     onSave(accessList(groups, choices));
   }
 
@@ -176,9 +192,10 @@ export function PassAccessEditor({
         choices={choices}
         level={2}
         busy={busy}
-        onChange={(activityId, choice) =>
-          setChoices((current) => ({ ...current, [activityId]: choice }))
-        }
+        onChange={(activityId, choice) => {
+          setError(null);
+          setChoices((current) => ({ ...current, [activityId]: choice }));
+        }}
       />
       {dropped > 0 && (
         <p className="text-sm text-warning-fg">
@@ -187,8 +204,13 @@ export function PassAccessEditor({
             : `Este pase tiene ${dropped} actividades archivadas vinculadas; se quitarán al guardar el acceso, porque solo se pueden asignar actividades activas.`}
         </p>
       )}
+      {error && (
+        <p role="alert" className="text-sm text-danger-fg">
+          {error}
+        </p>
+      )}
       {groups.length > 0 && (
-        <button type="button" disabled={busy || !changed} onClick={save} className={styles.primary}>
+        <button type="button" disabled={busy} onClick={save} className={styles.primary}>
           {busy ? 'Guardando…' : 'Guardar acceso'}
         </button>
       )}

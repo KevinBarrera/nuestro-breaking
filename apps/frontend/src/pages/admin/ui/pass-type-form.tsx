@@ -8,18 +8,23 @@ import {
   type PassTypeInput,
   type RequiredPassClass,
 } from '@/entities/event-catalog';
-import { Select } from '@/shared/ui';
-import { type FormEvent, type ReactNode, useId, useState } from 'react';
+import { ConfirmDialog, Select } from '@/shared/ui';
+import { type FormEvent, type ReactNode, useEffect, useId, useState } from 'react';
 import { passClassLabels, styles } from './catalog-copy';
+import { passFieldRows } from './pass-changes';
 
 type PassTypeFormProps = {
   title: string;
   passType?: CatalogPassType;
   busy: boolean;
+  // A valid submit that changes something; the screen reviews it before saving.
   onSubmit: (input: PassTypeInput) => void;
   onCancel: () => void;
-  // Only an existing active pass can be archived; archiving asks for confirmation first.
-  onArchive?: () => void;
+  // Only an existing active pass can be archived, after a confirmation dialog. Resolves to
+  // whether the archive succeeded; a failure closes the dialog so the page alert shows.
+  onArchive?: () => Promise<boolean>;
+  // Reports whether the fields differ from the saved pass (or, for a new pass, from empty).
+  onDirtyChange?: (dirty: boolean) => void;
   // Extra fields shown before the actions, e.g. the new pass's access list.
   children?: ReactNode;
 };
@@ -40,6 +45,7 @@ export function PassTypeForm({
   onSubmit,
   onCancel,
   onArchive,
+  onDirtyChange,
   children,
 }: PassTypeFormProps) {
   const id = useId();
@@ -51,6 +57,20 @@ export function PassTypeForm({
     passType?.requiresPassClass ?? '',
   );
   const [error, setError] = useState<string | null>(null);
+  // Only add-ons may require another pass class; the backend rejects it on other classes.
+  const requiresPassClass = passClass === 'add_on' && requires ? requires : null;
+  // Compared with the pass as it is now, so a confirmed save (applied in place) reads as clean.
+  const dirty = passType
+    ? name.trim() !== passType.name ||
+      passClass !== passType.passClass ||
+      parseMxnToCents(price) !== passType.priceCents ||
+      requiresPassClass !== passType.requiresPassClass
+    : name !== '' || passClass !== 'full' || price !== '' || requires !== '';
+
+  useEffect(() => {
+    onDirtyChange?.(dirty);
+    return () => onDirtyChange?.(false);
+  }, [dirty, onDirtyChange]);
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -66,14 +86,20 @@ export function PassTypeForm({
       );
       return;
     }
+    const input = { name: name.trim(), passClass, priceCents, requiresPassClass };
+    // "Guardar cambios" stays enabled and explains itself: a disabled button is skipped by the
+    // keyboard and would not tell anyone why nothing can be saved.
+    if (passType && passFieldRows(passType, input).length === 0) {
+      setError('No hay cambios para guardar.');
+      return;
+    }
     setError(null);
-    onSubmit({
-      name: name.trim(),
-      passClass,
-      priceCents,
-      // Only add-ons may require another pass class; the backend rejects it on other classes.
-      requiresPassClass: passClass === 'add_on' && requires ? requires : null,
-    });
+    onSubmit(input);
+  }
+
+  async function archive() {
+    if (busy || !onArchive) return;
+    if (!(await onArchive())) setConfirmingArchive(false);
   }
 
   return (
@@ -142,44 +168,38 @@ export function PassTypeForm({
           {error}
         </p>
       )}
-      {confirmingArchive && passType ? (
-        <div className="space-y-3 border-t border-line pt-4">
-          <p className="text-sm text-warning-fg">
-            ¿Archivar {passType.name}? Ya no se podrá asignar a nuevas inscripciones.
-          </p>
-          <div className="flex flex-wrap gap-3">
-            <button type="button" disabled={busy} className={styles.danger} onClick={onArchive}>
-              Confirmar archivo
-            </button>
-            <button
-              type="button"
-              disabled={busy}
-              className={styles.secondary}
-              onClick={() => setConfirmingArchive(false)}
-            >
-              Cancelar
-            </button>
-          </div>
-        </div>
-      ) : (
-        <div className="flex flex-wrap gap-3">
-          <button type="submit" disabled={busy} className={styles.primary}>
-            {busy ? 'Guardando…' : passType ? 'Guardar cambios' : 'Guardar'}
+      <div className="flex flex-wrap gap-3">
+        <button type="submit" disabled={busy} className={styles.primary}>
+          {busy ? 'Guardando…' : passType ? 'Guardar cambios' : 'Guardar'}
+        </button>
+        {onArchive && (
+          <button
+            type="button"
+            disabled={busy}
+            className={styles.secondary}
+            onClick={() => setConfirmingArchive(true)}
+          >
+            Archivar
           </button>
-          {onArchive && (
-            <button
-              type="button"
-              disabled={busy}
-              className={styles.secondary}
-              onClick={() => setConfirmingArchive(true)}
-            >
-              Archivar
-            </button>
-          )}
-          <button type="button" disabled={busy} onClick={onCancel} className={styles.secondary}>
-            Cancelar
-          </button>
-        </div>
+        )}
+        <button type="button" disabled={busy} onClick={onCancel} className={styles.secondary}>
+          Cancelar
+        </button>
+      </div>
+      {passType && onArchive && (
+        <ConfirmDialog
+          isOpen={confirmingArchive}
+          onOpenChange={(open) => {
+            if (!open && !busy) setConfirmingArchive(false);
+          }}
+          title={`¿Archivar ${passType.name}?`}
+          consequence="Ya no se podrá asignar a nuevas inscripciones."
+          confirmLabel="Archivar"
+          pendingLabel="Archivando…"
+          tone="destructive"
+          isPending={busy}
+          onConfirm={() => void archive()}
+        />
       )}
     </form>
   );

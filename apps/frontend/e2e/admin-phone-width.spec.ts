@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test';
 import {
+  adminDialogs,
+  adminScreen,
   adminScreens,
   mockAdminApi,
   revealControls,
@@ -54,7 +56,7 @@ for (const theme of themes) {
   for (const [screen, trigger, control] of [
     [adminScreens[0], 'Evento', 'Evento'],
     [
-      adminScreens[3],
+      adminScreen('Pase'),
       'Acceso a Batalla de crews con nombre largo para pantallas angostas',
       'access list row',
     ],
@@ -73,6 +75,31 @@ for (const theme of themes) {
       const box = await listbox.boundingBox();
       expect(box!.x).toBeGreaterThanOrEqual(0);
       expect(box!.x + box!.width).toBeLessThanOrEqual(width);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+        width,
+      );
+    });
+  }
+}
+
+// Each catalog dialog fits a 375px screen in both themes: the dialog stays inside the
+// viewport, its buttons are fully visible, and the page never scrolls sideways.
+for (const theme of themes) {
+  for (const dialog of adminDialogs) {
+    test(`${dialog.name} dialog fits ${width}px in the ${theme} theme`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 800 });
+      await useTheme(page, theme);
+      await mockAdminApi(page);
+      await page.goto(adminScreen(dialog.screen).path);
+      await revealControls(page, dialog.screen);
+      const open = await dialog.open(page);
+      await expect(open).toBeVisible();
+      const box = (await open.boundingBox())!;
+      expect(box.x).toBeGreaterThanOrEqual(0);
+      expect(box.x + box.width).toBeLessThanOrEqual(width);
+      expect(await open.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
+      for (const button of await open.getByRole('button').all())
+        await expect(button).toBeInViewport({ ratio: 1 });
       expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
         width,
       );

@@ -16,7 +16,7 @@ import {
   ReviewChangesDialog,
   type ChangeRow,
 } from '@/shared/ui';
-import { type ReactNode, useCallback, useId, useState } from 'react';
+import { type ReactNode, useCallback, useEffect, useId, useRef, useState } from 'react';
 import { useParams } from 'react-router';
 import { ActivityAgendaFilters } from './activity-agenda-filters';
 import {
@@ -74,8 +74,19 @@ function EventActivities({ eventId }: { eventId: string }) {
     query: '',
     showArchived: false,
   });
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const [focusHeading, setFocusHeading] = useState(0);
 
-  async function run(action: () => Promise<unknown>, success: string) {
+  // An archived row loses its "Archivar" button, so the confirmation dialog has nowhere to
+  // return focus. The page heading takes it instead (on the next frame, after the dialog's own
+  // focus restore), and the success notice under it is announced.
+  useEffect(() => {
+    if (focusHeading === 0) return;
+    const frame = requestAnimationFrame(() => headingRef.current?.focus());
+    return () => cancelAnimationFrame(frame);
+  }, [focusHeading]);
+
+  async function run(action: () => Promise<unknown>, success: string, onSuccess?: () => void) {
     if (busy) return;
     setBusy(true);
     setNotice(null);
@@ -85,6 +96,7 @@ function EventActivities({ eventId }: { eventId: string }) {
       setReview(null);
       setArchiving(null);
       setNotice({ kind: 'success', text: success });
+      onSuccess?.();
       reload();
     } catch (error) {
       const failure = catalogFailure(error);
@@ -134,7 +146,13 @@ function EventActivities({ eventId }: { eventId: string }) {
       <div className="mx-auto max-w-6xl space-y-6">
         <header className="flex flex-wrap items-end justify-between gap-4 border-b border-line pb-6">
           <div className="min-w-0">
-            <h1 className="text-3xl font-bold tracking-tight text-heading">Actividades</h1>
+            <h1
+              ref={headingRef}
+              tabIndex={-1}
+              className="text-3xl font-bold tracking-tight text-heading outline-none"
+            >
+              Actividades
+            </h1>
             {data && (
               <p className="mt-1 text-sm text-muted">
                 Agenda en hora del evento: {data.context.timeZone}.
@@ -208,7 +226,7 @@ function EventActivities({ eventId }: { eventId: string }) {
             <ReviewChangesDialog
               isOpen={review !== null}
               onOpenChange={(open) => {
-                if (!open) setReview(null);
+                if (!open && !busy) setReview(null);
               }}
               rows={review?.rows ?? []}
               onConfirm={() => {
@@ -232,6 +250,7 @@ function EventActivities({ eventId }: { eventId: string }) {
                   void run(
                     () => archiveActivity(eventId, archiving.id, archiving.version),
                     'Actividad archivada.',
+                    () => setFocusHeading((value) => value + 1),
                   )
                 }
               />

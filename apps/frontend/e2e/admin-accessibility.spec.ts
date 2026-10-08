@@ -1,5 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import {
+  adminDialogs,
+  adminScreen,
   adminScreens,
   mockAdminApi,
   revealControls,
@@ -148,8 +150,9 @@ for (const screen of adminScreens) {
     // Guards against a vacuous pass: the sweep must see the sampled control kinds.
     expect(tagged('a ').length).toBeGreaterThanOrEqual(4);
     expect(tagged('button ').length).toBeGreaterThanOrEqual(2);
-    // Every event screen has the topbar event select; Pases adds one per access-list row.
-    expect(tagged('select ').length).toBeGreaterThanOrEqual(screen.name === 'Pases' ? 2 : 1);
+    // Every event screen has the topbar event select; a pass screen adds one per access row.
+    const accessRows = screen.name === 'Pase' || screen.name === 'Nuevo pase';
+    expect(tagged('select ').length).toBeGreaterThanOrEqual(accessRows ? 2 : 1);
     if (screen.name === 'Actividades')
       expect(targets.some((target) => target.name.startsWith('button Todas'))).toBe(true);
     expect(targets.filter((target) => target.height < 44)).toEqual([]);
@@ -163,7 +166,7 @@ const popoverCases = [
   { name: 'topbar event selector', screen: adminScreens[0], trigger: 'Evento' },
   {
     name: 'access list row',
-    screen: adminScreens[3],
+    screen: adminScreen('Pase'),
     trigger: 'Acceso a Taller de footwork',
   },
 ] as const;
@@ -259,4 +262,79 @@ for (const theme of themes) {
       'selected vs unselected chip background',
     ).toBeGreaterThanOrEqual(3);
   });
+}
+
+// Dialogs render in an overlay at the end of <body>, so they get their own sweep in both
+// themes: every control inside keeps a 44px target, and every text, including the filled
+// `destructive` confirm button, keeps 4.5:1 against the background it is painted on.
+for (const theme of themes) {
+  for (const dialog of adminDialogs) {
+    test(`${theme} theme ${dialog.name} dialog keeps 44px targets and 4.5:1 text`, async ({
+      page,
+    }) => {
+      await useTheme(page, theme);
+      await mockAdminApi(page);
+      await page.goto(adminScreen(dialog.screen).path);
+      await revealControls(page, dialog.screen);
+      const open = await dialog.open(page);
+      await expect(open).toBeVisible();
+      await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
+      const report = await open.evaluate((root) => {
+        const painted = (node: Element) => {
+          let current: Element | null = node;
+          let bg = 'rgba(0, 0, 0, 0)';
+          while (current && /rgba\(.*, 0\)$/.test(bg)) {
+            bg = getComputedStyle(current).backgroundColor;
+            current = current.parentElement;
+          }
+          return bg;
+        };
+        const controls = [
+          ...root.querySelectorAll<HTMLElement>(
+            'a[href], button, input, textarea, [role="button"]',
+          ),
+        ]
+          .filter(
+            (node) => node.getClientRects().length > 0 && !node.closest('[aria-hidden="true"]'),
+          )
+          .map((node) => {
+            const target =
+              node instanceof HTMLInputElement && ['checkbox', 'radio'].includes(node.type)
+                ? (node.closest('label') ?? node)
+                : node;
+            return {
+              name: (node.getAttribute('aria-label') ?? node.textContent ?? node.tagName).trim(),
+              height: target.getBoundingClientRect().height,
+            };
+          });
+        const texts = [...root.querySelectorAll<HTMLElement>('*')]
+          .filter(
+            (node) =>
+              node.getClientRects().length > 0 &&
+              !node.closest('[aria-hidden="true"]') &&
+              !node.classList.contains('sr-only') &&
+              [...node.childNodes].some(
+                (child) => child.nodeType === Node.TEXT_NODE && child.textContent!.trim(),
+              ),
+          )
+          .map((node) => ({
+            text: node.textContent.trim().slice(0, 40),
+            fg: getComputedStyle(node).color,
+            bg: painted(node),
+          }));
+        return { controls, texts };
+      });
+      expect(report.controls.length).toBeGreaterThanOrEqual(2);
+      expect(report.controls.filter((control) => control.height < 44)).toEqual([]);
+      const rgba = (value: string) =>
+        [...value.match(/[\d.]+/g)!.map(Number), 1].slice(0, 4) as Rgba;
+      expect(report.texts.length).toBeGreaterThanOrEqual(3);
+      const failures = report.texts
+        .filter(
+          (entry) => rgba(entry.bg)[3] !== 1 || contrast(rgba(entry.fg), rgba(entry.bg)) < 4.5,
+        )
+        .map((entry) => `${entry.text}: ${contrast(rgba(entry.fg), rgba(entry.bg)).toFixed(2)}`);
+      expect(failures).toEqual([]);
+    });
+  }
 }

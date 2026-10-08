@@ -23,12 +23,14 @@ export type PassesContext = {
   notices: ReactNode;
   // The pass whose access save hit a version conflict, if any.
   accessConflictFor: string | null;
-  // Bumped by the conflict reload so the access editor discards local edits.
+  // Bumped by the conflict reload (discarding local edits) and by a confirmed access save,
+  // so the access editor restarts from the saved links.
   accessReset: number;
-  create: (input: NewPassTypeInput) => void;
-  update: (passType: CatalogPassType, input: PassTypeInput) => void;
-  archive: (passType: CatalogPassType) => void;
-  saveAccess: (passType: CatalogPassType, activities: PassTypeActivity[]) => void;
+  // Each write resolves to whether it succeeded, so the screen can close its dialog.
+  create: (input: NewPassTypeInput) => Promise<boolean>;
+  update: (passType: CatalogPassType, input: PassTypeInput) => Promise<boolean>;
+  archive: (passType: CatalogPassType) => Promise<boolean>;
+  saveAccess: (passType: CatalogPassType, activities: PassTypeActivity[]) => Promise<boolean>;
   reloadAccess: () => void;
 };
 

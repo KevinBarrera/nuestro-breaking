@@ -113,6 +113,14 @@ async function mockActivityList(page: Page, rows: () => Activity[]) {
   return () => reads;
 }
 
+// Pass saves also go through "Revisar cambios"; only its "Guardar cambios" writes.
+async function confirmReview(page: Page) {
+  await page
+    .getByRole('dialog', { name: 'Revisar cambios' })
+    .getByRole('button', { name: 'Guardar cambios' })
+    .click();
+}
+
 // The activity form's "Guardar" sits in its dialog footer and opens "Revisar cambios"; only
 // "Guardar cambios" there writes.
 async function saveActivity(page: Page) {
@@ -482,6 +490,7 @@ test('creates an add-on pass type that requires a pass class', async ({ page }) 
   await expectSelected(selectTrigger(form, 'Requiere pase'), 'Ninguno');
   await chooseOption(selectTrigger(form, 'Requiere pase'), 'Completo');
   await form.getByRole('button', { name: 'Guardar' }).click();
+  await confirmReview(page);
   await expect(page.getByRole('status')).toContainText('Pase creado');
   await expect(page).toHaveURL(`${passesPath}/${openPassId}`);
   await expect(page.getByRole('form', { name: 'Editar pase' }).getByLabel('Nombre')).toHaveValue(
@@ -525,6 +534,7 @@ test('saves activity access for a pass type with its expected version', async ({
   await chooseOption(selectTrigger(editor, 'Acceso a Batalla de crews'), 'Sin acceso');
   await chooseOption(selectTrigger(editor, 'Acceso a Taller de footwork'), 'Elegible');
   await editor.getByRole('button', { name: 'Guardar acceso' }).click();
+  await confirmReview(page);
   await expect(page.getByRole('status')).toContainText('Acceso actualizado');
   expect(body).toEqual({
     expectedVersion: 2,
@@ -694,6 +704,7 @@ test('edits a pass type with its expected version', async ({ page }) => {
   await form.getByLabel('Nombre').fill('Pase completo VIP');
   await form.getByLabel('Precio (MXN)').fill('1750,50');
   await form.getByRole('button', { name: 'Guardar cambios' }).click();
+  await confirmReview(page);
   await expect(page.getByRole('status')).toContainText('Pase actualizado');
   expect(body).toEqual({
     expectedVersion: 2,
@@ -751,6 +762,7 @@ test('a reload while a pass is open refreshes its values with the new version', 
   const form = page.getByRole('form', { name: 'Editar pase' });
   await form.getByLabel('Nombre').fill('Open Styles 2026');
   await form.getByRole('button', { name: 'Guardar cambios' }).click();
+  await confirmReview(page);
   const reloadAlert = page.getByRole('alert').filter({ hasText: 'No se pudo recargar' });
   await expect(reloadAlert).toBeVisible();
 
@@ -781,11 +793,13 @@ test('a reload while a pass is open refreshes its values with the new version', 
   await expect(form.getByLabel('Nombre')).toHaveValue('Pase completo plus');
   await expect(form.getByLabel('Precio (MXN)')).toHaveValue('1600.00');
   await expectSelected(selectTrigger(access, 'Acceso a Batalla de crews'), 'Sin acceso');
+  await form.getByLabel('Nombre').fill('Pase completo plus 2');
   await form.getByRole('button', { name: 'Guardar cambios' }).click();
+  await confirmReview(page);
   await expect(page.getByRole('status')).toContainText('Pase actualizado');
   expect(body).toEqual({
     expectedVersion: 5,
-    name: 'Pase completo plus',
+    name: 'Pase completo plus 2',
     passClass: 'full',
     priceCents: 160000,
     requiresPassClass: null,
@@ -806,7 +820,8 @@ test('shows a reload request when a pass type edit conflicts', async ({ page }) 
     .click();
   const form = page.getByRole('form', { name: 'Editar pase' });
   await form.getByLabel('Nombre').fill('Otro pase');
-  await form.getByRole('button', { name: 'Guardar' }).click();
+  await form.getByRole('button', { name: 'Guardar cambios' }).click();
+  await confirmReview(page);
   await expect(page.getByRole('alert')).toContainText('Conflicto');
   await expect(page.getByText('Pass type version conflict')).toHaveCount(0);
   await expect(page.getByText('Pase actualizado')).toHaveCount(0);
@@ -834,12 +849,14 @@ test('archives a pass type only after confirmation', async ({ page }) => {
   await expect(row.getByRole('button', { name: 'Archivar' })).toHaveCount(0);
   await row.getByRole('link', { name: /^Editar / }).click();
   const panel = page.getByRole('form', { name: 'Editar pase' });
+  const confirm = page.getByRole('alertdialog', { name: '¿Archivar Pase completo?' });
   await panel.getByRole('button', { name: 'Archivar' }).click();
-  await expect(panel.getByText('¿Archivar Pase completo?')).toBeVisible();
-  await panel.getByRole('button', { name: 'Cancelar' }).click();
+  await expect(confirm).toBeVisible();
+  await confirm.getByRole('button', { name: 'Cancelar' }).click();
+  await expect(confirm).toHaveCount(0);
   expect(bodies).toHaveLength(0);
   await panel.getByRole('button', { name: 'Archivar' }).click();
-  await panel.getByRole('button', { name: 'Confirmar archivo' }).click();
+  await confirm.getByRole('button', { name: 'Archivar' }).click();
   await expect(page.getByRole('status')).toContainText('Pase archivado');
   await expect(page).toHaveURL(passesPath);
   await expect(row).toContainText('Archivado');

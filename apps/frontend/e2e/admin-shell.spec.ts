@@ -61,7 +61,7 @@ test('links event sections, marks the active one and switches events in place', 
   await expect(activities).toHaveAttribute('href', `/admin/events/${firstId}/activities`);
   await expect(nav.getByRole('link', { name: 'Pases' })).toHaveAttribute(
     'href',
-    `/admin/events/${firstId}/pass-types`,
+    `/admin/events/${firstId}/passes`,
   );
   await expect(nav.getByRole('link', { name: 'Check-in' })).toHaveAttribute(
     'href',

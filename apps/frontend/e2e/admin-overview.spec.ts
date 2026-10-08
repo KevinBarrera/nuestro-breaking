@@ -145,7 +145,7 @@ test('renders catalog counts and the pass types on sale', async ({ page }) => {
   await expect(catalog.getByRole('listitem')).toHaveCount(3);
   await expect(catalog.getByRole('link', { name: 'Editar' })).toHaveAttribute(
     'href',
-    `${overviewPath}/pass-types`,
+    `${overviewPath}/passes`,
   );
 
   const table = page.getByRole('table', { name: 'Pases a la venta' });

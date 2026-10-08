@@ -24,7 +24,7 @@ const eventPath = (pattern: string, eventId: string) => pattern.replace(':eventI
 const sectionLinks = [
   { label: 'Check-in', pattern: routes.adminEventCheckIn },
   { label: 'Actividades', pattern: routes.adminEventActivities },
-  { label: 'Pases', pattern: routes.adminEventPassTypes },
+  { label: 'Pases', pattern: routes.adminEventPasses },
 ];
 
 // The /admin landing: the events this account may operate, from GET /admin/events only.

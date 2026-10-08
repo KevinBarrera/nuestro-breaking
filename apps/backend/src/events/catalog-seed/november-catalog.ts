@@ -25,7 +25,7 @@ export type SeedPassType = {
 export type CatalogSeedDefinition = {
   organizationName: string;
   venueName: string;
-  event: { name: string; timeZone: string; startsAt: string; endsAt: string };
+  event: { name: string; slug: string; timeZone: string; startsAt: string; endsAt: string };
   activities: SeedActivity[];
   passTypes: SeedPassType[];
 };
@@ -63,6 +63,7 @@ export const novemberCatalog: CatalogSeedDefinition = {
   venueName: 'Estudio principal',
   event: {
     name: 'Los más pesados - Preliminares - Noviembre 2026',
+    slug: 'los-mas-pesados-nov-2026',
     timeZone: 'America/Mexico_City',
     startsAt: `${day1}T09:00:00-06:00`,
     endsAt: `${day2}T22:00:00-06:00`,

@@ -119,6 +119,7 @@ LOCAL_CATALOG_SEED=I_UNDERSTAND_THIS_IS_LOCAL_ONLY \
 - The guard refuses non-local `NODE_ENV` values and non-localhost database URLs.
 - Idempotent: natural keys are trimmed, case-insensitive names; existing records (in any status) are never updated, so admin edits and archives survive re-runs.
 - Dates (21–22 November 2026, `America/Mexico_City`) are sample data pending organizer confirmation. No workshops are seeded.
+- The seeded event gets the public slug `los-mas-pesados-nov-2026` and closed sales. A re-run replaces a generated slug with it; see the [event sales contract](event-sales.md).
 - The seeded event is named "Los más pesados - Preliminares - Noviembre 2026" (formerly "Nuestro Breaking Noviembre 2026", renamed in #145). The organization stays "Nuestro Breaking".
 - Renaming a seeded record does not migrate existing data. The seed matches records by name, so a local database seeded before the rename keeps the old event, and re-running the seed creates a second event with its own activities and pass types. To pick up the new name locally, choose one before re-running the seed:
   - Rename the existing row: `UPDATE events SET name = 'Los más pesados - Preliminares - Noviembre 2026' WHERE name = 'Nuestro Breaking Noviembre 2026';`. This keeps registrations, admin users and edits.
@@ -138,6 +139,7 @@ LOCAL_CATALOG_SEED=I_UNDERSTAND_THIS_IS_LOCAL_ONLY \
 
 ## Cross-references
 
+- [Event sales contract](event-sales.md)
 - [Event/activity foundation contract](event-activity-foundation.md)
 - [Event/activity API boundary](event-activity-api-boundary.md)
 - [Admin authentication boundary](admin-auth-boundary.md)

@@ -150,6 +150,10 @@ describe('November catalog seed (e2e)', () => {
       audit: 0,
     });
 
+    const [event] = await client<{ slug: string; sales_enabled: boolean }[]>`
+      SELECT slug, sales_enabled FROM events`;
+    expect(event).toEqual({ slug: 'los-mas-pesados-nov-2026', sales_enabled: false });
+
     const [venue] = await client<{ name: string }[]>`SELECT name FROM venues`;
     expect(venue.name).toBe('Estudio principal');
     const activities = await client<{ name: string; kind: string; status: string }[]>`
@@ -239,5 +243,27 @@ describe('November catalog seed (e2e)', () => {
     const kids = await client<{ status: string }[]>`
       SELECT status FROM activities WHERE name = 'Breaking Kids'`;
     expect(kids).toEqual([{ status: 'archived' }]);
+  });
+
+  it('assigns the public slug to an event that only has a generated one, without touching sales', async () => {
+    await seedNovemberCatalog(db);
+    // An event created before migration 0014 carries the generated slug derived from its id.
+    await client`UPDATE events SET slug = 'event-' || replace(id::text, '-', ''), sales_enabled = true`;
+
+    const summary = await seedNovemberCatalog(db);
+
+    expect(summary.created.events).toBe(0);
+    expect(await client`SELECT slug, sales_enabled FROM events`).toEqual([
+      { slug: 'los-mas-pesados-nov-2026', sales_enabled: true },
+    ]);
+  });
+
+  it('keeps a slug that is not a generated one', async () => {
+    await seedNovemberCatalog(db);
+    await client`UPDATE events SET slug = 'custom-slug'`;
+
+    await seedNovemberCatalog(db);
+
+    expect(await client`SELECT slug FROM events`).toEqual([{ slug: 'custom-slug' }]);
   });
 });

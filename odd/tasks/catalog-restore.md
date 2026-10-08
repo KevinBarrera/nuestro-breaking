@@ -51,7 +51,7 @@ Forecast: ~1,200–1,500 authored lines over 4 PRs.
 
 ### PR 2 — `feat/147-02-pass-type-restore-api`
 
-- [ ] T2 — `POST /admin/events/:eventId/pass-types/:passTypeId/restore`: same rules, 409 with a clear message when an active pass type uses the name, access links kept (D1). Contract doc rows and rules ("archived and restorable, never deleted"). PostgreSQL e2e including the name conflict and kept links.
+- [x] T2 — `POST /admin/events/:eventId/pass-types/:passTypeId/restore`: same rules, 409 with a clear message when an active pass type uses the name, access links kept (D1). Contract doc rows and rules ("archived and restorable, never deleted"). PostgreSQL e2e including the name conflict and kept links.
 
 ### PR 3 — `feat/147-03-activity-restore-ui`
 
@@ -68,8 +68,11 @@ See issue #147. Evidence is recorded per task below.
 ## Progress
 
 - 2026-10-07 — Both product decisions answered (D1, D2). Exploration done (delegated read-only explorer). Feature doc created. Next: T1.
-- 2026-10-07 — T1 done in `a1df4a3`: migration `0013_catalog_restore_audit` allows the `restore` audit operation; activity restore endpoint with admin + CSRF, `expectedVersion`, version++, audit in the same transaction; 409 when not archived, stale, or no longer fitting (D3) via a shared `placementProblem()`; pass `Operation` type gains `restore`. Contract doc updated for activities. RED 7 failing, then GREEN 18/18 in `admin-activity-catalog.e2e-spec.ts`. Checks: backend lint, unit 35/35, build, full e2e 125/125 (after bumping the migration count in `event-activity-foundation.e2e-spec.ts:198`, done by the parent), format. Note: the FK and the window trigger already protect archived activities, so the D3 409 only fires on drifted data; tests simulate it by disabling them. Review: medium (379 lines), consent granted, reliability lens approved and acknowledged (lineage `review-6e6ce505daf5b2ae`). Advisory only: a suggestion about schema-mutating tests at `admin-activity-catalog.e2e-spec.ts:451-469`. Next: T2.
+- 2026-10-07 — T1 done in `a1df4a3`: migration `0013_catalog_restore_audit` allows the `restore` audit operation; activity restore endpoint with admin + CSRF, `expectedVersion`, version++, audit in the same transaction; 409 when not archived, stale, or no longer fitting (D3) via a shared `placementProblem()`; pass `Operation` type gains `restore`. Contract doc updated for activities. RED 7 failing, then GREEN 18/18 in `admin-activity-catalog.e2e-spec.ts`. Checks: backend lint, unit 35/35, build, full e2e 125/125 (after bumping the migration count in `event-activity-foundation.e2e-spec.ts:198`, done by the parent), format. Note: the FK and the window trigger already protect archived activities, so the D3 409 only fires on drifted data; tests simulate it by disabling them. Review: medium (379 lines), consent granted, reliability lens approved and acknowledged (lineage `review-6e6ce505daf5b2ae`). Advisory only: a suggestion about schema-mutating tests at `admin-activity-catalog.e2e-spec.ts:451-469`.
+- 2026-10-07 — T2 done in `fb8aec2`: pass type restore endpoint (shared `lock(..., status)`, version++, `updatedAt`, `restore` audit with access snapshots), name conflict → 409 "rename one of them before restoring" through `guardName` with an optional message, access links read only (D1). E2E proves held passes, selections and entitlements are unchanged by archive → restore, and assignment returns 409 while archived and 201 after restore. Contract doc updated. RED 5/16, then GREEN 16/16. Checks: backend lint, unit 35/35, build, full e2e 128/128 on the second run. Flakiness observed: the writer's first full run failed 2 tests in `postgres-harness.e2e-spec.ts`; the parent saw 1 failure in 15 runs of `admin-pass-type-catalog` (not captured). Watch CI. Next: T3.
 
 ## Route per task
+
+- T2 — delegated writer (writer trigger: controller, service, e2e, contract).
 
 - T1 — delegated writer (writer trigger: migration, schema, controller, service, e2e); parent made the one-line migration count bump.

@@ -50,7 +50,7 @@ Forecast: ~1,800–2,200 authored lines over 4 PRs.
 
 ### PR 2 — `feat/174-02-non-admin-audit`
 
-- [ ] T2 — Audit actor kind (D4), new operation types `online_registration` and `payment_approval` (amount rule revisited), policy doc. Specs.
+- [x] T2 — Audit actor kind (D4), new operation types `online_registration` and `payment_approval` (amount rule revisited), policy doc. Specs.
 
 ### PR 3 — `feat/174-03-registration-folio`
 
@@ -69,7 +69,9 @@ See issue #174. Evidence is recorded per task below.
 - 2026-10-08 — D1 and D2 answered. Exploration done (delegated read-only explorer). Feature doc created. Next: T1.
 - 2026-10-08 — T1 implemented on `feat/174-01-participant-profile` (not yet committed): migration `0015_participant_profile` with nullable #58 columns and immutable checks (`level` free text ≤ 50, no country), pure normalization in `src/events/participant-profile/`, D1 as the pure `pass-class-rules.ts` check used by `addPass` (409 `A full pass already includes general entry`), admin e2e updated, contracts updated. RED observed for the unit specs (missing modules) and the new D1 e2e before the service change.
 - 2026-10-08 — T1 committed: `d07909f` (participant fields, migration `0015`), `283c988` (normalization), `cc861ff` (D1 rule), docs `6a7b553`. Parent spot check: unit 106/106. Review: medium (413 lines), consent granted per standing instruction, reliability lens approved and acknowledged (lineage `review-3dae1239392b5c67`). Advisory WARNING about concurrent general/full assignment checked by the parent and not acted on: `lockRegistration` takes `FOR UPDATE` on the registration row before reading held passes (`registration-entitlements.service.ts:229-234`), so concurrent `addPass` calls on one registration are serialized and the second sees the first insert. T4 must take the same lock. Next boundary: `cc861ff`. Next: T2.
+- 2026-10-08 — T2 implemented on `feat/174-02-non-admin-audit` (not yet committed): migration `0016_non_admin_audit_actor` adds `actor_kind` (`admin`/`public`/`system`, backfilled `admin`, no default kept), nullable `actor_user_id`/`session_id` with a pairing check, operation types `online_registration` and `payment_approval`, and `amount_ck` requiring an amount for both confirmations. Typed `RegistrationAuditActor` union plus `registrationAuditActorColumns` in `src/events/registration-audit/`; admin controllers pass `kind: 'admin'`; the entitlements `audit` helper accepts any actor for T4. Immutability trigger unchanged and re-verified for public facts. RED observed for the unit spec (missing module). Checks: backend lint, unit 110/110, build, e2e 161/161 (19 suites), `pnpm format:check` all passed. Next: T3.
 
 ## Route per task
 
 - T1 — delegated writer (writer trigger: migration, schema, normalization, entitlements rule, specs, contracts). Files: `drizzle/0015_participant_profile.sql`, journal, `schema/participants.ts`, `events/participant-profile/*`, `events/registration-entitlements/pass-class-rules*`, entitlements service, manual-registration controller (reuses `normalizeEmail`, same behaviour), three e2e specs, two contracts.
+- T2 — delegated writer (writer trigger: migration, schema, actor helper, two services, two controllers, e2e specs, policy doc). Files: `drizzle/0016_non_admin_audit_actor.sql`, journal, `schema/registration-operation-audit.ts`, `events/registration-audit/*`, manual-registration and registration-entitlements services/controllers/types, `test/registration-audit-actor.e2e-spec.ts`, `test/admin-manual-registration.e2e-spec.ts`, `test/event-activity-foundation.e2e-spec.ts` (migration count 17), audit policy contract.

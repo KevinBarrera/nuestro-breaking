@@ -7,7 +7,7 @@ This contract describes the delivered event catalog for issue #124: admin-manage
 - Activities and pass types are **event-scoped data** that admins manage through the API and the admin UI. A new event with different passes needs configuration, not code changes.
 - A registration holds **zero or more passes**. Each held pass stores the price paid. Competition selections are stored per held pass.
 - **Accessible activities = active `included` activities of every held pass type + active activities selected on each held pass.** No pass class is special-cased; general entry grants nothing because it has no access rows.
-- Catalog records are **archived, never deleted**. Writes use **optimistic concurrency** (`expectedVersion`) and are **audited in the same transaction**.
+- Catalog records are **archived and restorable, never deleted**. Writes use **optimistic concurrency** (`expectedVersion`) and are **audited in the same transaction**.
 
 ## Data model
 
@@ -24,30 +24,33 @@ Migrations: `apps/backend/drizzle/0011_event_catalog.sql`, `apps/backend/drizzle
 
 `registration_operation_audit.operation_type` additionally accepts `pass_assignment` and `pass_selection_change` (migration `0012`).
 
+`event_catalog_audit.operation` accepts `create`, `update`, `archive`, `restore` and `access_change` (`restore` added by migration `0013`).
+
 ## Admin API
 
 All routes live under `/admin/events/:eventId` and require a session cookie with an `admin` role, global or scoped to that event. Judges are rejected. Writes also require the trusted `Origin` and the `X-CSRF-Token` header ([admin authentication boundary](admin-auth-boundary.md)).
 
 ### Common responses
 
-| Status | When                                                                                                        |
-| ------ | ----------------------------------------------------------------------------------------------------------- |
-| 400    | Invalid body or field (non-UUID ids, blank or long text, malformed instants, invalid enum, rule violation). |
-| 401    | No valid session, judge or other non-admin role, or admin of another event (`Unauthenticated`).             |
-| 403    | Write with an untrusted `Origin` or a missing or invalid CSRF token (`Request denied`).                     |
-| 404    | Target id unknown or belonging to another event. Path ids that are not UUIDs fail with 400.                 |
-| 409    | Target archived, stale `expectedVersion`, or a uniqueness/state conflict listed below.                      |
+| Status | When                                                                                                                 |
+| ------ | -------------------------------------------------------------------------------------------------------------------- |
+| 400    | Invalid body or field (non-UUID ids, blank or long text, malformed instants, invalid enum, rule violation).          |
+| 401    | No valid session, judge or other non-admin role, or admin of another event (`Unauthenticated`).                      |
+| 403    | Write with an untrusted `Origin` or a missing or invalid CSRF token (`Request denied`).                              |
+| 404    | Target id unknown or belonging to another event. Path ids that are not UUIDs fail with 400.                          |
+| 409    | Target archived (or not archived, on restore), stale `expectedVersion`, or a uniqueness/state conflict listed below. |
 
 ### Activities
 
 Code: `apps/backend/src/events/activity-admin/`. Response: `AdminActivity` (`id`, `eventId`, `venueId`, `kind`, `name`, `startsAt`, `endsAt`, `status`, `version`).
 
-| Method and path                                              | Auth         | Body                                                                                       | Specific errors                                                                                                         |
-| ------------------------------------------------------------ | ------------ | ------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------- |
-| `GET /admin/events/:eventId/activities`                      | admin        | —                                                                                          | Lists active and archived activities, ordered by start, name, id.                                                       |
-| `POST /admin/events/:eventId/activities`                     | admin + CSRF | `venueId`, `kind` (≤ 100), `name` (≤ 200), `startsAt`, `endsAt` (ISO instants with offset) | 400 `Invalid venue` (not attached to the event), 400 `Invalid activity window` (unordered or outside the event).        |
-| `PATCH /admin/events/:eventId/activities/:activityId`        | admin + CSRF | `expectedVersion` plus at least one create field                                           | 400 `Invalid update` (no field); 404 `Activity not found`; 409 `Activity is archived`; 409 `Activity version conflict`. |
-| `POST /admin/events/:eventId/activities/:activityId/archive` | admin + CSRF | `expectedVersion`                                                                          | 404; 409 archived or stale version.                                                                                     |
+| Method and path                                              | Auth         | Body                                                                                       | Specific errors                                                                                                                                                                                                                                                                                                      |
+| ------------------------------------------------------------ | ------------ | ------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /admin/events/:eventId/activities`                      | admin        | —                                                                                          | Lists active and archived activities, ordered by start, name, id.                                                                                                                                                                                                                                                    |
+| `POST /admin/events/:eventId/activities`                     | admin + CSRF | `venueId`, `kind` (≤ 100), `name` (≤ 200), `startsAt`, `endsAt` (ISO instants with offset) | 400 `Invalid venue` (not attached to the event), 400 `Invalid activity window` (unordered or outside the event).                                                                                                                                                                                                     |
+| `PATCH /admin/events/:eventId/activities/:activityId`        | admin + CSRF | `expectedVersion` plus at least one create field                                           | 400 `Invalid update` (no field); 404 `Activity not found`; 409 `Activity is archived`; 409 `Activity version conflict`.                                                                                                                                                                                              |
+| `POST /admin/events/:eventId/activities/:activityId/archive` | admin + CSRF | `expectedVersion`                                                                          | 404; 409 archived or stale version.                                                                                                                                                                                                                                                                                  |
+| `POST /admin/events/:eventId/activities/:activityId/restore` | admin + CSRF | `expectedVersion`                                                                          | 404 `Activity not found`; 409 `Activity is not archived`; 409 `Activity version conflict`; 409 `Activity no longer fits its venue or the event window` (the stored venue, interval or event window no longer matches the event). Pass access links are kept, so the activity reappears in passes that still link it. |
 
 ### Pass types
 
@@ -73,26 +76,26 @@ Code: `apps/backend/src/events/registration-entitlements/`. Response for all thr
 
 ## Rules
 
-| Rule                   | Delivered behavior                                                                                                                                                                |
-| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Archive, never delete  | No delete endpoint exists. Archived records stay readable and cannot be edited (409). Archived pass type names become reusable.                                                   |
-| Optimistic concurrency | Every update, access change and archive takes `expectedVersion`, locks the row (`FOR UPDATE`), and increments `version`. Stale versions get 409; nothing is overwritten silently. |
-| Active-name uniqueness | Applies to pass types only (partial unique index; a concurrent duplicate maps to 409). Activity names are not unique.                                                             |
-| Add-on requirement     | An add-on with `requiresPassClass` can be assigned only when the registration already holds a pass of that class. Held passes of archived pass types still satisfy it.            |
-| Selections             | Limited to active activities with `selectable` access on that pass's type. Selections are not re-validated on read if the access list changes later.                              |
-| Adding passes          | Only while the registration is `pending_payment`. Price is copied into `event_registration_passes.price_cents`; later price edits never rewrite it.                               |
-| Accessible activities  | `RegistrationEntitlementsService.accessibleActivityIds` is the reusable read model for check-in (#126) and lists (#65). Archived activities are excluded.                         |
-| Data-driven passes     | No code branches on pass names or on `full`/`general`. Pass class only drives the add-on requirement.                                                                             |
+| Rule                              | Delivered behavior                                                                                                                                                                         |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Archive and restore, never delete | No delete endpoint exists. Archived records stay readable and cannot be edited (409) until restored. Archived pass type names become reusable.                                             |
+| Optimistic concurrency            | Every update, access change, archive and restore takes `expectedVersion`, locks the row (`FOR UPDATE`), and increments `version`. Stale versions get 409; nothing is overwritten silently. |
+| Active-name uniqueness            | Applies to pass types only (partial unique index; a concurrent duplicate maps to 409). Activity names are not unique.                                                                      |
+| Add-on requirement                | An add-on with `requiresPassClass` can be assigned only when the registration already holds a pass of that class. Held passes of archived pass types still satisfy it.                     |
+| Selections                        | Limited to active activities with `selectable` access on that pass's type. Selections are not re-validated on read if the access list changes later.                                       |
+| Adding passes                     | Only while the registration is `pending_payment`. Price is copied into `event_registration_passes.price_cents`; later price edits never rewrite it.                                        |
+| Accessible activities             | `RegistrationEntitlementsService.accessibleActivityIds` is the reusable read model for check-in (#126) and lists (#65). Archived activities are excluded.                                  |
+| Data-driven passes                | No code branches on pass names or on `full`/`general`. Pass class only drives the add-on requirement.                                                                                      |
 
 ## Audit semantics
 
-| Change                            | Table                          | Operation                     | Content                                                                                                                                                                                         |
-| --------------------------------- | ------------------------------ | ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Activity create, update, archive  | `event_catalog_audit`          | `create`, `update`, `archive` | Full `AdminActivity` snapshot in `before`/`after`. Catalog data only, no personal data.                                                                                                         |
-| Pass type create, update, archive | `event_catalog_audit`          | `create`, `update`, `archive` | Full `AdminPassType` snapshot, including the sorted access list.                                                                                                                                |
-| Pass type access list replacement | `event_catalog_audit`          | `access_change`               | Old and new snapshots.                                                                                                                                                                          |
-| Pass added to a registration      | `registration_operation_audit` | `pass_assignment`             | `participant_id` from the registration; `amount_cents` null; `affected_activity_ids` empty; state holds ids, price snapshot and selections; `facts` holds `{ registrationPassId, passTypeId }`. |
-| Selections replaced               | `registration_operation_audit` | `pass_selection_change`       | Same shape; `affected_activity_ids` is the union of old and new selections.                                                                                                                     |
+| Change                                    | Table                          | Operation                                | Content                                                                                                                                                                                         |
+| ----------------------------------------- | ------------------------------ | ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Activity create, update, archive, restore | `event_catalog_audit`          | `create`, `update`, `archive`, `restore` | Full `AdminActivity` snapshot in `before`/`after`; a restore records the archived snapshot in `before` and the active one in `after`. Catalog data only, no personal data.                      |
+| Pass type create, update, archive         | `event_catalog_audit`          | `create`, `update`, `archive`            | Full `AdminPassType` snapshot, including the sorted access list.                                                                                                                                |
+| Pass type access list replacement         | `event_catalog_audit`          | `access_change`                          | Old and new snapshots.                                                                                                                                                                          |
+| Pass added to a registration              | `registration_operation_audit` | `pass_assignment`                        | `participant_id` from the registration; `amount_cents` null; `affected_activity_ids` empty; state holds ids, price snapshot and selections; `facts` holds `{ registrationPassId, passTypeId }`. |
+| Selections replaced                       | `registration_operation_audit` | `pass_selection_change`                  | Same shape; `affected_activity_ids` is the union of old and new selections.                                                                                                                     |
 
 Each audit row is written in the same transaction as its mutation; an audit failure rolls the mutation back (covered by e2e). Actor user and session come from the authorized admin session.
 

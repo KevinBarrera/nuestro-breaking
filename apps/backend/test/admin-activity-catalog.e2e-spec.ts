@@ -109,6 +109,15 @@ describe('admin activity catalog (e2e)', () => {
     server().patch(`/admin/events/${event}/activities/${id}`);
   const archive = (event: string, id: string) =>
     server().post(`/admin/events/${event}/activities/${id}/archive`);
+  const restore = (event: string, id: string) =>
+    server().post(`/admin/events/${event}/activities/${id}/restore`);
+  async function archived(event: string, id: string, cookie: string) {
+    const response = await archive(event, id)
+      .set(headers(cookie))
+      .send({ expectedVersion: 1 })
+      .expect(201);
+    return response.body as Activity;
+  }
   async function audits() {
     return client<
       AuditRow[]
@@ -344,6 +353,148 @@ describe('admin activity catalog (e2e)', () => {
     expect(await audits()).toHaveLength(0);
   });
 
+  it('restores an archived activity with the expected version and audits archived and active snapshots', async () => {
+    const { event, late } = await fixture();
+    const { cookie, userId, sessionId } = await session('admin', event);
+    const archivedActivity = await archived(event, late, cookie);
+    const response = await restore(event, late)
+      .set(headers(cookie))
+      .send({ expectedVersion: 2 })
+      .expect(201);
+    const restored = response.body as Activity;
+    expect(restored).toEqual({ ...archivedActivity, status: 'active', version: 3 });
+    const [row] = await client<
+      { status: string; version: number }[]
+    >`SELECT status, version FROM activities WHERE id = ${late}`;
+    expect(row).toEqual({ status: 'active', version: 3 });
+    const facts = await audits();
+    expect(facts.map((fact) => fact.operation)).toEqual(['archive', 'restore']);
+    expect(facts[1]).toEqual({
+      event_id: event,
+      actor_user_id: userId,
+      actor_session_id: sessionId,
+      entity_type: 'activity',
+      entity_id: late,
+      operation: 'restore',
+      before: archivedActivity,
+      after: restored,
+    });
+    await update(event, late)
+      .set(headers(cookie))
+      .send({ expectedVersion: 3, name: 'Revived' })
+      .expect(200);
+  });
+
+  it('rejects restoring active activities and stale versions with 409 without writes', async () => {
+    const { event, early, late } = await fixture();
+    const { cookie } = await session('admin', event);
+    await archived(event, late, cookie);
+    const before = await snapshot();
+    const notArchived = await restore(event, early)
+      .set(headers(cookie))
+      .send({ expectedVersion: 1 })
+      .expect(409);
+    expect((notArchived.body as { message: string }).message).toBe('Activity is not archived');
+    const stale = await restore(event, late)
+      .set(headers(cookie))
+      .send({ expectedVersion: 1 })
+      .expect(409);
+    expect((stale.body as { message: string }).message).toBe('Activity version conflict');
+    for (const payload of [{}, { expectedVersion: 0 }, { expectedVersion: '2' }, []])
+      await restore(event, late).set(headers(cookie)).send(payload).expect(400);
+    expect(await snapshot()).toEqual(before);
+    expect(await audits()).toHaveLength(1);
+  });
+
+  it('returns 404 when restoring activities of another event or unknown ids', async () => {
+    const { event, other, foreign } = await fixture();
+    const { cookie } = await session('admin', event);
+    const otherAdmin = await session('admin', other);
+    await archived(other, foreign, otherAdmin.cookie);
+    const before = await snapshot();
+    for (const id of [foreign, '00000000-0000-4000-8000-000000000000'])
+      await restore(event, id).set(headers(cookie)).send({ expectedVersion: 2 }).expect(404);
+    expect(await snapshot()).toEqual(before);
+    expect(await audits()).toHaveLength(1);
+  });
+
+  it('rejects restore from judges, unauthenticated callers, other-event admins and missing CSRF or origin', async () => {
+    const { event, other, late } = await fixture();
+    const admin = await session('admin', event);
+    const judge = await session('judge', event);
+    const otherAdmin = await session('admin', other);
+    await archived(event, late, admin.cookie);
+    const before = await snapshot();
+    const command = () => restore(event, late).send({ expectedVersion: 2 });
+    await command().set('Origin', trustedOrigin).expect(401);
+    await command().set(headers(judge.cookie)).expect(401);
+    await command().set(headers(otherAdmin.cookie)).expect(401);
+    await command()
+      .set('Cookie', admin.cookie)
+      .set('X-CSRF-Token', headers(admin.cookie)['X-CSRF-Token'])
+      .expect(403);
+    await command()
+      .set(headers(admin.cookie))
+      .set('Origin', 'https://untrusted.example')
+      .expect(403);
+    await command().set('Cookie', admin.cookie).set('Origin', trustedOrigin).expect(403);
+    await command().set(headers(admin.cookie)).set('X-CSRF-Token', '0'.repeat(64)).expect(403);
+    expect(await snapshot()).toEqual(before);
+    expect(await audits()).toHaveLength(1);
+  });
+
+  // Database rules keep stored activities placed, so these tests bypass them to model drifted data.
+  it('rejects restoring an activity whose venue is no longer attached to the event with 409', async () => {
+    const { event, venue, late } = await fixture();
+    const { cookie } = await session('admin', event);
+    await archived(event, late, cookie);
+    await client`ALTER TABLE activities DROP CONSTRAINT activities_event_venue_fk`;
+    await client`DELETE FROM event_venues WHERE event_id = ${event} AND venue_id = ${venue}`;
+    const before = await snapshot();
+    const response = await restore(event, late)
+      .set(headers(cookie))
+      .send({ expectedVersion: 2 })
+      .expect(409);
+    expect((response.body as { message: string }).message).toBe(
+      'Activity no longer fits its venue or the event window',
+    );
+    expect(await snapshot()).toEqual(before);
+    expect(await audits()).toHaveLength(1);
+  });
+
+  it('rejects restoring an activity outside the current event window with 409', async () => {
+    const { event, late } = await fixture();
+    const { cookie } = await session('admin', event);
+    await archived(event, late, cookie);
+    await client`ALTER TABLE events DISABLE TRIGGER events_activities_window_ck`;
+    await client`UPDATE events SET starts_at = '2026-11-20T00:00:00Z', ends_at = '2026-11-20T17:00:00Z' WHERE id = ${event}`;
+    const before = await snapshot();
+    const response = await restore(event, late)
+      .set(headers(cookie))
+      .send({ expectedVersion: 2 })
+      .expect(409);
+    expect((response.body as { message: string }).message).toBe(
+      'Activity no longer fits its venue or the event window',
+    );
+    expect(await snapshot()).toEqual(before);
+    expect(await audits()).toHaveLength(1);
+  });
+
+  it('keeps pass access links through archive and restore', async () => {
+    const { event, late } = await fixture();
+    const { cookie } = await session('admin', event);
+    const [{ id: passType }] = await client<{ id: string }[]>`
+      INSERT INTO event_pass_types (event_id, name, pass_class, price_cents)
+      VALUES (${event}, 'Full', 'full', 1000) RETURNING id`;
+    await client`INSERT INTO event_pass_type_activities (event_id, pass_type_id, activity_id, access)
+      VALUES (${event}, ${passType}, ${late}, 'selectable')`;
+    await archived(event, late, cookie);
+    await restore(event, late).set(headers(cookie)).send({ expectedVersion: 2 }).expect(201);
+    expect(
+      await client`SELECT pass_type_id, activity_id, access FROM event_pass_type_activities WHERE event_id = ${event}`,
+    ).toEqual([{ pass_type_id: passType, activity_id: late, access: 'selectable' }]);
+  });
+
   it('rolls back the mutation when the catalog audit fact cannot be written', async () => {
     const { event, early, venue } = await fixture();
     const { cookie } = await session('admin', event);
@@ -357,5 +508,16 @@ describe('admin activity catalog (e2e)', () => {
     await archive(event, early).set(headers(cookie)).send({ expectedVersion: 1 }).expect(500);
     expect(await snapshot()).toEqual(before);
     expect(await audits()).toHaveLength(0);
+  });
+
+  it('rolls back the restore when its audit fact cannot be written', async () => {
+    const { event, late } = await fixture();
+    const { cookie } = await session('admin', event);
+    await archived(event, late, cookie);
+    const before = await snapshot();
+    await client`ALTER TABLE event_catalog_audit ADD CONSTRAINT reject_restore_test CHECK (operation <> 'restore') NOT VALID`;
+    await restore(event, late).set(headers(cookie)).send({ expectedVersion: 2 }).expect(500);
+    expect(await snapshot()).toEqual(before);
+    expect(await audits()).toHaveLength(1);
   });
 });

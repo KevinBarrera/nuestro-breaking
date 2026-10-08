@@ -45,7 +45,7 @@ export const eventCatalogAudit = pgTable(
     ),
     check(
       'event_catalog_audit_operation_ck',
-      sql`${table.operation} IN ('create', 'update', 'archive', 'access_change')`,
+      sql`${table.operation} IN ('create', 'update', 'archive', 'restore', 'access_change')`,
     ),
     check(
       'event_catalog_audit_state_ck',

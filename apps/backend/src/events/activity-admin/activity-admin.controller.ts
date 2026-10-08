@@ -121,4 +121,17 @@ export class ActivityAdminController {
     const expectedVersion = version(object(body).expectedVersion);
     return this.catalog.archive(eventId, activityId, expectedVersion, actor);
   }
+
+  @Post(':eventId/activities/:activityId/restore')
+  async restore(
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+    @Param('activityId', ParseUUIDPipe) activityId: string,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+    @Body() body: unknown,
+  ): Promise<AdminActivity> {
+    const actor = await this.sessions.authorizeEventAdminMutation(request, response, eventId);
+    const expectedVersion = version(object(body).expectedVersion);
+    return this.catalog.restore(eventId, activityId, expectedVersion, actor);
+  }
 }

@@ -91,12 +91,35 @@ export class ActivityAdminService {
     });
   }
 
+  // The stored record is re-checked because the event may have changed while it was archived;
+  // a misfit is a conflict with the current event, not invalid input, so it maps to 409.
+  async restore(eventId: string, activityId: string, expectedVersion: number, actor: CatalogActor) {
+    return this.db.transaction(async (tx) => {
+      const current = await this.lock(tx, eventId, activityId, expectedVersion, 'archived');
+      if (await this.placementProblem(tx, eventId, current))
+        throw new ConflictException('Activity no longer fits its venue or the event window');
+      const [row] = await tx
+        .update(activities)
+        .set({ status: 'active', version: current.version + 1 })
+        .where(and(eq(activities.id, activityId), eq(activities.eventId, eventId)))
+        .returning();
+      const after = toActivity(row);
+      await this.audit(tx, eventId, actor, 'restore', toActivity(current), after);
+      return after;
+    });
+  }
+
+  private lockEditable(tx: Transaction, eventId: string, activityId: string, version: number) {
+    return this.lock(tx, eventId, activityId, version, 'active');
+  }
+
   // Row lock serializes concurrent edits so the version check and increment cannot interleave.
-  private async lockEditable(
+  private async lock(
     tx: Transaction,
     eventId: string,
     activityId: string,
     expectedVersion: number,
+    status: ActivityStatus,
   ): Promise<ActivityRow> {
     const [current] = await tx
       .select()
@@ -104,7 +127,10 @@ export class ActivityAdminService {
       .where(and(eq(activities.id, activityId), eq(activities.eventId, eventId)))
       .for('update');
     if (!current) throw new NotFoundException('Activity not found');
-    if (current.status === 'archived') throw new ConflictException('Activity is archived');
+    if (current.status !== status)
+      throw new ConflictException(
+        status === 'active' ? 'Activity is archived' : 'Activity is not archived',
+      );
     if (current.version !== expectedVersion)
       throw new ConflictException('Activity version conflict');
     return current;
@@ -112,13 +138,21 @@ export class ActivityAdminService {
 
   // Database constraints remain the backstop; these checks turn expected input errors into 400s.
   private async assertPlacement(tx: Transaction, eventId: string, draft: ActivityDraft) {
-    if (draft.startsAt.getTime() >= draft.endsAt.getTime())
-      throw new BadRequestException('Invalid activity window');
+    const problem = await this.placementProblem(tx, eventId, draft);
+    if (problem) throw new BadRequestException(problem);
+  }
+
+  private async placementProblem(
+    tx: Transaction,
+    eventId: string,
+    draft: ActivityDraft,
+  ): Promise<string | null> {
+    if (draft.startsAt.getTime() >= draft.endsAt.getTime()) return 'Invalid activity window';
     const [venue] = await tx
       .select({ venueId: eventVenues.venueId })
       .from(eventVenues)
       .where(and(eq(eventVenues.eventId, eventId), eq(eventVenues.venueId, draft.venueId)));
-    if (!venue) throw new BadRequestException('Invalid venue');
+    if (!venue) return 'Invalid venue';
     const [event] = await tx
       .select({ startsAt: events.startsAt, endsAt: events.endsAt })
       .from(events)
@@ -128,14 +162,15 @@ export class ActivityAdminService {
       event.endsAt &&
       (draft.startsAt < event.startsAt || draft.endsAt > event.endsAt)
     )
-      throw new BadRequestException('Invalid activity window');
+      return 'Invalid activity window';
+    return null;
   }
 
   private async audit(
     tx: Transaction,
     eventId: string,
     actor: CatalogActor,
-    operation: 'create' | 'update' | 'archive',
+    operation: 'create' | 'update' | 'archive' | 'restore',
     before: AdminActivity | null,
     after: AdminActivity,
   ) {

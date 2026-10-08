@@ -140,6 +140,7 @@ LOCAL_CATALOG_SEED=I_UNDERSTAND_THIS_IS_LOCAL_ONLY \
 ## Cross-references
 
 - [Event sales contract](event-sales.md)
+- [Public event catalog contract](public-event-catalog.md)
 - [Event/activity foundation contract](event-activity-foundation.md)
 - [Event/activity API boundary](event-activity-api-boundary.md)
 - [Admin authentication boundary](admin-auth-boundary.md)

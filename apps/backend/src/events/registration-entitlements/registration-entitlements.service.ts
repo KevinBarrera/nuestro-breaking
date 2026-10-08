@@ -18,6 +18,7 @@ import {
   registrationOperationAudit,
 } from '@/database/schema';
 import type { PassClass } from '@/events/pass-type-admin/pass-type-admin.types';
+import { FULL_INCLUDES_GENERAL_MESSAGE, addingCombinesGeneralWithFull } from './pass-class-rules';
 import type {
   EntitlementActor,
   HeldPass,
@@ -138,6 +139,9 @@ export class RegistrationEntitlementsService {
       if (heldClasses.some((held) => held.passTypeId === passTypeId))
         throw new ConflictException('Registration already holds this pass type');
       // Archived pass types still count: the requirement is about what was purchased.
+      const heldPassClasses = heldClasses.map((held) => held.passClass as PassClass);
+      if (addingCombinesGeneralWithFull(heldPassClasses, passType.passClass as PassClass))
+        throw new ConflictException(FULL_INCLUDES_GENERAL_MESSAGE);
       const required = passType.requiresPassClass;
       if (required && !heldClasses.some((held) => held.passClass === required))
         throw new BadRequestException(`Add-on requires a ${required} pass`);

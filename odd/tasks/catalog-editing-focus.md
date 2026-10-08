@@ -72,7 +72,7 @@ See issue #146. Evidence is recorded per task below.
 ## Progress
 
 - 2026-10-07 — Exploration done (delegated read-only explorer). Feature doc created.
-- 2026-10-07 — T1 done in `d5f3906`: `Modal`, `ConfirmDialog`, `ReviewChangesDialog`, `buttonClass` and the `changedRows`/`hasChanges` model in `shared/ui`; docs note in `docs/frontend-architecture.md`. RED observed (missing model module), then GREEN 5/5. Checks: frontend test 110/110, lint, build, format pass. Exception: no Playwright spec yet because no page uses the dialogs; focus trap, Esc, focus return and 375px fit are covered by T2 flow specs. Next: T2.
+- 2026-10-07 — T1 done in `d5f3906`: `Modal`, `ConfirmDialog`, `ReviewChangesDialog`, `buttonClass` and the `changedRows`/`hasChanges` model in `shared/ui`; docs note in `docs/frontend-architecture.md`. RED observed (missing model module), then GREEN 5/5. Checks: frontend test 110/110, lint, build, format pass. Exception: no Playwright spec yet because no page uses the dialogs; focus trap, Esc, focus return and 375px fit are covered by T2 flow specs. Review: medium risk (`slice_budget_reached`, 411 lines), consent granted, one reliability lens approved and acknowledged (lineage `review-a48a2921e75d7f73`, authority burned). Advisory only: a custom `format` bypasses the empty "—" display, object comparison depends on key order, and the `ConfirmDialog` pending guard is untested (cover in T2 e2e). Next reviewed boundary: `2696011`. Next: T2.
 
 ## Route per task
 

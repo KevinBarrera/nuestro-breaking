@@ -1,6 +1,6 @@
 # Event sales contract
 
-This contract describes each event's public address (slug) and its sales state for issue #175. The admin endpoints below are implemented and covered by backend e2e tests. The public catalog that reads this state is a later slice of #175.
+This contract describes each event's public address (slug) and its sales state for issue #175. The admin endpoints below are implemented and covered by backend e2e tests. The [public event catalog](public-event-catalog.md) reads this state.
 
 ## Current answer
 
@@ -24,10 +24,11 @@ Slug defaults:
 - Rows that existed before `0014` get `event-` followed by their id without dashes (for example `event-3f2a…`). This is deterministic.
 - Rows inserted without a slug get the same shape from a random UUID.
 - The November seed gives its event `los-mas-pesados-nov-2026`. On a re-run it also replaces a generated slug (`event-` plus 32 hex characters) with that value, unless another event already uses it. A slug that is not generated is never overwritten.
+- If another event already holds `los-mas-pesados-nov-2026` when the seed creates its event, the new event keeps a generated slug instead of failing. A later run assigns the public slug once it is free. The seed never takes a slug from another event.
 
 ## State rules
 
-Code: `salesState` in `apps/backend/src/events/sales/sales-state.ts`, exported from `src/events/sales/index.ts`. It is a pure function of the settings and `now`, so the public catalog and public registration (#174) reuse the same rule.
+Code: `salesState` in `apps/backend/src/events/sales/sales-state.ts`, exported from `src/events/sales/index.ts`. It is a pure function of the settings and `now`, so the [public catalog](public-event-catalog.md) and public registration (#174) reuse the same rule. Public writes check it through `PublicCatalogService.requireOpen`.
 
 | Condition (checked in order)         | `state`  | `reason`       |
 | ------------------------------------ | -------- | -------------- |
@@ -65,7 +66,7 @@ Dates are ISO 8601 in UTC, or `null`.
 `PUT` rules:
 
 - It replaces all three settings, so all three keys are required. Any other key, including `slug`, is rejected with 400.
-- Dates must be ISO 8601 date-times with an explicit offset (`Z` or `±hh:mm`). Plain dates and numbers are rejected.
+- Dates must be ISO 8601 date-times with an explicit offset (`Z` or `±hh:mm`). Plain dates, numbers and impossible calendar values (such as `2026-02-31` or `24:00`) are rejected; they are never rolled over into the next day or month. Code: `parseOffsetDateTime` in `src/events/sales/date-time.ts`.
 - `salesOpensAt` must be before `salesClosesAt` when both are set. The database check is the backstop.
 
 ## Known gaps
@@ -79,6 +80,7 @@ Dates are ISO 8601 in UTC, or `null`.
 
 ## Cross-references
 
+- [Public event catalog contract](public-event-catalog.md)
 - [Event catalog contract](event-catalog.md)
 - [Admin authentication boundary](admin-auth-boundary.md)
 - [November 2026 online purchase plan](../product/november-2026-online-purchase-plan.md)

@@ -47,7 +47,7 @@ Forecast: ~1,200–1,500 authored lines over 4 PRs.
 
 ### PR 1 — `feat/147-01-activity-restore-api`
 
-- [ ] T1 — Migration `0013` allowing the `restore` audit operation. `POST /admin/events/:eventId/activities/:activityId/restore`: admin + CSRF, `expectedVersion`, audited in the same transaction, version++, 409 when not archived or stale, 409 when placement no longer fits (D3). Contract doc rows for activities. PostgreSQL e2e.
+- [x] T1 — Migration `0013` allowing the `restore` audit operation. `POST /admin/events/:eventId/activities/:activityId/restore`: admin + CSRF, `expectedVersion`, audited in the same transaction, version++, 409 when not archived or stale, 409 when placement no longer fits (D3). Contract doc rows for activities. PostgreSQL e2e.
 
 ### PR 2 — `feat/147-02-pass-type-restore-api`
 
@@ -68,7 +68,8 @@ See issue #147. Evidence is recorded per task below.
 ## Progress
 
 - 2026-10-07 — Both product decisions answered (D1, D2). Exploration done (delegated read-only explorer). Feature doc created. Next: T1.
+- 2026-10-07 — T1 done in `a1df4a3`: migration `0013_catalog_restore_audit` allows the `restore` audit operation; activity restore endpoint with admin + CSRF, `expectedVersion`, version++, audit in the same transaction; 409 when not archived, stale, or no longer fitting (D3) via a shared `placementProblem()`; pass `Operation` type gains `restore`. Contract doc updated for activities. RED 7 failing, then GREEN 18/18 in `admin-activity-catalog.e2e-spec.ts`. Checks: backend lint, unit 35/35, build, full e2e 125/125 (after bumping the migration count in `event-activity-foundation.e2e-spec.ts:198`, done by the parent), format. Note: the FK and the window trigger already protect archived activities, so the D3 409 only fires on drifted data; tests simulate it by disabling them. Next: T2.
 
 ## Route per task
 
-- T1 — pending (expected delegated writer: migration, schema, controller, service, e2e).
+- T1 — delegated writer (writer trigger: migration, schema, controller, service, e2e); parent made the one-line migration count bump.

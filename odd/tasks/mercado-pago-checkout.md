@@ -88,6 +88,8 @@ See issue #177.
 
 - Open follow-up for #181 (abandoned pending registrations): a claim left unprocessed because Mercado Pago stopped retrying (credential outage, early 404) has no automatic recovery; reconcile pending registrations that have a checkout by reading their payments.
 
+- 2026-10-09: T5 review (single reliability lens, `slice_budget_reached`) approved and acknowledged (lineage `review-a3c0b4a80c4096fb`). Follow-up commit adds the three flow tests it asked for: non-https checkout URL, not-payable restart, and bfcache `pageshow` restore (Playwright review spec 15/15 three times; `pnpm verify:pr` exit 0, 264 Playwright tests).
+
 ## Next step
 
-T6.
+T6: sandbox purchase with Mercado Pago test accounts (needs the product owner). Open question to verify in T6: whether sandbox needs `sandbox_init_point` or `init_point` when using a test seller's credentials.

@@ -16,6 +16,7 @@ import { verify } from 'argon2';
 import { DATABASE_CLIENT } from '@/database/database.constants';
 import { authAudit, authSessions, userRoles, users } from '@/database/schema';
 import type { DatabaseService } from '@/database/database.service';
+import { readTrustedOrigin } from '@/http';
 import {
   digest,
   sessionCookieName as cookieName,
@@ -38,7 +39,7 @@ export class AuthController {
   private async checkOrigin(request: Request): Promise<void> {
     // A single exact browser Origin is required. JSON-only sign-in + SameSite=Strict
     // cookie makes Origin the pre-session CSRF defense; sign-out also uses a session-bound token.
-    const trusted = process.env.AUTH_TRUSTED_ORIGIN ?? 'http://localhost:5173';
+    const trusted = readTrustedOrigin(process.env);
     if (request.headers.origin !== trusted) {
       await this.db.insert(authAudit).values({ action: 'denied' });
       throw new ForbiddenException('Request denied');

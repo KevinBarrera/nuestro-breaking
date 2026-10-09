@@ -17,6 +17,7 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, swaggerConfig);
   SwaggerModule.setup('api/doc', app, document);
 
-  await app.listen(process.env.PORT ?? 3000, process.env.HOST ?? '127.0.0.1');
+  // Blank values (empty lines copied from .env.example) fall back to the defaults.
+  await app.listen(process.env.PORT?.trim() || 3000, process.env.HOST?.trim() || '127.0.0.1');
 }
 void bootstrap();

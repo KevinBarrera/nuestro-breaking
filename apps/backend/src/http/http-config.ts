@@ -19,7 +19,7 @@ const DEFAULT_PUBLIC_RATE_LIMIT: PublicRateLimitConfig = { limit: 60, ttl: 60_00
 
 /** Reads CORS origins from the environment; throws on any public origin that is not exact. */
 export function readCorsOrigins(env: Environment): CorsOrigins {
-  const admin = env.AUTH_TRUSTED_ORIGIN ?? DEFAULT_ADMIN_ORIGIN;
+  const admin = readTrustedOrigin(env);
   const extra = (env.PUBLIC_ALLOWED_ORIGINS ?? '')
     .split(',')
     .map((entry) => entry.trim())
@@ -34,6 +34,11 @@ export function readCorsOrigins(env: Environment): CorsOrigins {
   }
 
   return { admin, public: [...new Set([admin, ...extra])] };
+}
+
+/** The admin frontend origin; unset or blank uses the local frontend. */
+export function readTrustedOrigin(env: Environment): string {
+  return env.AUTH_TRUSTED_ORIGIN?.trim() || DEFAULT_ADMIN_ORIGIN;
 }
 
 /** Reads the public rate limit; unset or blank values use the defaults, invalid ones throw. */

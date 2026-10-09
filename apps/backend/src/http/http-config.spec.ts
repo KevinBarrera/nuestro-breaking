@@ -8,6 +8,10 @@ describe('readCorsOrigins', () => {
     });
   });
 
+  it('treats a blank admin origin as unset, as an empty line copied from .env.example', () => {
+    expect(readCorsOrigins({ AUTH_TRUSTED_ORIGIN: '  ' }).admin).toBe('http://localhost:5173');
+  });
+
   it('allows the admin origin plus each trimmed public origin once', () => {
     expect(
       readCorsOrigins({

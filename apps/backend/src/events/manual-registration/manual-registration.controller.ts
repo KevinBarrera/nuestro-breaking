@@ -10,6 +10,7 @@ import {
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { SessionAccessService } from '@/identity-access/session-access.service';
+import { normalizeEmail } from '@/events/participant-profile/participant-normalization';
 import { ManualRegistrationService } from './manual-registration.service';
 
 function required(value: unknown, max: number): string {
@@ -47,7 +48,8 @@ export class ManualRegistrationController {
     const input = object(body);
     const fullName = required(input.fullName, 200);
     const phone = required(input.phone, 100);
-    const email = optional(input.email, 320)?.toLowerCase() ?? null;
+    const trimmedEmail = optional(input.email, 320);
+    const email = trimmedEmail === null ? null : normalizeEmail(trimmedEmail);
     const activityIds = input.activityIds === undefined ? [] : input.activityIds;
     if (
       !Array.isArray(activityIds) ||

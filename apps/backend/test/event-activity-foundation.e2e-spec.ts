@@ -195,7 +195,7 @@ describe('event activity foundation containers (e2e)', () => {
       FROM drizzle.__drizzle_migrations
     `;
 
-    expect(migrations).toHaveLength(15);
+    expect(migrations).toHaveLength(16);
     expect({ eventVenuesTable, activitiesTable }).toEqual({
       eventVenuesTable: 'event_venues',
       activitiesTable: 'activities',

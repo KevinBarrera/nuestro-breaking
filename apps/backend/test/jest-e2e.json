@@ -8,5 +8,6 @@
   },
   "moduleNameMapper": {
     "^@/(.*)$": "<rootDir>/src/$1"
-  }
+  },
+  "setupFiles": ["<rootDir>/test/support/e2e-env.ts"]
 }

@@ -1,3 +1,5 @@
+// Fake Mercado Pago settings first: the payments module validates them when AppModule boots.
+import './e2e-env';
 import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { hash, argon2id } from 'argon2';

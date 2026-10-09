@@ -1,5 +1,8 @@
 import {
   type Checkout,
+  type PaymentStatus,
+  type PaymentStatusPass,
+  paymentStatusValues,
   publicPassClasses,
   publicSalesClosedReasons,
   registrationRuleCodes,
@@ -104,6 +107,25 @@ export function isRegistration(value: unknown): value is Registration {
 
 export function isCheckout(value: unknown): value is Checkout {
   return text(record(value)?.checkoutUrl);
+}
+
+function isPaymentStatusPass(value: unknown): value is PaymentStatusPass {
+  const row = record(value);
+  return !!row && text(row.name) && listOf(row.competitions, text);
+}
+
+// Only a confirmed answer carries a folio, so a malformed body can never show one by mistake.
+export function isPaymentStatus(value: unknown): value is PaymentStatus {
+  const body = record(value);
+  if (!body || !oneOf(paymentStatusValues, body.status)) return false;
+  const folioMatches = body.status === 'confirmed' ? text(body.folio) : body.folio === null;
+  return (
+    folioMatches &&
+    typeof body.firstName === 'string' &&
+    (body.maskedEmail === null || text(body.maskedEmail)) &&
+    listOf(body.passes, isPaymentStatusPass) &&
+    cents(body.totalCents)
+  );
 }
 
 function stringEntries(value: unknown): Record<string, string> {

@@ -1,13 +1,22 @@
 export {
   createCheckout,
   createRegistration,
+  getPaymentStatus,
   getPublicCatalog,
   PublicEventError,
   publicEventFailure,
 } from './api/public-event-api';
-export { publicPassClasses, publicSalesClosedReasons, registrationRuleCodes } from './api/types';
+export {
+  paymentStatusValues,
+  publicPassClasses,
+  publicSalesClosedReasons,
+  registrationRuleCodes,
+} from './api/types';
 export type {
   Checkout,
+  PaymentStatus,
+  PaymentStatusPass,
+  PaymentStatusValue,
   PublicActivity,
   PublicCatalog,
   PublicEventFailure,

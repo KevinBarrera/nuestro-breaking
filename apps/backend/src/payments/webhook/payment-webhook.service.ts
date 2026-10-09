@@ -44,6 +44,12 @@ const PROVIDER_UNAVAILABLE = {
   message: 'The payment could not be read. Please retry.',
 } as const;
 
+/**
+ * A payment can 404 right after it is created, before Mercado Pago makes it readable, so a 404 is
+ * only final once the claim is older than this window; until then it answers 500 and is retried.
+ */
+export const PAYMENT_NOT_FOUND_GRACE_SECONDS = 60 * 60;
+
 @Injectable()
 export class PaymentWebhookService {
   private readonly logger = new Logger(PaymentWebhookService.name);
@@ -76,13 +82,17 @@ export class PaymentWebhookService {
 
     const outcome = await this.db.transaction(async (tx) => {
       // Serializes every notification for this payment, so each read happens after the previous
-      // one committed and a stale read can never overwrite a newer status. The lock is held across
-      // one bounded (10s) provider read; that is acceptable at this event's notification volume.
+      // one committed and a stale read can never overwrite a newer status. The lock keeps a pooled
+      // connection busy during one bounded (10s) provider read. That is accepted at this event's
+      // volume (a one-off event with a low notification rate); revisit it if the pool size or the
+      // traffic changes.
       await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`mp-payment:${paymentId}`}))`);
       // Serializes concurrent deliveries of the same notification: the second waits here, then
       // sees it processed.
       if (await this.isProcessed(tx, claimId, true)) return 'duplicate';
       const read = await this.readPayment(paymentId);
+      if (read === 'payment_not_found' && !(await this.isPastNotFoundGrace(tx, claimId)))
+        throw new InternalServerErrorException(PROVIDER_UNAVAILABLE);
       const result = typeof read === 'string' ? read : await this.apply(tx, read);
       await tx
         .update(paymentWebhookNotifications)
@@ -103,9 +113,23 @@ export class PaymentWebhookService {
     return claim?.processedAt != null;
   }
 
+  private async isPastNotFoundGrace(tx: RegistrationTransaction, claimId: string) {
+    const [claim] = await tx
+      .select({
+        past: sql<boolean>`${paymentWebhookNotifications.receivedAt} <= now() - make_interval(secs => ${PAYMENT_NOT_FOUND_GRACE_SECONDS})`,
+      })
+      .from(paymentWebhookNotifications)
+      .where(eq(paymentWebhookNotifications.notificationId, claimId));
+    return claim?.past === true;
+  }
+
   /**
-   * Returns the payment, or a final outcome when the provider refuses the read for good (a 4xx other
-   * than 429): retrying would never succeed. Anything else is transient and answers 500.
+   * Returns the payment, or an outcome when the provider refuses the read:
+   * - 401 and 403 mean our own access token is likely misconfigured, rotated or revoked, so they
+   *   answer 500 and Mercado Pago retries once the credential is fixed.
+   * - 404 returns `payment_not_found`; the caller makes it final only after the grace window.
+   * - Any other 4xx except 429 is final (`payment_unreadable`): retrying would never succeed.
+   * - 429, 5xx, network errors and timeouts are transient and answer 500.
    */
   private async readPayment(paymentId: string): Promise<ProviderPayment | string> {
     try {
@@ -118,6 +142,12 @@ export class PaymentWebhookService {
           : `Mercado Pago payment ${paymentId} read failed unexpectedly.`,
       );
       const status = error instanceof MercadoPagoClientError ? error.status : undefined;
+      if (status === 401 || status === 403) {
+        this.logger.warn(
+          `Mercado Pago refused the payment read with ${status}; the access token is likely misconfigured, rotated or revoked.`,
+        );
+        throw new InternalServerErrorException(PROVIDER_UNAVAILABLE);
+      }
       if (status === 404) return 'payment_not_found';
       if (status !== undefined && status >= 400 && status < 500 && status !== 429)
         return 'payment_unreadable';

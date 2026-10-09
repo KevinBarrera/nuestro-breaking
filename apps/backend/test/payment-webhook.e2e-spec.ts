@@ -362,36 +362,29 @@ describe('Mercado Pago payment webhook (e2e)', () => {
     expect(outcomes).toEqual(['confirmed', 'payment_pending']);
   });
 
-  it.each([
-    [404, 'payment_not_found'],
-    [400, 'payment_unreadable'],
-    [403, 'payment_unreadable'],
-  ])(
-    'treats a %i payment read as final: answers 200, records %s and writes no payment',
-    async (status, outcome) => {
-      const id = await pendingRegistration();
-      setPayment(id);
-      readError = new MercadoPagoClientError(`Mercado Pago payment request failed.`, status);
+  it('treats a 400 payment read as final: answers 200, records payment_unreadable and writes no payment', async () => {
+    const id = await pendingRegistration();
+    setPayment(id);
+    readError = new MercadoPagoClientError(`Mercado Pago payment request failed.`, 400);
 
-      await notify(1001).expect(200);
+    await notify(1001).expect(200);
 
-      expect(await paymentRows()).toHaveLength(0);
-      expect((await registrationRow(id)).status).toBe('pending_payment');
-      expect(await notificationRows()).toEqual([
-        { notification_id: '1001', processed: true, outcome },
-      ]);
+    expect(await paymentRows()).toHaveLength(0);
+    expect((await registrationRow(id)).status).toBe('pending_payment');
+    expect(await notificationRows()).toEqual([
+      { notification_id: '1001', processed: true, outcome: 'payment_unreadable' },
+    ]);
 
-      await notify(1001).expect(200);
+    await notify(1001).expect(200);
 
-      expect(reads).toHaveLength(1);
-      expect(await notificationRows()).toEqual([
-        { notification_id: '1001', processed: true, outcome },
-      ]);
-    },
-  );
+    expect(reads).toHaveLength(1);
+    expect(await notificationRows()).toEqual([
+      { notification_id: '1001', processed: true, outcome: 'payment_unreadable' },
+    ]);
+  });
 
-  it.each([429, 500, 503])(
-    'answers 500 and leaves the claim unprocessed for a %i payment read',
+  it.each([401, 403, 404, 429, 500, 503])(
+    'answers 500 and leaves a fresh claim unprocessed for a %i payment read',
     async (status) => {
       const id = await pendingRegistration();
       setPayment(id);
@@ -400,11 +393,39 @@ describe('Mercado Pago payment webhook (e2e)', () => {
       await notify(1001).expect(500);
 
       expect(await paymentRows()).toHaveLength(0);
+      expect((await registrationRow(id)).status).toBe('pending_payment');
       expect(await notificationRows()).toEqual([
         { notification_id: '1001', processed: false, outcome: null },
       ]);
     },
   );
+
+  it('records payment_not_found once a 404 claim is older than the grace window', async () => {
+    const id = await pendingRegistration();
+    setPayment(id);
+    readError = new MercadoPagoClientError(`Mercado Pago payment request failed.`, 404);
+
+    await notify(1001).expect(500);
+    // Ages the claim past the one-hour grace window instead of waiting for it.
+    await client`
+      UPDATE payment_webhook_notifications SET received_at = now() - interval '61 minutes'
+      WHERE notification_id = '1001'`;
+
+    await notify(1001).expect(200);
+
+    expect(await paymentRows()).toHaveLength(0);
+    expect((await registrationRow(id)).status).toBe('pending_payment');
+    expect(await notificationRows()).toEqual([
+      { notification_id: '1001', processed: true, outcome: 'payment_not_found' },
+    ]);
+
+    await notify(1001).expect(200);
+
+    expect(reads).toHaveLength(2);
+    expect(await notificationRows()).toEqual([
+      { notification_id: '1001', processed: true, outcome: 'payment_not_found' },
+    ]);
+  });
 
   it('acknowledges and ignores a verified notification that is not about a payment', async () => {
     const id = await pendingRegistration();

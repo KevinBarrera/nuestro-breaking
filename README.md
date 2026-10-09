@@ -53,6 +53,18 @@ Optional backend variables for the public API (see the [public event catalog con
 
 Behind a reverse proxy, Express `trust proxy` must be configured for the rate limit to see real client IPs; see the contract's deployment note.
 
+### Mercado Pago credentials
+
+Online payments ([#177](https://github.com/KevinBarrera/nuestro-breaking/issues/177)) use one Mercado Pago credential set per deployment. These variables become required once online payments are wired into the backend:
+
+| Variable                      | Example placeholder     | Meaning                                                                                          |
+| ----------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------ |
+| `MERCADO_PAGO_MODE`           | `sandbox`               | `sandbox` (Mercado Pago test-account credentials) or `production` (the organizer's credentials). |
+| `MERCADO_PAGO_ACCESS_TOKEN`   | `<your-access-token>`   | Server-side access token. `production` mode rejects a `TEST-` token.                             |
+| `MERCADO_PAGO_WEBHOOK_SECRET` | `<your-webhook-secret>` | Secret used to verify Mercado Pago webhook signatures.                                           |
+
+Real values live only in your local `.env` or in the deployment's secret store. Never commit them to Git: this repository is public. Configuration errors name the variable, never its value.
+
 Start PostgreSQL 16 from the repository root:
 
 ```bash

@@ -58,6 +58,8 @@ See issue #177.
 - 2026-10-09: exploration done; branch `feat/mercado-pago-config` from `1b15308`.
 - 2026-10-09: T1 committed in `3606e68` (task doc `c23c452`). RDD assessed `high_risk`; consent granted (standing instruction); four-lens review approved and acknowledged (lineage `review-7472c0c4a5a1927f`). Reviewed boundary is now `c23c452`. Advisory suggestions only, not blocking: error messages repeat the mode list and the `TEST-` prefix literals; the `TEST-` check is case-sensitive.
 
+- 2026-10-09: T2 committed in `9c39569` (doc `9af3a64`). RDD `high_risk`; consent granted (standing instruction); four-lens review approved and acknowledged (lineage `review-3972b7a0fb82920e`). Reviewed boundary is now `9af3a64`. Advisory, carried into T4: set `registration_payments.updated_at` on every status change; a notification row with `processed_at` null after a crash must be re-claimable on Mercado Pago's retry. Advisory, not adopted: a drizzle snapshot for `0018` (the repository stopped adding snapshots after `0002`).
+
 ## Next step
 
 T3.

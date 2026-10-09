@@ -98,6 +98,17 @@ See issue #177.
 
 - Open follow-ups: #178 (result screen polling, so buyers see their folio after returning), #179 (confirmation email), and the #181 reconciliation note above.
 
+## Published chain (2026-10-09)
+
+Stacked PRs, each targeting its parent branch; merge bottom-up, retargeting the next one to `dev`, rebasing and merging with a merge commit.
+
+- #200 `feat/177-01-config-and-schema` (T1+T2), up to `aabe65c`, +464/−2.
+- #201 `feat/177-02-checkout` (T3), up to `a1a2214`, +904/−26.
+- #202 `feat/177-03-webhook` (T4), up to `b34937e`, +1,350/−7.
+- #203 `feat/177-04-redirect-and-sandbox` (T5+T6), `Closes #177`, +1,080/−442.
+
+Slices 2–4 exceed the ~400-line heuristic; each is one cohesive unit with about a third tests, as stated in each PR.
+
 ## Next step
 
-Publish the chain as stacked PRs (T1+T2, T3, T4, T5+T6).
+CI on the four PRs, then merge bottom-up after the product owner's review.

@@ -127,6 +127,13 @@
       "when": 1786562775604,
       "tag": "0017_registration_folio",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1786562775605,
+      "tag": "0018_registration_payments",
+      "breakpoints": true
     }
   ]
 }

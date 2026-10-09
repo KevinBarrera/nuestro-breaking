@@ -11,3 +11,4 @@ export * from './registration-operation-audit';
 export * from './check-ins';
 export * from './event-catalog';
 export * from './event-catalog-audit';
+export * from './payments';

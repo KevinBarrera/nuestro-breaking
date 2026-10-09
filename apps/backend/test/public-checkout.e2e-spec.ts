@@ -36,6 +36,7 @@ describe('public checkout (e2e)', () => {
         checkoutUrl: CHECKOUT_URL,
       });
     },
+    getPayment: () => Promise.reject(new Error('not used')),
   };
 
   beforeAll(async () => {

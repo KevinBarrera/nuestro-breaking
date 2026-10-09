@@ -21,9 +21,11 @@ This is a design contract for future admin registration writes under [issue #63]
 
 Database checks reject any other kind and any mixed pairing, such as an admin fact without a session or a public fact with a user. In code, writers pass a typed actor (`{ kind: 'admin', userId, sessionId } | { kind: 'public' } | { kind: 'system' }`) and map it with `registrationAuditActorColumns` (`apps/backend/src/events/registration-audit/`). Facts written before this change are backfilled as `admin`.
 
-Stored operation types are `manual_registration`, `cash_confirmation`, `pass_assignment`, `pass_selection_change`, `online_registration` (a public buyer creates a pending registration with its passes and selections) and `payment_approval` (a verified online payment confirms a registration; written by #177). `amount_cents` is required for `cash_confirmation` and `payment_approval` and must be null for every other type. `outcome` stays `accepted` only, and the immutability trigger still rejects every update and delete.
+Stored operation types are `manual_registration`, `cash_confirmation`, `pass_assignment`, `pass_selection_change`, `online_registration` (a public buyer creates a pending registration with its passes and selections) and `payment_approval` (a verified online payment confirms a registration). `amount_cents` is required for `cash_confirmation` and `payment_approval` and must be null for every other type. `outcome` stays `accepted` only, and the immutability trigger still rejects every update and delete.
 
 The `online_registration` fact shape is defined in the [public registration contract](public-registration.md#audit).
+
+`payment_approval` is written by the Mercado Pago webhook (#177) in the same transaction that confirms the registration. Its actor is `system`; `amount_cents` holds the approved amount; `reference` holds the Mercado Pago payment id; `facts` holds only `providerPaymentId` and `checkoutId`; the before and after states record the pending to confirmed move with `approved_payment`, the confirmation time and the folio. It holds no payer data, card data, signature or provider payload. An approval for a registration that is no longer pending writes no fact; the webhook log records it as `approved_after_confirmation` or `approved_after_void` for manual follow-up.
 
 Public and system facts follow the same redaction rule as admin facts: no names, email, phone, raw session identifiers, payment instruments or provider payloads; reference the registration, participant and activity ids instead.
 

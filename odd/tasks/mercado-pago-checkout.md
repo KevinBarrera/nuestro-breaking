@@ -25,6 +25,12 @@ Pay a `pending_payment` registration through Mercado Pago Checkout Pro (sandbox 
 - D5 (technical default) — Idempotency log `payment_webhook_notifications`, unique on the provider notification id, with the referenced payment id, receive and process timestamps and a short outcome code. No headers, signatures, bodies or payer data are stored.
 - D6 (technical default) — T1 and T2 ship together in the first PR (about 400 authored lines in total); later tasks get their own stacked PRs.
 
+- D7 (user, 2026-10-09) — Implement T3–T6 before publishing; publish the whole chain at the end as stacked PRs (T1+T2, T3, T4, T5+T6), as done for #176.
+- D8 (technical default) — Checkout endpoint `POST /public/events/:slug/registrations/:registrationId/checkout`, rate limited like the other public routes. It only works for a `pending_payment` registration of that event and creates a new preference on each call (a retry after a rejection gets a fresh one). The amount is the sum of the registration's pass price snapshots; the preference sends one item per pass, `currency_id` `MXN`, `external_reference` = registration id, all three `back_urls` = `<PUBLIC_APP_URL>/e/:slug/pago?registration=<id>`, `auto_return` `approved`, and `notification_url` from config. No payer data is sent.
+- D9 (technical default) — Two non-secret settings join the config: `PUBLIC_APP_URL` (buyer-facing frontend origin) and `MERCADO_PAGO_NOTIFICATION_URL` (public HTTPS webhook URL). The config is read once at startup by a Nest provider, so a missing or invalid value stops the app from booting; e2e specs get fake values from a Jest setup file.
+
+- D10 (technical default, T3) — The checkout lives in `PaymentsModule` and registers its own stateless `PublicCatalogService` provider for the slug lookup; payments depends on events, never the reverse. No swagger decorators (no controller uses them). Answers: 404 for an unknown or other-event registration, 409 `registration_not_payable` for confirmed, voided or zero-total registrations, 502 `payment_provider_unavailable` when the provider fails (nothing written). Free passes are left out of the preference items. The client rejects a non-https checkout URL; sandbox allows an http notification URL for a local tunnel.
+
 ## Current state (exploration, 2026-10-09)
 
 - Pending registrations come from `POST /public/events/:slug/registrations` (`apps/backend/src/events/public-registration/`); prices are snapshotted per pass in `event_registration_passes.price_cents`; no currency column, no stored total, no payment/provider table, no webhook log.
@@ -39,7 +45,7 @@ Pay a `pending_payment` registration through Mercado Pago Checkout Pro (sandbox 
 
 - [x] T1 — Mercado Pago config reader: `readMercadoPagoConfig(env)` validates mode, access token and webhook secret; missing, blank or mixed values throw without echoing values; unit specs; README documents the variables with placeholders only. Route: delegated (2+ files). Evidence: RED (module missing) then GREEN 11/11; backend unit 155/155; lint clean; credential grep empty. `.env.example` still needs the three names with empty values (agent access blocked).
 - [x] T2 — Schema: payment attempts (registration, preference id, payment id, status, amount, currency) and an idempotent webhook notification log; migration `0018`. Route: delegated (2+ files). Evidence: RED 5/5 (relations missing) then GREEN 5/5; full backend e2e 192/192 after bumping the hard-coded migration count in `event-activity-foundation.e2e-spec.ts`; unit 155/155; lint and build clean; credential grep empty.
-- [ ] T3 — Create a Checkout Pro preference for a pending registration (`external_reference`, return URLs); wire config at startup so the app fails to boot on bad credentials.
+- [x] T3 — Create a Checkout Pro preference for a pending registration (`external_reference`, return URLs); wire config at startup so the app fails to boot on bad credentials. Route: delegated (2+ files). Evidence: RED (unit 16 failed, e2e 7/7 `Cannot POST`) then GREEN (payments unit 42/42, e2e 7/7); backend unit 186/186, e2e 199/199; lint and build clean; credential grep empty. About 900 authored lines, half tests; one cohesive slice (config, client, module, endpoint). Note: `scripts/verify-setup.mjs` starts the backend, so the local `.env` now needs the Mercado Pago variables.
 - [ ] T4 — Webhook: verify `x-signature`, re-read the payment by id, map status, confirm with `approved_payment` + `payment_approval` audit, process each notification once; unit + PostgreSQL e2e with a stubbed client.
 - [ ] T5 — Frontend: replace the temporary reserved screen with the redirect to Mercado Pago.
 - [ ] T6 — Sandbox end-to-end purchase with test accounts; document the runbook.
@@ -62,4 +68,4 @@ See issue #177.
 
 ## Next step
 
-T3.
+T4.

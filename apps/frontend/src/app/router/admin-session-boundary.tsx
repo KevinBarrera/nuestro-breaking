@@ -1,8 +1,9 @@
 import { getSession, signIn, signOut, useSessionStore } from '@/entities/session';
+import { routes } from '@/shared/config';
 import { AdminShell } from '@/widgets/admin-shell';
 import type { FormEvent } from 'react';
-import { useEffect, useState } from 'react';
-import { Outlet } from 'react-router';
+import { useEffect, useRef, useState } from 'react';
+import { Outlet, useNavigate } from 'react-router';
 
 type Status = 'loading' | 'signed-out' | 'signed-in';
 
@@ -16,6 +17,9 @@ export function AdminSessionBoundary() {
   const [submitting, setSubmitting] = useState(false);
   const setSession = useSessionStore((state) => state.setSession);
   const clearSession = useSessionStore((state) => state.clearSession);
+  const navigate = useNavigate();
+  // Set by a successful sign-out; the redirect waits for the shell to unmount.
+  const leaving = useRef(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -38,6 +42,15 @@ export function AdminSessionBoundary() {
       });
     return () => controller.abort();
   }, [clearSession, setSession]);
+
+  // After signing out, the sign-in form shows at /admin (replacing the screen that was open),
+  // so signing back in starts from the event entry. It runs once the shell and its page have
+  // unmounted, so a screen's unsaved-changes guard does not hold the navigation.
+  useEffect(() => {
+    if (status !== 'signed-out' || !leaving.current) return;
+    leaving.current = false;
+    void navigate(routes.admin, { replace: true });
+  }, [navigate, status]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -71,6 +84,7 @@ export function AdminSessionBoundary() {
     try {
       await signOut();
       clearSession();
+      leaving.current = true;
       setStatus('signed-out');
     } catch {
       setError(true);

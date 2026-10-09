@@ -30,7 +30,7 @@ Fix four admin UI defects found in the walkthrough, so the admin feels finished 
 
 - [x] T1 — "Nuevo pase" uses two columns, like the pass detail screen: a "Datos del pase" card and an "Acceso a actividades" card, with one submit. Each activity uses a three-option segmented control (Sin acceso / Elegible / Incluida) instead of the chip dropdown. Each group (by activity kind) shows its counts and a "Marcar todas como elegibles" action. Stays one column on phones.
 - [x] T2 — Overscroll past the end of any admin page shows the themed page background, not a flat dark band, in both themes.
-- [ ] T3 — "Cerrar sesión" goes to `/admin`, so signing back in starts from the event entry instead of the previous screen.
+- [x] T3 — "Cerrar sesión" goes to `/admin`, so signing back in starts from the event entry instead of the previous screen.
 - [ ] T4 — The check-in "Registrar entrada al evento" button uses the standard button size.
 
 ## Acceptance criteria
@@ -48,3 +48,4 @@ Fix four admin UI defects found in the walkthrough, so the admin feels finished 
 
 - T1 done (route: delegated writer). `groupCounts`, `groupSummary` and `markAllSelectable` in `pass-access-model.ts`, RED (3 failing Vitest cases) then GREEN (215 passed). `PassTypeForm` takes an `aside` card and lays both cards out in one form; access rows use a `radiogroup` segmented control on create and on the pass screen; the old chip legend is gone. E2E specs moved to `e2e/support/access.ts`; new flows cover side-by-side layout, phone stacking, counts and "Marcar todas como elegibles" (121 affected specs passed).
 - T2 done (route: delegated writer). The legacy dark body gradient still serves the sign-in, not-found and dancer screens (cream text, no own background), so it stays; `html:has(.bg-page)` paints the themed `--nb-page` on html and clears body, and html/body get `overscroll-behavior: none`. RED: `e2e/page-background.spec.ts` failed in both themes (html background `none`); GREEN with `admin-fixed-shell` and `public-phone-width` (18 passed). The admin shell needed no change.
+- T3 done (route: delegated writer). After a successful sign-out, `AdminSessionBoundary` navigates to `routes.admin` with `replace: true` from an effect that runs once the shell has unmounted, so a screen's unsaved-changes guard does not hold it. RED: the new `route-placeholders` flow (sign out from "Nuevo pase" with a dirty field) stayed on `/passes/new`; GREEN with `route-placeholders`, `admin-shell` and `admin-event-foundation` (33 passed). No existing spec asserted the old URL.

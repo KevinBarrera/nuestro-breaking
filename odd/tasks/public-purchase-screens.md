@@ -47,7 +47,7 @@ Forecast: ~1,800–2,300 authored lines over 4 PRs.
 
 ### PR 1 — `feat/176-01-purchase-model`
 
-- [ ] T1 — Public API slice (catalog read and registration create, credential-less, typed errors: field errors, 409 codes, sales closed, 429), pure purchase model (selection rules: full disables general, Open Styles needs a full pass, competitions per purchased pass; totals; buyer validation mirroring the backend with Spanish messages; server field-error mapping; draft serialization), and shared form components (text field, checkbox, field error). Vitest.
+- [x] T1 — Public API slice (catalog read and registration create, credential-less, typed errors: field errors, 409 codes, sales closed, 429), pure purchase model (selection rules: full disables general, Open Styles needs a full pass, competitions per purchased pass; totals; buyer validation mirroring the backend with Spanish messages; server field-error mapping; draft serialization), and shared form components (text field, checkbox, field error). Vitest.
 
 ### PR 2 — `feat/176-02-home-and-passes`
 
@@ -68,7 +68,8 @@ See issue #176. Evidence is recorded per task below.
 ## Progress
 
 - 2026-10-08 — D1 answered. Design read (10 boards). Exploration done (delegated read-only explorer). Feature doc created. Next: T1.
+- 2026-10-08 — T1 written (not committed yet): `entities/public-event` (credential-less catalog and registration client, readers, typed failures), `features/public-purchase` (pure purchase model) and `TextField`, `CheckboxField`, `FieldError`, `Notice` in `shared/ui`. RED observed (5 new test files failed on missing modules), then GREEN: 20 files, 180 tests. Lint, build and format check pass. The purchase model lives in a `features/` slice because it models the buyer's purchase action on top of the `public-event` entity; `formatMxn` stays in `@/entities/event-catalog` (features and pages may import it, so no move).
 
 ## Route per task
 
-- T1 — delegated writer (writer trigger: new entity slice, pure model, shared components, tests).
+- T1 — delegated writer (writer trigger: new entity slice, pure model, shared components, tests). Files: `apps/frontend/src/entities/public-event/**`, `apps/frontend/src/features/public-purchase/**`, `apps/frontend/src/shared/ui/{text-field,checkbox-field,field-error}.tsx`, `shared/ui/index.ts`, `docs/frontend-architecture.md`.

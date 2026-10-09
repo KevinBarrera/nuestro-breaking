@@ -25,14 +25,17 @@ describe('decidePaymentStatus', () => {
     },
   );
 
-  // Offering a retry while another payment is still on its way could charge the buyer twice.
-  it('stays pending while any payment is on its way, even if a later update failed another one', () => {
-    expect(decidePaymentStatus('pending_payment', ['in_process', 'cancelled'])).toBe('pending');
-    expect(decidePaymentStatus('pending_payment', ['rejected', 'pending'])).toBe('pending');
+  // Statuses are ordered by when each payment was created, oldest first.
+  it('follows the newest payment attempt, not the most recently updated one', () => {
+    // An old OXXO voucher that expires later must not hide a newer card payment in flight.
+    expect(decidePaymentStatus('pending_payment', ['cancelled', 'in_process'])).toBe('pending');
+    // An old unpaid voucher must not block a retry after a newer card was rejected.
+    expect(decidePaymentStatus('pending_payment', ['pending', 'rejected'])).toBe('rejected');
   });
 
-  it('reports rejected only when every payment failed', () => {
-    expect(decidePaymentStatus('pending_payment', ['rejected', 'cancelled'])).toBe('rejected');
+  it('keeps confirming when any payment was approved, whatever came after it', () => {
+    expect(decidePaymentStatus('pending_payment', ['approved', 'pending'])).toBe('confirming');
+    expect(decidePaymentStatus('pending_payment', ['approved', 'rejected'])).toBe('confirming');
   });
 
   it('keeps confirming while no payment is known yet', () => {
@@ -41,7 +44,7 @@ describe('decidePaymentStatus', () => {
 
   // An approval is only final once the webhook confirms the registration.
   it.each(['approved', 'in_mediation', 'refunded', 'charged_back', 'something_new'])(
-    'keeps confirming when a payment is %s, even next to a failed one',
+    'keeps confirming when the newest payment is %s',
     (payment) => {
       expect(decidePaymentStatus('pending_payment', [payment])).toBe('confirming');
       expect(decidePaymentStatus('pending_payment', ['rejected', payment])).toBe('confirming');

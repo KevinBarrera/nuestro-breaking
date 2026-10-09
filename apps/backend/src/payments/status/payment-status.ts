@@ -6,22 +6,22 @@ const WAITING = new Set(['pending', 'in_process', 'authorized']);
 const FAILED = new Set(['rejected', 'cancelled']);
 
 /**
- * What the return page shows (#178 D4), from every payment of the registration in any order.
- * `confirmed` comes only from the registration status the verified webhook sets; an `approved`
- * payment alone keeps the page confirming until it does. A payment still on its way wins over a
- * failed one, and `rejected` needs every payment to have failed, because the rejected screen
- * offers a retry and a retry next to a payment in flight could charge the buyer twice.
+ * What the return page shows (#178 D4), from every payment of the registration ordered by when it
+ * was created, oldest first. `confirmed` comes only from the registration status the verified
+ * webhook sets; any `approved` payment keeps the page confirming until it does. Otherwise the newest
+ * attempt decides: an older voucher that expires later cannot hide a newer payment in flight, and an
+ * older voucher left unpaid cannot block a retry after a newer attempt failed.
  */
 export function decidePaymentStatus(
   registrationStatus: string,
-  paymentStatuses: readonly string[],
+  paymentStatusesOldestFirst: readonly string[],
 ): PublicPaymentStatus {
   if (registrationStatus === 'confirmed') return 'confirmed';
   if (registrationStatus !== 'pending_payment') return 'unavailable';
-  if (paymentStatuses.some((status) => WAITING.has(status))) return 'pending';
-  if (paymentStatuses.length > 0 && paymentStatuses.every((status) => FAILED.has(status))) {
-    return 'rejected';
-  }
+  if (paymentStatusesOldestFirst.includes('approved')) return 'confirming';
+  const newest = paymentStatusesOldestFirst.at(-1);
+  if (newest !== undefined && WAITING.has(newest)) return 'pending';
+  if (newest !== undefined && FAILED.has(newest)) return 'rejected';
   return 'confirming';
 }
 

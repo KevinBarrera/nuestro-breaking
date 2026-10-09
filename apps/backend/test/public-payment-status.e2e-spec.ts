@@ -172,10 +172,9 @@ describe('public payment status (e2e)', () => {
     [['authorized'], 'pending'],
     [['rejected'], 'rejected'],
     [['cancelled'], 'rejected'],
-    [['pending', 'rejected'], 'pending'],
+    [['pending', 'rejected'], 'rejected'],
     [['rejected', 'pending'], 'pending'],
-    [['rejected', 'cancelled'], 'rejected'],
-    [['rejected', 'approved'], 'confirming'],
+    [['approved', 'pending'], 'confirming'],
   ])('reads payments %j of a pending registration as %s', async (statuses, expected) => {
     const ids = await fixture();
     const id = await registration(ids.event, [{ passTypeId: ids.full, priceCents: 150050 }]);

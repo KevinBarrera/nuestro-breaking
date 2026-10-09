@@ -46,15 +46,15 @@ Never returned: the full email, phone, last names, ids of other records, or any 
 
 ## Status
 
-Derived from the registration and all of its recorded payments, in any order (D4). A payment still on its way wins over a failed one, because the rejected screen offers a retry and a retry next to a payment in flight could charge the buyer twice:
+Derived from the registration and its recorded payments (D4). Any `approved` payment keeps the page confirming. Otherwise the newest payment by creation time decides, so an older voucher that expires later cannot hide a newer payment in flight, and an older voucher left unpaid cannot block a retry:
 
-| `status`      | When                                                                                      | The page                     |
-| ------------- | ----------------------------------------------------------------------------------------- | ---------------------------- |
-| `confirmed`   | The registration is `confirmed` (set only by the webhook or an admin).                    | Shows folio and passes.      |
-| `pending`     | Still `pending_payment`, any payment `pending`, `in_process` or `authorized` (OXXO/SPEI). | Explains the payment is due. |
-| `rejected`    | Still `pending_payment`, every payment `rejected` or `cancelled`.                         | Offers a retry (checkout).   |
-| `confirming`  | Still `pending_payment` with no payment yet or any other status, `approved` included.     | Keeps polling.               |
-| `unavailable` | The registration is `voided`.                                                             | Stops polling.               |
+| `status`      | When                                                                                         | The page                     |
+| ------------- | -------------------------------------------------------------------------------------------- | ---------------------------- |
+| `confirmed`   | The registration is `confirmed` (set only by the webhook or an admin).                       | Shows folio and passes.      |
+| `pending`     | Still `pending_payment`, newest payment `pending`, `in_process` or `authorized` (OXXO/SPEI). | Explains the payment is due. |
+| `rejected`    | Still `pending_payment`, newest payment `rejected` or `cancelled`.                           | Offers a retry (checkout).   |
+| `confirming`  | Still `pending_payment` with no payment yet or any other status, `approved` included.        | Keeps polling.               |
+| `unavailable` | The registration is `voided`.                                                                | Stops polling.               |
 
 ## Errors (400, 404)
 

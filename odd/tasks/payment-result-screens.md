@@ -22,8 +22,9 @@ After Mercado Pago sends the buyer back, show the real result of the payment: co
 - D4 (technical default) — The status is derived by a pure function:
   - registration `confirmed` → `confirmed`, with folio, passes, selected competitions and total;
   - registration `voided` → `unavailable`;
-  - `pending_payment` with any payment `pending`, `in_process` or `authorized` → `pending`;
-  - every payment `rejected` or `cancelled` → `rejected` (amended after review: a payment in flight wins over a failed one, so the retry never runs next to it and cannot charge twice);
+  - any payment `approved` → `confirming` (the webhook will confirm);
+  - otherwise the newest payment by creation time decides: `pending`, `in_process` or `authorized` → `pending`; `rejected` or `cancelled` → `rejected`.
+    Amended twice after review: ordering by last update let an expiring old voucher hide a newer payment in flight, and "any waiting payment wins" let an unpaid old voucher block the retry.
   - no payment yet, or any other status → `confirming`.
     `confirmed` comes only from the registration status the webhook sets.
 - D5 (technical default) — Retry after a rejection calls the existing checkout endpoint, which creates a new preference for the same pending registration. When sales have closed, the existing checkout failure message is shown.

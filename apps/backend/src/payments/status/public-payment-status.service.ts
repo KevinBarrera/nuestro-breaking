@@ -51,7 +51,8 @@ export class PublicPaymentStatusService {
         registrationCheckouts,
         eq(registrationCheckouts.id, registrationPayments.checkoutId),
       )
-      .where(eq(registrationCheckouts.registrationId, registrationId));
+      .where(eq(registrationCheckouts.registrationId, registrationId))
+      .orderBy(asc(registrationPayments.createdAt), asc(registrationPayments.id));
     const status = decidePaymentStatus(
       registration.status,
       payments.map((payment) => payment.status),

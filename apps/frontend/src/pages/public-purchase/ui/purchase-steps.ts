@@ -43,15 +43,21 @@ export function stepBefore(
 }
 
 // Where a step sends the buyer instead of rendering (a bookmark, a reload, an emptied draft):
-// every step after pases needs a chosen pass, and competitions redirect to datos when they do
-// not apply (D6). Null when the step can show.
+// every step after pases needs a chosen pass, competitions redirect to datos when they do not
+// apply (D6), and review needs buyer data that passes `validateBuyer` (`buyerReady`). Null when
+// the step can show.
 export function stepRedirect(
   step: NumberedStep,
   passes: PublicPass[],
   selection: PurchaseSelection,
+  buyerReady = true,
 ): NumberedStep | null {
   if (step === 'passes') return null;
   if (selection.passTypeIds.length === 0) return 'passes';
   if (step === 'competitions' && !competitionsStepApplies(passes, selection)) return 'buyer';
+  if (step === 'review' && !buyerReady) return 'buyer';
   return null;
 }
+
+// The temporary screen after paying (D1); #177 replaces it with the Mercado Pago redirect.
+export const reservedPath = (slug: string) => generatePath(routes.publicReserved, { slug });

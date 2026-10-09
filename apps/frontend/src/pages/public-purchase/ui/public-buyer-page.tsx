@@ -1,4 +1,5 @@
 import {
+  buyerFieldLabels,
   buyerFields,
   buyerMaxLength,
   detailsHaveError,
@@ -24,27 +25,41 @@ type FieldSetup = Omit<ComponentProps<typeof TextField>, 'value' | 'onChange' | 
 
 // Labels double as the error summary names.
 const fieldSetup: Record<BuyerField, FieldSetup> = {
-  firstName: { label: 'Nombre(s)', autoComplete: 'given-name' },
-  firstLastName: { label: 'Primer apellido', autoComplete: 'family-name' },
-  secondLastName: { label: 'Segundo', optional: true, autoComplete: 'additional-name' },
-  stageName: { label: 'AKA / nombre artístico', optional: true, autoComplete: 'nickname' },
+  firstName: { label: buyerFieldLabels.firstName, autoComplete: 'given-name' },
+  firstLastName: { label: buyerFieldLabels.firstLastName, autoComplete: 'family-name' },
+  secondLastName: {
+    label: buyerFieldLabels.secondLastName,
+    optional: true,
+    autoComplete: 'additional-name',
+  },
+  stageName: { label: buyerFieldLabels.stageName, optional: true, autoComplete: 'nickname' },
   email: {
-    label: 'Correo electrónico',
+    label: buyerFieldLabels.email,
     hint: 'Aquí te enviaremos tu confirmación y tu folio.',
     type: 'email',
     autoComplete: 'email',
   },
   phone: {
-    label: 'Teléfono celular',
+    label: buyerFieldLabels.phone,
     prefix: '+52',
     type: 'tel',
     inputMode: 'tel',
     autoComplete: 'tel-national',
   },
-  city: { label: 'Ciudad', optional: true, autoComplete: 'address-level2' },
-  instagram: { label: 'Instagram', optional: true, autoComplete: 'off', placeholder: '@usuario' },
-  level: { label: 'Nivel', optional: true, autoComplete: 'off' },
-  birthDate: { label: 'Fecha de nacimiento', optional: true, type: 'date', autoComplete: 'bday' },
+  city: { label: buyerFieldLabels.city, optional: true, autoComplete: 'address-level2' },
+  instagram: {
+    label: buyerFieldLabels.instagram,
+    optional: true,
+    autoComplete: 'off',
+    placeholder: '@usuario',
+  },
+  level: { label: buyerFieldLabels.level, optional: true, autoComplete: 'off' },
+  birthDate: {
+    label: buyerFieldLabels.birthDate,
+    optional: true,
+    type: 'date',
+    autoComplete: 'bday',
+  },
 };
 
 const inputId = (field: BuyerField) => `buyer-${field}`;

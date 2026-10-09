@@ -58,3 +58,11 @@ describe('purchase steps', () => {
     expect(stepRedirect('review', passes, chosen('breaking'))).toBeNull();
   });
 });
+
+describe('review guard', () => {
+  it('sends review to datos when the buyer data is not ready', () => {
+    expect(stepRedirect('review', passes, chosen('breaking'), false)).toBe('buyer');
+    expect(stepRedirect('review', passes, chosen(), false)).toBe('passes');
+    expect(stepRedirect('buyer', passes, chosen('breaking'), false)).toBeNull();
+  });
+});

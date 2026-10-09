@@ -56,6 +56,20 @@ export const buyerMaxLength: Partial<Record<BuyerField, number>> = {
   instagram: 64,
   level: 50,
 };
+// The Tus datos labels, also used to name fields in error summaries.
+export const buyerFieldLabels: Record<BuyerField, string> = {
+  firstName: 'Nombre(s)',
+  firstLastName: 'Primer apellido',
+  secondLastName: 'Segundo',
+  stageName: 'AKA / nombre artístico',
+  email: 'Correo electrónico',
+  phone: 'Teléfono celular',
+  city: 'Ciudad',
+  instagram: 'Instagram',
+  level: 'Nivel',
+  birthDate: 'Fecha de nacimiento',
+};
+
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
 const MIN_BIRTH_DATE = '1900-01-01';
@@ -141,6 +155,14 @@ export function buyerPayload(form: BuyerForm): RegistrationBuyer {
     if (value) buyer[field] = value;
   }
   return buyer;
+}
+
+// The phone as the buyer reads it: `+52 33 1234 5678` for ten digits, else as typed after +52.
+export function displayPhone(phone: string): string {
+  const digits = phone.replace(PHONE_SEPARATORS, '');
+  return /^\d{10}$/.test(digits)
+    ? `+52 ${digits.slice(0, 2)} ${digits.slice(2, 6)} ${digits.slice(6)}`
+    : `+52 ${phone.trim()}`;
 }
 
 // The fields inside the collapsed "Más datos (opcional)" block of Tus datos.

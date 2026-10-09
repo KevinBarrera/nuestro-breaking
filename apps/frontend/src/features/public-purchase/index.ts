@@ -1,8 +1,10 @@
 export {
+  buyerFieldLabels,
   buyerFields,
   buyerMaxLength,
   buyerPayload,
   detailsHaveError,
+  displayPhone,
   emptyBuyerForm,
   firstInvalidField,
   localIsoDate,
@@ -34,8 +36,24 @@ export {
   type PurchaseSelection,
 } from './model/purchase-selection';
 export {
+  payFailure,
+  reviewBuyer,
+  reviewLines,
+  type PayFailure,
+  type PayFix,
+  type ReviewLine,
+} from './model/purchase-review';
+export {
   buildRegistrationRequest,
   failureMessage,
   serverErrors,
   type ServerErrors,
 } from './model/registration-request';
+export {
+  parseReserved,
+  readReserved,
+  reservedPurchase,
+  reservedStorageKey,
+  serializeReserved,
+  type ReservedPurchase,
+} from './model/reserved-purchase';

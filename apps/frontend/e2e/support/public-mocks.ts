@@ -102,3 +102,66 @@ export async function addApiSessionCookie(context: BrowserContext) {
     { name: 'nb_session', value: 'admin-session', domain: 'localhost', path: '/' },
   ]);
 }
+
+type RegistrationReply = { status: number; json?: unknown } | 'network-error';
+
+const registrationEndpoint = (url: URL) =>
+  url.port === '3000' && /^\/public\/events\/[^/]+\/registrations$/.test(url.pathname);
+
+/**
+ * Answers `POST /public/events/:slug/registrations` with the current reply (or a dropped
+ * connection) and records the requests, so specs can check the body and headers. `answer`
+ * swaps the reply; `hold` keeps the next answers pending until `release`.
+ */
+export async function mockRegistration(page: Page, reply: RegistrationReply) {
+  const requests: Request[] = [];
+  let current = reply;
+  let gate: Promise<void> | null = null;
+  let open = () => {};
+  await page.route(registrationEndpoint, async (route) => {
+    requests.push(route.request());
+    if (gate) await gate;
+    if (current === 'network-error') return route.abort('failed');
+    return route.fulfill(current);
+  });
+  return {
+    requests,
+    answer: (next: RegistrationReply) => {
+      current = next;
+    },
+    hold: () => {
+      gate = new Promise((resolve) => {
+        open = resolve;
+      });
+    },
+    release: () => {
+      gate = null;
+      open();
+    },
+  };
+}
+
+// The 201 for Pase completo Breaking (Bboy and 3v3 picked) plus Open Styles.
+export const reservedRegistration = {
+  registrationId: '6b0f0b5e-6d1f-4f8f-9a55-0f1c2b3d4e5f',
+  status: 'pending_payment',
+  passes: [
+    {
+      passTypeId: 'breaking',
+      name: 'Pase completo Breaking',
+      passClass: 'full',
+      priceCents: 200000,
+      selectedActivityIds: ['breaking-0', 'breaking-2'],
+    },
+    {
+      passTypeId: 'open-styles',
+      name: 'Open Styles',
+      passClass: 'add_on',
+      priceCents: 80000,
+      selectedActivityIds: [],
+    },
+  ],
+  totalCents: 280000,
+};
+
+export const registrationReply = (json: unknown = reservedRegistration) => ({ status: 201, json });

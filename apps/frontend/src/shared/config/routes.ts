@@ -7,6 +7,8 @@ export const routes = {
   publicCompetitions: '/e/:slug/competencias',
   publicBuyer: '/e/:slug/datos',
   publicReview: '/e/:slug/revisar',
+  // Temporary "Reservamos tu inscripción" screen (D1 of #176); #177 replaces it.
+  publicReserved: '/e/:slug/reservada',
   admin: '/admin',
   adminEventOverview: '/admin/events/:eventId',
   adminEventFoundation: '/admin/events/:eventId/foundation',

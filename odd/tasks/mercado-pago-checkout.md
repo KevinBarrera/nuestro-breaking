@@ -41,6 +41,8 @@ Pay a `pending_payment` registration through Mercado Pago Checkout Pro (sandbox 
 
 - D12 (technical default, T4) — Only `data.id` is signed, so it alone drives the payment read; the unsigned body `type` and notification `id` only route. Notifications with a non-payment type, no notification id, or ids outside `^[A-Za-z0-9_-]{1,64}$` answer 200 and write nothing. Concurrency: claim insert on conflict do nothing before the read, then lock the claim row and the registration row inside the transaction. Extra outcomes: `already_confirmed` (same payment already approved this registration), `approved_after_void`, `unknown_status`, `payment_<status>`. Invalid currency, amount or status skip the payment upsert (table checks) but record the outcome. The `payment_approval` fact holds `{ providerPaymentId, checkoutId }` with the provider payment id as `reference`.
 
+- D13 (technical default, T5) — The review page creates the registration, then the checkout, then does a full-page `window.location.assign` to an `https:` checkout URL only. On a checkout failure it keeps the registration id in memory, so a retry calls only the checkout. No new stored state: after a reload, the backend's pending-registration reuse prevents duplicates. The temporary `/e/:slug/reservada` route is removed with no redirect, because it never reached `main` or `staging`. The return route `/e/:slug/pago` only says the payment is being confirmed and never trusts Mercado Pago's query params (#178 adds the result screens).
+
 ## Current state (exploration, 2026-10-09)
 
 - Pending registrations come from `POST /public/events/:slug/registrations` (`apps/backend/src/events/public-registration/`); prices are snapshotted per pass in `event_registration_passes.price_cents`; no currency column, no stored total, no payment/provider table, no webhook log.
@@ -57,7 +59,7 @@ Pay a `pending_payment` registration through Mercado Pago Checkout Pro (sandbox 
 - [x] T2 — Schema: payment attempts (registration, preference id, payment id, status, amount, currency) and an idempotent webhook notification log; migration `0018`. Route: delegated (2+ files). Evidence: RED 5/5 (relations missing) then GREEN 5/5; full backend e2e 192/192 after bumping the hard-coded migration count in `event-activity-foundation.e2e-spec.ts`; unit 155/155; lint and build clean; credential grep empty.
 - [x] T3 — Create a Checkout Pro preference for a pending registration (`external_reference`, return URLs); wire config at startup so the app fails to boot on bad credentials. Route: delegated (2+ files). Evidence: RED (unit 16 failed, e2e 7/7 `Cannot POST`) then GREEN (payments unit 42/42, e2e 7/7); backend unit 186/186, e2e 199/199; lint and build clean; credential grep empty. About 900 authored lines, half tests; one cohesive slice (config, client, module, endpoint). Note: `scripts/verify-setup.mjs` starts the backend, so the local `.env` now needs the Mercado Pago variables.
 - [x] T4 — Webhook: verify `x-signature`, re-read the payment by id, map status, confirm with `approved_payment` + `payment_approval` audit, process each notification once; unit + PostgreSQL e2e with a stubbed client. Route: delegated (2+ files). Evidence: RED (unit 20 failed, e2e 14/14 404) then GREEN (payments unit 103/103, webhook e2e 14/14, stable over 3 more runs incl. concurrent duplicates); backend unit 247/247, e2e 214/214; lint, build and `tsc --noEmit` clean (the checkout stub needed `getPayment`); credential grep empty. About 680 production lines: signature, mapping, read and transactional service form one slice.
-- [ ] T5 — Frontend: replace the temporary reserved screen with the redirect to Mercado Pago.
+- [x] T5 — Frontend: replace the temporary reserved screen with the redirect to Mercado Pago. Route: delegated (2+ files). Evidence: RED (checkout module missing) then GREEN; frontend unit 220/220; `pnpm verify:pr` exit 0 (format, lint, build, unit, Playwright 261 passed); credential grep empty.
 - [ ] T6 — Sandbox end-to-end purchase with test accounts; document the runbook.
 
 ## Acceptance criteria
@@ -88,4 +90,4 @@ See issue #177.
 
 ## Next step
 
-T5.
+T6.

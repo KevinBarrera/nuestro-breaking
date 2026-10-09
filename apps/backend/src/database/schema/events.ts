@@ -25,6 +25,8 @@ export const events = pgTable(
     slug: text('slug')
       .notNull()
       .default(sql`('event-' || replace(gen_random_uuid()::text, '-', ''))`),
+    // Prefix of the registration folio (`LMP-7K3Q`). Existing events and inserts without one get `EV`.
+    folioPrefix: text('folio_prefix').notNull().default('EV'),
     salesEnabled: boolean('sales_enabled').default(false).notNull(),
     salesOpensAt: timestamp('sales_opens_at', { withTimezone: true }),
     salesClosesAt: timestamp('sales_closes_at', { withTimezone: true }),
@@ -42,6 +44,7 @@ export const events = pgTable(
       'events_slug_ck',
       sql`length(${table.slug}) <= 80 AND ${table.slug} ~ '^[a-z0-9]+(-[a-z0-9]+)*$'`,
     ),
+    check('events_folio_prefix_ck', sql`${table.folioPrefix} ~ '^[A-Z][A-Z0-9]{1,5}$'`),
     check(
       'events_sales_window_ck',
       sql`${table.salesOpensAt} IS NULL OR ${table.salesClosesAt} IS NULL OR ${table.salesOpensAt} < ${table.salesClosesAt}`,

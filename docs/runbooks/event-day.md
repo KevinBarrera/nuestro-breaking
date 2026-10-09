@@ -76,6 +76,9 @@ before use. Escalate paid cases requiring reversal to the principal organizer
 outside automated MVP correction; no generic confirmed-state edit or void,
 Mercado Pago payment edit or refund is authorized.
 Transfers, general-to-participant upgrades and folio edits are excluded.
+The registration folio (for example `LMP-7K3Q`) is assigned by the platform
+when a registration is confirmed and can never be edited; it is not the number
+on the paper cash receipt.
 Two years of history is desired subject to feasibility and legal review, not
 an implemented retention policy. None of these commands is made live by this
 runbook.

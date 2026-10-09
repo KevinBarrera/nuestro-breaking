@@ -40,8 +40,8 @@ const sameName = (column: AnyPgColumn, name: string): SQL =>
 /**
  * Create missing November catalog records, matched by natural keys (organization, venue, event,
  * activity, and pass type names, case-insensitive). Existing records are never updated, so admin
- * edits, archives, and access lists survive re-runs; the one exception is giving an existing event
- * its public slug when it only has a generated one. Access links are only written for pass types
+ * edits, archives, and access lists survive re-runs; the exceptions are giving an existing event its
+ * public slug when it only has a generated one, and its folio prefix when it only has the default. Access links are only written for pass types
  * created in this run. Seed data is local bootstrap data, not an admin operation, so no
  * `event_catalog_audit` rows are written (that table requires an admin user and session).
  */
@@ -114,6 +114,7 @@ export async function seedNovemberCatalog(
           organizationId: organization.id,
           name: definition.event.name,
           slug: (await slugTaken(tx, definition.event.slug)) ? undefined : definition.event.slug,
+          folioPrefix: definition.event.folioPrefix,
           timeZone: definition.event.timeZone,
           startsAt: new Date(definition.event.startsAt),
           endsAt: new Date(definition.event.endsAt),
@@ -121,6 +122,11 @@ export async function seedNovemberCatalog(
         .returning({ id: events.id, slug: events.slug })
     )[0];
     await assignSlug(tx, event, definition.event.slug);
+    // An event from before migration 0017 has the backfilled `EV` prefix; a chosen prefix is kept.
+    await tx
+      .update(events)
+      .set({ folioPrefix: definition.event.folioPrefix })
+      .where(and(eq(events.id, event.id), eq(events.folioPrefix, DEFAULT_FOLIO_PREFIX)));
 
     const linkedVenue = await tx
       .insert(eventVenues)
@@ -200,6 +206,9 @@ export async function seedNovemberCatalog(
 
   return summary;
 }
+
+// Column default and migration 0017 backfill for the folio prefix.
+const DEFAULT_FOLIO_PREFIX = 'EV';
 
 // Matches the slug migration 0014 and the column default generate; anything else is a chosen slug.
 const generatedSlug = /^event-[0-9a-f]{32}$/;

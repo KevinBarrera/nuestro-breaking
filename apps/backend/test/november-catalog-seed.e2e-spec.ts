@@ -150,9 +150,14 @@ describe('November catalog seed (e2e)', () => {
       audit: 0,
     });
 
-    const [event] = await client<{ slug: string; sales_enabled: boolean }[]>`
-      SELECT slug, sales_enabled FROM events`;
-    expect(event).toEqual({ slug: 'los-mas-pesados-nov-2026', sales_enabled: false });
+    const [event] = await client<
+      { slug: string; sales_enabled: boolean; folio_prefix: string }[]
+    >`SELECT slug, sales_enabled, folio_prefix FROM events`;
+    expect(event).toEqual({
+      slug: 'los-mas-pesados-nov-2026',
+      sales_enabled: false,
+      folio_prefix: 'LMP',
+    });
 
     const [venue] = await client<{ name: string }[]>`SELECT name FROM venues`;
     expect(venue.name).toBe('Estudio principal');
@@ -256,6 +261,18 @@ describe('November catalog seed (e2e)', () => {
     expect(await client`SELECT slug, sales_enabled FROM events`).toEqual([
       { slug: 'los-mas-pesados-nov-2026', sales_enabled: true },
     ]);
+  });
+
+  it('replaces only the backfilled default folio prefix', async () => {
+    await seedNovemberCatalog(db);
+    // An event created before migration 0017 carries the backfilled `EV` prefix.
+    await client`UPDATE events SET folio_prefix = 'EV'`;
+    await seedNovemberCatalog(db);
+    expect(await client`SELECT folio_prefix FROM events`).toEqual([{ folio_prefix: 'LMP' }]);
+
+    await client`UPDATE events SET folio_prefix = 'NOV26'`;
+    await seedNovemberCatalog(db);
+    expect(await client`SELECT folio_prefix FROM events`).toEqual([{ folio_prefix: 'NOV26' }]);
   });
 
   // The other event's slug, and whether the November event's slug is a generated one.

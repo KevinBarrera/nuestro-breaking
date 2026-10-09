@@ -55,8 +55,8 @@ describe('GET /admin/events/:eventId/participants (e2e)', () => {
     const [one, two, hidden] = await client<{ id: string }[]>`
       INSERT INTO event_registrations (event_id, participant_id, folio, status, confirmation_source, confirmed_at)
       VALUES (${event.id}, ${first.id}, 'F-10', 'confirmed', 'admin_cash', now()),
-        (${event.id}, ${second.id}, 'F-11', 'pending_payment', NULL, NULL),
-        (${other.id}, ${third.id}, 'F-10', 'pending_payment', NULL, NULL)
+        (${event.id}, ${second.id}, NULL, 'pending_payment', NULL, NULL),
+        (${other.id}, ${third.id}, 'F-12', 'confirmed', 'admin_cash', now())
       RETURNING id
     `;
     const [{ venueId }] = await client<{ venueId: string }[]>`
@@ -162,7 +162,7 @@ describe('GET /admin/events/:eventId/participants (e2e)', () => {
           registration: {
             id: two.id,
             eventId: event.id,
-            folio: 'F-11',
+            folio: null,
             status: 'pending_payment',
             checkedInAt: null,
           },
@@ -178,7 +178,9 @@ describe('GET /admin/events/:eventId/participants (e2e)', () => {
       });
     }
     expect((await get('hidden')).body).toEqual({ total: 0, limit: 20, offset: 0, results: [] });
-    expect(((await get('F-10', other.id)).body as { results: unknown[] }).results).toHaveLength(1);
+    // Folios are unique system-wide; the other event's folio is only found inside that event.
+    expect((await get('F-12')).body).toEqual({ total: 0, limit: 20, offset: 0, results: [] });
+    expect(((await get('F-12', other.id)).body as { results: unknown[] }).results).toHaveLength(1);
     expect(JSON.stringify(result.body)).not.toMatch(
       /Private|admin_cash|confirmedAt|paymentProvider|actorUserId|sessionId|audit/,
     );

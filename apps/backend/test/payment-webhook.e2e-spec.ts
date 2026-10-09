@@ -10,6 +10,7 @@ import { DATABASE_CLIENT } from '@/database/database.constants';
 import * as schema from '@/database/schema';
 import { DatabaseService } from '@/database/database.service';
 import { MercadoPagoClient, MercadoPagoClientError, type ProviderPayment } from '@/payments';
+import { PAYMENT_NOT_FOUND_GRACE_SECONDS } from '@/payments/webhook/payment-webhook.service';
 import { PostgresHarness } from './support/postgres-harness';
 
 jest.setTimeout(120_000);
@@ -406,9 +407,10 @@ describe('Mercado Pago payment webhook (e2e)', () => {
     readError = new MercadoPagoClientError(`Mercado Pago payment request failed.`, 404);
 
     await notify(1001).expect(500);
-    // Ages the claim past the one-hour grace window instead of waiting for it.
+    // Ages the claim one minute past the grace window instead of waiting for it.
     await client`
-      UPDATE payment_webhook_notifications SET received_at = now() - interval '61 minutes'
+      UPDATE payment_webhook_notifications
+      SET received_at = now() - make_interval(secs => ${PAYMENT_NOT_FOUND_GRACE_SECONDS + 60})
       WHERE notification_id = '1001'`;
 
     await notify(1001).expect(200);

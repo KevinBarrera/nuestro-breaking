@@ -52,6 +52,7 @@ See issue #177.
 ## Progress
 
 - 2026-10-09: exploration done; branch `feat/mercado-pago-config` from `1b15308`.
+- 2026-10-09: T1 committed in `3606e68` (task doc `c23c452`). RDD assessed `high_risk`; consent granted (standing instruction); four-lens review approved and acknowledged (lineage `review-7472c0c4a5a1927f`). Reviewed boundary is now `c23c452`. Advisory suggestions only, not blocking: error messages repeat the mode list and the `TEST-` prefix literals; the `TEST-` check is case-sensitive.
 
 ## Next step
 

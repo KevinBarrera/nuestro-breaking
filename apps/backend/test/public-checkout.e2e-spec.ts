@@ -55,6 +55,7 @@ describe('public checkout (e2e)', () => {
   beforeEach(async () => {
     sent.length = 0;
     failNext = false;
+    preferenceCount = 0;
     await harness.reset();
   });
   afterAll(async () => {
@@ -182,6 +183,18 @@ describe('public checkout (e2e)', () => {
       expect(await checkoutRows()).toHaveLength(0);
     },
   );
+
+  it('rejects a pending registration with no paid passes without calling the provider', async () => {
+    const ids = await fixture();
+    const free = await registration(ids.event, [{ passTypeId: ids.full, priceCents: 0 }]);
+    const empty = await registration(ids.event, []);
+
+    await checkout(free).expect(409);
+    await checkout(empty).expect(409);
+
+    expect(sent).toHaveLength(0);
+    expect(await checkoutRows()).toHaveLength(0);
+  });
 
   it('answers 404 for a registration of another event or an unknown one', async () => {
     const ids = await fixture();

@@ -3,6 +3,7 @@ import {
   normalizeEmail,
   normalizeInstagram,
   normalizePhone,
+  phoneMatchKey,
 } from './participant-normalization';
 
 describe('participant normalization', () => {
@@ -32,5 +33,22 @@ describe('participant normalization', () => {
     expect(buildFullName('Ana', 'López', null)).toBe('Ana López');
     expect(buildFullName('Ana', 'López', '   ')).toBe('Ana López');
     expect(buildFullName('Ana  María', 'de la  Cruz')).toBe('Ana María de la Cruz');
+  });
+
+  it('gives a Mexican number the same match key with or without the country code', () => {
+    expect(phoneMatchKey('55 1234 5678')).toBe('5512345678');
+    expect(phoneMatchKey('+52 55 1234 5678')).toBe('5512345678');
+    expect(phoneMatchKey('52 (55) 1234-5678')).toBe('5512345678');
+    // Legacy mobile prefix `521` before the ten-digit national number.
+    expect(phoneMatchKey('+521 55 1234 5678')).toBe('5512345678');
+    expect(phoneMatchKey('5215512345678')).toBe('5512345678');
+  });
+
+  it('keeps other numbers as their digits', () => {
+    // Ten digits that start with 52 are a national number, not a country code.
+    expect(phoneMatchKey('52 1234 5678')).toBe('5212345678');
+    expect(phoneMatchKey('+1 415 555 0100')).toBe('14155550100');
+    expect(phoneMatchKey('+34 612 345 678')).toBe('34612345678');
+    expect(phoneMatchKey('')).toBe('');
   });
 });

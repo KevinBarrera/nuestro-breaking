@@ -1,6 +1,6 @@
 # Public event catalog contract
 
-This contract describes the public, read-only catalog of one event for issue #175. The public purchase screens (#176) read it, and public registration (#174) reuses its sales check. It is implemented and covered by backend unit and e2e tests.
+This contract describes the public, read-only catalog of one event for issue #175. The public purchase screens (#176) read it, and [public registration](public-registration.md) (#174) reuses its sales check. It is implemented and covered by backend unit and e2e tests.
 
 ## Current answer
 
@@ -82,7 +82,7 @@ When `sales.state` is `closed`, the response still has `event` and `sales` (so t
 - throws `SalesClosedException` (409, body `{ "statusCode": 409, "message": "Sales are closed", "reason": "<reason>" }`) when they are closed;
 - throws the same neutral 404 as the catalog for an unknown or malformed slug.
 
-Callers pass `now` explicitly, so tests stay deterministic. Public registration should call it inside the request that writes, not rely on an earlier catalog read.
+Callers pass `now` explicitly, so tests stay deterministic. [Public registration](public-registration.md) calls it inside the request that writes, not relying on an earlier catalog read.
 
 ## CORS
 
@@ -124,6 +124,7 @@ The limit keys on Express `req.ip`. Behind a reverse proxy or load balancer, `re
 
 ## Cross-references
 
+- [Public registration contract](public-registration.md)
 - [Event sales contract](event-sales.md)
 - [Event catalog contract](event-catalog.md)
 - [November 2026 online purchase plan](../product/november-2026-online-purchase-plan.md)

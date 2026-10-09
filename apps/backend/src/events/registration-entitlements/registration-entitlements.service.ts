@@ -24,6 +24,7 @@ import {
   registrationAuditActorColumns,
 } from '@/events/registration-audit/registration-audit-actor';
 import { FULL_INCLUDES_GENERAL_MESSAGE, addingCombinesGeneralWithFull } from './pass-class-rules';
+import { areSelectableActivities } from './selectable-activities';
 import type { HeldPass, RegistrationEntitlements } from './registration-entitlements.types';
 
 type Database = DatabaseService['db'];
@@ -237,36 +238,13 @@ export class RegistrationEntitlementsService {
     return registration;
   }
 
-  // Every activity must be active and `selectable` for this pass type in the same event; the
-  // activities are share-locked so a concurrent archive cannot slip in before commit.
   private async assertSelectable(
     tx: Transaction,
     eventId: string,
     passTypeId: string,
     activityIds: string[],
   ) {
-    if (activityIds.length === 0) return;
-    const usable = await tx
-      .select({ id: activities.id })
-      .from(eventPassTypeActivities)
-      .innerJoin(
-        activities,
-        and(
-          eq(activities.eventId, eventPassTypeActivities.eventId),
-          eq(activities.id, eventPassTypeActivities.activityId),
-        ),
-      )
-      .where(
-        and(
-          eq(eventPassTypeActivities.eventId, eventId),
-          eq(eventPassTypeActivities.passTypeId, passTypeId),
-          eq(eventPassTypeActivities.access, 'selectable'),
-          eq(activities.status, 'active'),
-          inArray(activities.id, activityIds),
-        ),
-      )
-      .for('share', { of: activities });
-    if (usable.length !== activityIds.length)
+    if (!(await areSelectableActivities(tx, eventId, passTypeId, activityIds)))
       throw new BadRequestException('Invalid activity selection');
   }
 

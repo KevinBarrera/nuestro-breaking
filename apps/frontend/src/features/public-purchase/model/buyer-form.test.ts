@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { buyerPayload, emptyBuyerForm, validateBuyer, type BuyerForm } from './buyer-form';
+import {
+  buyerPayload,
+  detailsHaveError,
+  emptyBuyerForm,
+  firstInvalidField,
+  localIsoDate,
+  optionalDetailFields,
+  validateBuyer,
+  type BuyerForm,
+} from './buyer-form';
 
 const today = '2026-10-08';
 const valid: BuyerForm = {
@@ -113,5 +122,22 @@ describe('buyerPayload', () => {
       level: 'Intermedio',
       birthDate: '2000-02-29',
     });
+  });
+});
+
+describe('buyer form errors', () => {
+  it('finds the first invalid field in form order', () => {
+    expect(firstInvalidField({})).toBeNull();
+    expect(firstInvalidField({ birthDate: 'x', phone: 'y', email: 'z' })).toBe('email');
+  });
+
+  it('tells when an error sits in the optional details block', () => {
+    expect(detailsHaveError({ email: 'x' })).toBe(false);
+    expect(detailsHaveError({ email: 'x', instagram: 'y' })).toBe(true);
+    expect(optionalDetailFields).toEqual(['city', 'instagram', 'level', 'birthDate']);
+  });
+
+  it('formats the local calendar day as YYYY-MM-DD', () => {
+    expect(localIsoDate(new Date(2026, 0, 5, 23, 30))).toBe('2026-01-05');
   });
 });

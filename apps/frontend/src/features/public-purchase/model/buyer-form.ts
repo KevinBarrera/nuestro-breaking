@@ -142,3 +142,26 @@ export function buyerPayload(form: BuyerForm): RegistrationBuyer {
   }
   return buyer;
 }
+
+// The fields inside the collapsed "Más datos (opcional)" block of Tus datos.
+export const optionalDetailFields = [
+  'city',
+  'instagram',
+  'level',
+  'birthDate',
+] as const satisfies readonly BuyerField[];
+
+// The field to focus after a failed submit: the first invalid one in form order.
+export function firstInvalidField(errors: BuyerErrors): BuyerField | null {
+  return buyerFields.find((field) => errors[field]) ?? null;
+}
+
+// Whether the collapsed details block must open to show an error.
+export const detailsHaveError = (errors: BuyerErrors) =>
+  optionalDetailFields.some((field) => errors[field]);
+
+// The browser's calendar day as `YYYY-MM-DD`, the `today` that `validateBuyer` expects.
+export function localIsoDate(date: Date): string {
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}

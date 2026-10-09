@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { stepAfterPasses, stepBefore, stepNumber, stepPath } from './purchase-steps';
+import { stepAfterPasses, stepBefore, stepNumber, stepPath, stepRedirect } from './purchase-steps';
 import type { PublicPass } from '@/entities/public-event';
 
 const pass = (id: string, competitions: number): PublicPass => ({
@@ -46,5 +46,15 @@ describe('purchase steps', () => {
     expect(stepBefore('buyer', passes, chosen('general'))).toBe('passes');
     expect(stepBefore('buyer', passes, chosen('breaking'))).toBe('competitions');
     expect(stepBefore('review', passes, chosen('general'))).toBe('buyer');
+  });
+
+  it('sends a step without chosen passes back to pases, and skips competitions when none apply', () => {
+    for (const step of ['competitions', 'buyer', 'review'] as const)
+      expect(stepRedirect(step, passes, chosen())).toBe('passes');
+    expect(stepRedirect('passes', passes, chosen())).toBeNull();
+    expect(stepRedirect('competitions', passes, chosen('general'))).toBe('buyer');
+    expect(stepRedirect('competitions', passes, chosen('breaking'))).toBeNull();
+    expect(stepRedirect('buyer', passes, chosen('general'))).toBeNull();
+    expect(stepRedirect('review', passes, chosen('breaking'))).toBeNull();
   });
 });

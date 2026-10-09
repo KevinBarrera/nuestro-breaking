@@ -151,3 +151,116 @@ describe('FetchMercadoPagoClient', () => {
     }
   });
 });
+
+describe('FetchMercadoPagoClient.getPayment', () => {
+  const PAYMENT_BODY = {
+    id: 1234567890,
+    status: 'approved',
+    transaction_amount: 1500.5,
+    currency_id: 'MXN',
+    external_reference: 'registration-1',
+    live_mode: false,
+    payer: { email: 'should-not-leak@example.test' },
+  };
+
+  it('reads the payment by id with the bearer token and a timeout', async () => {
+    const { client, fetchFn } = clientWith(jsonResponse(200, PAYMENT_BODY));
+
+    await client.getPayment('1234567890');
+
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchFn.mock.calls[0];
+    expect(url).toBe('https://api.mercadopago.com/v1/payments/1234567890');
+    expect(init?.method).toBe('GET');
+    expect((init?.headers as Record<string, string>).Authorization).toBe(`Bearer ${TOKEN}`);
+    expect(init?.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it('encodes the payment id in the path', async () => {
+    const { client, fetchFn } = clientWith(jsonResponse(200, PAYMENT_BODY));
+
+    // The answer names another id, so it is rejected too; only the URL matters here.
+    await failureOf(client.getPayment('../users/me'));
+
+    expect(fetchFn.mock.calls[0][0]).toBe(
+      'https://api.mercadopago.com/v1/payments/..%2Fusers%2Fme',
+    );
+  });
+
+  it('returns only the fields the webhook needs, with the amount in cents', async () => {
+    const { client } = clientWith(jsonResponse(200, PAYMENT_BODY));
+
+    await expect(client.getPayment('1234567890')).resolves.toEqual({
+      id: '1234567890',
+      status: 'approved',
+      transactionAmountCents: 150050,
+      currencyId: 'MXN',
+      externalReference: 'registration-1',
+      liveMode: false,
+    });
+  });
+
+  it.each([
+    [19.99, 1999],
+    [0.29, 29],
+    [1234.56, 123456],
+    [800, 80000],
+    [0.1 + 0.2, 30],
+  ])('converts %p pesos to %p cents', async (amount, cents) => {
+    const { client } = clientWith(
+      jsonResponse(200, { ...PAYMENT_BODY, transaction_amount: amount }),
+    );
+
+    const payment = await client.getPayment('1234567890');
+
+    expect(payment.transactionAmountCents).toBe(cents);
+  });
+
+  it('accepts a payment without an external reference', async () => {
+    const { client } = clientWith(jsonResponse(200, { ...PAYMENT_BODY, external_reference: null }));
+
+    await expect(client.getPayment('1234567890')).resolves.toMatchObject({
+      externalReference: null,
+    });
+  });
+
+  it('reports only the status code for a non-2xx answer', async () => {
+    const { client } = clientWith(jsonResponse(404, { message: `missing ${TOKEN}` }));
+
+    const error = await failureOf(client.getPayment('1234567890'));
+
+    expect(error).toBeInstanceOf(MercadoPagoClientError);
+    expect(error.message).toBe('Mercado Pago payment request failed with status 404.');
+    expect((error as MercadoPagoClientError).status).toBe(404);
+  });
+
+  it.each([
+    ['a non-JSON body', new Response('not json should-not-leak', { status: 200 })],
+    ['a missing id', jsonResponse(200, { ...PAYMENT_BODY, id: undefined })],
+    ['a missing status', jsonResponse(200, { ...PAYMENT_BODY, status: '' })],
+    ['a text amount', jsonResponse(200, { ...PAYMENT_BODY, transaction_amount: '1500.50' })],
+    ['a negative amount', jsonResponse(200, { ...PAYMENT_BODY, transaction_amount: -1 })],
+    ['a missing currency', jsonResponse(200, { ...PAYMENT_BODY, currency_id: undefined })],
+    ['a non-boolean live mode', jsonResponse(200, { ...PAYMENT_BODY, live_mode: 'false' })],
+    ['a numeric external reference', jsonResponse(200, { ...PAYMENT_BODY, external_reference: 1 })],
+    ['another payment id', jsonResponse(200, { ...PAYMENT_BODY, id: 1234567891 })],
+  ])('rejects a malformed answer with %s', async (_label, response) => {
+    const { client } = clientWith(response);
+
+    const error = await failureOf(client.getPayment('1234567890'));
+
+    expect(error).toBeInstanceOf(MercadoPagoClientError);
+    expect(error.message).toBe('Mercado Pago payment response was malformed.');
+  });
+
+  it('reports a network failure or timeout without the underlying error', async () => {
+    const { client } = clientWith(new Error(`connect failed for Bearer ${TOKEN}`));
+
+    const error = await failureOf(client.getPayment('1234567890'));
+
+    expect(error).toBeInstanceOf(MercadoPagoClientError);
+    expect(error.message).toBe('Mercado Pago payment request failed before a response.');
+    expect((error as MercadoPagoClientError).status).toBeUndefined();
+    expect(`${error.message} ${error.stack ?? ''}`).not.toContain(TOKEN);
+  });
+});

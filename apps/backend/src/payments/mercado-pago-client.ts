@@ -11,7 +11,7 @@ export interface PreferenceRequest {
   items: PreferenceItem[];
   external_reference: string;
   back_urls: { success: string; failure: string; pending: string };
-  auto_return: 'approved';
+  auto_return?: 'approved';
   notification_url: string;
 }
 

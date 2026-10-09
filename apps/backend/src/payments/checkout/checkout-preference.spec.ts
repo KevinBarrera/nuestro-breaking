@@ -51,6 +51,16 @@ describe('buildPreferenceRequest', () => {
     ]);
   });
 
+  it('asks for the automatic return only when the buyer site is https', () => {
+    const local = buildPreferenceRequest({ ...input, publicAppUrl: 'http://localhost:5173' });
+
+    // Mercado Pago rejects auto_return toward a non-https site such as localhost.
+    expect(local).not.toHaveProperty('auto_return');
+    expect(local.back_urls.success).toBe(
+      'http://localhost:5173/e/los-mas-pesados-nov-2026/pago?registration=11111111-1111-4111-8111-111111111111',
+    );
+  });
+
   it('sends no payer data', () => {
     expect(buildPreferenceRequest(input)).not.toHaveProperty('payer');
   });

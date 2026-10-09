@@ -53,4 +53,5 @@ Fix four admin UI defects found in the walkthrough, so the admin feels finished 
 - Commits: T1 `7b5827f`, T2 `3a623e4`, T3 `e6dd178`, T4 `7d24e7e`.
 - Verification: `pnpm --filter @nuestro-breaking/frontend test` 215 passed; `pnpm verify:pr` exit 0 (format, lint, build, 215 unit, 258 e2e passed).
 - Review: medium risk, granted; the reliability lens approved commits `ba19942..7ba4ad2` (lineage `review-18fff83c77e5dd3f`), acknowledged. A second candidate offered by the stop hook (73 commits since `c9c9441`, mostly merged work) stopped with `lens_context_budget_exceeded`; nothing was created.
-- Next step: the PR to `dev`. `docs/frontend-architecture.md` now describes the two-card create screen, the group counts and "Marcar todas como elegibles", the html background rule and the sign-out redirect.
+- PR: https://github.com/KevinBarrera/nuestro-breaking/pull/199 to `dev`.
+- Next step: merge after CI (rebase onto `origin/dev`, then merge commit). `docs/frontend-architecture.md` now describes the two-card create screen, the group counts and "Marcar todas como elegibles", the html background rule and the sign-out redirect.

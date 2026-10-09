@@ -11,8 +11,9 @@ type TextFieldProps = Omit<InputHTMLAttributes<HTMLInputElement>, 'prefix'> & {
   prefix?: string;
 };
 
+// The input itself keeps the 44px target; the frame's border sits around it.
 const frame =
-  'mt-1 flex min-h-11 w-full items-stretch overflow-hidden rounded-lg border bg-input text-base text-fg focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-focus';
+  'mt-1 flex w-full items-stretch overflow-hidden rounded-lg border bg-input text-base text-fg focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-focus';
 
 // A labelled text input. The hint, prefix and error are linked with `aria-describedby`, and an
 // error sets `aria-invalid`. Other input props (type, autoComplete, inputMode, ...) pass through.
@@ -60,7 +61,7 @@ export function TextField({
           id={inputId}
           aria-invalid={error ? true : undefined}
           aria-describedby={describedBy || undefined}
-          className="min-w-0 flex-1 bg-transparent px-3 py-2 text-fg outline-none placeholder:text-muted disabled:opacity-60"
+          className="min-h-11 min-w-0 flex-1 bg-transparent px-3 py-2 text-fg outline-none placeholder:text-muted disabled:opacity-60"
         />
       </div>
       {error ? <FieldError id={errorId}>{error}</FieldError> : null}

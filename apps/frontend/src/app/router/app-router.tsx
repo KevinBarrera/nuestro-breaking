@@ -1,5 +1,7 @@
 import { NotFoundPage } from '@/pages/not-found';
 import {
+  PublicBuyerPage,
+  PublicCompetitionsPage,
   PublicHomePage,
   PublicPassesPage,
   PublicPurchaseLayout,
@@ -15,6 +17,7 @@ import {
 } from 'react-router';
 import { RouterProvider } from 'react-router/dom';
 import { RoleAreaBoundary } from './role-area-boundary';
+import { RouteLoadError } from './route-load-error';
 
 // Old bookmarks of the pass list keep working; the redirect replaces the history entry.
 function LegacyPassTypesRedirect() {
@@ -24,12 +27,14 @@ function LegacyPassTypesRedirect() {
 
 // D7: the admin and dancer areas load on demand (route `lazy`), so buyers on the public flow
 // never download them. The router resolves a lazy route before rendering it; on a first load
-// it shows this blank page meanwhile.
+// it shows this blank page meanwhile, and `RouteLoadError` (with "Recargar") when the chunk fails.
 const routeFallback = <div aria-busy="true" className="min-h-dvh" />;
+const routeError = <RouteLoadError />;
 
 type AdminPages = typeof import('@/pages/admin');
 const adminPage = (name: keyof AdminPages) => ({
   hydrateFallbackElement: routeFallback,
+  errorElement: routeError,
   lazy: async () => ({ Component: (await import('@/pages/admin'))[name] }),
 });
 
@@ -42,17 +47,15 @@ const appRoutes: RouteObject[] = [
       { path: routes.publicHome, element: <PublicHomePage /> },
       { path: routes.publicEvent, element: <PublicHomePage /> },
       { path: routes.publicPasses, element: <PublicPassesPage /> },
-      {
-        path: routes.publicCompetitions,
-        element: <PurchaseStepPage key="competitions" step="competitions" />,
-      },
-      { path: routes.publicBuyer, element: <PurchaseStepPage key="buyer" step="buyer" /> },
-      { path: routes.publicReview, element: <PurchaseStepPage key="review" step="review" /> },
+      { path: routes.publicCompetitions, element: <PublicCompetitionsPage /> },
+      { path: routes.publicBuyer, element: <PublicBuyerPage /> },
+      { path: routes.publicReview, element: <PurchaseStepPage step="review" /> },
     ],
   },
   { path: routes.adminEventPassTypesLegacy, element: <LegacyPassTypesRedirect /> },
   {
     hydrateFallbackElement: routeFallback,
+    errorElement: routeError,
     lazy: async () => ({
       Component: (await import('./admin-session-boundary')).AdminSessionBoundary,
     }),
@@ -80,6 +83,7 @@ const appRoutes: RouteObject[] = [
       {
         path: routes.dancer,
         hydrateFallbackElement: routeFallback,
+        errorElement: routeError,
         lazy: async () => ({ Component: (await import('@/pages/dancer')).DancerPage }),
       },
     ],

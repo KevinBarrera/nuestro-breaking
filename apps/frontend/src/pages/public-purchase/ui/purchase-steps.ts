@@ -41,3 +41,17 @@ export function stepBefore(
     return stepAfterPasses(passes, selection) === 'competitions' ? 'competitions' : 'passes';
   return 'buyer';
 }
+
+// Where a step sends the buyer instead of rendering (a bookmark, a reload, an emptied draft):
+// every step after pases needs a chosen pass, and competitions redirect to datos when they do
+// not apply (D6). Null when the step can show.
+export function stepRedirect(
+  step: NumberedStep,
+  passes: PublicPass[],
+  selection: PurchaseSelection,
+): NumberedStep | null {
+  if (step === 'passes') return null;
+  if (selection.passTypeIds.length === 0) return 'passes';
+  if (step === 'competitions' && !competitionsStepApplies(passes, selection)) return 'buyer';
+  return null;
+}

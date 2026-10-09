@@ -9,7 +9,7 @@ import { AppModule } from '@/app.module';
 import { DATABASE_CLIENT } from '@/database/database.constants';
 import * as schema from '@/database/schema';
 import { DatabaseService } from '@/database/database.service';
-import { MercadoPagoClient, type ProviderPayment } from '@/payments';
+import { MercadoPagoClient, MercadoPagoClientError, type ProviderPayment } from '@/payments';
 import { PostgresHarness } from './support/postgres-harness';
 
 jest.setTimeout(120_000);
@@ -26,11 +26,16 @@ describe('Mercado Pago payment webhook (e2e)', () => {
   let app: INestApplication<App>;
   const payments = new Map<string, ProviderPayment>();
   let failingReads = 0;
+  let readError: Error | undefined;
+  // When set, replaces the read entirely; `reads` still records every call.
+  let readOverride: ((call: number) => Promise<ProviderPayment>) | undefined;
   const reads: string[] = [];
   const stub: MercadoPagoClient = {
     createPreference: () => Promise.reject(new Error('not used')),
     getPayment: (paymentId: string) => {
       reads.push(paymentId);
+      if (readOverride) return readOverride(reads.length);
+      if (readError) return Promise.reject(readError);
       const payment = payments.get(paymentId);
       if (failingReads > 0 || !payment) {
         failingReads -= 1;
@@ -57,6 +62,8 @@ describe('Mercado Pago payment webhook (e2e)', () => {
     payments.clear();
     reads.length = 0;
     failingReads = 0;
+    readError = undefined;
+    readOverride = undefined;
     await harness.reset();
   });
   afterAll(async () => {
@@ -315,6 +322,89 @@ describe('Mercado Pago payment webhook (e2e)', () => {
       { notification_id: '1001', processed: true, outcome: 'confirmed' },
     ]);
   });
+
+  it('serializes reads of the same payment so the latest read is the one stored', async () => {
+    const id = await pendingRegistration();
+    const base: Omit<ProviderPayment, 'status'> = {
+      id: PAYMENT_ID,
+      transactionAmountCents: PRICE_CENTS,
+      currencyId: 'MXN',
+      externalReference: id,
+      liveMode: mode() === 'production',
+    };
+    const spans: { call: number; start: number; end: number }[] = [];
+    let secondReadStarted: () => void = () => undefined;
+    const secondRead = new Promise<void>((resolve) => (secondReadStarted = resolve));
+    // The first read answers `pending` and resolves last: it waits until another read starts, or
+    // for a bounded fallback. Serialized reads never start a second read while the first is open,
+    // so the fallback releases it; overlapping reads let the stale `pending` land after `approved`.
+    readOverride = async (call) => {
+      const span = { call, start: performance.now(), end: 0 };
+      spans.push(span);
+      if (call === 1) {
+        await Promise.race([secondRead, new Promise((resolve) => setTimeout(resolve, 1_500))]);
+      } else {
+        secondReadStarted();
+      }
+      span.end = performance.now();
+      return { ...base, status: call === 1 ? 'pending' : 'approved' };
+    };
+
+    await Promise.all([notify(1001).expect(200), notify(1002).expect(200)]);
+
+    expect(spans).toHaveLength(2);
+    const [first, second] = [...spans].sort((a, b) => a.start - b.start);
+    expect(first.end).toBeLessThanOrEqual(second.start);
+    expect(await paymentRows()).toEqual([expect.objectContaining({ status: 'approved' })]);
+    expect((await registrationRow(id)).status).toBe('confirmed');
+    expect(await auditRows()).toHaveLength(1);
+    const outcomes = (await notificationRows()).map((row) => row.outcome).sort();
+    expect(outcomes).toEqual(['confirmed', 'payment_pending']);
+  });
+
+  it.each([
+    [404, 'payment_not_found'],
+    [400, 'payment_unreadable'],
+    [403, 'payment_unreadable'],
+  ])(
+    'treats a %i payment read as final: answers 200, records %s and writes no payment',
+    async (status, outcome) => {
+      const id = await pendingRegistration();
+      setPayment(id);
+      readError = new MercadoPagoClientError(`Mercado Pago payment request failed.`, status);
+
+      await notify(1001).expect(200);
+
+      expect(await paymentRows()).toHaveLength(0);
+      expect((await registrationRow(id)).status).toBe('pending_payment');
+      expect(await notificationRows()).toEqual([
+        { notification_id: '1001', processed: true, outcome },
+      ]);
+
+      await notify(1001).expect(200);
+
+      expect(reads).toHaveLength(1);
+      expect(await notificationRows()).toEqual([
+        { notification_id: '1001', processed: true, outcome },
+      ]);
+    },
+  );
+
+  it.each([429, 500, 503])(
+    'answers 500 and leaves the claim unprocessed for a %i payment read',
+    async (status) => {
+      const id = await pendingRegistration();
+      setPayment(id);
+      readError = new MercadoPagoClientError(`Mercado Pago payment request failed.`, status);
+
+      await notify(1001).expect(500);
+
+      expect(await paymentRows()).toHaveLength(0);
+      expect(await notificationRows()).toEqual([
+        { notification_id: '1001', processed: false, outcome: null },
+      ]);
+    },
+  );
 
   it('acknowledges and ignores a verified notification that is not about a payment', async () => {
     const id = await pendingRegistration();

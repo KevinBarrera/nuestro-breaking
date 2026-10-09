@@ -34,9 +34,16 @@ export interface ProviderPayment {
   liveMode: boolean;
 }
 
-/** Thrown by a client for any provider failure. Its message never holds a token or a body. */
+/**
+ * Thrown by a client for any provider failure. Its message never holds a token or a body.
+ * `status` is the provider's HTTP status when it answered; it is absent for network failures,
+ * timeouts and malformed answers.
+ */
 export class MercadoPagoClientError extends Error {
-  constructor(message: string) {
+  constructor(
+    message: string,
+    readonly status?: number,
+  ) {
     super(message);
     this.name = 'MercadoPagoClientError';
   }

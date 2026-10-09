@@ -231,6 +231,7 @@ describe('FetchMercadoPagoClient.getPayment', () => {
 
     expect(error).toBeInstanceOf(MercadoPagoClientError);
     expect(error.message).toBe('Mercado Pago payment request failed with status 404.');
+    expect((error as MercadoPagoClientError).status).toBe(404);
   });
 
   it.each([
@@ -259,6 +260,7 @@ describe('FetchMercadoPagoClient.getPayment', () => {
 
     expect(error).toBeInstanceOf(MercadoPagoClientError);
     expect(error.message).toBe('Mercado Pago payment request failed before a response.');
+    expect((error as MercadoPagoClientError).status).toBeUndefined();
     expect(`${error.message} ${error.stack ?? ''}`).not.toContain(TOKEN);
   });
 });

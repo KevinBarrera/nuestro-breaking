@@ -56,8 +56,8 @@ export class PaymentWebhookService {
 
   /**
    * Processes one verified notification at most once (#177 D11) and returns its outcome code.
-   * The claim row is written before the payment read; a failed read leaves it unprocessed, so
-   * Mercado Pago's retry re-claims it.
+   * The claim row is written before the payment read; a failed read rolls the transaction back and
+   * leaves it unprocessed, so Mercado Pago's retry re-claims it.
    */
   async handle({ notificationId, type, dataId }: WebhookNotification): Promise<string> {
     if (
@@ -74,12 +74,16 @@ export class PaymentWebhookService {
       .onConflictDoNothing({ target: paymentWebhookNotifications.notificationId });
     if (await this.isProcessed(this.db, claimId)) return 'duplicate';
 
-    const payment = await this.readPayment(paymentId);
     const outcome = await this.db.transaction(async (tx) => {
+      // Serializes every notification for this payment, so each read happens after the previous
+      // one committed and a stale read can never overwrite a newer status. The lock is held across
+      // one bounded (10s) provider read; that is acceptable at this event's notification volume.
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`mp-payment:${paymentId}`}))`);
       // Serializes concurrent deliveries of the same notification: the second waits here, then
       // sees it processed.
       if (await this.isProcessed(tx, claimId, true)) return 'duplicate';
-      const result = await this.apply(tx, payment);
+      const read = await this.readPayment(paymentId);
+      const result = typeof read === 'string' ? read : await this.apply(tx, read);
       await tx
         .update(paymentWebhookNotifications)
         .set({ processedAt: sql`now()`, outcome: result })
@@ -99,7 +103,11 @@ export class PaymentWebhookService {
     return claim?.processedAt != null;
   }
 
-  private async readPayment(paymentId: string): Promise<ProviderPayment> {
+  /**
+   * Returns the payment, or a final outcome when the provider refuses the read for good (a 4xx other
+   * than 429): retrying would never succeed. Anything else is transient and answers 500.
+   */
+  private async readPayment(paymentId: string): Promise<ProviderPayment | string> {
     try {
       return await this.mercadoPago.getPayment(paymentId);
     } catch (error) {
@@ -109,6 +117,10 @@ export class PaymentWebhookService {
           ? `${error.message} Payment ${paymentId}.`
           : `Mercado Pago payment ${paymentId} read failed unexpectedly.`,
       );
+      const status = error instanceof MercadoPagoClientError ? error.status : undefined;
+      if (status === 404) return 'payment_not_found';
+      if (status !== undefined && status >= 400 && status < 500 && status !== 429)
+        return 'payment_unreadable';
       throw new InternalServerErrorException(PROVIDER_UNAVAILABLE);
     }
   }

@@ -14,8 +14,9 @@ import { verifyWebhookSignature } from './webhook-signature';
 
 /**
  * Mercado Pago payment notifications (#177 D11). Not rate limited: Mercado Pago retries in bursts,
- * and an unsigned request is refused before any work. Only `data.id` is signed, so the body is
- * read for routing only and never stored.
+ * and an unsigned request is refused before any work. Only `data.id` is signed. The unsigned body
+ * notification `id` is stored as the idempotency claim key, but it never drives state: the payment
+ * is always re-read by the signed `data.id`.
  */
 @Controller('public/payments/mercado-pago')
 export class PaymentWebhookController {

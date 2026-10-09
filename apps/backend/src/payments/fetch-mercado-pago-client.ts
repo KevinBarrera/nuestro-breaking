@@ -73,6 +73,7 @@ export class FetchMercadoPagoClient extends MercadoPagoClient {
     if (!response.ok) {
       throw new MercadoPagoClientError(
         `Mercado Pago payment request failed with status ${response.status}.`,
+        response.status,
       );
     }
     const body: unknown = await response.json().catch(() => null);

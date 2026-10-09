@@ -1,4 +1,12 @@
 export const routes = {
+  // Public purchase (#176): `/` is the configured event (`VITE_PUBLIC_EVENT_SLUG`), `/e/:slug`
+  // any event; the steps always live under `/e/:slug`.
+  publicHome: '/',
+  publicEvent: '/e/:slug',
+  publicPasses: '/e/:slug/pases',
+  publicCompetitions: '/e/:slug/competencias',
+  publicBuyer: '/e/:slug/datos',
+  publicReview: '/e/:slug/revisar',
   admin: '/admin',
   adminEventOverview: '/admin/events/:eventId',
   adminEventFoundation: '/admin/events/:eventId/foundation',

@@ -155,6 +155,7 @@ Legal acceptance (terms and privacy notice) is not stored yet (D6). #180 adds it
 ## Cross-references
 
 - [Public event catalog](public-event-catalog.md)
+- [Public payment status](public-payment-status.md)
 - [Admin registration audit policy](admin-registration-audit-policy.md)
 - [Admin registration operations](admin-registration-operations.md)
 - Feature tasks: `odd/tasks/public-pending-registration.md`

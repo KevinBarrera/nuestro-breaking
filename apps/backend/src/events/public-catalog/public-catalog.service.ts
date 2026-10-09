@@ -67,6 +67,15 @@ export class PublicCatalogService {
     return { eventId: event.id, slug: event.slug };
   }
 
+  /**
+   * Resolves the event by slug whatever its sales window, for public reads that must keep working
+   * after sales close (#178). Unknown or malformed slugs are the same 404 as `requireOpen`.
+   */
+  async requireEvent(slug: string): Promise<{ eventId: string; slug: string }> {
+    const event = await this.event(slug);
+    return { eventId: event.id, slug: event.slug };
+  }
+
   private async event(slug: string): Promise<CatalogEventRow> {
     if (slug.length > 80 || !SLUG.test(slug)) throw new NotFoundException('Event not found');
     const [row] = await this.db

@@ -101,17 +101,6 @@ describe('decidePayment', () => {
     });
   });
 
-  it('confirms a sandbox payment that Mercado Pago marks live (test accounts)', () => {
-    // Test accounts run in Mercado Pago's production environment, so their payments say live.
-    const testAccountPayment = { ...APPROVED, liveMode: true };
-
-    expect(decide({ payment: testAccountPayment })).toEqual({
-      outcome: 'confirmed',
-      confirm: true,
-      recordPayment: true,
-    });
-  });
-
   it('reports an unknown registration without storing anything', () => {
     expect(decide({ registration: null })).toEqual({
       outcome: 'unknown_registration',

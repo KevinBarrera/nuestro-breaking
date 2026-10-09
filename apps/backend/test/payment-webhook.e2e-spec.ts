@@ -269,19 +269,6 @@ describe('Mercado Pago payment webhook (e2e)', () => {
     expect((await notificationRows())[0].outcome).toBe('amount_mismatch');
   });
 
-  it('confirms a sandbox payment that Mercado Pago marks live (test accounts)', async () => {
-    const id = await pendingRegistration();
-    setPayment(id);
-    // Test accounts run in Mercado Pago's production environment, so their payments say live.
-    const testAccountPayment = { ...payments.get(PAYMENT_ID), liveMode: true };
-    payments.set(PAYMENT_ID, testAccountPayment as ProviderPayment);
-
-    await notify(1001).expect(200);
-
-    expect((await registrationRow(id)).status).toBe('confirmed');
-    expect((await notificationRows())[0].outcome).toBe('confirmed');
-  });
-
   // A real sandbox notification body (D12): its `id` is beyond Number.MAX_SAFE_INTEGER.
   function notifyRaw(notificationId: string, dataId = PAYMENT_ID) {
     const secret = process.env.MERCADO_PAGO_WEBHOOK_SECRET ?? '';

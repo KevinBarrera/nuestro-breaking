@@ -4,6 +4,9 @@ import {
   accessGroups,
   accessList,
   droppedLinks,
+  groupCounts,
+  groupSummary,
+  markAllSelectable,
   savedChoices,
   type AccessChoices,
 } from './pass-access-model';
@@ -83,5 +86,39 @@ describe('droppedLinks', () => {
       { activityId: 'gone', access: 'included' as const },
     ];
     expect(droppedLinks(links, accessGroups(activities))).toBe(2);
+  });
+});
+
+describe('groupCounts', () => {
+  it('counts eligible and included activities in one group, unset ones as no access', () => {
+    const [battles] = accessGroups(activities);
+    const choices: AccessChoices = { duo: 'selectable', crews: 'included', footwork: 'included' };
+    expect(groupCounts(battles, choices)).toEqual({ selectable: 1, included: 1, total: 3 });
+    expect(groupCounts(battles, {})).toEqual({ selectable: 0, included: 0, total: 3 });
+  });
+});
+
+describe('groupSummary', () => {
+  it('reads the counts in Spanish with singular and plural forms', () => {
+    expect(groupSummary({ selectable: 2, included: 0, total: 3 })).toBe(
+      '2 elegibles · 0 incluidas · 3 actividades',
+    );
+    expect(groupSummary({ selectable: 1, included: 1, total: 1 })).toBe(
+      '1 elegible · 1 incluida · 1 actividad',
+    );
+  });
+});
+
+describe('markAllSelectable', () => {
+  it('makes every activity of the group eligible and keeps other groups as they were', () => {
+    const [battles] = accessGroups(activities);
+    const choices: AccessChoices = { crews: 'included', footwork: 'included' };
+    expect(markAllSelectable(battles, choices)).toEqual({
+      duo: 'selectable',
+      kids: 'selectable',
+      crews: 'selectable',
+      footwork: 'included',
+    });
+    expect(choices).toEqual({ crews: 'included', footwork: 'included' });
   });
 });

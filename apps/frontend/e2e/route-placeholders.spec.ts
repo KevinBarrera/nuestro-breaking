@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { eventId, mockAdminApi } from './support/admin-mocks.ts';
 import { selectTrigger } from './support/select.ts';
 
 const sessionEndpoint = (url: URL) => url.port === '3000' && url.pathname === '/auth/session';
@@ -177,6 +178,64 @@ test('signs out an admin using the session CSRF header and clears local identity
       }),
     ).toEqual({ user: null });
   }
+});
+
+test('signing out from a deep screen goes to /admin, so signing in starts at the event entry', async ({
+  page,
+}) => {
+  const csrf = 'session-bound-csrf';
+  let signedIn = true;
+  await mockAdminApi(page);
+  await page.route(sessionEndpoint, (route) =>
+    signedIn
+      ? route.fulfill({
+          headers: { 'X-CSRF-Token': csrf, 'Access-Control-Expose-Headers': 'X-CSRF-Token' },
+          json: { user },
+        })
+      : route.fulfill({ status: 401, json: {} }),
+  );
+  // Two events keep the picker in place; a single event would redirect to its overview.
+  await page.route(adminEventsEndpoint, (route) =>
+    route.fulfill({
+      json: [
+        { id: eventId, name: 'Encuentro del barrio' },
+        { id: 'b1b2c3d4-1234-4567-89ab-123456789abc', name: 'Batalla de otoño' },
+      ],
+    }),
+  );
+  await page.route(signOutEndpoint, (route) => {
+    if (route.request().method() === 'OPTIONS')
+      return route.fulfill({
+        status: 204,
+        headers: {
+          'Access-Control-Allow-Origin': 'http://127.0.0.1:4173',
+          'Access-Control-Allow-Credentials': 'true',
+          'Access-Control-Allow-Methods': 'POST',
+          'Access-Control-Allow-Headers': 'X-CSRF-Token',
+        },
+      });
+    signedIn = false;
+    return route.fulfill({ status: 200, json: {} });
+  });
+  await page.route(signInEndpoint, (route) => {
+    signedIn = true;
+    return route.fulfill({ json: { user } });
+  });
+  // A screen with unsaved edits: signing out leaves it without the unsaved-changes prompt.
+  await page.goto(`/admin/events/${eventId}/passes/new`);
+  await page
+    .getByRole('form', { name: 'Nuevo pase' })
+    .getByRole('textbox', { name: 'Nombre', exact: true })
+    .fill('Pase borrador');
+  await page.getByRole('button', { name: 'Cerrar sesión' }).click();
+  await expect(page.getByRole('heading', { name: 'Iniciar sesión' })).toBeVisible();
+  await expect(page).toHaveURL(/\/admin$/);
+  await expect(page.getByRole('alertdialog')).toHaveCount(0);
+  await page.getByLabel('Correo electrónico').fill('admin@example.com');
+  await page.getByLabel('Contraseña').fill('secret');
+  await page.getByRole('button', { name: 'Iniciar sesión' }).click();
+  await expect(page.getByRole('heading', { name: 'Eventos', exact: true })).toBeVisible();
+  await expect(page).toHaveURL(/\/admin$/);
 });
 
 test('does not sign out without a session CSRF header', async ({ page }) => {

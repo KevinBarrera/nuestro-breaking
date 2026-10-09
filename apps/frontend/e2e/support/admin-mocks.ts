@@ -171,10 +171,8 @@ export async function useTheme(page: Page, theme: (typeof themes)[number]) {
   await page.addInitScript({ content: `localStorage.setItem('nb-theme', '${theme}');` });
 }
 
-const accessTriggers = (page: Page) =>
-  page
-    .getByRole('region', { name: 'Acceso a actividades' })
-    .locator('button[aria-haspopup="listbox"]');
+const accessControls = (page: Page) =>
+  page.getByRole('region', { name: 'Acceso a actividades' }).getByRole('radiogroup');
 
 // Puts each screen in a state that shows its main interactive controls.
 export async function revealControls(page: Page, name: AdminScreenName) {
@@ -189,7 +187,7 @@ export async function revealControls(page: Page, name: AdminScreenName) {
     await page.getByRole('link', { name: 'Editar Pase completo' }).waitFor();
     await page.getByRole('button', { name: /^Restaurar Pase archivado/ }).waitFor();
   }
-  if (name === 'Pase' || name === 'Nuevo pase') await accessTriggers(page).first().waitFor();
+  if (name === 'Pase' || name === 'Nuevo pase') await accessControls(page).first().waitFor();
   if (name === 'Actividades') await page.getByRole('button', { name: /^Todas/ }).waitFor();
   if (name === 'Resumen') {
     await page.getByRole('table', { name: 'Pases a la venta' }).waitFor();

@@ -1,5 +1,6 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
-import { chooseOption, expectSelected, selectTrigger } from './support/select.ts';
+import { accessControl, chooseAccess, expectAccess } from './support/access.ts';
+import { chooseOption, selectTrigger } from './support/select.ts';
 
 // Pass writes are protected like activity writes: every save goes through "Revisar cambios",
 // archiving asks in a confirmation dialog, and leaving a pass screen with unsaved edits warns.
@@ -182,8 +183,8 @@ test('an access edit is reviewed per activity and saved with its expected versio
     },
   );
   await page.goto(detailPath);
-  await chooseOption(selectTrigger(access(page), 'Acceso a Batalla de crews'), 'Incluida');
-  await chooseOption(selectTrigger(access(page), 'Acceso a Taller de footwork'), 'Elegible');
+  await chooseAccess(accessControl(access(page), 'Acceso a Batalla de crews'), 'Incluida');
+  await chooseAccess(accessControl(access(page), 'Acceso a Taller de footwork'), 'Elegible');
   await access(page).getByRole('button', { name: 'Guardar acceso' }).click();
   await expectReviewRows(page, [
     ['Batalla de crews', 'Elegible', 'Incluida'],
@@ -223,13 +224,13 @@ test('a field save keeps unsaved access edits and the next access save sends the
     },
   );
   await page.goto(detailPath);
-  await chooseOption(selectTrigger(access(page), 'Acceso a Batalla de crews'), 'Incluida');
+  await chooseAccess(accessControl(access(page), 'Acceso a Batalla de crews'), 'Incluida');
   await form(page).getByLabel('Nombre').fill('Pase VIP');
   await form(page).getByRole('button', { name: 'Guardar cambios' }).click();
   await review(page).getByRole('button', { name: 'Guardar cambios' }).click();
   await expect(page.getByRole('status')).toContainText('Pase actualizado');
   await expect(form(page)).toContainText('v3');
-  await expectSelected(selectTrigger(access(page), 'Acceso a Batalla de crews'), 'Incluida');
+  await expectAccess(accessControl(access(page), 'Acceso a Batalla de crews'), 'Incluida');
 
   await access(page).getByRole('button', { name: 'Guardar acceso' }).click();
   await review(page).getByRole('button', { name: 'Guardar cambios' }).click();
@@ -263,7 +264,7 @@ test('a new pass is reviewed with its fields and access before the POST', async 
   await form(page, 'Nuevo pase').getByLabel('Nombre').fill('Entrada general');
   await form(page, 'Nuevo pase').getByRole('radio', { name: 'General' }).check();
   await form(page, 'Nuevo pase').getByLabel('Precio (MXN)').fill('300');
-  await chooseOption(selectTrigger(access(page), 'Acceso a Batalla de crews'), 'Incluida');
+  await chooseAccess(accessControl(access(page), 'Acceso a Batalla de crews'), 'Incluida');
   await form(page, 'Nuevo pase').getByRole('button', { name: 'Guardar' }).click();
   await expectReviewRows(page, [
     ['Nombre', '—', 'Entrada general'],
@@ -345,7 +346,7 @@ test('leaving a pass with unsaved edits asks first; "Salir sin guardar" proceeds
 test('unsaved access edits and a dirty create screen also ask before leaving', async ({ page }) => {
   await mockCatalog(page, () => [fullPass]);
   await page.goto(detailPath);
-  await chooseOption(selectTrigger(access(page), 'Acceso a Batalla de crews'), 'Incluida');
+  await chooseAccess(accessControl(access(page), 'Acceso a Batalla de crews'), 'Incluida');
   await breadcrumb(page).getByRole('link', { name: 'Pases' }).click();
   await leaveDialog(page).getByRole('button', { name: 'Salir sin guardar' }).click();
   await expect(page).toHaveURL(passesPath);
@@ -355,7 +356,7 @@ test('unsaved access edits and a dirty create screen also ask before leaving', a
   await form(page, 'Nuevo pase').getByRole('button', { name: 'Cancelar' }).click();
   await expect(page).toHaveURL(passesPath);
   await page.getByRole('link', { name: 'Nuevo pase' }).click();
-  await chooseOption(selectTrigger(access(page), 'Acceso a Taller de footwork'), 'Elegible');
+  await chooseAccess(accessControl(access(page), 'Acceso a Taller de footwork'), 'Elegible');
   await form(page, 'Nuevo pase').getByRole('button', { name: 'Cancelar' }).click();
   await expect(leaveDialog(page)).toBeVisible();
   await expect(page).toHaveURL(`${passesPath}/new`);
@@ -406,7 +407,7 @@ test('stale versions stay visible on both the field and the access save', async 
   await expect(page.getByRole('alert').filter({ hasText: 'Conflicto' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Recargar' })).toBeVisible();
 
-  await chooseOption(selectTrigger(access(page), 'Acceso a Batalla de crews'), 'Incluida');
+  await chooseAccess(accessControl(access(page), 'Acceso a Batalla de crews'), 'Incluida');
   await access(page).getByRole('button', { name: 'Guardar acceso' }).click();
   await review(page).getByRole('button', { name: 'Guardar cambios' }).click();
   await expect(access(page).getByRole('alert')).toContainText('Otra persona cambió este pase');

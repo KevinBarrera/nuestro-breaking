@@ -2,6 +2,7 @@ import { apiUrl } from '@/shared/api';
 import { type FormEvent, useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { routes } from '@/shared/config';
+import { buttonClass } from '@/shared/ui';
 import { useEventName } from './use-event-name';
 
 type Registration = {
@@ -23,8 +24,7 @@ type Notice = { kind: 'success' | 'duplicate' | 'error'; text: string };
 const eligible = new Set(['workshop', 'battle', 'competition']);
 const button =
   'min-h-11 rounded-lg bg-primary px-4 py-2 font-semibold text-primary-fg hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus disabled:cursor-wait disabled:opacity-50';
-// Admission is the one action an operator must not miss: larger and full width on phones.
-const admitButton = `${button} min-h-14 w-full text-lg font-extrabold sm:w-auto sm:px-6`;
+const admitButton = buttonClass('primary', 'w-full sm:w-auto');
 const chip = 'inline-flex rounded-full px-3 py-1 text-sm font-semibold';
 const statusBox = 'rounded-lg border p-4';
 const noticeStyles: Record<Notice['kind'], string> = {

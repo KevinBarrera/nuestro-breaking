@@ -25,8 +25,11 @@ type PassTypeFormProps = {
   onArchive?: () => Promise<boolean>;
   // Reports whether the fields differ from the saved pass (or, for a new pass, from empty).
   onDirtyChange?: (dirty: boolean) => void;
-  // Extra fields shown before the actions, e.g. the new pass's access list.
-  children?: ReactNode;
+  // The card heading; the form's accessible name stays `title`.
+  heading?: string;
+  // A second card beside the fields (the new pass's access list). With it, the form lays out
+  // both cards in two columns from `lg` up, stacked on phones, and the actions go below both.
+  aside?: ReactNode;
 };
 
 // "Ninguno" stands for no required class (stored as ''), so it gets an explicit key.
@@ -34,9 +37,6 @@ const requiredOptions = [
   { id: 'none', label: 'Ninguno' },
   ...requiredPassClasses.map((value) => ({ id: value, label: passClassLabels[value] })),
 ];
-
-const segment =
-  'relative flex min-h-11 items-center justify-center rounded-md px-2 text-sm font-semibold text-fg has-checked:bg-nav-active has-checked:text-nav-active-fg has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-focus';
 
 export function PassTypeForm({
   title,
@@ -46,7 +46,8 @@ export function PassTypeForm({
   onCancel,
   onArchive,
   onDirtyChange,
-  children,
+  heading = title,
+  aside,
 }: PassTypeFormProps) {
   const id = useId();
   const [confirmingArchive, setConfirmingArchive] = useState(false);
@@ -102,10 +103,10 @@ export function PassTypeForm({
     if (!(await onArchive())) setConfirmingArchive(false);
   }
 
-  return (
-    <form aria-label={title} onSubmit={submit} className={`${styles.card} space-y-4`}>
+  const fields = (
+    <>
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="text-lg font-bold text-heading">{title}</h2>
+        <h2 className="text-lg font-bold text-heading">{heading}</h2>
         {passType && (
           <span className="font-mono text-sm text-muted">
             <span className="sr-only">Versión </span>v{passType.version}
@@ -125,16 +126,16 @@ export function PassTypeForm({
         </label>
         <fieldset>
           <legend className={styles.label}>Clase</legend>
-          <div className="mt-1 grid grid-cols-3 gap-1 rounded-lg border border-input-line bg-input p-1">
+          <div className={`mt-1 ${styles.segments}`}>
             {passClasses.map((value) => (
-              <label key={value} className={segment}>
+              <label key={value} className={styles.segment}>
                 <input
                   type="radio"
                   name={`${id}-class`}
                   value={value}
                   checked={passClass === value}
                   onChange={() => setPassClass(value)}
-                  className="absolute inset-0 m-0 cursor-pointer appearance-none rounded-md"
+                  className={styles.segmentInput}
                 />
                 {passClassLabels[value]}
               </label>
@@ -152,17 +153,24 @@ export function PassTypeForm({
           />
         </label>
         {passClass === 'add_on' && (
-          <Select
-            label="Requiere pase"
-            options={requiredOptions}
-            selectedKey={requires || 'none'}
-            onSelectionChange={(key) =>
-              setRequires(key === 'none' ? '' : (key as RequiredPassClass))
-            }
-          />
+          <div>
+            <Select
+              label="Requiere pase"
+              options={requiredOptions}
+              selectedKey={requires || 'none'}
+              onSelectionChange={(key) =>
+                setRequires(key === 'none' ? '' : (key as RequiredPassClass))
+              }
+            />
+            <p className="mt-1 text-sm text-muted">Solo aplica a pases adicionales.</p>
+          </div>
         )}
       </div>
-      {children}
+    </>
+  );
+
+  const actions = (
+    <>
       {error && (
         <p role="alert" className="text-sm text-danger-fg">
           {error}
@@ -201,6 +209,25 @@ export function PassTypeForm({
           onConfirm={() => void archive()}
         />
       )}
+    </>
+  );
+
+  if (!aside)
+    return (
+      <form aria-label={title} onSubmit={submit} className={`${styles.card} space-y-4`}>
+        {fields}
+        {actions}
+      </form>
+    );
+
+  // One form and one submit for both cards, so the access list goes out with the fields.
+  return (
+    <form aria-label={title} onSubmit={submit} className="space-y-4">
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
+        <div className={`${styles.card} min-w-0 space-y-4`}>{fields}</div>
+        <div className="min-w-0">{aside}</div>
+      </div>
+      {actions}
     </form>
   );
 }

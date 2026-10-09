@@ -174,31 +174,29 @@ export function PassCreateScreen() {
         <h1 className={titleClass}>Nuevo pase</h1>
       </header>
       {notices}
-      <div className="max-w-xl">
-        <PassTypeForm
-          title="Nuevo pase"
-          busy={busy}
-          onSubmit={openReview}
-          onCancel={() => void navigate(passListPath(eventId))}
-          onDirtyChange={setFieldsDirty}
-        >
+      <PassTypeForm
+        title="Nuevo pase"
+        heading="Datos del pase"
+        busy={busy}
+        onSubmit={openReview}
+        onCancel={() => void navigate(passListPath(eventId))}
+        onDirtyChange={setFieldsDirty}
+        aside={
           <AccessSection
-            level={3}
-            intro="Elige qué actividades da este pase. Puedes cambiarlo después."
-            className="border-t border-line pt-4"
+            level={2}
+            intro="Todas empiezan sin acceso. Marca qué puede escoger o qué incluye este pase."
+            className={styles.card}
           >
             <AccessList
               groups={groups}
               choices={choices}
-              level={3}
+              level={2}
               busy={busy}
-              onChange={(activityId, choice) =>
-                setChoices((current) => ({ ...current, [activityId]: choice }))
-              }
+              onChange={setChoices}
             />
           </AccessSection>
-        </PassTypeForm>
-      </div>
+        }
+      />
       <ReviewChangesDialog
         isOpen={review !== null}
         onOpenChange={(open) => {

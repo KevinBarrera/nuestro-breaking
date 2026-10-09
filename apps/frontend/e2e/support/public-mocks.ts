@@ -142,7 +142,7 @@ export async function mockRegistration(page: Page, reply: RegistrationReply) {
 }
 
 // The 201 for Pase completo Breaking (Bboy and 3v3 picked) plus Open Styles.
-export const reservedRegistration = {
+export const pendingRegistration = {
   registrationId: '6b0f0b5e-6d1f-4f8f-9a55-0f1c2b3d4e5f',
   status: 'pending_payment',
   passes: [
@@ -164,4 +164,45 @@ export const reservedRegistration = {
   totalCents: 280000,
 };
 
-export const registrationReply = (json: unknown = reservedRegistration) => ({ status: 201, json });
+export const registrationReply = (json: unknown = pendingRegistration) => ({ status: 201, json });
+
+type CheckoutReply = { status: number; json?: unknown } | 'network-error';
+
+// A fake Mercado Pago hosted page; never a real Mercado Pago URL or credential.
+export const fakeCheckoutUrl = 'https://example.test/checkout/v1/redirect?pref_id=test-pref';
+
+export const checkoutReply = (checkoutUrl = fakeCheckoutUrl) => ({
+  status: 201,
+  json: { checkoutUrl },
+});
+
+const checkoutEndpoint = (url: URL) =>
+  url.port === '3000' &&
+  /^\/public\/events\/[^/]+\/registrations\/[^/]+\/checkout$/.test(url.pathname);
+
+/**
+ * Answers `POST /public/events/:slug/registrations/:id/checkout` with the current reply and
+ * records the requests; `answer` swaps the reply. It also serves the fake hosted page, so the
+ * full page navigation to `fakeCheckoutUrl` lands without leaving the test.
+ */
+export async function mockCheckout(page: Page, reply: CheckoutReply) {
+  const requests: Request[] = [];
+  let current = reply;
+  await page.route(checkoutEndpoint, (route) => {
+    requests.push(route.request());
+    if (current === 'network-error') return route.abort('failed');
+    return route.fulfill(current);
+  });
+  await page.route('https://example.test/**', (route) =>
+    route.fulfill({
+      contentType: 'text/html',
+      body: '<!doctype html><title>Checkout</title><h1>Fake checkout</h1>',
+    }),
+  );
+  return {
+    requests,
+    answer: (next: CheckoutReply) => {
+      current = next;
+    },
+  };
+}

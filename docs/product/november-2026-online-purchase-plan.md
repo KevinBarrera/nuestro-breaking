@@ -30,7 +30,7 @@ Plan MVP 3 (payment readiness): a buyer without an account buys passes for the N
 4. They enter their data (#58 fields, email required).
 5. They review the purchase, read the overlap notice, accept the three legal documents and pay. A `pending_payment` registration is created.
 6. They pay on the Mercado Pago Checkout Pro hosted page. The frontend gets its URL from `POST /public/events/:slug/registrations/:registrationId/checkout` (#177), which creates a new preference for a `pending_payment` registration on every call.
-7. They return to a result screen (`/e/:slug/pago?registration=<id>`, for every outcome): confirming (polling), confirmed with folio, pending (OXXO/SPEI) or rejected with retry. The confirmation email arrives once the webhook confirms the payment.
+7. They return to a result screen (`/e/:slug/pago?registration=<id>`, for every outcome): confirming (polling), confirmed with folio, pending (OXXO/SPEI) or rejected with retry. The confirmation email arrives once the webhook confirms the payment. Until #178, #177 ships a minimal screen there that only says the payment is being confirmed; the URL's own status is never trusted.
 
 ## Routes
 

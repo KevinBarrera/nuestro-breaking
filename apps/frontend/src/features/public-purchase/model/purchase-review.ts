@@ -76,6 +76,8 @@ export function payFailure(failure: PublicEventFailure): PayFailure {
     case 'rate-limited':
       return only('Demasiados intentos, espera un momento e intenta de nuevo.');
     case 'unavailable':
+    case 'not-payable':
+    case 'provider-unavailable':
     case 'error':
       return only(failureMessage(failure));
   }

@@ -1,6 +1,7 @@
 // Shapes of the public, credential-less endpoints: `GET /public/events/:slug/catalog`
 // (`docs/contracts/public-event-catalog.md`) and `POST /public/events/:slug/registrations`
-// (`docs/contracts/public-registration.md`).
+// (`docs/contracts/public-registration.md`), and the Checkout Pro start
+// `POST /public/events/:slug/registrations/:registrationId/checkout` (#177).
 export const publicPassClasses = ['full', 'general', 'add_on'] as const;
 export const publicSalesClosedReasons = ['disabled', 'not_yet_open', 'ended'] as const;
 export const registrationRuleCodes = [
@@ -87,6 +88,9 @@ export type Registration = {
   totalCents: number;
 };
 
+// Mercado Pago's hosted checkout page for one pending registration.
+export type Checkout = { checkoutUrl: string };
+
 // Why a public request failed. `fieldErrors` maps a field path (`buyer.email`,
 // `passes[0].passTypeId`) to the backend code (`required`, `invalid`, `too_long`, ...).
 export type PublicEventFailure =
@@ -95,5 +99,7 @@ export type PublicEventFailure =
   | { kind: 'invalid'; fieldErrors: Record<string, string> }
   | { kind: 'rule'; code: RegistrationRuleCode }
   | { kind: 'unavailable' }
+  | { kind: 'not-payable' }
+  | { kind: 'provider-unavailable' }
   | { kind: 'rate-limited' }
   | { kind: 'error' };

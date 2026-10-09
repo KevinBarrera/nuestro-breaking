@@ -7,8 +7,8 @@ export const routes = {
   publicCompetitions: '/e/:slug/competencias',
   publicBuyer: '/e/:slug/datos',
   publicReview: '/e/:slug/revisar',
-  // Temporary "Reservamos tu inscripción" screen (D1 of #176); #177 replaces it.
-  publicReserved: '/e/:slug/reservada',
+  // Mercado Pago's return address for every outcome (#177 D8): `?registration=<id>`.
+  publicPayment: '/e/:slug/pago',
   admin: '/admin',
   adminEventOverview: '/admin/events/:eventId',
   adminEventFoundation: '/admin/events/:eventId/foundation',

@@ -2,10 +2,14 @@ import { expect, test, type Page } from '@playwright/test';
 import {
   addApiSessionCookie,
   catalogReply,
+  checkoutReply,
   draftKey,
+  fakeCheckoutUrl,
+  mockCheckout,
   mockPublicCatalog,
   mockRegistration,
   registrationReply,
+  pendingRegistration,
   slug,
 } from './support/public-mocks.ts';
 
@@ -13,8 +17,8 @@ import {
 test.use({ viewport: { width: 390, height: 844 } });
 
 const home = `/e/${slug}`;
-const step = (name: 'pases' | 'competencias' | 'datos' | 'revisar' | 'reservada') =>
-  `/e/${slug}/${name}`;
+const step = (name: 'pases' | 'competencias' | 'datos' | 'revisar') => `/e/${slug}/${name}`;
+const checkoutPath = `/public/events/${slug}/registrations/${pendingRegistration.registrationId}/checkout`;
 
 const overlapNotice =
   'Algunas competencias o workshops pueden coincidir en horario. Puedes elegir libremente a cuáles asistir; intentaremos evitar cruces entre competencias, pero no podemos garantizarlos. Open Styles no coincidirá con competencias de pase completo, aunque podría coincidir parcialmente con workshops.';
@@ -56,13 +60,14 @@ async function seedDraft(page: Page, buyer: Record<string, string> = {}) {
 }
 
 test.describe('public review and pay', () => {
-  test('goes from the home to a reserved registration without credentials', async ({
+  test('goes from the home to the Mercado Pago checkout without credentials', async ({
     page,
     context,
   }) => {
     await addApiSessionCookie(context);
     await mockPublicCatalog(page, catalogReply());
     const registration = await mockRegistration(page, registrationReply());
+    const checkout = await mockCheckout(page, checkoutReply());
 
     await page.goto(home);
     await page.getByRole('link', { name: 'Comprar pases' }).click();
@@ -123,13 +128,17 @@ test.describe('public review and pay', () => {
     // Pending: a second click cannot send a second request.
     registration.hold();
     await payButton(page).click();
-    const pending = page.getByRole('button', { name: 'Reservando tu inscripción…' });
+    const pending = page.getByRole('button', { name: 'Te estamos llevando a Mercado Pago…' });
     await expect(pending).toBeDisabled();
     await pending.click({ force: true });
     registration.release();
 
-    await expect(page).toHaveURL(step('reservada'));
+    // A full page load to Mercado Pago's hosted page.
+    await expect(page).toHaveURL(fakeCheckoutUrl);
     expect(registration.requests).toHaveLength(1);
+    expect(checkout.requests).toHaveLength(1);
+    expect(new URL(checkout.requests[0].url()).pathname).toBe(checkoutPath);
+    expect(checkout.requests[0].method()).toBe('POST');
     const request = registration.requests[0];
     expect(request.postDataJSON()).toEqual({
       buyer: {
@@ -144,28 +153,47 @@ test.describe('public review and pay', () => {
         { passTypeId: 'open-styles' },
       ],
     });
-    const headers = await request.allHeaders();
-    expect(headers.cookie).toBeUndefined();
-    expect(headers['x-csrf-token']).toBeUndefined();
-
-    await expectReserved(page);
-    expect(await page.evaluate((key) => sessionStorage.getItem(key), draftKey)).toBeNull();
-
-    // A refresh keeps the reserved screen.
-    await page.reload();
-    await expectReserved(page);
+    for (const sent of [request, checkout.requests[0]]) {
+      const headers = await sent.allHeaders();
+      expect(headers.cookie).toBeUndefined();
+      expect(headers['x-csrf-token']).toBeUndefined();
+    }
 
     // A new purchase starts empty.
-    await page.getByRole('link', { name: 'Volver al inicio' }).click();
-    await expect(page).toHaveURL(home);
     await page.goto(step('revisar'));
     await expect(page).toHaveURL(step('pases'));
   });
 
-  test('sends a direct visit to the reserved screen to the home', async ({ page }) => {
+  test('retries only the checkout when Mercado Pago is unavailable', async ({ page }) => {
+    await seedDraft(page);
     await mockPublicCatalog(page, catalogReply());
-    await page.goto(step('reservada'));
-    await expect(page).toHaveURL(home);
+    const registration = await mockRegistration(page, registrationReply());
+    const checkout = await mockCheckout(page, {
+      status: 502,
+      json: { statusCode: 502, code: 'payment_provider_unavailable' },
+    });
+    await page.goto(step('revisar'));
+    await acceptLegal(page);
+    await payButton(page).click();
+
+    const alert = page.getByRole('alert');
+    await expect(alert).toContainText('Mercado Pago no respondió. Intenta de nuevo en un momento.');
+    await expect(alert).toContainText('No se hizo ningún cargo.');
+    await expect(page).toHaveURL(step('revisar'));
+    expect(await page.evaluate((key) => sessionStorage.getItem(key), draftKey)).toMatch(
+      /ana@ejemplo\.com/,
+    );
+
+    checkout.answer(checkoutReply());
+    await alert.getByRole('button', { name: 'Reintentar' }).click();
+    await expect(page).toHaveURL(fakeCheckoutUrl);
+    expect(registration.requests).toHaveLength(1);
+    expect(checkout.requests).toHaveLength(2);
+  });
+
+  test('no longer has the temporary reserved screen', async ({ page }) => {
+    await page.goto(`/e/${slug}/reservada`);
+    await expect(page.getByRole('heading', { level: 1, name: 'Page not found' })).toBeVisible();
   });
 
   test('sends review back to datos when the saved buyer data is not valid', async ({ page }) => {
@@ -225,6 +253,7 @@ test.describe('public review and pay', () => {
       await seedDraft(page);
       await mockPublicCatalog(page, catalogReply());
       const registration = await mockRegistration(page, failure.reply);
+      await mockCheckout(page, checkoutReply());
       await page.goto(step('revisar'));
       await acceptLegal(page);
       await payButton(page).click();
@@ -244,7 +273,7 @@ test.describe('public review and pay', () => {
       // Retrying is possible from the same screen.
       registration.answer(registrationReply());
       await payButton(page).click();
-      await expect(page).toHaveURL(step('reservada'));
+      await expect(page).toHaveURL(fakeCheckoutUrl);
     });
   }
 
@@ -252,6 +281,7 @@ test.describe('public review and pay', () => {
     await seedDraft(page);
     await mockPublicCatalog(page, catalogReply());
     const registration = await mockRegistration(page, 'network-error');
+    await mockCheckout(page, checkoutReply());
     await page.goto(step('revisar'));
     await acceptLegal(page);
     await payButton(page).click();
@@ -260,7 +290,7 @@ test.describe('public review and pay', () => {
     );
     registration.answer(registrationReply());
     await payButton(page).click();
-    await expect(page).toHaveURL(step('reservada'));
+    await expect(page).toHaveURL(fakeCheckoutUrl);
     expect(registration.requests).toHaveLength(2);
   });
 
@@ -280,17 +310,3 @@ test.describe('public review and pay', () => {
     await expect(payButton(page)).toBeVisible();
   });
 });
-
-async function expectReserved(page: Page) {
-  await expect(
-    page.getByRole('heading', { level: 1, name: 'Reservamos tu inscripción' }),
-  ).toBeVisible();
-  const main = page.getByRole('main');
-  await expect(main).toContainText('Pase completo Breaking');
-  await expect(main).toContainText('Open Styles');
-  await expect(main).toContainText(/Total\s*\$2,800\.00 MXN/);
-  await expect(main).toContainText('Te escribiremos a ana@ejemplo.com');
-  await expect(main).toContainText(
-    'El pago en línea estará disponible pronto. Tu lugar queda apartado mientras tanto; no necesitas hacer nada más por ahora.',
-  );
-}

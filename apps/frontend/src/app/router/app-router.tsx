@@ -4,8 +4,8 @@ import {
   PublicCompetitionsPage,
   PublicHomePage,
   PublicPassesPage,
+  PublicPaymentReturnPage,
   PublicPurchaseLayout,
-  PublicReservedPage,
   PublicReviewPage,
 } from '@/pages/public-purchase';
 import { routes } from '@/shared/config';
@@ -53,9 +53,8 @@ const appRoutes: RouteObject[] = [
       { path: routes.publicReview, element: <PublicReviewPage /> },
     ],
   },
-  // Temporary reserved screen (D1 of #176), outside the layout so it needs no catalog; #177
-  // replaces it with the Mercado Pago redirect.
-  { path: routes.publicReserved, element: <PublicReservedPage /> },
+  // Mercado Pago's return (#177), outside the purchase layout so it needs no catalog.
+  { path: routes.publicPayment, element: <PublicPaymentReturnPage /> },
   { path: routes.adminEventPassTypesLegacy, element: <LegacyPassTypesRedirect /> },
   {
     hydrateFallbackElement: routeFallback,

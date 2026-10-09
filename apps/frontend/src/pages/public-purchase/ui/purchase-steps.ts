@@ -58,6 +58,3 @@ export function stepRedirect(
   if (step === 'review' && !buyerReady) return 'buyer';
   return null;
 }
-
-// The temporary screen after paying (D1); #177 replaces it with the Mercado Pago redirect.
-export const reservedPath = (slug: string) => generatePath(routes.publicReserved, { slug });

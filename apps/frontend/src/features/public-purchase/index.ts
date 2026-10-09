@@ -14,6 +14,12 @@ export {
   type BuyerField,
   type BuyerForm,
 } from './model/buyer-form';
+export {
+  checkoutFailure,
+  paymentReturnRegistration,
+  safeCheckoutUrl,
+  type CheckoutFailure,
+} from './model/checkout';
 export { passGroups, type PassGroup } from './model/pass-groups';
 export {
   draftStorageKey,
@@ -49,11 +55,3 @@ export {
   serverErrors,
   type ServerErrors,
 } from './model/registration-request';
-export {
-  parseReserved,
-  readReserved,
-  reservedPurchase,
-  reservedStorageKey,
-  serializeReserved,
-  type ReservedPurchase,
-} from './model/reserved-purchase';

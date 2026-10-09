@@ -1,30 +1,31 @@
 import { formatMxn } from '@/entities/event-catalog';
-import { createRegistration, publicEventFailure } from '@/entities/public-event';
+import {
+  createCheckout,
+  createRegistration,
+  PublicEventError,
+  publicEventFailure,
+} from '@/entities/public-event';
 import {
   buildRegistrationRequest,
+  checkoutFailure,
   localIsoDate,
   payFailure,
   purchaseTotals,
-  reservedPurchase,
   reviewBuyer,
   reviewLines,
+  safeCheckoutUrl,
   validateBuyer,
+  type CheckoutFailure,
   type PayFailure,
   type PayFix,
 } from '@/features/public-purchase';
-import { CheckboxField, Notice } from '@/shared/ui';
+import { buttonClass, CheckboxField, Notice } from '@/shared/ui';
 import { continueButtonClass, PublicFrame, StepBar, StepProgress } from '@/widgets/public-layout';
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
-import { Link, Navigate, useNavigate } from 'react-router';
-import { clearStoredDraft, sessionDraftStorage, storeReserved } from './draft-storage';
+import { Link, Navigate } from 'react-router';
+import { clearStoredDraft, sessionDraftStorage } from './draft-storage';
 import { usePurchase } from './purchase-context';
-import {
-  purchaseStepCount,
-  reservedPath,
-  stepNumber,
-  stepPath,
-  stepRedirect,
-} from './purchase-steps';
+import { purchaseStepCount, stepNumber, stepPath, stepRedirect } from './purchase-steps';
 
 const overlapNotice =
   'Algunas competencias o workshops pueden coincidir en horario. Puedes elegir libremente a cuáles asistir; intentaremos evitar cruces entre competencias, pero no podemos garantizarlos. Open Styles no coincidirá con competencias de pase completo, aunque podría coincidir parcialmente con workshops.';
@@ -60,14 +61,17 @@ const fixLabels: Record<PayFix, string> = {
 const linkClass =
   'inline-flex min-h-11 items-center font-semibold text-link underline underline-offset-2 hover:text-link-hover focus-visible:outline-2 focus-visible:outline-focus';
 
-// Screen 5 (Revisa y paga). "Pagar" creates the pending registration (D1): while it is sent the
-// button is disabled and says so; on success the draft is cleared and the temporary reserved
-// screen shows the response. Failures keep the draft and show a notice here, with a link to the
-// screen that fixes them (server field errors too: the buyer data passed the same validation on
-// datos, so a list with "Corregir mis datos" is clearer than sending the buyer back unasked).
+// Screen 5 (Revisa y paga). "Pagar" creates the pending registration (D1), then starts a Mercado
+// Pago checkout for it (#177) and sends the browser to the hosted page with a full page load.
+// While this runs the button is disabled and says so. Registration failures keep the draft and
+// show a notice with a link to the screen that fixes them (server field errors too: the buyer
+// data passed the same validation on datos, so a list with "Corregir mis datos" is clearer than
+// sending the buyer back unasked). A checkout failure leaves the registration pending: the page
+// keeps its id, so "Reintentar" (and "Pagar") only ask for a new checkout. After a reload the id
+// is gone, but the draft is kept until the redirect and the backend reuses the buyer's pending
+// registration, so paying again never creates a second one.
 export function PublicReviewPage() {
   const { slug, catalog, selection, buyer } = usePurchase();
-  const navigate = useNavigate();
   const [accepted, setAccepted] = useState<Record<LegalId, boolean>>({
     rules: false,
     privacy: false,
@@ -75,6 +79,9 @@ export function PublicReviewPage() {
   });
   const [pending, setPending] = useState(false);
   const [failure, setFailure] = useState<PayFailure | null>(null);
+  const [checkoutError, setCheckoutError] = useState<CheckoutFailure | null>(null);
+  // The pending registration this page created, kept while its checkout can still be retried.
+  const registrationId = useRef<string | null>(null);
   // Synchronous guard: two clicks in one frame must not send two requests.
   const sending = useRef(false);
   const request = useRef<AbortController | null>(null);
@@ -82,9 +89,19 @@ export function PublicReviewPage() {
   const hintId = useId();
 
   useEffect(() => () => request.current?.abort(), []);
+  // "Back" from Mercado Pago can restore this page from the back/forward cache, still pending.
   useEffect(() => {
-    if (failure) failureRef.current?.scrollIntoView({ block: 'nearest' });
-  }, [failure]);
+    const reset = (event: PageTransitionEvent) => {
+      if (!event.persisted) return;
+      sending.current = false;
+      setPending(false);
+    };
+    window.addEventListener('pageshow', reset);
+    return () => window.removeEventListener('pageshow', reset);
+  }, []);
+  useEffect(() => {
+    if (failure || checkoutError) failureRef.current?.scrollIntoView({ block: 'nearest' });
+  }, [failure, checkoutError]);
 
   const buyerReady = Object.keys(validateBuyer(buyer, localIsoDate(new Date()))).length === 0;
   const redirect = stepRedirect('review', catalog.passes, selection, buyerReady);
@@ -101,24 +118,44 @@ export function PublicReviewPage() {
     sending.current = true;
     setPending(true);
     setFailure(null);
+    setCheckoutError(null);
     const controller = new AbortController();
     request.current = controller;
-    try {
-      const registration = await createRegistration(
-        slug,
-        buildRegistrationRequest(catalog.passes, selection, buyer),
-        controller.signal,
-      );
-      const reserved = reservedPurchase(registration, buyer.email);
-      const storage = sessionDraftStorage();
-      storeReserved(storage, slug, reserved);
-      clearStoredDraft(storage, slug);
-      void navigate(reservedPath(slug), { replace: true, state: reserved });
-    } catch (error) {
-      if (controller.signal.aborted) return;
-      setFailure(payFailure(publicEventFailure(error)));
+    const stop = () => {
       sending.current = false;
       setPending(false);
+    };
+    let id = registrationId.current;
+    if (!id) {
+      try {
+        const registration = await createRegistration(
+          slug,
+          buildRegistrationRequest(catalog.passes, selection, buyer),
+          controller.signal,
+        );
+        id = registration.registrationId;
+        registrationId.current = id;
+      } catch (error) {
+        if (controller.signal.aborted) return;
+        setFailure(payFailure(publicEventFailure(error)));
+        stop();
+        return;
+      }
+    }
+    try {
+      const checkout = await createCheckout(slug, id, controller.signal);
+      const url = safeCheckoutUrl(checkout.checkoutUrl);
+      if (!url) throw new PublicEventError({ kind: 'error' });
+      clearStoredDraft(sessionDraftStorage(), slug);
+      // A full page load: Mercado Pago's hosted page is another site. Stays pending meanwhile.
+      window.location.assign(url);
+    } catch (error) {
+      if (controller.signal.aborted) return;
+      const next = checkoutFailure(publicEventFailure(error));
+      // Without a retry, "Pagar" starts over with the registration request.
+      if (!next.retry) registrationId.current = null;
+      setCheckoutError(next);
+      stop();
     }
   };
 
@@ -183,6 +220,27 @@ export function PublicReviewPage() {
           ))}
         </fieldset>
 
+        {checkoutError ? (
+          <div ref={failureRef}>
+            <Notice tone="danger" title={checkoutError.message}>
+              {checkoutError.retry ? (
+                <>
+                  <p>No se hizo ningún cargo. Tu inscripción sigue apartada mientras pagas.</p>
+                  <button
+                    type="button"
+                    disabled={pending}
+                    onClick={() => void pay()}
+                    className={buttonClass('primary', 'mt-3')}
+                  >
+                    Reintentar
+                  </button>
+                </>
+              ) : null}
+              {checkoutError.fix ? <FixLink slug={slug} fix={checkoutError.fix} /> : null}
+            </Notice>
+          </div>
+        ) : null}
+
         {failure ? (
           <div ref={failureRef}>
             <Notice tone="danger" title={failure.details.length > 0 ? failure.message : undefined}>
@@ -218,7 +276,7 @@ export function PublicReviewPage() {
           className={continueButtonClass}
         >
           {pending
-            ? 'Reservando tu inscripción…'
+            ? 'Te estamos llevando a Mercado Pago…'
             : `Pagar ${formatMxn(totalCents)} con Mercado Pago`}
         </button>
       </StepBar>

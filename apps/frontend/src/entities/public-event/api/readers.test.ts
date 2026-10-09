@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isPublicCatalog, isRegistration, readFailure } from './readers';
+import { isCheckout, isPublicCatalog, isRegistration, readFailure } from './readers';
 
 const activity = {
   id: 'a1',
@@ -111,6 +111,19 @@ describe('isRegistration', () => {
   });
 });
 
+describe('isCheckout', () => {
+  it('accepts a checkout with a URL string', () => {
+    expect(isCheckout({ checkoutUrl: 'https://example.test/checkout/1' })).toBe(true);
+  });
+
+  it('rejects a missing or blank URL', () => {
+    expect(isCheckout({})).toBe(false);
+    expect(isCheckout({ checkoutUrl: '' })).toBe(false);
+    expect(isCheckout({ checkoutUrl: 3 })).toBe(false);
+    expect(isCheckout(null)).toBe(false);
+  });
+});
+
 describe('readFailure', () => {
   it('maps 404 and 429', () => {
     expect(readFailure(404, { message: 'Event not found' })).toEqual({ kind: 'not-found' });
@@ -141,7 +154,17 @@ describe('readFailure', () => {
     expect(readFailure(409, { code: 'registration_unavailable' })).toEqual({
       kind: 'unavailable',
     });
+    expect(readFailure(409, { code: 'registration_not_payable' })).toEqual({
+      kind: 'not-payable',
+    });
     expect(readFailure(409, { code: 'something_new' })).toEqual({ kind: 'error' });
+  });
+
+  it('maps a 502 from the payment provider only with its code', () => {
+    expect(readFailure(502, { code: 'payment_provider_unavailable' })).toEqual({
+      kind: 'provider-unavailable',
+    });
+    expect(readFailure(502, null)).toEqual({ kind: 'error' });
   });
 
   it('treats any other status as a generic error', () => {

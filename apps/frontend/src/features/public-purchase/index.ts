@@ -8,6 +8,7 @@ export {
   type BuyerField,
   type BuyerForm,
 } from './model/buyer-form';
+export { passGroups, type PassGroup } from './model/pass-groups';
 export {
   draftStorageKey,
   emptyDraft,

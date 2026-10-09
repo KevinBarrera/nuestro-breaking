@@ -9,23 +9,14 @@ const APPROVED = {
   status: 'approved',
   transactionAmountCents: 150050,
   currencyId: 'MXN',
-  liveMode: false,
 };
 
 const decide = (overrides: Partial<PaymentDecisionInput> = {}) =>
-  decidePayment({ payment: APPROVED, mode: 'sandbox', registration: PENDING, ...overrides });
+  decidePayment({ payment: APPROVED, registration: PENDING, ...overrides });
 
 describe('decidePayment', () => {
-  it('confirms a pending registration paid in full, in MXN, in the configured mode', () => {
+  it('confirms a pending registration paid in full and in MXN', () => {
     expect(decide()).toEqual({ outcome: 'confirmed', confirm: true, recordPayment: true });
-  });
-
-  it('matches a production payment against production mode', () => {
-    expect(decide({ mode: 'production', payment: { ...APPROVED, liveMode: true } })).toEqual({
-      outcome: 'confirmed',
-      confirm: true,
-      recordPayment: true,
-    });
   });
 
   it('flags an approval on a registration that another confirmation already settled', () => {
@@ -107,17 +98,6 @@ describe('decidePayment', () => {
       outcome: 'currency_mismatch',
       confirm: false,
       recordPayment: false,
-    });
-  });
-
-  it.each([
-    ['a live payment in sandbox', 'sandbox', true],
-    ['a test payment in production', 'production', false],
-  ] as const)('records a mode mismatch for %s', (_label, mode, liveMode) => {
-    expect(decide({ mode, payment: { ...APPROVED, liveMode } })).toEqual({
-      outcome: 'mode_mismatch',
-      confirm: false,
-      recordPayment: true,
     });
   });
 

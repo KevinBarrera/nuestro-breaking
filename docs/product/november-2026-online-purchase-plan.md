@@ -10,7 +10,7 @@ Plan MVP 3 (payment readiness): a buyer without an account buys passes for the N
 
 ## Confirmed decisions (2026-10-08)
 
-1. **Payment provider:** Mercado Pago Checkout Pro (hosted page). Development uses Mercado Pago test accounts and test credentials (sandbox). Production credentials are swapped in through configuration once the organizer's account exists. Checkout Bricks are not supported by test accounts.
+1. **Payment provider:** Mercado Pago Checkout Pro (hosted page). Development uses Mercado Pago test accounts and test credentials (sandbox). Production credentials are swapped in through configuration once the organizer's account exists. Checkout Bricks are not supported by test accounts. The [sandbox runbook](../runbooks/mercado-pago-sandbox.md) walks through a complete test purchase.
 2. **Countries:** the MVP accepts only domestic (Mexico) payments. International payments are deferred until after the MVP.
 3. **One purchase, one person:** the buyer is the participant. This fits the existing one-registration-per-person-per-event model.
 4. **Confirmation:** a registration is confirmed only by a verified server-side Mercado Pago notification (signed webhook, then the payment is re-read by id), never by the browser redirect. The schema already supports `pending_payment` → `confirmed` with `confirmation_source = 'approved_payment'`.
@@ -30,7 +30,7 @@ Plan MVP 3 (payment readiness): a buyer without an account buys passes for the N
 4. They enter their data (#58 fields, email required).
 5. They review the purchase, read the overlap notice, accept the three legal documents and pay. A `pending_payment` registration is created.
 6. They pay on the Mercado Pago Checkout Pro hosted page. The frontend gets its URL from `POST /public/events/:slug/registrations/:registrationId/checkout` (#177), which creates a new preference for a `pending_payment` registration on every call.
-7. They return to a result screen (`/e/:slug/pago?registration=<id>`, for every outcome): confirming (polling), confirmed with folio, pending (OXXO/SPEI) or rejected with retry. The confirmation email arrives once the webhook confirms the payment.
+7. They return to a result screen (`/e/:slug/pago?registration=<id>`, for every outcome): confirming (polling), confirmed with folio, pending (OXXO/SPEI) or rejected with retry. The confirmation email arrives once the webhook confirms the payment. Until #178, #177 ships a minimal screen there that only says the payment is being confirmed; the URL's own status is never trusted.
 
 ## Routes
 
@@ -66,9 +66,9 @@ All issues belong to the milestone "MVP 3 — Payment readiness" and to epic #57
 ## Known gaps in the current code
 
 - `registration_operation_audit` requires an admin actor and session, so public and webhook operations need a system actor or nullable actor and new operation types. The audit policy forbids storing provider payloads or payment instruments.
-- `event_registrations.folio` is nullable and never written.
+- `event_registrations.folio` is generated once when a registration becomes `confirmed` (cash or `approved_payment`); it is null while pending.
 - Participant fields differ from #58 (no split name fields; email optional).
-- Payment tables exist since #177 (migration 0018): `registration_checkouts` (one row per Checkout Pro preference), `registration_payments` (one row per Mercado Pago payment id) and the idempotent `payment_webhook_notifications` log. No card data or provider payloads are stored. There is still no order table. The verified webhook `POST /public/payments/mercado-pago/webhook` (#177) checks the `x-signature`, processes each notification once, re-reads the payment by id and confirms a pending registration with `approved_payment` and a `payment_approval` audit fact only when the amount, `MXN` currency and mode match.
+- Payment tables exist since #177 (migration 0018): `registration_checkouts` (one row per Checkout Pro preference), `registration_payments` (one row per Mercado Pago payment id) and the idempotent `payment_webhook_notifications` log. No card data or provider payloads are stored. There is still no order table. The verified webhook `POST /public/payments/mercado-pago/webhook` (#177) checks the `x-signature`, processes each notification once, re-reads the payment by id and confirms a pending registration with `approved_payment` and a `payment_approval` audit fact only when the amount and `MXN` currency match and the registration has a checkout in the configured mode.
 - All endpoints are admin-only behind session and CSRF; no public endpoints, no rate limiting; events have no slug or sales-open state.
 - The frontend has no public route and no shared form components; the phone-width sweep covers admin screens only.
 - No mailer dependency or notification code.

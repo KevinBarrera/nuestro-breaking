@@ -11,7 +11,7 @@ export interface PreferenceRequest {
   items: PreferenceItem[];
   external_reference: string;
   back_urls: { success: string; failure: string; pending: string };
-  auto_return: 'approved';
+  auto_return?: 'approved';
   notification_url: string;
 }
 
@@ -31,7 +31,8 @@ export interface ProviderPayment {
   currencyId: string;
   /** The registration id sent as the preference's `external_reference`, when present. */
   externalReference: string | null;
-  liveMode: boolean;
+  // No `live_mode`: test accounts run in Mercado Pago's production environment, so their payments
+  // also say live. Mode separation comes from credentials instead (see `decidePayment`).
 }
 
 /**

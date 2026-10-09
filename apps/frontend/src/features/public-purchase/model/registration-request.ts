@@ -95,6 +95,10 @@ export function failureMessage(failure: PublicEventFailure): string {
       return ruleMessages[failure.code];
     case 'unavailable':
       return 'No podemos completar esta inscripción en línea. Comunícate con la organización.';
+    case 'not-payable':
+      return 'Esta inscripción ya no se puede pagar en línea. Si ya pagaste, revisa tu correo; si no, comunícate con la organización.';
+    case 'provider-unavailable':
+      return 'Mercado Pago no respondió. Intenta de nuevo en un momento.';
     case 'rate-limited':
       return 'Hiciste muchos intentos seguidos. Espera un minuto e intenta de nuevo.';
     case 'error':

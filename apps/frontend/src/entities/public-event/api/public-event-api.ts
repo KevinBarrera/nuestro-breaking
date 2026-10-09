@@ -1,6 +1,12 @@
 import { apiUrl } from '@/shared/api';
-import { isPublicCatalog, isRegistration, readFailure } from './readers';
-import type { PublicCatalog, PublicEventFailure, Registration, RegistrationRequest } from './types';
+import { isCheckout, isPublicCatalog, isRegistration, readFailure } from './readers';
+import type {
+  Checkout,
+  PublicCatalog,
+  PublicEventFailure,
+  Registration,
+  RegistrationRequest,
+} from './types';
 
 // Public endpoints never use the admin session: no cookies (`credentials: 'omit'`, the public
 // CORS rules never allow them) and no CSRF token. Failures surface as a PublicEventError.
@@ -69,4 +75,15 @@ export function createRegistration(
   signal?: AbortSignal,
 ): Promise<Registration> {
   return send(eventPath(slug, 'registrations'), { signal, json: request }, isRegistration);
+}
+
+// Starts a Mercado Pago checkout for a pending registration of this event. Each call creates a
+// new preference, so retrying after a failure is safe; nothing is charged until the buyer pays.
+export function createCheckout(
+  slug: string,
+  registrationId: string,
+  signal?: AbortSignal,
+): Promise<Checkout> {
+  const path = eventPath(slug, `registrations/${encodeURIComponent(registrationId)}/checkout`);
+  return send(path, { signal, json: {} }, isCheckout);
 }

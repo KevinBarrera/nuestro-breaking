@@ -65,7 +65,11 @@ Online payments ([#177](https://github.com/KevinBarrera/nuestro-breaking/issues/
 | `PUBLIC_APP_URL`                | `https://tickets.example`                    | Buyer-facing frontend origin, with no path. Checkout Pro returns the buyer to `/e/<slug>/pago` there. |
 | `MERCADO_PAGO_NOTIFICATION_URL` | `https://api.tickets.example/<webhook-path>` | Public URL Mercado Pago sends payment notifications to. Must be `https` in `production` mode.         |
 
-The webhook endpoint is `POST /public/payments/mercado-pago/webhook`; Mercado Pago must reach it over public HTTPS, so local sandbox testing needs a tunnel (runbook in #177 T6).
+The webhook endpoint is `POST /public/payments/mercado-pago/webhook`; Mercado Pago must reach it over public HTTPS, so local sandbox testing needs a tunnel. Follow the [Mercado Pago sandbox runbook](docs/runbooks/mercado-pago-sandbox.md) for a complete test purchase.
+
+The webhook secret belongs to the account that owns the access token: in sandbox that is the test seller, not the account that created the application.
+
+The frontend reads `VITE_API_BASE_URL` and `VITE_PUBLIC_EVENT_SLUG` from `apps/frontend/.env` (there is no template file; see [Frontend](#frontend)).
 
 Real values live only in your local `.env` or in the deployment's secret store. Never commit them to Git: this repository is public. Configuration errors name the variable, never its value.
 

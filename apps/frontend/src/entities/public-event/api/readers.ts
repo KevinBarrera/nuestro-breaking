@@ -1,4 +1,5 @@
 import {
+  type Checkout,
   publicPassClasses,
   publicSalesClosedReasons,
   registrationRuleCodes,
@@ -101,6 +102,10 @@ export function isRegistration(value: unknown): value is Registration {
   );
 }
 
+export function isCheckout(value: unknown): value is Checkout {
+  return text(record(value)?.checkoutUrl);
+}
+
 function stringEntries(value: unknown): Record<string, string> {
   const entries = Object.entries(record(value) ?? {}).filter(
     (entry): entry is [string, string] => typeof entry[1] === 'string',
@@ -114,11 +119,14 @@ export function readFailure(status: number, body: unknown): PublicEventFailure {
   const row = record(body);
   if (status === 404) return { kind: 'not-found' };
   if (status === 429) return { kind: 'rate-limited' };
+  if (status === 502 && row?.code === 'payment_provider_unavailable')
+    return { kind: 'provider-unavailable' };
   if (status === 400) return { kind: 'invalid', fieldErrors: stringEntries(row?.fieldErrors) };
   if (status === 409) {
     if (oneOf(publicSalesClosedReasons, row?.reason))
       return { kind: 'sales-closed', reason: row.reason };
     if (row?.code === 'registration_unavailable') return { kind: 'unavailable' };
+    if (row?.code === 'registration_not_payable') return { kind: 'not-payable' };
     if (oneOf(registrationRuleCodes, row?.code)) return { kind: 'rule', code: row.code };
   }
   return { kind: 'error' };

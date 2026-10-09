@@ -23,23 +23,17 @@ const draft = {
   },
 };
 
-const reserved = {
-  version: 1,
-  passes: [
-    { name: 'Pase completo Breaking', priceCents: 200000 },
-    { name: 'Open Styles', priceCents: 80000 },
-  ],
-  totalCents: 280000,
-  email: 'ana.lopez.hernandez@ejemplo.com',
-};
-
 const screens = [
   { name: 'Inicio', path: `/e/${slug}`, heading: /Los más pesados/ },
   { name: 'Pases', path: `/e/${slug}/pases`, heading: 'Elige tus pases' },
   { name: 'Competencias', path: `/e/${slug}/competencias`, heading: 'Elige tus competencias' },
   { name: 'Datos', path: `/e/${slug}/datos`, heading: 'Tus datos' },
   { name: 'Revisar', path: `/e/${slug}/revisar`, heading: 'Revisa y paga' },
-  { name: 'Reservada', path: `/e/${slug}/reservada`, heading: 'Reservamos tu inscripción' },
+  {
+    name: 'Pago',
+    path: `/e/${slug}/pago?registration=6b0f0b5e-6d1f-4f8f-9a55-0f1c2b3d4e5f`,
+    heading: 'Estamos confirmando tu pago',
+  },
 ];
 
 // Inline links inside a sentence (the document links in the legal checkboxes) are exempt from
@@ -54,11 +48,8 @@ for (const theme of themes) {
       await page.setViewportSize({ width, height: 800 });
       await useTheme(page, theme);
       await page.addInitScript(
-        ([key, value, reservedValue]) => {
-          sessionStorage.setItem(key, value);
-          sessionStorage.setItem(key.replace('draft', 'reserved'), reservedValue);
-        },
-        [draftKey, JSON.stringify(draft), JSON.stringify(reserved)],
+        ([key, value]) => sessionStorage.setItem(key, value),
+        [draftKey, JSON.stringify(draft)],
       );
       await mockPublicCatalog(page, catalogReply());
       await page.goto(screen.path);

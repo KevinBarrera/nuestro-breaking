@@ -110,6 +110,34 @@ describe('FetchMercadoPagoClient', () => {
     expect(error.message).toBe('Mercado Pago preference request failed with status 401.');
   });
 
+  it("adds Mercado Pago's short reason to a rejected preference", async () => {
+    const { client } = clientWith(
+      jsonResponse(400, {
+        message: 'auto_return invalid. back_url.success must be defined',
+        error: 'invalid_auto_return',
+      }),
+    );
+
+    const error = await failureOf(client.createPreference(PREFERENCE));
+
+    expect(error.message).toBe(
+      'Mercado Pago preference request failed with status 400: auto_return invalid. back_url.success must be defined',
+    );
+  });
+
+  it.each([
+    ['contains the access token', `invalid token ${TOKEN}`],
+    ['contains digits', 'payer 5512345678 is invalid'],
+    ['contains an email or a URL', 'payer buyer@example.test at https://example.test'],
+    ['is too long', 'x'.repeat(161)],
+  ])('omits a rejection reason that %s', async (_label, message) => {
+    const { client } = clientWith(jsonResponse(400, { message }));
+
+    const error = await failureOf(client.createPreference(PREFERENCE));
+
+    expect(error.message).toBe('Mercado Pago preference request failed with status 400.');
+  });
+
   it.each([
     ['a non-JSON body', new Response('not json should-not-leak', { status: 201 })],
     ['a missing id', jsonResponse(201, { ...PROVIDER_BODY, id: undefined })],
@@ -196,7 +224,22 @@ describe('FetchMercadoPagoClient.getPayment', () => {
       transactionAmountCents: 150050,
       currencyId: 'MXN',
       externalReference: 'registration-1',
-      liveMode: false,
+    });
+  });
+
+  it.each([
+    ['true, as for test accounts', { ...PAYMENT_BODY, live_mode: true }],
+    ['missing', { ...PAYMENT_BODY, live_mode: undefined }],
+    ['not a boolean', { ...PAYMENT_BODY, live_mode: 'false' }],
+  ])('ignores live_mode when it is %s', async (_label, body) => {
+    const { client } = clientWith(jsonResponse(200, body));
+
+    await expect(client.getPayment('1234567890')).resolves.toEqual({
+      id: '1234567890',
+      status: 'approved',
+      transactionAmountCents: 150050,
+      currencyId: 'MXN',
+      externalReference: 'registration-1',
     });
   });
 
@@ -241,7 +284,6 @@ describe('FetchMercadoPagoClient.getPayment', () => {
     ['a text amount', jsonResponse(200, { ...PAYMENT_BODY, transaction_amount: '1500.50' })],
     ['a negative amount', jsonResponse(200, { ...PAYMENT_BODY, transaction_amount: -1 })],
     ['a missing currency', jsonResponse(200, { ...PAYMENT_BODY, currency_id: undefined })],
-    ['a non-boolean live mode', jsonResponse(200, { ...PAYMENT_BODY, live_mode: 'false' })],
     ['a numeric external reference', jsonResponse(200, { ...PAYMENT_BODY, external_reference: 1 })],
     ['another payment id', jsonResponse(200, { ...PAYMENT_BODY, id: 1234567891 })],
   ])('rejects a malformed answer with %s', async (_label, response) => {

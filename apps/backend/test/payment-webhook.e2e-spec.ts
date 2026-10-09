@@ -9,6 +9,7 @@ import { AppModule } from '@/app.module';
 import { DATABASE_CLIENT } from '@/database/database.constants';
 import * as schema from '@/database/schema';
 import { DatabaseService } from '@/database/database.service';
+import { configureHttp } from '@/http';
 import { MercadoPagoClient, MercadoPagoClientError, type ProviderPayment } from '@/payments';
 import { PAYMENT_NOT_FOUND_GRACE_SECONDS } from '@/payments/webhook/payment-webhook.service';
 import { PostgresHarness } from './support/postgres-harness';
@@ -57,6 +58,8 @@ describe('Mercado Pago payment webhook (e2e)', () => {
       .useValue(stub)
       .compile();
     app = moduleRef.createNestApplication<INestApplication<App>>();
+    // The real HTTP setup, so the JSON body parser keeps unsafe integer ids exact (D12).
+    configureHttp(app, {});
     await app.init();
   });
   beforeEach(async () => {
@@ -106,7 +109,6 @@ describe('Mercado Pago payment webhook (e2e)', () => {
       transactionAmountCents: PRICE_CENTS,
       currencyId: 'MXN',
       externalReference: registrationId,
-      liveMode: mode() === 'production',
       ...overrides,
     });
   }
@@ -267,14 +269,48 @@ describe('Mercado Pago payment webhook (e2e)', () => {
     expect((await notificationRows())[0].outcome).toBe('amount_mismatch');
   });
 
-  it('does not confirm a payment from the other mode', async () => {
+  // A real sandbox notification body (D12): its `id` is beyond Number.MAX_SAFE_INTEGER.
+  function notifyRaw(notificationId: string, dataId = PAYMENT_ID) {
+    const secret = process.env.MERCADO_PAGO_WEBHOOK_SECRET ?? '';
+    const requestId = `req-fake-${notificationId}`;
+    const ts = String(Date.now());
+    const v1 = createHmac('sha256', secret)
+      .update(`id:${dataId};request-id:${requestId};ts:${ts};`)
+      .digest('hex');
+    const body =
+      `{"action":"payment.created","api_version":"v1","data":{"id":"${dataId}"},` +
+      `"date_created":"2026-10-09T18:04:17Z","id":${notificationId},"live_mode":true,` +
+      `"type":"payment","user_id":"1000000001"}`;
+    return request(app.getHttpServer())
+      .post(`${WEBHOOK}?data.id=${dataId}&type=payment`)
+      .set('x-request-id', requestId)
+      .set('x-signature', `ts=${ts},v1=${v1}`)
+      .set('content-type', 'application/json')
+      .send(body);
+  }
+
+  it('stores a notification id beyond the safe integer range with its exact digits', async () => {
     const id = await pendingRegistration();
-    setPayment(id, { liveMode: mode() !== 'production' });
+    setPayment(id);
 
-    await notify(1001).expect(200);
+    await notifyRaw('40841700226111564').expect(200);
 
-    expect((await registrationRow(id)).status).toBe('pending_payment');
-    expect((await notificationRows())[0].outcome).toBe('mode_mismatch');
+    expect(await notificationRows()).toEqual([
+      { notification_id: '40841700226111564', processed: true, outcome: 'confirmed' },
+    ]);
+  });
+
+  it('claims two notifications whose ids differ only beyond float precision', async () => {
+    const id = await pendingRegistration();
+    setPayment(id);
+
+    await notifyRaw('40841700226111564').expect(200);
+    await notifyRaw('40841700226111565').expect(200);
+
+    expect((await notificationRows()).map((row) => row.notification_id).sort()).toEqual([
+      '40841700226111564',
+      '40841700226111565',
+    ]);
   });
 
   it('flags an approval for a registration already confirmed by cash', async () => {
@@ -331,7 +367,6 @@ describe('Mercado Pago payment webhook (e2e)', () => {
       transactionAmountCents: PRICE_CENTS,
       currencyId: 'MXN',
       externalReference: id,
-      liveMode: mode() === 'production',
     };
     const spans: { call: number; start: number; end: number }[] = [];
     let secondReadStarted: () => void = () => undefined;

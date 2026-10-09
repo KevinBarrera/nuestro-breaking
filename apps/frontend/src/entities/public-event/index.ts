@@ -1,4 +1,5 @@
 export {
+  createCheckout,
   createRegistration,
   getPublicCatalog,
   PublicEventError,
@@ -6,6 +7,7 @@ export {
 } from './api/public-event-api';
 export { publicPassClasses, publicSalesClosedReasons, registrationRuleCodes } from './api/types';
 export type {
+  Checkout,
   PublicActivity,
   PublicCatalog,
   PublicEventFailure,

@@ -185,7 +185,6 @@ export class PaymentWebhookService {
       : [];
     const decision = decidePayment({
       payment,
-      mode: this.config.mode,
       registration:
         registration && checkout
           ? {

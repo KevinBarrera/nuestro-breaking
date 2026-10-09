@@ -413,7 +413,14 @@ test('mobile operator can search and hand off without horizontal overflow', asyn
   );
   await search(page);
   await page.getByRole('button', { name: /Luz Rivera/ }).click();
-  await expect(page.getByRole('button', { name: 'Registrar entrada al evento' })).toBeVisible();
+  const admit = page.getByRole('button', { name: 'Registrar entrada al evento' });
+  await expect(admit).toBeVisible();
+  // The standard primary button: full width on phones, with the usual size and text.
+  await expect(admit).toHaveCSS('font-size', '14px');
+  const box = (await admit.boundingBox())!;
+  expect(box.height).toBeGreaterThanOrEqual(44);
+  expect(box.height).toBeLessThan(56);
+  expect(box.width).toBeGreaterThan(300);
   expect(await page.evaluate<number>('document.documentElement.scrollWidth')).toBeLessThanOrEqual(
     375,
   );

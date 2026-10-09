@@ -23,6 +23,8 @@ Database checks reject any other kind and any mixed pairing, such as an admin fa
 
 Stored operation types are `manual_registration`, `cash_confirmation`, `pass_assignment`, `pass_selection_change`, `online_registration` (a public buyer creates a pending registration with its passes and selections) and `payment_approval` (a verified online payment confirms a registration; written by #177). `amount_cents` is required for `cash_confirmation` and `payment_approval` and must be null for every other type. `outcome` stays `accepted` only, and the immutability trigger still rejects every update and delete.
 
+The `online_registration` fact shape is defined in the [public registration contract](public-registration.md#audit).
+
 Public and system facts follow the same redaction rule as admin facts: no names, email, phone, raw session identifiers, payment instruments or provider payloads; reference the registration, participant and activity ids instead.
 
 ## Minimum durable operation fact

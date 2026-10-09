@@ -31,6 +31,16 @@ Pay a `pending_payment` registration through Mercado Pago Checkout Pro (sandbox 
 
 - D10 (technical default, T3) — The checkout lives in `PaymentsModule` and registers its own stateless `PublicCatalogService` provider for the slug lookup; payments depends on events, never the reverse. No swagger decorators (no controller uses them). Answers: 404 for an unknown or other-event registration, 409 `registration_not_payable` for confirmed, voided or zero-total registrations, 502 `payment_provider_unavailable` when the provider fails (nothing written). Free passes are left out of the preference items. The client rejects a non-https checkout URL; sandbox allows an http notification URL for a local tunnel.
 
+- D11 (technical default, T4) — Webhook `POST /public/payments/mercado-pago/webhook`, not rate limited (Mercado Pago retries in bursts).
+  - **Signature:** `x-signature` is `ts=<ms>,v1=<hex>`. The manifest is `id:<data.id from the query, lowercased>;request-id:<x-request-id>;ts:<ts>;`, leaving out any missing part. It is checked with HMAC-SHA256 over the webhook secret and compared in constant time. A missing or invalid signature answers 401 and writes nothing. There is no timestamp window, because idempotency and the re-read make a replay harmless.
+  - **Which notifications:** only `type` `payment` with a `data.id` is processed; other verified types answer 200 and are ignored.
+  - **Idempotency:** the notification id is claimed in `payment_webhook_notifications`. A processed one answers 200 without work. An unprocessed one, left by a crash, is re-claimed.
+  - **Re-read:** the payment is always read again by id (`GET /v1/payments/:id`), so out-of-order notifications act on the current state. A failed read answers 500 so Mercado Pago retries.
+  - **Checks:** `external_reference` must be a registration that has a checkout in this mode. `live_mode` must match the configured mode. The currency must be `MXN` and the amount must equal the registration's pass snapshot total. A mismatch is recorded as an outcome and confirms nothing.
+  - **Transaction:** the registration row is locked and the `registration_payments` row is upserted with `updated_at`. `approved` on a `pending_payment` registration confirms it with `approved_payment` plus a `payment_approval` audit row (actor `system`, provider payment id as the reference, no payer data). `approved` on an already confirmed registration is recorded as `approved_after_confirmation` for manual follow-up. Other statuses leave the registration pending. A confirmation is never undone.
+
+- D12 (technical default, T4) — Only `data.id` is signed, so it alone drives the payment read; the unsigned body `type` and notification `id` only route. Notifications with a non-payment type, no notification id, or ids outside `^[A-Za-z0-9_-]{1,64}$` answer 200 and write nothing. Concurrency: claim insert on conflict do nothing before the read, then lock the claim row and the registration row inside the transaction. Extra outcomes: `already_confirmed` (same payment already approved this registration), `approved_after_void`, `unknown_status`, `payment_<status>`. Invalid currency, amount or status skip the payment upsert (table checks) but record the outcome. The `payment_approval` fact holds `{ providerPaymentId, checkoutId }` with the provider payment id as `reference`.
+
 ## Current state (exploration, 2026-10-09)
 
 - Pending registrations come from `POST /public/events/:slug/registrations` (`apps/backend/src/events/public-registration/`); prices are snapshotted per pass in `event_registration_passes.price_cents`; no currency column, no stored total, no payment/provider table, no webhook log.
@@ -46,7 +56,7 @@ Pay a `pending_payment` registration through Mercado Pago Checkout Pro (sandbox 
 - [x] T1 — Mercado Pago config reader: `readMercadoPagoConfig(env)` validates mode, access token and webhook secret; missing, blank or mixed values throw without echoing values; unit specs; README documents the variables with placeholders only. Route: delegated (2+ files). Evidence: RED (module missing) then GREEN 11/11; backend unit 155/155; lint clean; credential grep empty. `.env.example` still needs the three names with empty values (agent access blocked).
 - [x] T2 — Schema: payment attempts (registration, preference id, payment id, status, amount, currency) and an idempotent webhook notification log; migration `0018`. Route: delegated (2+ files). Evidence: RED 5/5 (relations missing) then GREEN 5/5; full backend e2e 192/192 after bumping the hard-coded migration count in `event-activity-foundation.e2e-spec.ts`; unit 155/155; lint and build clean; credential grep empty.
 - [x] T3 — Create a Checkout Pro preference for a pending registration (`external_reference`, return URLs); wire config at startup so the app fails to boot on bad credentials. Route: delegated (2+ files). Evidence: RED (unit 16 failed, e2e 7/7 `Cannot POST`) then GREEN (payments unit 42/42, e2e 7/7); backend unit 186/186, e2e 199/199; lint and build clean; credential grep empty. About 900 authored lines, half tests; one cohesive slice (config, client, module, endpoint). Note: `scripts/verify-setup.mjs` starts the backend, so the local `.env` now needs the Mercado Pago variables.
-- [ ] T4 — Webhook: verify `x-signature`, re-read the payment by id, map status, confirm with `approved_payment` + `payment_approval` audit, process each notification once; unit + PostgreSQL e2e with a stubbed client.
+- [x] T4 — Webhook: verify `x-signature`, re-read the payment by id, map status, confirm with `approved_payment` + `payment_approval` audit, process each notification once; unit + PostgreSQL e2e with a stubbed client. Route: delegated (2+ files). Evidence: RED (unit 20 failed, e2e 14/14 404) then GREEN (payments unit 103/103, webhook e2e 14/14, stable over 3 more runs incl. concurrent duplicates); backend unit 247/247, e2e 214/214; lint, build and `tsc --noEmit` clean (the checkout stub needed `getPayment`); credential grep empty. About 680 production lines: signature, mapping, read and transactional service form one slice.
 - [ ] T5 — Frontend: replace the temporary reserved screen with the redirect to Mercado Pago.
 - [ ] T6 — Sandbox end-to-end purchase with test accounts; document the runbook.
 
@@ -70,4 +80,4 @@ See issue #177.
 
 ## Next step
 
-T4.
+T5.

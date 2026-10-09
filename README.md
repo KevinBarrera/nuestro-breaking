@@ -98,6 +98,13 @@ Run the React frontend in development mode:
 pnpm dev:frontend
 ```
 
+Optional frontend variables (read by Vite from `apps/frontend/.env` or the shell at dev and build time):
+
+| Variable                 | Default                 | Meaning                                                                                                                            |
+| ------------------------ | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `VITE_API_BASE_URL`      | `http://localhost:3000` | API origin.                                                                                                                        |
+| `VITE_PUBLIC_EVENT_SLUG` | empty                   | Event shown at `/` (for example `los-mas-pesados-nov-2026`). Empty shows "No hay evento a la venta"; `/e/<slug>` works either way. |
+
 The frontend is a Vite application organized with Feature-Sliced Design. See the [frontend architecture guide](docs/frontend-architecture.md) for setup, commands, routes, and import rules.
 
 ## Code Quality

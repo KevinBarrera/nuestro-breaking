@@ -66,7 +66,7 @@ All issues belong to the milestone "MVP 3 — Payment readiness" and to epic #57
 ## Known gaps in the current code
 
 - `registration_operation_audit` requires an admin actor and session, so public and webhook operations need a system actor or nullable actor and new operation types. The audit policy forbids storing provider payloads or payment instruments.
-- `event_registrations.folio` is nullable and never written.
+- `event_registrations.folio` is generated once when a registration becomes `confirmed` (cash or `approved_payment`); it is null while pending.
 - Participant fields differ from #58 (no split name fields; email optional).
 - Payment tables exist since #177 (migration 0018): `registration_checkouts` (one row per Checkout Pro preference), `registration_payments` (one row per Mercado Pago payment id) and the idempotent `payment_webhook_notifications` log. No card data or provider payloads are stored. There is still no order table. The verified webhook `POST /public/payments/mercado-pago/webhook` (#177) checks the `x-signature`, processes each notification once, re-reads the payment by id and confirms a pending registration with `approved_payment` and a `payment_approval` audit fact only when the amount and `MXN` currency match and the registration has a checkout in the configured mode.
 - All endpoints are admin-only behind session and CSRF; no public endpoints, no rate limiting; events have no slug or sales-open state.

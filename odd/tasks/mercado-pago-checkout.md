@@ -66,6 +66,8 @@ See issue #177.
 
 - 2026-10-09: T2 committed in `9c39569` (doc `9af3a64`). RDD `high_risk`; consent granted (standing instruction); four-lens review approved and acknowledged (lineage `review-3972b7a0fb82920e`). Reviewed boundary is now `9af3a64`. Advisory, carried into T4: set `registration_payments.updated_at` on every status change; a notification row with `processed_at` null after a crash must be re-claimable on Mercado Pago's retry. Advisory, not adopted: a drizzle snapshot for `0018` (the repository stopped adding snapshots after `0002`).
 
+- 2026-10-09: T3 committed (`feat(backend): create Mercado Pago checkout preferences…`). RDD `high_risk`; consent granted (standing instruction); four-lens review approved and acknowledged (lineage `review-f4f1b02029b484bd`). Follow-up commit closes two test gaps from the review: the stub's preference counter now resets per test, and a pending registration with no paid passes is proven to answer 409 (e2e 8/8). Carried into T4: a registration can be confirmed by cash between checkout and webhook, so an approved payment for a registration that is no longer pending must not confirm again and must be recorded with a distinct outcome for manual follow-up. Accepted as is: unlimited preferences per pending registration (the id is an unguessable uuid and the route is rate limited); boot fails without the Mercado Pago variables (required by the issue; each deployment must set them before this ships).
+
 ## Next step
 
 T4.

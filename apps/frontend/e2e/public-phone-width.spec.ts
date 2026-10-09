@@ -40,7 +40,7 @@ const screens = [
     [
       ['confirming', 'Pago', 'Estamos confirmando tu pago'],
       ['confirmed', 'Pago confirmado', '¡Listo, Ana! Tu inscripción está confirmada'],
-      ['pending', 'Pago pendiente', 'Falta que se complete tu pago'],
+      ['pending', 'Pago pendiente', 'Tu pago está en proceso'],
       ['rejected', 'Pago rechazado', 'No se pudo completar tu pago'],
     ] as const
   ).map(([payment, name, heading]) => ({

@@ -65,16 +65,20 @@ test.describe('public payment return', () => {
     expect(status.requests.length).toBe(asked);
   });
 
-  test('explains a pending OXXO or SPEI payment', async ({ page }) => {
+  test('explains a payment in process, for a voucher or a card under review', async ({ page }) => {
     await mockPaymentStatus(page, paymentStatusReply('pending'));
     await page.goto(returnPath);
 
-    await expect(heading(page, 'Falta que se complete tu pago')).toBeVisible();
+    await expect(heading(page, 'Tu pago está en proceso')).toBeVisible();
     await expect(page.getByRole('status')).toContainText('Pago pendiente');
     const steps = page.getByRole('main').getByRole('listitem');
     await expect(steps).toHaveCount(2);
+    await expect(steps.nth(0)).toContainText('Si elegiste efectivo o transferencia');
+    await expect(steps.nth(0)).toContainText(
+      'Si pagaste con tarjeta, Mercado Pago la está revisando.',
+    );
     await expect(steps.nth(1)).toContainText(
-      'Cuando se acredite, te enviaremos tu confirmación y tu folio a a***@ejemplo.com.',
+      'Cuando se apruebe, te enviaremos tu confirmación y tu folio a a***@ejemplo.com.',
     );
     await expect(page.getByRole('main')).not.toContainText('LMP-');
   });

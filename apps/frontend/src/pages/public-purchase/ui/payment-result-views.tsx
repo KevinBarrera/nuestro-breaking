@@ -166,15 +166,15 @@ export function ConfirmedView({ headingRef, slug, status }: ViewProps & { status
 const stepNumberClass =
   'flex size-8 flex-none items-center justify-center rounded-full bg-header font-mono text-[15px] text-header-fg';
 
-// Screen 7b (OXXO or SPEI): the payment is waiting for the money.
+// Screen 7b: the payment is in process, either an OXXO/SPEI voucher waiting for the money or a
+// card payment Mercado Pago is still reviewing, so the copy covers both.
 export function PendingView({ headingRef, slug, status }: ViewProps & { status: PaymentStatus }) {
   return (
     <>
       <Badge tone="warning" icon="clock" label="Pago pendiente" />
-      <Heading headingRef={headingRef}>Falta que se complete tu pago</Heading>
+      <Heading headingRef={headingRef}>Tu pago está en proceso</Heading>
       <p className="text-base leading-relaxed text-muted">
-        Elegiste pagar en efectivo o por transferencia. Tu inscripción se confirmará cuando Mercado
-        Pago reciba el dinero.
+        Tu inscripción se confirmará cuando Mercado Pago apruebe el pago.
       </p>
       <ol className="flex flex-col gap-3.5">
         <li className="flex items-start gap-3.5">
@@ -182,7 +182,8 @@ export function PendingView({ headingRef, slug, status }: ViewProps & { status: 
             1
           </span>
           <span className="pt-1 leading-relaxed text-fg">
-            Paga con la referencia que te dio Mercado Pago. También te llegó a tu correo.
+            Si elegiste efectivo o transferencia, paga con la referencia que te dio Mercado Pago;
+            también te llegó a tu correo. Si pagaste con tarjeta, Mercado Pago la está revisando.
           </span>
         </li>
         <li className="flex items-start gap-3.5">
@@ -190,7 +191,7 @@ export function PendingView({ headingRef, slug, status }: ViewProps & { status: 
             2
           </span>
           <span className="pt-1 leading-relaxed text-fg">
-            Cuando se acredite, te enviaremos tu confirmación y tu folio a{' '}
+            Cuando se apruebe, te enviaremos tu confirmación y tu folio a{' '}
             {emailTarget(status.maskedEmail)}.
           </span>
         </li>

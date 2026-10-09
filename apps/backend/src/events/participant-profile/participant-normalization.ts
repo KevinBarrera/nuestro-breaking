@@ -10,6 +10,17 @@ export function normalizePhone(phone: string): string {
   return phone.replace(/\D/g, '');
 }
 
+// Comparison key for duplicate matching (#174 D5). Mexican numbers are compared by their ten-digit
+// national number, so `+52 55 1234 5678`, the legacy mobile form `+521 55 1234 5678` and
+// `55 1234 5678` match. Any other number is compared by its digits. `phoneMatchKeySql` in
+// `src/events/public-registration` mirrors this rule for stored phones.
+export function phoneMatchKey(phone: string): string {
+  const digits = normalizePhone(phone);
+  if (/^521\d{10}$/.test(digits)) return digits.slice(3);
+  if (/^52\d{10}$/.test(digits)) return digits.slice(2);
+  return digits;
+}
+
 export function normalizeInstagram(handle: string): string {
   return handle.trim().replace(/^@+/, '').trim().toLowerCase();
 }

@@ -35,8 +35,8 @@ On pull requests, a `quality / changes` job decides which areas run: backend job
 - `app/` contains application bootstrap, global styles, providers, and router wiring.
 - `pages/` contains route-level screens. The current slices are `admin`, `dancer`, and `not-found`.
 - `widgets/` contains reusable page-level compositions. `widgets/admin-shell` is the admin frame (see [Admin Shell](#admin-shell)).
-- `features/` contains user-facing actions. `features/theme-toggle` is the light/dark switch.
-- `entities/` contains business models. `entities/session` defines the typed user role and session model; `judge` is an admin-capable role.
+- `features/` contains user-facing actions. `features/theme-toggle` is the light/dark switch. `features/public-purchase` is the pure model of the public purchase (#176): pass selection rules by `passClass` and `requiresPassClass` (a full pass removes and blocks general entry; an add-on needs its required class and is dropped when it goes), per-pass hints, competitions per chosen pass and whether that step applies, totals, buyer validation mirroring the backend limits with Spanish messages (phone is 10 national digits sent with a `+52` prefix), the registration request, server `fieldErrors` and failure messages, and the versioned `sessionStorage` draft format per slug. It has no UI yet; the screens own storage access and money formatting (`formatMxn` from `@/entities/event-catalog`).
+- `entities/` contains business models. `entities/session` defines the typed user role and session model; `judge` is an admin-capable role. `entities/public-event` reads the public catalog and creates a pending registration ([public catalog](contracts/public-event-catalog.md), [public registration](contracts/public-registration.md)) without credentials or CSRF (`credentials: 'omit'`). Responses pass runtime guards, and failures throw `PublicEventError` with a discriminated `failure`: `not-found`, `sales-closed` (reason), `invalid` (`fieldErrors`), `rule` (409 code), `unavailable`, `rate-limited` or `error`.
 - `shared/` contains framework-agnostic configuration, general utilities, and reusable UI primitives.
 
 Dependencies point downward: `app -> pages -> widgets -> features -> entities -> shared`. A layer can only import from layers to its right. Code outside a slice must use that slice's `index.ts` public API. Internal imports may use `./`; parent-directory imports are prohibited workspace-wide.
@@ -94,6 +94,14 @@ The admin UI has a light and a dark theme built on CSS custom properties in `src
 - **`ReviewChangesDialog`.** A controlled "Revisar cambios" dialog for edit forms. It lists each changed field as label and before → after, with "Guardar cambios" and "Volver a editar" (which closes it and keeps the form's edits), plus `isPending`. Build its `rows` with `changedRows(fields)`, and use `hasChanges(fields)` to skip the review when nothing changed. Both compare displayed values, so pass a `format` (for example for prices) when two stored values display the same. Text is not trimmed.
 - **`UnsavedChangesGuard`.** Render `<UnsavedChangesGuard when={dirty && !saving} />` on a screen with unsaved edits. While `when` is true, in-app navigation to another path (links, breadcrumbs, the side navigation, back and forward) is held with the data router's `useBlocker` and confirmed in a destructive `ConfirmDialog` ("¿Salir sin guardar?", "Salir sin guardar" / "Seguir editando"), and a reload or tab close gets the browser's own prompt through `beforeunload`. Turn it off while a save is in flight, so the navigation that follows a successful save (create → detail, archive → list) is never blocked; once the confirmed save is applied the screen is clean again.
 - **`buttonClass(tone)`.** Shared button classes (`primary`, `secondary`, `danger`, `destructive`) with 44px targets, for shared UI that cannot import page styles.
+
+## Shared Form Fields
+
+`@/shared/ui` exports form primitives for public forms, styled with theme utilities only (`bg-input`, `border-input-line`, `text-danger-fg`, focus outline) and 44px targets:
+
+- **`TextField`.** `label`, optional `hint`, `optional` (adds "(opcional)"), `error`, and a fixed `prefix` such as `+52`; other input props pass through. The prefix, hint and error are linked with `aria-describedby`, and an error sets `aria-invalid`.
+- **`CheckboxField`.** A native checkbox inside its label (the label may hold links), with optional `description` and `error`, linked the same way.
+- **`FieldError` and `Notice`.** Inline error text, and a block message (`tone="danger"` is an `alert`, `info` a `status`).
 
 ## Shared Breadcrumbs
 

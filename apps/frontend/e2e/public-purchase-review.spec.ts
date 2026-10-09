@@ -191,6 +191,77 @@ test.describe('public review and pay', () => {
     expect(checkout.requests).toHaveLength(2);
   });
 
+  test('never follows a checkout URL that is not https', async ({ page }) => {
+    await seedDraft(page);
+    await mockPublicCatalog(page, catalogReply());
+    const registration = await mockRegistration(page, registrationReply());
+    const checkout = await mockCheckout(page, checkoutReply('http://example.test/x'));
+    await page.goto(step('revisar'));
+    await acceptLegal(page);
+    await payButton(page).click();
+
+    const alert = page.getByRole('alert');
+    await expect(alert).toContainText(
+      'No pudimos abrir Mercado Pago. Revisa tu conexión e intenta de nuevo.',
+    );
+    await expect(page).toHaveURL(step('revisar'));
+    await expect(payButton(page)).toBeEnabled();
+
+    // The retry asks for a new checkout only, and a valid URL is followed.
+    checkout.answer(checkoutReply());
+    await alert.getByRole('button', { name: 'Reintentar' }).click();
+    await expect(page).toHaveURL(fakeCheckoutUrl);
+    expect(registration.requests).toHaveLength(1);
+    expect(checkout.requests).toHaveLength(2);
+  });
+
+  test('starts over with a new registration when it can no longer be paid', async ({ page }) => {
+    await seedDraft(page);
+    await mockPublicCatalog(page, catalogReply());
+    const registration = await mockRegistration(page, registrationReply());
+    const checkout = await mockCheckout(page, {
+      status: 409,
+      json: { statusCode: 409, code: 'registration_not_payable' },
+    });
+    await page.goto(step('revisar'));
+    await acceptLegal(page);
+    await payButton(page).click();
+
+    const alert = page.getByRole('alert');
+    await expect(alert).toContainText('Esta inscripción ya no se puede pagar en línea.');
+    await expect(alert.getByRole('button', { name: 'Reintentar' })).toHaveCount(0);
+    await expect(alert).not.toContainText('No se hizo ningún cargo.');
+
+    checkout.answer(checkoutReply());
+    await payButton(page).click();
+    await expect(page).toHaveURL(fakeCheckoutUrl);
+    expect(registration.requests).toHaveLength(2);
+    expect(checkout.requests).toHaveLength(2);
+  });
+
+  test('enables Pagar again when Back restores the page from the cache', async ({ page }) => {
+    await seedDraft(page);
+    await mockPublicCatalog(page, catalogReply());
+    await mockRegistration(page, registrationReply());
+    const checkout = await mockCheckout(page, checkoutReply());
+    await page.goto(step('revisar'));
+    await acceptLegal(page);
+
+    // The checkout never answers, so the page stays on the pending state it had when it left.
+    checkout.hold();
+    await payButton(page).click();
+    const pending = page.getByRole('button', { name: 'Te estamos llevando a Mercado Pago…' });
+    await expect(pending).toBeDisabled();
+    await expect.poll(() => checkout.requests.length).toBe(1);
+
+    // Real back/forward cache restores are unreliable in Playwright, so fire the event it sends.
+    await page.evaluate(() =>
+      window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true })),
+    );
+    await expect(payButton(page)).toBeEnabled();
+    await expect(pending).toHaveCount(0);
+  });
+
   test('no longer has the temporary reserved screen', async ({ page }) => {
     await page.goto(`/e/${slug}/reservada`);
     await expect(page.getByRole('heading', { level: 1, name: 'Page not found' })).toBeVisible();

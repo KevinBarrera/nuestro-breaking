@@ -182,14 +182,18 @@ const checkoutEndpoint = (url: URL) =>
 
 /**
  * Answers `POST /public/events/:slug/registrations/:id/checkout` with the current reply and
- * records the requests; `answer` swaps the reply. It also serves the fake hosted page, so the
- * full page navigation to `fakeCheckoutUrl` lands without leaving the test.
+ * records the requests; `answer` swaps the reply and `hold` keeps the next answers pending until
+ * `release`. It also serves the fake hosted page, so the full page navigation to `fakeCheckoutUrl`
+ * lands without leaving the test.
  */
 export async function mockCheckout(page: Page, reply: CheckoutReply) {
   const requests: Request[] = [];
   let current = reply;
-  await page.route(checkoutEndpoint, (route) => {
+  let gate: Promise<void> | null = null;
+  let open = () => {};
+  await page.route(checkoutEndpoint, async (route) => {
     requests.push(route.request());
+    if (gate) await gate;
     if (current === 'network-error') return route.abort('failed');
     return route.fulfill(current);
   });
@@ -203,6 +207,15 @@ export async function mockCheckout(page: Page, reply: CheckoutReply) {
     requests,
     answer: (next: CheckoutReply) => {
       current = next;
+    },
+    hold: () => {
+      gate = new Promise((resolve) => {
+        open = resolve;
+      });
+    },
+    release: () => {
+      gate = null;
+      open();
     },
   };
 }

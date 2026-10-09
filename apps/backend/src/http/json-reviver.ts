@@ -20,3 +20,26 @@ export function keepUnsafeIntegersExact(
   const source = context?.source;
   return source !== undefined && INTEGER_SOURCE.test(source) ? source : value;
 }
+
+type JsonParse = (
+  text: string,
+  reviver: (key: string, value: unknown, context?: ReviverContext) => unknown,
+) => unknown;
+
+/**
+ * Throws at startup when `JSON.parse` gives revivers no source text (Node before 21), because
+ * `keepUnsafeIntegersExact` would then silently round large notification ids again.
+ */
+export function assertJsonSourceAccess(parse: JsonParse = JSON.parse as JsonParse): void {
+  let source: string | undefined;
+  parse('1', (_key, value, context) => {
+    source = context?.source;
+    return value;
+  });
+  if (source !== '1') {
+    throw new Error(
+      'JSON.parse reviver source access is unavailable on this runtime; Node 21 or later is ' +
+        'required to keep large Mercado Pago notification ids exact.',
+    );
+  }
+}

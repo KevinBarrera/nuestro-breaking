@@ -158,3 +158,7 @@ Legal acceptance (terms and privacy notice) is not stored yet (D6). #180 adds it
 - [Admin registration audit policy](admin-registration-audit-policy.md)
 - [Admin registration operations](admin-registration-operations.md)
 - Feature tasks: `odd/tasks/public-pending-registration.md`
+
+## Known risks
+
+- Reuse is keyed only on contact details. Anyone who submits another buyer's email or phone replaces that buyer's **unpaid** registration: its profile, passes and selections, including a pending registration an admin created. Confirmed registrations are never touched, nothing personal is returned, and the audit records the replaced passes. Proving control of the email before reuse is a candidate follow-up with the abandoned-registration work (#181).

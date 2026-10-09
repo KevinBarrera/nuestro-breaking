@@ -1,6 +1,13 @@
 import { expect, test } from '@playwright/test';
 import { themes, useTheme } from './support/admin-mocks.ts';
-import { catalogReply, draftKey, mockPublicCatalog, slug } from './support/public-mocks.ts';
+import {
+  catalogReply,
+  draftKey,
+  mockPaymentStatus,
+  mockPublicCatalog,
+  paymentStatusReply,
+  slug,
+} from './support/public-mocks.ts';
 
 // Theme × screen sweep of the public purchase at phone width: no horizontal scroll and 44px
 // targets. Kept apart from the admin sweeps (no admin navigation here); like them, pull requests
@@ -29,11 +36,19 @@ const screens = [
   { name: 'Competencias', path: `/e/${slug}/competencias`, heading: 'Elige tus competencias' },
   { name: 'Datos', path: `/e/${slug}/datos`, heading: 'Tus datos' },
   { name: 'Revisar', path: `/e/${slug}/revisar`, heading: 'Revisa y paga' },
-  {
-    name: 'Pago',
+  ...(
+    [
+      ['confirming', 'Pago', 'Estamos confirmando tu pago'],
+      ['confirmed', 'Pago confirmado', '¡Listo, Ana! Tu inscripción está confirmada'],
+      ['pending', 'Pago pendiente', 'Falta que se complete tu pago'],
+      ['rejected', 'Pago rechazado', 'No se pudo completar tu pago'],
+    ] as const
+  ).map(([payment, name, heading]) => ({
+    name,
     path: `/e/${slug}/pago?registration=6b0f0b5e-6d1f-4f8f-9a55-0f1c2b3d4e5f`,
-    heading: 'Estamos confirmando tu pago',
-  },
+    heading,
+    payment,
+  })),
 ];
 
 // Inline links inside a sentence (the document links in the legal checkboxes) are exempt from
@@ -52,6 +67,7 @@ for (const theme of themes) {
         [draftKey, JSON.stringify(draft)],
       );
       await mockPublicCatalog(page, catalogReply());
+      if ('payment' in screen) await mockPaymentStatus(page, paymentStatusReply(screen.payment));
       await page.goto(screen.path);
       await expect(page).toHaveURL(screen.path);
       await expect(page.getByRole('heading', { level: 1, name: screen.heading })).toBeVisible();

@@ -30,7 +30,7 @@ Plan MVP 3 (payment readiness): a buyer without an account buys passes for the N
 4. They enter their data (#58 fields, email required).
 5. They review the purchase, read the overlap notice, accept the three legal documents and pay. A `pending_payment` registration is created.
 6. They pay on the Mercado Pago Checkout Pro hosted page. The frontend gets its URL from `POST /public/events/:slug/registrations/:registrationId/checkout` (#177), which creates a new preference for a `pending_payment` registration on every call.
-7. They return to a result screen (`/e/:slug/pago?registration=<id>`, for every outcome): confirming (polling), confirmed with folio, pending (OXXO/SPEI) or rejected with retry. The confirmation email arrives once the webhook confirms the payment. Until #178, #177 ships a minimal screen there that only says the payment is being confirmed; the URL's own status is never trusted.
+7. They return to a result screen (`/e/:slug/pago?registration=<id>`, for every outcome). It polls `GET /public/events/:slug/registrations/:registrationId/payment-status` ([contract](../contracts/public-payment-status.md), #178) right away and then every 3 s, at most 20 tries, and shows what it answers: confirming, confirmed with folio and passes, pending (OXXO/SPEI), or rejected with "Intentar de nuevo", which starts a new checkout for the same registration. After the 20 tries, a network error or a 429 it says the payment is taking longer and offers "Revisar de nuevo"; a voided or unknown registration gets a neutral message. The screens show only the first name and a masked email. The URL's own status is never trusted, and the confirmation email arrives once the webhook confirms the payment.
 
 ## Routes
 

@@ -18,12 +18,13 @@ import {
   registrationOperationAudit,
 } from '@/database/schema';
 import type { PassClass } from '@/events/pass-type-admin/pass-type-admin.types';
+import {
+  type AdminRegistrationAuditActor,
+  type RegistrationAuditActor,
+  registrationAuditActorColumns,
+} from '@/events/registration-audit/registration-audit-actor';
 import { FULL_INCLUDES_GENERAL_MESSAGE, addingCombinesGeneralWithFull } from './pass-class-rules';
-import type {
-  EntitlementActor,
-  HeldPass,
-  RegistrationEntitlements,
-} from './registration-entitlements.types';
+import type { HeldPass, RegistrationEntitlements } from './registration-entitlements.types';
 
 type Database = DatabaseService['db'];
 type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0];
@@ -106,7 +107,7 @@ export class RegistrationEntitlementsService {
     eventId: string,
     registrationId: string,
     passTypeId: string,
-    actor: EntitlementActor,
+    actor: AdminRegistrationAuditActor,
   ): Promise<RegistrationEntitlements> {
     return this.db.transaction(async (tx) => {
       const registration = await this.lockRegistration(tx, eventId, registrationId);
@@ -171,7 +172,7 @@ export class RegistrationEntitlementsService {
     registrationId: string,
     registrationPassId: string,
     activityIds: string[],
-    actor: EntitlementActor,
+    actor: AdminRegistrationAuditActor,
   ): Promise<RegistrationEntitlements> {
     return this.db.transaction(async (tx) => {
       const registration = await this.lockRegistration(tx, eventId, registrationId);
@@ -346,7 +347,7 @@ export class RegistrationEntitlementsService {
 
   private async audit(
     tx: Transaction,
-    actor: EntitlementActor,
+    actor: RegistrationAuditActor,
     registration: RegistrationRow,
     fact: {
       operationType: 'pass_assignment' | 'pass_selection_change';
@@ -358,8 +359,7 @@ export class RegistrationEntitlementsService {
   ) {
     await tx.insert(registrationOperationAudit).values({
       ...fact,
-      actorUserId: actor.userId,
-      sessionId: actor.sessionId,
+      ...registrationAuditActorColumns(actor),
       eventId: registration.eventId,
       registrationId: registration.id,
       participantId: registration.participantId,

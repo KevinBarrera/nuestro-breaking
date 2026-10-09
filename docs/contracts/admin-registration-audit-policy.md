@@ -9,9 +9,25 @@ This is a design contract for future admin registration writes under [issue #63]
 - Admin authentication audit concerns sign-in, sessions, and access decisions; it is **not** registration operation audit. All event-scoped administrators (not judges) may use bounded corrections and read operation history for their authorized event. Server-side session, role, and event-scope guards and command-specific transition checks remain prerequisites; access and retention mechanics are pending.
 - Everything below is a **proposed requirement for future commands**, not an assertion that audit tables, correction workflows, or cash recording exist.
 
+## Actor kinds and stored operation types (#174)
+
+`registration_operation_audit` now records who performed each fact in `actor_kind`, which every writer must state (there is no default):
+
+| `actor_kind` | `actor_user_id` and `session_id` | Used for                                                                                        |
+| ------------ | -------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `admin`      | both required                    | every admin command (manual registration, cash confirmation, pass assignment, selection change) |
+| `public`     | both null                        | a buyer without an account (no session exists)                                                  |
+| `system`     | both null                        | server-side decisions such as a verified online payment                                         |
+
+Database checks reject any other kind and any mixed pairing, such as an admin fact without a session or a public fact with a user. In code, writers pass a typed actor (`{ kind: 'admin', userId, sessionId } | { kind: 'public' } | { kind: 'system' }`) and map it with `registrationAuditActorColumns` (`apps/backend/src/events/registration-audit/`). Facts written before this change are backfilled as `admin`.
+
+Stored operation types are `manual_registration`, `cash_confirmation`, `pass_assignment`, `pass_selection_change`, `online_registration` (a public buyer creates a pending registration with its passes and selections) and `payment_approval` (a verified online payment confirms a registration; written by #177). `amount_cents` is required for `cash_confirmation` and `payment_approval` and must be null for every other type. `outcome` stays `accepted` only, and the immutability trigger still rejects every update and delete.
+
+Public and system facts follow the same redaction rule as admin facts: no names, email, phone, raw session identifiers, payment instruments or provider payloads; reference the registration, participant and activity ids instead.
+
 ## Minimum durable operation fact
 
-Each accepted material operation appends a distinct, immutable operation fact. Record a stable operation/fact id; operation type (`manual_registration`, `cash_confirmation`, `registration_correction`, `cash_correction`, `registration_void`); outcome (`accepted`, or a safe `rejected` decision when an attempted operation is auditable); server timestamp; actor user id and server-side session record reference (never the cookie/token); authorized event id; event registration id; participant id; and the affected same-event activity ids (including added/removed ids where applicable). For creation, allocate the registration/participant ids within the write transaction so the accepted fact identifies created records. Capture a safe reason code plus operator-supplied reason where required; rejected facts must not disclose inaccessible target ids or sensitive inputs.
+Each accepted material operation appends a distinct, immutable operation fact. Record a stable operation/fact id; operation type (`manual_registration`, `cash_confirmation`, `registration_correction`, `cash_correction`, `registration_void`); outcome (`accepted`, or a safe `rejected` decision when an attempted operation is auditable); server timestamp; actor kind, plus, for admin facts, the actor user id and server-side session record reference (never the cookie/token); authorized event id; event registration id; participant id; and the affected same-event activity ids (including added/removed ids where applicable). For creation, allocate the registration/participant ids within the write transaction so the accepted fact identifies created records. Capture a safe reason code plus operator-supplied reason where required; rejected facts must not disclose inaccessible target ids or sensitive inputs.
 
 - `manual_registration`: Before: no event registration; after: new registration id, participant id, selected activity ids, `pending_payment`, null confirmation source/time. Record whether the participant was linked or created; no assertion of payment.
 - `cash_confirmation`: Before: pending status and null confirmation metadata; after: `confirmed`, `admin_cash`, server confirmation timestamp. The original confirmation records the amount received, authenticated actor, and system timestamp (#58, delivered in #103); do not treat that amount as undecided. A later disputed or mistaken entry is a separate `cash_correction` case under #104, not a `registration_correction` field edit.

@@ -9,8 +9,11 @@ import {
   participants,
   registrationOperationAudit,
 } from '@/database/schema';
+import {
+  type AdminRegistrationAuditActor,
+  registrationAuditActorColumns,
+} from '@/events/registration-audit/registration-audit-actor';
 
-type Actor = { userId: string; sessionId: string };
 type Manual = { fullName: string; phone: string; email: string | null; activityIds: string[] };
 type Cash = {
   amount: number;
@@ -23,7 +26,7 @@ type Cash = {
 export class ManualRegistrationService {
   constructor(@Inject(DATABASE_CLIENT) private readonly db: DatabaseService['db']) {}
 
-  async create(eventId: string, input: Manual, actor: Actor) {
+  async create(eventId: string, input: Manual, actor: AdminRegistrationAuditActor) {
     return this.db.transaction(async (tx) => {
       // Serialize manual creations per event, including comparisons with existing participants.
       await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${eventId}))`);
@@ -67,8 +70,7 @@ export class ManualRegistrationService {
         .insert(registrationOperationAudit)
         .values({
           operationType: 'manual_registration',
-          actorUserId: actor.userId,
-          sessionId: actor.sessionId,
+          ...registrationAuditActorColumns(actor),
           eventId,
           registrationId: registration.id,
           participantId: participant.id,
@@ -94,7 +96,12 @@ export class ManualRegistrationService {
     });
   }
 
-  async confirm(eventId: string, registrationId: string, input: Cash, actor: Actor) {
+  async confirm(
+    eventId: string,
+    registrationId: string,
+    input: Cash,
+    actor: AdminRegistrationAuditActor,
+  ) {
     return this.db.transaction(async (tx) => {
       const [registration] = await tx
         .update(eventRegistrations)
@@ -131,8 +138,7 @@ export class ManualRegistrationService {
         .insert(registrationOperationAudit)
         .values({
           operationType: 'cash_confirmation',
-          actorUserId: actor.userId,
-          sessionId: actor.sessionId,
+          ...registrationAuditActorColumns(actor),
           eventId,
           registrationId,
           participantId: registration.participantId,

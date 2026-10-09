@@ -14,6 +14,7 @@ import type { Request, Response } from 'express';
 import { SessionAccessService } from '@/identity-access/session-access.service';
 import { RegistrationEntitlementsService } from './registration-entitlements.service';
 import type { RegistrationEntitlements } from './registration-entitlements.types';
+import type { AdminRegistrationAuditActor } from '@/events/registration-audit/registration-audit-actor';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MAX_SELECTIONS = 500;
@@ -68,7 +69,8 @@ export class RegistrationEntitlementsController {
     @Res({ passthrough: true }) response: Response,
     @Body() body: unknown,
   ): Promise<RegistrationEntitlements> {
-    const actor = await this.sessions.authorizeEventAdminMutation(request, response, eventId);
+    const session = await this.sessions.authorizeEventAdminMutation(request, response, eventId);
+    const actor: AdminRegistrationAuditActor = { kind: 'admin', ...session };
     const id = passTypeId(object(body).passTypeId);
     return this.entitlements.addPass(eventId, registrationId, id, actor);
   }
@@ -82,7 +84,8 @@ export class RegistrationEntitlementsController {
     @Res({ passthrough: true }) response: Response,
     @Body() body: unknown,
   ): Promise<RegistrationEntitlements> {
-    const actor = await this.sessions.authorizeEventAdminMutation(request, response, eventId);
+    const session = await this.sessions.authorizeEventAdminMutation(request, response, eventId);
+    const actor: AdminRegistrationAuditActor = { kind: 'admin', ...session };
     const ids = activityIds(object(body).activityIds);
     return this.entitlements.replaceSelections(
       eventId,

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { chooseOption, expectSelected, selectTrigger } from './support/select.ts';
+import { accessControl, chooseAccess, expectAccess } from './support/access.ts';
 
 const eventId = 'a1b2c3d4-1234-4567-89ab-123456789abc';
 const venueId = 'e1b2c3d4-1234-4567-89ab-123456789abc';
@@ -114,7 +114,7 @@ async function selectPass(page: Page, name: string) {
 
 const list = (page: Page) => page.getByRole('region', { name: 'Acceso a actividades' });
 const access = (page: Page, activityName: string) =>
-  selectTrigger(list(page), `Acceso a ${activityName}`);
+  accessControl(list(page), `Acceso a ${activityName}`);
 const group = (page: Page, kind: string) => list(page).getByRole('list', { name: kind });
 const review = (page: Page) => page.getByRole('dialog', { name: 'Revisar cambios' });
 
@@ -171,13 +171,16 @@ test('lists the open pass access grouped by kind, by start time then name', asyn
   ]);
   await expect(group(page, 'Taller').getByRole('listitem')).toHaveText([/^Taller de footwork/]);
   await expect(list(page)).not.toContainText('Taller viejo');
-  await expectSelected(access(page, 'Batalla de crews'), 'Elegible');
-  await expectSelected(access(page, 'Taller de footwork'), 'Incluida');
-  await expectSelected(access(page, 'Batalla 2 vs 2'), 'Sin acceso');
-  const box = await access(page, 'Batalla de crews').boundingBox();
+  await expectAccess(access(page, 'Batalla de crews'), 'Elegible');
+  await expectAccess(access(page, 'Taller de footwork'), 'Incluida');
+  await expectAccess(access(page, 'Batalla 2 vs 2'), 'Sin acceso');
+  // Each option is a segment whose whole label is the 44px target.
+  const box = await access(page, 'Batalla de crews')
+    .getByRole('radio', { name: 'Elegible' })
+    .boundingBox();
   expect(box?.height).toBeGreaterThanOrEqual(44);
   await selectPass(page, 'Entrada general');
-  await expectSelected(access(page, 'Batalla de crews'), 'Sin acceso');
+  await expectAccess(access(page, 'Batalla de crews'), 'Sin acceso');
 });
 
 test('Guardar acceso reviews only a changed list and explains an unchanged one', async ({
@@ -188,12 +191,12 @@ test('Guardar acceso reviews only a changed list and explains an unchanged one',
   await page.goto(passesPath);
   await selectPass(page, 'Pase completo');
   await expectNothingToSave(page);
-  await chooseOption(access(page, 'Batalla de crews'), 'Incluida');
+  await chooseAccess(access(page, 'Batalla de crews'), 'Incluida');
   await expect(list(page).getByRole('alert')).toHaveCount(0);
   await list(page).getByRole('button', { name: 'Guardar acceso' }).click();
   await expect(review(page)).toContainText('Batalla de crews');
   await review(page).getByRole('button', { name: 'Volver a editar' }).click();
-  await chooseOption(access(page, 'Batalla de crews'), 'Elegible');
+  await chooseAccess(access(page, 'Batalla de crews'), 'Elegible');
   await expectNothingToSave(page);
   expect(bodies).toHaveLength(0);
 });
@@ -214,8 +217,8 @@ test('saves the selected column with one PUT carrying expectedVersion and the fu
   await page.goto(passesPath);
   await selectPass(page, 'Pase completo');
   await expect(list(page)).toContainText('se quitará al guardar');
-  await chooseOption(access(page, 'Batalla 2 vs 2'), 'Elegible');
-  await chooseOption(access(page, 'Taller de footwork'), 'Sin acceso');
+  await chooseAccess(access(page, 'Batalla 2 vs 2'), 'Elegible');
+  await chooseAccess(access(page, 'Taller de footwork'), 'Sin acceso');
   await list(page).getByRole('button', { name: 'Guardar acceso' }).click();
   // The review also lists the link to the archived activity that the save drops.
   await expect(review(page).getByRole('term')).toHaveText([
@@ -235,7 +238,7 @@ test('saves the selected column with one PUT carrying expectedVersion and the fu
     },
   ]);
   await expect(page.getByRole('form', { name: 'Editar pase' })).toContainText('v3');
-  await expectSelected(access(page, 'Taller de footwork'), 'Sin acceso');
+  await expectAccess(access(page, 'Taller de footwork'), 'Sin acceso');
   await expectNothingToSave(page);
   await expect(list(page)).not.toContainText('se quitará al guardar');
 });
@@ -251,7 +254,7 @@ test('a stale version shows a conflict with a reload that discards local edits',
   }));
   await page.goto(passesPath);
   await selectPass(page, 'Pase completo');
-  await chooseOption(access(page, 'Batalla 2 vs 2'), 'Incluida');
+  await chooseAccess(access(page, 'Batalla 2 vs 2'), 'Incluida');
   await saveAccess(page);
   const conflict = page.getByRole('alert').filter({ hasText: 'Otra persona cambió este pase' });
   await expect(conflict).toBeVisible();
@@ -266,8 +269,8 @@ test('a stale version shows a conflict with a reload that discards local edits',
   const readsBefore = passReads();
   await conflict.getByRole('button', { name: 'Recargar' }).click();
   await expect.poll(passReads).toBeGreaterThan(readsBefore);
-  await expectSelected(access(page, 'Batalla de crews'), 'Incluida');
-  await expectSelected(access(page, 'Batalla 2 vs 2'), 'Sin acceso');
+  await expectAccess(access(page, 'Batalla de crews'), 'Incluida');
+  await expectAccess(access(page, 'Batalla 2 vs 2'), 'Sin acceso');
   await expect(page.getByRole('form', { name: 'Editar pase' })).toContainText('v5');
   await expectNothingToSave(page);
   await expect(conflict).toHaveCount(0);
@@ -278,10 +281,10 @@ test('other access failures show the generic failure notice', async ({ page }) =
   await mockAccessWrite(page, () => ({ status: 500, json: {} }));
   await page.goto(passesPath);
   await selectPass(page, 'Pase completo');
-  await chooseOption(access(page, 'Batalla 2 vs 2'), 'Incluida');
+  await chooseAccess(access(page, 'Batalla 2 vs 2'), 'Incluida');
   await saveAccess(page);
   await expect(page.getByRole('alert')).toContainText('No se pudo completar la operación');
-  await expectSelected(access(page, 'Batalla 2 vs 2'), 'Incluida');
+  await expectAccess(access(page, 'Batalla 2 vs 2'), 'Incluida');
 });
 
 for (const width of [1280, 375])
@@ -320,7 +323,7 @@ test('saving access keeps unsaved pass edits and the next save sends the new ver
   await selectPass(page, 'Pase completo');
   const form = page.getByRole('form', { name: 'Editar pase' });
   await form.getByLabel('Nombre').fill('Pase completo VIP');
-  await chooseOption(access(page, 'Batalla 2 vs 2'), 'Elegible');
+  await chooseAccess(access(page, 'Batalla 2 vs 2'), 'Elegible');
   await saveAccess(page);
   await expect(page.getByRole('status')).toContainText('Acceso actualizado');
   await expect(form).toContainText('v3');
@@ -352,16 +355,18 @@ test('disables the access list and the review while the save is in flight', asyn
   );
   await page.goto(passesPath);
   await selectPass(page, 'Pase completo');
-  await chooseOption(access(page, 'Batalla 2 vs 2'), 'Incluida');
+  await chooseAccess(access(page, 'Batalla 2 vs 2'), 'Incluida');
   await saveAccess(page);
   // The pending review dialog covers the editor and blocks every repeat until the save settles.
   await expect(review(page).getByRole('button', { name: 'Guardando…' })).toBeDisabled();
   await expect(review(page).getByRole('button', { name: 'Volver a editar' })).toBeDisabled();
-  await expect(list(page).locator('button[aria-haspopup="listbox"]').first()).toBeDisabled();
+  await expect(list(page).getByRole('radio').first()).toBeDisabled();
   release();
   await expect(page.getByRole('status')).toContainText('Acceso actualizado');
   await expectNothingToSave(page);
-  await expect(access(page, 'Batalla 2 vs 2')).toBeEnabled();
+  await expect(
+    access(page, 'Batalla 2 vs 2').getByRole('radio', { name: 'Incluida' }),
+  ).toBeEnabled();
 });
 
 test('a reload still in flight when access is saved cannot restore the older version', async ({
@@ -401,13 +406,13 @@ test('a reload still in flight when access is saved cannot restore the older ver
   );
   await page.goto(passesPath);
   await selectPass(page, 'Pase completo');
-  await chooseOption(access(page, 'Batalla 2 vs 2'), 'Incluida');
+  await chooseAccess(access(page, 'Batalla 2 vs 2'), 'Incluida');
   await saveAccess(page);
   const conflict = page.getByRole('alert').filter({ hasText: 'Otra persona cambió este pase' });
   holdReads = true;
   await conflict.getByRole('button', { name: 'Recargar' }).click();
   await expect.poll(() => heldReads).toBe(1);
-  await chooseOption(access(page, 'Batalla 2 vs 2'), 'Incluida');
+  await chooseAccess(access(page, 'Batalla 2 vs 2'), 'Incluida');
   await saveAccess(page);
   await expect(page.getByRole('status')).toContainText('Acceso actualizado');
   const form = page.getByRole('form', { name: 'Editar pase' });
@@ -417,7 +422,7 @@ test('a reload still in flight when access is saved cannot restore the older ver
   // Let the page settle any late response before checking it was ignored.
   await page.evaluate(() => new Promise((resolve) => setTimeout(resolve, 100)));
   await expect(form).toContainText('v3');
-  await expectSelected(access(page, 'Batalla 2 vs 2'), 'Incluida');
+  await expectAccess(access(page, 'Batalla 2 vs 2'), 'Incluida');
   await expectNothingToSave(page);
 });
 
@@ -460,7 +465,7 @@ test('an access save during a retried reload re-reads instead of leaving the ref
   );
   await page.goto(passesPath);
   await selectPass(page, 'Pase completo');
-  await chooseOption(access(page, 'Batalla 2 vs 2'), 'Incluida');
+  await chooseAccess(access(page, 'Batalla 2 vs 2'), 'Incluida');
   await saveAccess(page);
   const conflict = page.getByRole('alert').filter({ hasText: 'Otra persona cambió este pase' });
   reads = 'fail';
@@ -474,7 +479,7 @@ test('an access save during a retried reload re-reads instead of leaving the ref
   await expect.poll(() => heldReads).toBe(1);
   reads = 'ok';
   const readsBeforeSave = passReads;
-  await chooseOption(access(page, 'Batalla 2 vs 2'), 'Incluida');
+  await chooseAccess(access(page, 'Batalla 2 vs 2'), 'Incluida');
   await saveAccess(page);
   await expect(page.getByRole('status')).toContainText('Acceso actualizado');
 
@@ -486,7 +491,7 @@ test('an access save during a retried reload re-reads instead of leaving the ref
   await heldServed;
   await page.evaluate(() => new Promise((resolve) => setTimeout(resolve, 100)));
   await expect(form).toContainText('v3');
-  await expectSelected(access(page, 'Batalla 2 vs 2'), 'Incluida');
+  await expectAccess(access(page, 'Batalla 2 vs 2'), 'Incluida');
 });
 
 // Creating a pass sends its access in the same POST; GETs fall through to the catalog mock.
@@ -532,9 +537,9 @@ test('a new pass sets its access in the same single POST', async ({ page }) => {
   const form = await fillNewPass(page);
   // Every listed activity starts without access.
   for (const name of ['Batalla de crews', 'Batalla 2 vs 2', 'Taller de footwork'])
-    await expectSelected(access(page, name), 'Sin acceso');
-  await chooseOption(access(page, 'Batalla de crews'), 'Incluida');
-  await chooseOption(access(page, 'Taller de footwork'), 'Elegible');
+    await expectAccess(access(page, name), 'Sin acceso');
+  await chooseAccess(access(page, 'Batalla de crews'), 'Incluida');
+  await chooseAccess(access(page, 'Taller de footwork'), 'Elegible');
   await form.getByRole('button', { name: 'Guardar' }).click();
   await confirmReview(page);
   await expect(page.getByRole('status')).toContainText('Pase creado');
@@ -551,7 +556,46 @@ test('a new pass sets its access in the same single POST', async ({ page }) => {
     },
   ]);
   await expect(page).toHaveURL(`${passesPath}/${newPassId}`);
-  await expectSelected(access(page, 'Batalla de crews'), 'Incluida');
+  await expectAccess(access(page, 'Batalla de crews'), 'Incluida');
+});
+
+test('a new pass shows its fields and access side by side, with counts per kind', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await mockCatalog(page, () => [fullPass]);
+  const form = await fillNewPass(page);
+  const fields = form.getByRole('heading', { name: 'Datos del pase', level: 2 });
+  await expect(fields).toBeVisible();
+  await expect(list(page)).toContainText(
+    'Todas empiezan sin acceso. Marca qué puede escoger o qué incluye este pase.',
+  );
+  // From lg up the access card sits to the right of the fields card.
+  const left = (await fields.boundingBox())!;
+  const right = (await list(page).boundingBox())!;
+  expect(right.x).toBeGreaterThan(left.x + left.width);
+  const battles = list(page).getByRole('group', { name: 'Batalla', exact: true });
+  await expect(battles).toContainText('0 elegibles · 0 incluidas · 2 actividades');
+  await chooseAccess(access(page, 'Batalla de crews'), 'Incluida');
+  await expect(battles).toContainText('0 elegibles · 1 incluida · 2 actividades');
+  await battles.getByRole('button', { name: 'Marcar todas como elegibles' }).click();
+  await expect(battles).toContainText('2 elegibles · 0 incluidas · 2 actividades');
+  await expectAccess(access(page, 'Batalla 2 vs 2'), 'Elegible');
+  // Other kinds keep their choices.
+  await expectAccess(access(page, 'Taller de footwork'), 'Sin acceso');
+});
+
+test('a new pass stacks its two cards at phone width without horizontal scroll', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 375, height: 800 });
+  await mockCatalog(page, () => [fullPass]);
+  await fillNewPass(page);
+  const fields = page.getByRole('heading', { name: 'Datos del pase', level: 2 });
+  const left = (await fields.boundingBox())!;
+  const right = (await list(page).boundingBox())!;
+  expect(right.y).toBeGreaterThan(left.y);
+  await expectNoHorizontalScroll(page, 375);
 });
 
 test('a new pass whose access names an unavailable activity shows why it failed', async ({
@@ -563,7 +607,7 @@ test('a new pass whose access names an unavailable activity shows why it failed'
     json: { message: 'Invalid activity' },
   }));
   const form = await fillNewPass(page);
-  await chooseOption(access(page, 'Batalla 2 vs 2'), 'Elegible');
+  await chooseAccess(access(page, 'Batalla 2 vs 2'), 'Elegible');
   await form.getByRole('button', { name: 'Guardar' }).click();
   await confirmReview(page);
   const failure = page.getByRole('alert').filter({ hasText: 'No se pudo crear el pase' });
@@ -575,7 +619,7 @@ test('a new pass whose access names an unavailable activity shows why it failed'
     expect.objectContaining({ activities: [{ activityId: duoId, access: 'selectable' }] }),
   ]);
   await expect(page).toHaveURL(`${passesPath}/new`);
-  await expectSelected(access(page, 'Batalla 2 vs 2'), 'Elegible');
+  await expectAccess(access(page, 'Batalla 2 vs 2'), 'Elegible');
 });
 
 test('a 400 on a new pass without access keeps the generic invalid message', async ({ page }) => {

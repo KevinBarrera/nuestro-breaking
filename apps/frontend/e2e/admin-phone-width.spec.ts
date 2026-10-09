@@ -53,14 +53,7 @@ for (const theme of themes) {
 
 // Open listboxes render in a popover: at 375px it stays inside the viewport in both themes.
 for (const theme of themes) {
-  for (const [screen, trigger, control] of [
-    [adminScreens[0], 'Evento', 'Evento'],
-    [
-      adminScreen('Pase'),
-      'Acceso a Batalla de crews con nombre largo para pantallas angostas',
-      'access list row',
-    ],
-  ] as const) {
+  for (const [screen, trigger, control] of [[adminScreens[0], 'Evento', 'Evento']] as const) {
     test(`${screen.name} open listbox for ${control} fits ${width}px in the ${theme} theme`, async ({
       page,
     }) => {
@@ -80,6 +73,29 @@ for (const theme of themes) {
       );
     });
   }
+}
+
+// An access row with a long activity name puts its three segments under the name, inside the
+// viewport, in both themes.
+for (const theme of themes) {
+  test(`Pase access row segments fit ${width}px in the ${theme} theme`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 800 });
+    await useTheme(page, theme);
+    await mockAdminApi(page);
+    await page.goto(adminScreen('Pase').path);
+    await revealControls(page, 'Pase');
+    const control = page.getByRole('radiogroup', {
+      name: 'Acceso a Batalla de crews con nombre largo para pantallas angostas',
+    });
+    for (const option of await control.getByRole('radio').all()) {
+      const box = (await option.boundingBox())!;
+      expect(box.x).toBeGreaterThanOrEqual(0);
+      expect(box.x + box.width).toBeLessThanOrEqual(width);
+    }
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+      width,
+    );
+  });
 }
 
 // Each catalog dialog fits a 375px screen in both themes: the dialog stays inside the

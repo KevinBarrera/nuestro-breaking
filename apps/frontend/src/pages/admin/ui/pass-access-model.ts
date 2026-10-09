@@ -46,3 +46,32 @@ export function droppedLinks(links: PassTypeActivity[], groups: AccessGroup[]) {
   const listed = new Set(groups.flatMap((group) => group.activities.map((entry) => entry.id)));
   return links.filter((link) => !listed.has(link.activityId)).length;
 }
+
+export type GroupCounts = { selectable: number; included: number; total: number };
+
+// What one kind grants right now; an activity without a choice counts as no access.
+export function groupCounts(group: AccessGroup, choices: AccessChoices): GroupCounts {
+  const counts = { selectable: 0, included: 0, total: group.activities.length };
+  for (const activity of group.activities) {
+    const choice = choices[activity.id] ?? 'none';
+    if (choice !== 'none') counts[choice]++;
+  }
+  return counts;
+}
+
+const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
+
+// "2 elegibles · 0 incluidas · 3 actividades", shown under each kind heading.
+export const groupSummary = ({ selectable, included, total }: GroupCounts) =>
+  [
+    plural(selectable, 'elegible', 'elegibles'),
+    plural(included, 'incluida', 'incluidas'),
+    plural(total, 'actividad', 'actividades'),
+  ].join(' · ');
+
+// "Marcar todas como elegibles": every activity of the kind becomes eligible, including the
+// included ones; other kinds keep their choices.
+export const markAllSelectable = (group: AccessGroup, choices: AccessChoices): AccessChoices => ({
+  ...choices,
+  ...Object.fromEntries(group.activities.map((activity) => [activity.id, 'selectable'])),
+});

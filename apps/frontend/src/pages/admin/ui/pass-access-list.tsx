@@ -1,24 +1,19 @@
 import type { CatalogPassType, PassTypeActivity } from '@/entities/event-catalog';
-import { Select } from '@/shared/ui';
 import { type ReactNode, useEffect, useId, useState } from 'react';
 import { accessLabels, styles } from './catalog-copy';
 import {
   accessList,
   droppedLinks,
+  groupCounts,
+  groupSummary,
+  markAllSelectable,
   savedChoices,
   type AccessChoice,
   type AccessChoices,
   type AccessGroup,
 } from './pass-access-model';
 
-const chip = 'inline-flex min-h-8 items-center rounded-full border px-3 text-xs font-semibold';
-const chipTone: Record<AccessChoice, string> = {
-  selectable: 'border-eligible-line bg-eligible text-eligible-fg',
-  included: 'border-included bg-included text-included-fg',
-  none: 'border-input-line bg-input text-fg',
-};
-
-const accessOptions = [
+const accessOptions: { id: AccessChoice; label: string }[] = [
   { id: 'none', label: 'Sin acceso' },
   { id: 'selectable', label: accessLabels.selectable },
   { id: 'included', label: accessLabels.included },
@@ -27,36 +22,61 @@ const accessOptions = [
 type HeadingLevel = 2 | 3;
 
 type AccessSectionProps = {
-  // 2 on the pass screen; 3 inside the "Nuevo pase" form, under its own heading.
   level: HeadingLevel;
   intro: string;
   className?: string;
   children: ReactNode;
 };
 
-// The "Acceso a actividades" region: heading, legend and what the list below edits.
+// The "Acceso a actividades" region: heading, what the list below edits, and the list.
 export function AccessSection({ level, intro, className = '', children }: AccessSectionProps) {
   const titleId = useId();
   const Heading = level === 2 ? 'h2' : 'h3';
   return (
     <section aria-labelledby={titleId} className={`min-w-0 space-y-4 ${className}`}>
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="space-y-1">
         <Heading id={titleId} className="text-lg font-bold text-heading">
           Acceso a actividades
         </Heading>
-        <ul aria-label="Leyenda" className="flex flex-wrap gap-3 text-sm text-muted">
-          <li className="flex items-center gap-2">
-            <span className={`${chip} ${chipTone.selectable}`}>Elegible</span>{' '}
-            <span>(la persona escoge)</span>
-          </li>
-          <li className="flex items-center gap-2">
-            <span className={`${chip} ${chipTone.included}`}>Incluida</span>
-          </li>
-        </ul>
+        <p className="text-sm text-muted">{intro}</p>
       </div>
-      <p className="text-sm text-muted">{intro}</p>
       {children}
     </section>
+  );
+}
+
+type AccessControlProps = {
+  activityName: string;
+  choice: AccessChoice;
+  busy: boolean;
+  onChange: (choice: AccessChoice) => void;
+};
+
+// Sin acceso / Elegible / Incluida as one radio group named after the activity, so arrow
+// keys move between the three options and each segment is a 44px target.
+function AccessControl({ activityName, choice, busy, onChange }: AccessControlProps) {
+  const name = useId();
+  return (
+    <div
+      role="radiogroup"
+      aria-label={`Acceso a ${activityName}`}
+      className={`${styles.segments} w-full sm:w-auto sm:min-w-80 sm:shrink-0`}
+    >
+      {accessOptions.map((option) => (
+        <label key={option.id} className={styles.segment}>
+          <input
+            type="radio"
+            name={name}
+            value={option.id}
+            checked={choice === option.id}
+            disabled={busy}
+            onChange={() => onChange(option.id)}
+            className={styles.segmentInput}
+          />
+          {option.label}
+        </label>
+      ))}
+    </div>
   );
 }
 
@@ -66,47 +86,58 @@ type AccessListProps = {
   // The level of the section heading; each kind gets the next one.
   level: HeadingLevel;
   busy: boolean;
-  onChange: (activityId: string, choice: AccessChoice) => void;
+  // Receives the whole next set of choices: one row changed, or a kind marked eligible.
+  onChange: (choices: AccessChoices) => void;
 };
 
-// One row per active activity, grouped by kind, each with its access for the open pass.
+// One row per active activity, grouped by kind, each with its access for the open pass. Each
+// kind shows its counts and can mark all of its activities as eligible at once.
 export function AccessList({ groups, choices, level, busy, onChange }: AccessListProps) {
   const id = useId();
   const Heading = level === 2 ? 'h3' : 'h4';
   if (groups.length === 0)
     return <p className="text-muted">No hay actividades activas en este evento.</p>;
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       {groups.map((group) => {
         const headingId = `${id}-${group.kind}`;
         return (
-          <div key={group.kind} className="space-y-1">
-            <Heading
-              id={headingId}
-              className="text-xs font-bold tracking-[0.06em] text-muted uppercase"
-            >
-              {group.label}
-            </Heading>
+          <div key={group.kind} role="group" aria-labelledby={headingId} className="space-y-2">
+            <div className="flex flex-wrap items-center justify-between gap-x-3">
+              <div className="min-w-0">
+                <Heading
+                  id={headingId}
+                  className="text-xs font-bold tracking-[0.06em] text-muted uppercase"
+                >
+                  {group.label}
+                </Heading>
+                <p className="text-sm text-muted">{groupSummary(groupCounts(group, choices))}</p>
+              </div>
+              <button
+                type="button"
+                disabled={busy}
+                aria-describedby={headingId}
+                onClick={() => onChange(markAllSelectable(group, choices))}
+                className="min-h-11 rounded-lg px-2 text-sm font-semibold text-link underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus disabled:cursor-wait disabled:opacity-50"
+              >
+                Marcar todas como elegibles
+              </button>
+            </div>
             <ul aria-labelledby={headingId} className="divide-y divide-row">
-              {group.activities.map((activity) => {
-                const choice = choices[activity.id] ?? 'none';
-                return (
-                  <li key={activity.id} className="flex items-center justify-between gap-3 py-1.5">
-                    <span className="min-w-0 font-semibold break-words">{activity.name}</span>
-                    <Select
-                      label={`Acceso a ${activity.name}`}
-                      hideLabel
-                      variant="chip"
-                      className="shrink-0"
-                      triggerClassName={chipTone[choice]}
-                      options={accessOptions}
-                      selectedKey={choice}
-                      isDisabled={busy}
-                      onSelectionChange={(key) => onChange(activity.id, key as AccessChoice)}
-                    />
-                  </li>
-                );
-              })}
+              {group.activities.map((activity) => (
+                <li
+                  key={activity.id}
+                  className="flex flex-col gap-2 py-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3"
+                >
+                  <span className="min-w-0 font-semibold break-words">{activity.name}</span>
+                  <AccessControl
+                    activityName={activity.name}
+                    choice={choices[activity.id] ?? 'none'}
+                    busy={busy}
+                    onChange={(choice) => onChange({ ...choices, [activity.id]: choice })}
+                  />
+                </li>
+              ))}
             </ul>
           </div>
         );
@@ -170,7 +201,7 @@ export function PassAccessEditor({
   return (
     <AccessSection
       level={2}
-      intro={`Qué actividades da ${passType.name}.`}
+      intro={`Qué actividades da ${passType.name}. Elegible: la persona la escoge; Incluida: viene con el pase.`}
       className="rounded-xl border border-line bg-surface p-5"
     >
       {conflict && (
@@ -192,9 +223,9 @@ export function PassAccessEditor({
         choices={choices}
         level={2}
         busy={busy}
-        onChange={(activityId, choice) => {
+        onChange={(next) => {
           setError(null);
-          setChoices((current) => ({ ...current, [activityId]: choice }));
+          setChoices(next);
         }}
       />
       {dropped > 0 && (

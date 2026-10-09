@@ -1,4 +1,5 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
+import { accessControl, chooseAccess, expectAccess } from './support/access.ts';
 import { chooseOption, expectSelected, selectTrigger } from './support/select.ts';
 
 const eventId = 'a1b2c3d4-1234-4567-89ab-123456789abc';
@@ -530,9 +531,9 @@ test('saves activity access for a pass type with its expected version', async ({
     .getByRole('link', { name: /^Editar / })
     .click();
   const editor = page.getByRole('region', { name: 'Acceso a actividades' });
-  await expectSelected(selectTrigger(editor, 'Acceso a Batalla de crews'), 'Elegible');
-  await chooseOption(selectTrigger(editor, 'Acceso a Batalla de crews'), 'Sin acceso');
-  await chooseOption(selectTrigger(editor, 'Acceso a Taller de footwork'), 'Elegible');
+  await expectAccess(accessControl(editor, 'Acceso a Batalla de crews'), 'Elegible');
+  await chooseAccess(accessControl(editor, 'Acceso a Batalla de crews'), 'Sin acceso');
+  await chooseAccess(accessControl(editor, 'Acceso a Taller de footwork'), 'Elegible');
   await editor.getByRole('button', { name: 'Guardar acceso' }).click();
   await confirmReview(page);
   await expect(page.getByRole('status')).toContainText('Acceso actualizado');
@@ -773,8 +774,8 @@ test('a reload while a pass is open refreshes its values with the new version', 
     .click();
   await expect(form).toContainText('v2');
   const access = page.getByRole('region', { name: 'Acceso a actividades' });
-  await expectSelected(selectTrigger(access, 'Acceso a Batalla de crews'), 'Elegible');
-  await chooseOption(selectTrigger(access, 'Acceso a Batalla de crews'), 'Incluida');
+  await expectAccess(accessControl(access, 'Acceso a Batalla de crews'), 'Elegible');
+  await chooseAccess(accessControl(access, 'Acceso a Batalla de crews'), 'Incluida');
   // Another writer changed the pass meanwhile; the retried reload brings version 5.
   rows = [
     {
@@ -792,7 +793,7 @@ test('a reload while a pass is open refreshes its values with the new version', 
   await expect(form).toContainText('v5');
   await expect(form.getByLabel('Nombre')).toHaveValue('Pase completo plus');
   await expect(form.getByLabel('Precio (MXN)')).toHaveValue('1600.00');
-  await expectSelected(selectTrigger(access, 'Acceso a Batalla de crews'), 'Sin acceso');
+  await expectAccess(accessControl(access, 'Acceso a Batalla de crews'), 'Sin acceso');
   await form.getByLabel('Nombre').fill('Pase completo plus 2');
   await form.getByRole('button', { name: 'Guardar cambios' }).click();
   await confirmReview(page);

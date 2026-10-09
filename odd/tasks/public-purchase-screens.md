@@ -69,6 +69,7 @@ See issue #176. Evidence is recorded per task below.
 
 - 2026-10-08 — D1 answered. Design read (10 boards). Exploration done (delegated read-only explorer). Feature doc created. Next: T1.
 - 2026-10-08 — T1 written (not committed yet): `entities/public-event` (credential-less catalog and registration client, readers, typed failures), `features/public-purchase` (pure purchase model) and `TextField`, `CheckboxField`, `FieldError`, `Notice` in `shared/ui`. RED observed (5 new test files failed on missing modules), then GREEN: 20 files, 180 tests. Lint, build and format check pass. The purchase model lives in a `features/` slice because it models the buyer's purchase action on top of the `public-event` entity; `formatMxn` stays in `@/entities/event-catalog` (features and pages may import it, so no move).
+- 2026-10-08 — T1 committed: `1b73b1b` (public API client), `066b898` (purchase model), `4108eae` (shared fields). Parent spot check: Vitest 180/180. Review: medium (1,678 lines, about 550 tests), consent granted per standing instruction, reliability lens approved and acknowledged (lineage `review-580f2bd536f74673`). Advisory WARNING carried into T2–T4: the fetch wrapper (`public-event-api.ts:25-58`) has no direct test; Playwright specs must assert the public requests carry no cookie or CSRF header and that each failure kind renders its message. Suggestions left: add-on chain normalization (`purchase-selection.ts:57-62`), a weak assertion (`registration-request.test.ts:90-91`). Next boundary: `4108eae`. Next: T2.
 
 ## Route per task
 

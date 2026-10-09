@@ -82,6 +82,8 @@ See issue #177.
 
 - 2026-10-09: T4 four-lens review approved and acknowledged (lineage `review-a38fe7fa8c9f62d1`); the correction above fixes its three warnings (stale re-read, permanent read failures, controller comment). Accepted advisory suggestions only.
 
+- 2026-10-09: T4 follow-up (uncommitted): read-failure rules revised. 401 and 403 now answer 500 and leave the claim unprocessed (our access token is likely misconfigured, rotated or revoked; a token-free warning names the status), so Mercado Pago retries once the credential is fixed. A 404 is final (`payment_not_found`, processed, 200) only once the claim's `received_at` is older than `PAYMENT_NOT_FOUND_GRACE_SECONDS` (1 hour, compared with `now()` in SQL); inside the window it answers 500 and stays unprocessed, because a new payment may not be readable yet. Other 4xx except 429 stay final (`payment_unreadable`); 429, 5xx, network errors and timeouts still answer 500. The service comment records that the per-payment lock holds a pooled connection during one bounded read, accepted at this event's volume and revisited if the pool size or traffic changes.
+
 ## Next step
 
 T5.

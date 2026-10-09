@@ -35,7 +35,8 @@ test.describe('public payment return', () => {
     const main = page.getByRole('main');
     await expect(main).toContainText('te enviaremos el resultado a a***@ejemplo.com');
     await expect(main).not.toContainText(/aprobad|confirmada|pagado/i);
-    await expect.poll(() => status.requests.length).toBe(1);
+    // The clock runs at real speed, so a slow runner may already have polled again.
+    await expect.poll(() => status.requests.length).toBeGreaterThanOrEqual(1);
     const request = status.requests[0];
     expect(new URL(request.url()).pathname).toBe(
       `/public/events/${slug}/registrations/${registrationId}/payment-status`,

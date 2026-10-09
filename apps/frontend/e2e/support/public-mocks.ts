@@ -219,3 +219,50 @@ export async function mockCheckout(page: Page, reply: CheckoutReply) {
     },
   };
 }
+
+type PaymentStatusValue = 'confirming' | 'confirmed' | 'pending' | 'rejected' | 'unavailable';
+
+// A `GET .../payment-status` body (#178) for the registration above: first name and masked email
+// only (D1); the folio comes only with `confirmed`.
+export const paymentStatusBody = (status: PaymentStatusValue) => ({
+  status,
+  firstName: 'Ana',
+  maskedEmail: 'a***@ejemplo.com',
+  folio: status === 'confirmed' ? 'LMP-0427' : null,
+  passes: [
+    { name: 'Pase completo Breaking', competitions: ['Breaking Bboy', 'Breaking 3v3'] },
+    { name: 'Open Styles', competitions: [] },
+  ],
+  totalCents: 280000,
+});
+
+type PaymentStatusReply = { status: number; json?: unknown } | 'network-error';
+
+export const paymentStatusReply = (status: PaymentStatusValue): PaymentStatusReply => ({
+  status: 200,
+  json: paymentStatusBody(status),
+});
+
+const paymentStatusEndpoint = (url: URL) =>
+  url.port === '3000' &&
+  /^\/public\/events\/[^/]+\/registrations\/[^/]+\/payment-status$/.test(url.pathname);
+
+/**
+ * Answers `GET /public/events/:slug/registrations/:id/payment-status` with the current reply (or
+ * a dropped connection) and records the requests; `answer` swaps the reply for the next polls.
+ */
+export async function mockPaymentStatus(page: Page, reply: PaymentStatusReply) {
+  const requests: Request[] = [];
+  let current = reply;
+  await page.route(paymentStatusEndpoint, (route) => {
+    requests.push(route.request());
+    if (current === 'network-error') return route.abort('failed');
+    return route.fulfill(current);
+  });
+  return {
+    requests,
+    answer: (next: PaymentStatusReply) => {
+      current = next;
+    },
+  };
+}

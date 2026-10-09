@@ -35,8 +35,8 @@ After Mercado Pago sends the buyer back, show the real result of the payment: co
 ## Tasks
 
 - [x] T1 — Backend payment status endpoint: pure status decision with unit spec, controller and service in `payments/status/`, PostgreSQL e2e spec, contract doc `docs/contracts/public-payment-status.md`. Route: delegated (backend, several non-trivial files).
-- [ ] T2 — Frontend API reader and polling model: `getPaymentStatus` with reader tests, pure polling state machine with Vitest. Route: delegated together with T3.
-- [ ] T3 — Return page views (confirming, confirmed, pending, rejected, taking longer, unavailable), Playwright specs for each state and retry, phone-width sweep, plan doc update. Route: delegated.
+- [x] T2 — Frontend API reader and polling model: `getPaymentStatus` with reader tests, pure polling state machine with Vitest. Route: delegated together with T3.
+- [x] T3 — Return page views (confirming, confirmed, pending, rejected, taking longer, unavailable), Playwright specs for each state and retry, phone-width sweep, plan doc update. Route: delegated.
 
 ## Acceptance criteria
 
@@ -51,3 +51,5 @@ See issue #178.
 
 - 2026-10-09 — Exploration done; D1 decided by the user.
 - 2026-10-09 — T1 done (delegated writer). Deviations: `maskedEmail` is `null` when the participant has no email (manual registrations); `firstName` falls back to the first word of `full_name`; competitions ordered by start time, then name. Checks: backend lint passed; unit 21 suites / 284 tests passed; e2e 25 suites / 238 tests passed; parent spot check `jest src/payments/status` 18/18 passed. Review fixes: `7e3c5fb`, `c544d49` (newest-attempt rule, D4 amended; D8 decided by the user). T1 commits: `df8e75c`, `4a66190`, `7e3c5fb`, `c544d49`; RDD high risk, all three reviews approved and acknowledged. Next: T2 and T3.
+- 2026-10-09 — T2 and T3 done (delegated writer, branch `feat/178-02-result-screens`). Writer-chosen copy: taking-longer view ("Tu pago está tardando más de lo normal", asks not to pay again yet) and unavailable view ("No podemos mostrar este pago"); a 400 shows the same neutral view as a 404; a retry that cannot be retried (sales closed, not payable) turns the button into "Volver al inicio". Checks: frontend Vitest 27 files / 236 tests passed; Playwright return and phone-width specs 26 passed; `pnpm verify:pr` exit 0 (Vitest 236, Playwright 276). Parent spot check: Vitest 236/236 passed. Next: RDD per commit, then publish the chain.
+- 2026-10-09 — Pending copy reworded (user request): the `CONT` test cardholder gives a card payment in process, not a voucher, so screen 7b now reads "Tu pago está en proceso" and covers both a voucher to pay and a card Mercado Pago is reviewing. Mercado Pago's test-card docs confirm `CONT` simulates a pending payment; the exact API status (`pending` or `in_process`) was not observed, and both map to `pending`. Checks: Playwright return and phone-width specs 26 passed.

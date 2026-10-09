@@ -1,7 +1,14 @@
 import { apiUrl } from '@/shared/api';
-import { isCheckout, isPublicCatalog, isRegistration, readFailure } from './readers';
+import {
+  isCheckout,
+  isPaymentStatus,
+  isPublicCatalog,
+  isRegistration,
+  readFailure,
+} from './readers';
 import type {
   Checkout,
+  PaymentStatus,
   PublicCatalog,
   PublicEventFailure,
   Registration,
@@ -86,4 +93,18 @@ export function createCheckout(
 ): Promise<Checkout> {
   const path = eventPath(slug, `registrations/${encodeURIComponent(registrationId)}/checkout`);
   return send(path, { signal, json: {} }, isCheckout);
+}
+
+// The result the return page shows for one registration of this event (#178). It only reads and
+// keeps answering after sales close; an unknown registration is a neutral 404 (`not-found`).
+export function getPaymentStatus(
+  slug: string,
+  registrationId: string,
+  signal?: AbortSignal,
+): Promise<PaymentStatus> {
+  const path = eventPath(
+    slug,
+    `registrations/${encodeURIComponent(registrationId)}/payment-status`,
+  );
+  return send(path, { signal }, isPaymentStatus);
 }

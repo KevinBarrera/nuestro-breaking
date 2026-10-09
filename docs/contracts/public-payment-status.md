@@ -1,6 +1,6 @@
 # Public payment status contract
 
-This contract describes how the return page learns the result of an online payment, for issue #178. Mercado Pago sends the buyer back to `/e/:slug/pago?registration=<registrationId>`; the page polls this endpoint. The redirect never confirms anything: only the verified payment webhook (#177) does. It is implemented and covered by backend unit and e2e tests.
+This contract describes how the return page learns the result of an online payment, for issue #178. Mercado Pago sends the buyer back to `/e/:slug/pago?registration=<registrationId>`; the page polls this endpoint. The redirect never confirms anything: only the verified payment webhook (#177) does. It is implemented and covered by backend unit and e2e tests. The frontend reads it with `getPaymentStatus` (`apps/frontend/src/entities/public-event`), and the polling rules (D7) live in `apps/frontend/src/features/public-purchase/model/payment-status.ts`.
 
 ## Current answer
 

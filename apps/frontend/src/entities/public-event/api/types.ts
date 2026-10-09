@@ -1,9 +1,18 @@
 // Shapes of the public, credential-less endpoints: `GET /public/events/:slug/catalog`
 // (`docs/contracts/public-event-catalog.md`) and `POST /public/events/:slug/registrations`
 // (`docs/contracts/public-registration.md`), and the Checkout Pro start
-// `POST /public/events/:slug/registrations/:registrationId/checkout` (#177).
+// `POST /public/events/:slug/registrations/:registrationId/checkout` (#177), and the payment status
+// the return page polls, `GET .../registrations/:registrationId/payment-status`
+// (`docs/contracts/public-payment-status.md`, #178).
 export const publicPassClasses = ['full', 'general', 'add_on'] as const;
 export const publicSalesClosedReasons = ['disabled', 'not_yet_open', 'ended'] as const;
+export const paymentStatusValues = [
+  'confirming',
+  'confirmed',
+  'pending',
+  'rejected',
+  'unavailable',
+] as const;
 export const registrationRuleCodes = [
   'pass_type_unavailable',
   'general_with_full',
@@ -14,6 +23,7 @@ export const registrationRuleCodes = [
 export type PublicPassClass = (typeof publicPassClasses)[number];
 export type PublicSalesClosedReason = (typeof publicSalesClosedReasons)[number];
 export type RegistrationRuleCode = (typeof registrationRuleCodes)[number];
+export type PaymentStatusValue = (typeof paymentStatusValues)[number];
 
 export type PublicActivity = {
   id: string;
@@ -90,6 +100,19 @@ export type Registration = {
 
 // Mercado Pago's hosted checkout page for one pending registration.
 export type Checkout = { checkoutUrl: string };
+
+// What the return page may show about a registration's payment (D1): a first name and a masked
+// email only. `folio` is set only when `status` is `confirmed`.
+export type PaymentStatusPass = { name: string; competitions: string[] };
+
+export type PaymentStatus = {
+  status: PaymentStatusValue;
+  firstName: string;
+  maskedEmail: string | null;
+  folio: string | null;
+  passes: PaymentStatusPass[];
+  totalCents: number;
+};
 
 // Why a public request failed. `fieldErrors` maps a field path (`buyer.email`,
 // `passes[0].passTypeId`) to the backend code (`required`, `invalid`, `too_long`, ...).

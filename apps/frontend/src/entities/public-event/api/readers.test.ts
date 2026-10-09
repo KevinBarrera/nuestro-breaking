@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { isCheckout, isPublicCatalog, isRegistration, readFailure } from './readers';
+import {
+  isCheckout,
+  isPaymentStatus,
+  isPublicCatalog,
+  isRegistration,
+  readFailure,
+} from './readers';
 
 const activity = {
   id: 'a1',
@@ -169,5 +175,54 @@ describe('readFailure', () => {
 
   it('treats any other status as a generic error', () => {
     expect(readFailure(500, null)).toEqual({ kind: 'error' });
+  });
+});
+
+const paymentStatus = {
+  status: 'confirmed',
+  firstName: 'Ana',
+  maskedEmail: 'a***@gmail.com',
+  folio: 'LMP-2345',
+  passes: [
+    { name: 'Pase completo Breaking', competitions: ['Popping 1v1', 'Breaking 1v1'] },
+    { name: 'Open Styles', competitions: [] },
+  ],
+  totalCents: 220050,
+};
+
+describe('isPaymentStatus', () => {
+  it('accepts a confirmed answer and a waiting one without folio or email', () => {
+    expect(isPaymentStatus(paymentStatus)).toBe(true);
+    for (const status of ['confirming', 'pending', 'rejected', 'unavailable'])
+      expect(
+        isPaymentStatus({ ...paymentStatus, status, folio: null, maskedEmail: null }),
+        status,
+      ).toBe(true);
+  });
+
+  it('rejects an unknown status value', () => {
+    expect(isPaymentStatus({ ...paymentStatus, status: 'approved' })).toBe(false);
+    expect(isPaymentStatus({ ...paymentStatus, status: undefined })).toBe(false);
+  });
+
+  it('rejects a confirmed answer without folio and a folio on any other status', () => {
+    expect(isPaymentStatus({ ...paymentStatus, folio: null })).toBe(false);
+    expect(isPaymentStatus({ ...paymentStatus, status: 'pending' })).toBe(false);
+  });
+
+  it('rejects malformed bodies', () => {
+    for (const body of [
+      null,
+      [],
+      'confirmed',
+      { ...paymentStatus, firstName: 7 },
+      { ...paymentStatus, maskedEmail: 3 },
+      { ...paymentStatus, passes: null },
+      { ...paymentStatus, passes: [{ name: '', competitions: [] }] },
+      { ...paymentStatus, passes: [{ name: 'Open Styles', competitions: [1] }] },
+      { ...paymentStatus, totalCents: -1 },
+      { ...paymentStatus, totalCents: 10.5 },
+    ])
+      expect(isPaymentStatus(body), JSON.stringify(body)).toBe(false);
   });
 });

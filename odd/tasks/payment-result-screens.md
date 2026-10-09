@@ -29,6 +29,7 @@ After Mercado Pago sends the buyer back, show the real result of the payment: co
     `confirmed` comes only from the registration status the webhook sets.
 - D5 (technical default) — Retry after a rejection calls the existing checkout endpoint, which creates a new preference for the same pending registration. When sales have closed, the existing checkout failure message is shown.
 - D6 (technical default) — The organizer contact email is not known yet, so the rejected screen leaves out the "Escríbenos a …" line.
+- D8 (user, 2026-10-09) — When an older OXXO/SPEI voucher is still unpaid and a newer attempt was rejected, the page shows `rejected` and allows a retry. If the buyer later pays both, the webhook already records `approved_after_confirmation` for manual follow-up, and the organization refunds outside the system.
 - D7 (technical default) — Polling: every 3 s, at most 20 tries (about 60 s, under the public rate limit). After that, or after a network error or 429, the page shows a "taking longer" message with a "Revisar de nuevo" button.
 
 ## Tasks
@@ -49,4 +50,4 @@ See issue #178.
 ## Progress
 
 - 2026-10-09 — Exploration done; D1 decided by the user.
-- 2026-10-09 — T1 done (delegated writer). Deviations: `maskedEmail` is `null` when the participant has no email (manual registrations); `firstName` falls back to the first word of `full_name`; competitions ordered by start time, then name. Checks: backend lint passed; unit 21 suites / 284 tests passed; e2e 25 suites / 238 tests passed; parent spot check `jest src/payments/status` 18/18 passed. Next: T2 and T3.
+- 2026-10-09 — T1 done (delegated writer). Deviations: `maskedEmail` is `null` when the participant has no email (manual registrations); `firstName` falls back to the first word of `full_name`; competitions ordered by start time, then name. Checks: backend lint passed; unit 21 suites / 284 tests passed; e2e 25 suites / 238 tests passed; parent spot check `jest src/payments/status` 18/18 passed. Review fixes: `7e3c5fb`, `c544d49` (newest-attempt rule, D4 amended; D8 decided by the user). T1 commits: `df8e75c`, `4a66190`, `7e3c5fb`, `c544d49`; RDD high risk, all three reviews approved and acknowledged. Next: T2 and T3.

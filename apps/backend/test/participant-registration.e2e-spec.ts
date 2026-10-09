@@ -105,7 +105,7 @@ describe('participant registration persistence (e2e)', () => {
     ).rejects.toMatchObject({ code: '23514', constraint_name: 'participants_name_parts_ck' });
   });
 
-  it('registers a person once per event, with nullable event-scoped folios', async () => {
+  it('registers a person once per event, with folios only on confirmed registrations, unique system-wide', async () => {
     const [{ organizationId }] = await client<{ organizationId: string }[]>`
       INSERT INTO organizations (name) VALUES ('Registration org') RETURNING id AS "organizationId"
     `;
@@ -117,16 +117,22 @@ describe('participant registration persistence (e2e)', () => {
     const participants = await client<{ id: string }[]>`
       INSERT INTO participants (full_name) VALUES ('One'), ('Two'), ('Three') RETURNING id
     `;
-    const [{ id, folio, createdAt, updatedAt }] = await client<
+    const confirmed = (eventId: string, participantId: string, folio: string | null) => client<
       { id: string; folio: string | null; createdAt: Date; updatedAt: Date }[]
     >`
-      INSERT INTO event_registrations (event_id, participant_id, folio)
-      VALUES (${events[0].id}, ${participants[0].id}, 'A-1')
+      INSERT INTO event_registrations
+        (event_id, participant_id, folio, status, confirmation_source, confirmed_at)
+      VALUES (${eventId}, ${participantId}, ${folio}, 'confirmed', 'admin_cash', now())
       RETURNING id, folio, created_at AS "createdAt", updated_at AS "updatedAt"
     `;
+    const [{ id, folio, createdAt, updatedAt }] = await confirmed(
+      events[0].id,
+      participants[0].id,
+      'EV-A2B3',
+    );
     expect(id).toMatch(/^[0-9a-f-]{36}$/);
     expect({ folio, createdAt: !!createdAt, updatedAt: !!updatedAt }).toEqual({
-      folio: 'A-1',
+      folio: 'EV-A2B3',
       createdAt: true,
       updatedAt: true,
     });
@@ -139,18 +145,23 @@ describe('participant registration persistence (e2e)', () => {
       code: '23505',
       constraint_name: 'event_registrations_event_participant_uq',
     });
+    // The same folio is rejected in another event too.
+    await expect(confirmed(events[1].id, participants[1].id, 'EV-A2B3')).rejects.toMatchObject({
+      code: '23505',
+      constraint_name: 'event_registrations_folio_uq',
+    });
     await expect(
       client`
         INSERT INTO event_registrations (event_id, participant_id, folio)
-        VALUES (${events[0].id}, ${participants[1].id}, 'A-1')
+        VALUES (${events[0].id}, ${participants[1].id}, 'EV-C4D5')
       `,
     ).rejects.toMatchObject({
-      code: '23505',
-      constraint_name: 'event_registrations_event_folio_uq',
+      code: '23514',
+      constraint_name: 'event_registrations_folio_status_ck',
     });
     await client`
       INSERT INTO event_registrations (event_id, participant_id, folio)
-      VALUES (${events[1].id}, ${participants[0].id}, 'A-1'),
+      VALUES (${events[1].id}, ${participants[0].id}, NULL),
         (${events[0].id}, ${participants[1].id}, NULL),
         (${events[0].id}, ${participants[2].id}, NULL)
     `;

@@ -1,9 +1,7 @@
 import type { ProviderPayment } from '@/payments/mercado-pago-client';
-import type { MercadoPagoMode } from '@/payments/mercado-pago-config';
 
 export interface PaymentDecisionInput {
-  payment: Pick<ProviderPayment, 'status' | 'transactionAmountCents' | 'currencyId' | 'liveMode'>;
-  mode: MercadoPagoMode;
+  payment: Pick<ProviderPayment, 'status' | 'transactionAmountCents' | 'currencyId'>;
   /** Null when `external_reference` names no registration with a checkout in this mode. */
   registration: {
     status: string;
@@ -38,14 +36,16 @@ const KNOWN_STATUSES = new Set([
 
 /**
  * Maps a re-read Mercado Pago payment and its registration to what the webhook does (#177 D11).
- * Only `approved`, in full, in MXN and in the configured mode confirms a pending registration;
- * every other status is recorded and a confirmation is never undone.
+ * Only `approved`, in full and in MXN confirms a pending registration; every other status is
+ * recorded and a confirmation is never undone.
+ *
+ * There is no `live_mode` check: Mercado Pago test accounts operate in its production environment,
+ * so sandbox payments say live too. Mode separation is enforced by credentials instead: the
+ * configured access token can only read payments of its own account, and the checkout row's `mode`
+ * records which credential set created it (the registration lookup requires a checkout in this
+ * mode).
  */
-export function decidePayment({
-  payment,
-  mode,
-  registration,
-}: PaymentDecisionInput): PaymentDecision {
+export function decidePayment({ payment, registration }: PaymentDecisionInput): PaymentDecision {
   if (!registration)
     return { outcome: 'unknown_registration', confirm: false, recordPayment: false };
   if (!KNOWN_STATUSES.has(payment.status))
@@ -54,7 +54,6 @@ export function decidePayment({
     return { outcome: 'currency_mismatch', confirm: false, recordPayment: false };
   const recordPayment = payment.transactionAmountCents > 0;
   const record = (outcome: string) => ({ outcome, confirm: false, recordPayment });
-  if (payment.liveMode !== (mode === 'production')) return record('mode_mismatch');
   if (payment.transactionAmountCents !== registration.expectedAmountCents)
     return record('amount_mismatch');
   if (payment.status !== 'approved') return record(`payment_${payment.status}`);

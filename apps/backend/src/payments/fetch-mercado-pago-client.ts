@@ -109,7 +109,7 @@ function readPayment(body: unknown): ProviderPayment | null {
   const currencyId = stringField(body, 'currency_id');
   const amount = fields.transaction_amount;
   const reference = fields.external_reference ?? null;
-  if (!id || !status || !currencyId || typeof fields.live_mode !== 'boolean') return null;
+  if (!id || !status || !currencyId) return null;
   if (typeof amount !== 'number' || !Number.isFinite(amount) || amount < 0) return null;
   if (reference !== null && typeof reference !== 'string') return null;
   return {
@@ -119,7 +119,6 @@ function readPayment(body: unknown): ProviderPayment | null {
     transactionAmountCents: Math.round(amount * 100),
     currencyId,
     externalReference: reference || null,
-    liveMode: fields.live_mode,
   };
 }
 

@@ -31,7 +31,8 @@ export interface ProviderPayment {
   currencyId: string;
   /** The registration id sent as the preference's `external_reference`, when present. */
   externalReference: string | null;
-  liveMode: boolean;
+  // No `live_mode`: test accounts run in Mercado Pago's production environment, so their payments
+  // also say live. Mode separation comes from credentials instead (see `decidePayment`).
 }
 
 /**

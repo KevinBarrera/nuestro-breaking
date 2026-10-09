@@ -224,7 +224,22 @@ describe('FetchMercadoPagoClient.getPayment', () => {
       transactionAmountCents: 150050,
       currencyId: 'MXN',
       externalReference: 'registration-1',
-      liveMode: false,
+    });
+  });
+
+  it.each([
+    ['true, as for test accounts', { ...PAYMENT_BODY, live_mode: true }],
+    ['missing', { ...PAYMENT_BODY, live_mode: undefined }],
+    ['not a boolean', { ...PAYMENT_BODY, live_mode: 'false' }],
+  ])('ignores live_mode when it is %s', async (_label, body) => {
+    const { client } = clientWith(jsonResponse(200, body));
+
+    await expect(client.getPayment('1234567890')).resolves.toEqual({
+      id: '1234567890',
+      status: 'approved',
+      transactionAmountCents: 150050,
+      currencyId: 'MXN',
+      externalReference: 'registration-1',
     });
   });
 
@@ -269,7 +284,6 @@ describe('FetchMercadoPagoClient.getPayment', () => {
     ['a text amount', jsonResponse(200, { ...PAYMENT_BODY, transaction_amount: '1500.50' })],
     ['a negative amount', jsonResponse(200, { ...PAYMENT_BODY, transaction_amount: -1 })],
     ['a missing currency', jsonResponse(200, { ...PAYMENT_BODY, currency_id: undefined })],
-    ['a non-boolean live mode', jsonResponse(200, { ...PAYMENT_BODY, live_mode: 'false' })],
     ['a numeric external reference', jsonResponse(200, { ...PAYMENT_BODY, external_reference: 1 })],
     ['another payment id', jsonResponse(200, { ...PAYMENT_BODY, id: 1234567891 })],
   ])('rejects a malformed answer with %s', async (_label, response) => {

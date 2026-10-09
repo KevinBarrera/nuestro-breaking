@@ -54,6 +54,8 @@ export class PaymentWebhookController {
   }
 }
 
+// Unsafe integers never reach here as numbers: the JSON body parser keeps them as their exact
+// digits in a string (`keepUnsafeIntegersExact`, D12), so a rounded id can never become a key.
 function text(value: unknown): string | undefined {
   if (typeof value === 'number' && Number.isSafeInteger(value)) return String(value);
   return typeof value === 'string' && value.length > 0 ? value : undefined;

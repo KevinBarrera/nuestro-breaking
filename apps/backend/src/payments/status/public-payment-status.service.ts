@@ -1,5 +1,5 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { and, asc, desc, eq, inArray } from 'drizzle-orm';
+import { and, asc, eq, inArray } from 'drizzle-orm';
 import { DATABASE_CLIENT } from '@/database/database.constants';
 import type { DatabaseService } from '@/database/database.service';
 import {
@@ -44,21 +44,18 @@ export class PublicPaymentStatusService {
       );
     if (!registration) throw new NotFoundException('Registration not found');
 
-    const [latestPayment] = await this.db
+    const payments = await this.db
       .select({ status: registrationPayments.status })
       .from(registrationPayments)
       .innerJoin(
         registrationCheckouts,
         eq(registrationCheckouts.id, registrationPayments.checkoutId),
       )
-      .where(eq(registrationCheckouts.registrationId, registrationId))
-      .orderBy(
-        desc(registrationPayments.updatedAt),
-        desc(registrationPayments.createdAt),
-        desc(registrationPayments.id),
-      )
-      .limit(1);
-    const status = decidePaymentStatus(registration.status, latestPayment?.status ?? null);
+      .where(eq(registrationCheckouts.registrationId, registrationId));
+    const status = decidePaymentStatus(
+      registration.status,
+      payments.map((payment) => payment.status),
+    );
 
     const passes = await this.db
       .select({

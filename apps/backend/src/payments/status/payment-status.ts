@@ -6,17 +6,22 @@ const WAITING = new Set(['pending', 'in_process', 'authorized']);
 const FAILED = new Set(['rejected', 'cancelled']);
 
 /**
- * What the return page shows (#178 D4). `confirmed` comes only from the registration status the
- * verified webhook sets; an `approved` payment alone keeps the page confirming until it does.
+ * What the return page shows (#178 D4), from every payment of the registration in any order.
+ * `confirmed` comes only from the registration status the verified webhook sets; an `approved`
+ * payment alone keeps the page confirming until it does. A payment still on its way wins over a
+ * failed one, and `rejected` needs every payment to have failed, because the rejected screen
+ * offers a retry and a retry next to a payment in flight could charge the buyer twice.
  */
 export function decidePaymentStatus(
   registrationStatus: string,
-  latestPaymentStatus: string | null,
+  paymentStatuses: readonly string[],
 ): PublicPaymentStatus {
   if (registrationStatus === 'confirmed') return 'confirmed';
   if (registrationStatus !== 'pending_payment') return 'unavailable';
-  if (latestPaymentStatus !== null && WAITING.has(latestPaymentStatus)) return 'pending';
-  if (latestPaymentStatus !== null && FAILED.has(latestPaymentStatus)) return 'rejected';
+  if (paymentStatuses.some((status) => WAITING.has(status))) return 'pending';
+  if (paymentStatuses.length > 0 && paymentStatuses.every((status) => FAILED.has(status))) {
+    return 'rejected';
+  }
   return 'confirming';
 }
 

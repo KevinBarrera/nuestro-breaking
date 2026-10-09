@@ -113,7 +113,7 @@ describe('public payment status (e2e)', () => {
     return id;
   }
 
-  // Records Mercado Pago payments in order; each one is updated a minute after the previous one.
+  // Records Mercado Pago payments; each one is created and updated a minute after the previous one.
   async function payments(registrationId: string, statuses: string[]) {
     const [{ id: checkout }] = await client<{ id: string }[]>`
       INSERT INTO registration_checkouts (registration_id, mode, preference_id, amount_cents, currency)
@@ -172,8 +172,10 @@ describe('public payment status (e2e)', () => {
     [['authorized'], 'pending'],
     [['rejected'], 'rejected'],
     [['cancelled'], 'rejected'],
-    [['pending', 'rejected'], 'rejected'],
+    [['pending', 'rejected'], 'pending'],
     [['rejected', 'pending'], 'pending'],
+    [['rejected', 'cancelled'], 'rejected'],
+    [['rejected', 'approved'], 'confirming'],
   ])('reads payments %j of a pending registration as %s', async (statuses, expected) => {
     const ids = await fixture();
     const id = await registration(ids.event, [{ passTypeId: ids.full, priceCents: 150050 }]);

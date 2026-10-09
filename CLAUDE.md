@@ -34,7 +34,7 @@ pnpm --filter @nuestro-breaking/backend test:e2e  # Jest + disposable PostgreSQL
 ## CI
 
 - Workflows live in `.github/workflows`. On PRs, only the changed area runs (backend or frontend). Docs-only PRs run just the format check. Pushes to `dev` run everything.
-- On PRs, the accessibility and phone-width sweeps (`admin-accessibility`, `admin-phone-width`) are skipped. They run on every push to `dev`.
+- On PRs, the accessibility and phone-width sweeps (`admin-accessibility`, `admin-phone-width`, `public-phone-width`) are skipped. They run on every push to `dev`.
 - The Playwright image tag in `pr-checks.yml` must match the `@playwright/test` version in `pnpm-lock.yaml`.
 
 ## Git and PRs

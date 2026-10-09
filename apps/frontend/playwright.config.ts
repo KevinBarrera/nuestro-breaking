@@ -12,7 +12,11 @@ const preview = !live && process.env.NB_E2E_PREVIEW === '1';
 // Pull requests skip the theme × screen sweeps; every push to dev runs them.
 // Feature specs keep their own phone-width checks, so PRs still cover narrow layouts.
 const skipSweeps = !live && process.env.NB_E2E_SKIP_SWEEPS === '1';
-const sweeps = ['admin-accessibility.spec.ts', 'admin-phone-width.spec.ts'];
+const sweeps = [
+  'admin-accessibility.spec.ts',
+  'admin-phone-width.spec.ts',
+  'public-phone-width.spec.ts',
+];
 const port = new URL(baseURL).port;
 if (live) {
   process.env.NB_LIVE_ORIGIN = baseURL;

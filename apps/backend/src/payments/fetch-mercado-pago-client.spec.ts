@@ -110,6 +110,34 @@ describe('FetchMercadoPagoClient', () => {
     expect(error.message).toBe('Mercado Pago preference request failed with status 401.');
   });
 
+  it("adds Mercado Pago's short reason to a rejected preference", async () => {
+    const { client } = clientWith(
+      jsonResponse(400, {
+        message: 'auto_return invalid. back_url.success must be defined',
+        error: 'invalid_auto_return',
+      }),
+    );
+
+    const error = await failureOf(client.createPreference(PREFERENCE));
+
+    expect(error.message).toBe(
+      'Mercado Pago preference request failed with status 400: auto_return invalid. back_url.success must be defined',
+    );
+  });
+
+  it.each([
+    ['contains the access token', `invalid token ${TOKEN}`],
+    ['contains digits', 'payer 5512345678 is invalid'],
+    ['contains an email or a URL', 'payer buyer@example.test at https://example.test'],
+    ['is too long', 'x'.repeat(161)],
+  ])('omits a rejection reason that %s', async (_label, message) => {
+    const { client } = clientWith(jsonResponse(400, { message }));
+
+    const error = await failureOf(client.createPreference(PREFERENCE));
+
+    expect(error.message).toBe('Mercado Pago preference request failed with status 400.');
+  });
+
   it.each([
     ['a non-JSON body', new Response('not json should-not-leak', { status: 201 })],
     ['a missing id', jsonResponse(201, { ...PROVIDER_BODY, id: undefined })],

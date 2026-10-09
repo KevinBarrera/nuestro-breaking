@@ -11,10 +11,12 @@ import {
 const PREFERENCES_URL = 'https://api.mercadopago.com/checkout/preferences';
 const PAYMENTS_URL = 'https://api.mercadopago.com/v1/payments';
 const DEFAULT_TIMEOUT_MS = 10_000;
+const SAFE_REASON = /^[A-Za-z _.,:'()-]+$/;
 
 /**
- * `MercadoPagoClient` over Node's global `fetch` (D2). Errors carry only a status code or a fixed
- * message: never the access token, the provider's body or the underlying network error.
+ * `MercadoPagoClient` over Node's global `fetch` (D2). Errors carry only a status code, a fixed
+ * message or a filtered short rejection reason: never the access token, the provider's body or
+ * the underlying network error.
  */
 export class FetchMercadoPagoClient extends MercadoPagoClient {
   constructor(
@@ -43,8 +45,11 @@ export class FetchMercadoPagoClient extends MercadoPagoClient {
       throw new MercadoPagoClientError('Mercado Pago preference request failed before a response.');
     }
     if (!response.ok) {
+      const reason = response.status === 400 ? await this.rejectionReason(response) : null;
       throw new MercadoPagoClientError(
-        `Mercado Pago preference request failed with status ${response.status}.`,
+        reason
+          ? `Mercado Pago preference request failed with status 400: ${reason}`
+          : `Mercado Pago preference request failed with status ${response.status}.`,
       );
     }
 
@@ -56,6 +61,17 @@ export class FetchMercadoPagoClient extends MercadoPagoClient {
       throw new MercadoPagoClientError('Mercado Pago preference response was malformed.');
     }
     return { preferenceId, checkoutUrl };
+  }
+
+  /**
+   * Mercado Pago's short reason for a rejected preference (for example an invalid `auto_return`),
+   * so operators can see which field was refused. Only plain words pass: a reason with digits,
+   * `@`, `/` or the access token, or longer than 160 characters, is dropped.
+   */
+  private async rejectionReason(response: Response): Promise<string | null> {
+    const message = stringField(await response.json().catch(() => null), 'message')?.trim();
+    if (!message || message.length > 160 || message.includes(this.config.accessToken)) return null;
+    return SAFE_REASON.test(message) ? message : null;
   }
 
   /** Reads a payment by id (#177 D11), so the webhook always acts on its current state. */

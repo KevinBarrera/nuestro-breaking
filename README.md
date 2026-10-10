@@ -71,16 +71,17 @@ The webhook secret belongs to the account that owns the access token: in sandbox
 
 ### Email delivery (Brevo)
 
-Confirmation emails ([#179](https://github.com/KevinBarrera/nuestro-breaking/issues/179), [ADR 0007](docs/adr/0007-email-delivery-service.md)) are sent through the Brevo transactional API. The backend reads these variables at startup and refuses to boot when one of the first three is missing or invalid:
+Confirmation emails ([#179](https://github.com/KevinBarrera/nuestro-breaking/issues/179), [ADR 0007](docs/adr/0007-email-delivery-service.md)) are sent through the Brevo transactional API. The backend reads these variables at startup and refuses to boot when one of the first three is missing or a value is invalid:
 
-| Variable               | Example placeholder       | Meaning                                                                                                                             |
-| ---------------------- | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `BREVO_API_KEY`        | `<your-brevo-api-key>`    | Brevo v3 API key. Required.                                                                                                         |
-| `EMAIL_SENDER_ADDRESS` | `boletos@tickets.example` | From address. Required; must be an email address. Its domain must be verified in Brevo before real delivery works.                  |
-| `EMAIL_SENDER_NAME`    | `Los más pesados`         | From name buyers see. Required.                                                                                                     |
-| `EMAIL_SANDBOX`        | `true`                    | `true` or `false`. When `true`, Brevo validates each message but delivers nothing. Defaults to `true` unless `NODE_ENV=production`. |
+| Variable                     | Example placeholder       | Meaning                                                                                                                                                  |
+| ---------------------------- | ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `BREVO_API_KEY`              | `<your-brevo-api-key>`    | Brevo v3 API key. Required.                                                                                                                              |
+| `EMAIL_SENDER_ADDRESS`       | `boletos@tickets.example` | From address. Required; must be an email address. Its domain must be verified in Brevo before real delivery works.                                       |
+| `EMAIL_SENDER_NAME`          | `Los más pesados`         | From name buyers see. Required.                                                                                                                          |
+| `EMAIL_SANDBOX`              | `true`                    | `true` or `false`. When `true`, Brevo validates each message but delivers nothing. Defaults to `true` unless `NODE_ENV=production`.                      |
+| `EMAIL_DISPATCH_INTERVAL_MS` | `60000`                   | Optional. How often, in milliseconds, pending confirmation emails are retried. `0` turns the retry off; otherwise 1000 to 86400000. Defaults to `60000`. |
 
-Keep `EMAIL_SANDBOX=true` for local development, so no email reaches a real inbox. Like the Mercado Pago credentials, the API key goes in your local `.env` or the deployment's secret store, never in the repository.
+Keep `EMAIL_SANDBOX=true` for local development, so no email reaches a real inbox. Like the Mercado Pago credentials, the API key goes in your local `.env` or the deployment's secret store, never in the repository. The [email delivery runbook](docs/runbooks/email-delivery.md) covers the Brevo setup, checking delivery and resending a failed email; the [confirmation email contract](docs/contracts/confirmation-email.md) describes what is sent and when.
 
 The frontend reads `VITE_API_BASE_URL` and `VITE_PUBLIC_EVENT_SLUG` from `apps/frontend/.env` (there is no template file; see [Frontend](#frontend)).
 

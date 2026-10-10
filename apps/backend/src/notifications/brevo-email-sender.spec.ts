@@ -8,6 +8,7 @@ const CONFIG: EmailConfig = {
   senderAddress: 'boletos@example.test',
   senderName: 'Los más pesados',
   sandbox: false,
+  dispatchIntervalMs: 60_000,
 };
 const MESSAGE: OutgoingEmail = {
   to: { email: 'buyer-should-not-leak@example.test', name: 'Ana' },
@@ -97,7 +98,7 @@ describe('BrevoEmailSender', () => {
     await expect(sender.send(MESSAGE)).resolves.toEqual({ providerMessageId: null });
   });
 
-  it.each([429, 500, 502, 503])('maps status %i to a retryable error', async (status) => {
+  it.each([408, 429, 500, 502, 503])('maps status %i to a retryable error', async (status) => {
     const { sender } = senderWith(
       jsonResponse(status, { message: `${API_KEY} body-should-not-leak` }),
     );
@@ -126,6 +127,23 @@ describe('BrevoEmailSender', () => {
     expect(error.status).toBe(status);
     expect(error.code).toBe(code);
     expectNoLeak(error);
+  });
+
+  it.each([400, 503])('releases the response body of a %i answer', async (status) => {
+    const response = jsonResponse(status, { message: 'body-should-not-leak' });
+
+    await failureOf(senderWith(response).sender.send(MESSAGE));
+
+    expect(response.bodyUsed || response.body?.locked).toBe(true);
+  });
+
+  it('still reports the failure when releasing the body fails', async () => {
+    const response = jsonResponse(500, {});
+    jest.spyOn(response, 'text').mockRejectedValue(new Error('stream broke'));
+
+    const error = await failureOf(senderWith(response).sender.send(MESSAGE));
+
+    expect(error.code).toBe('provider_unavailable');
   });
 
   it('maps a network failure or timeout to a retryable error without the cause', async () => {

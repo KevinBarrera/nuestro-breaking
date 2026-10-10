@@ -22,7 +22,7 @@ import {
   type ProviderPayment,
 } from '@/payments/mercado-pago-client';
 import { MERCADO_PAGO_CONFIG, type MercadoPagoConfig } from '@/payments/mercado-pago-config';
-import { enqueueConfirmationEmail } from '@/notifications';
+import { ConfirmationEmailDispatcher, enqueueConfirmationEmail } from '@/notifications';
 import { decidePayment } from './payment-decision';
 
 type Database = DatabaseService['db'];
@@ -51,6 +51,12 @@ const PROVIDER_UNAVAILABLE = {
  */
 export const PAYMENT_NOT_FOUND_GRACE_SECONDS = 60 * 60;
 
+/** A processed notification's outcome code, and the registration it confirmed, if any. */
+interface Applied {
+  outcome: string;
+  confirmedRegistrationId?: string;
+}
+
 @Injectable()
 export class PaymentWebhookService {
   private readonly logger = new Logger(PaymentWebhookService.name);
@@ -59,12 +65,14 @@ export class PaymentWebhookService {
     @Inject(DATABASE_CLIENT) private readonly db: Database,
     @Inject(MERCADO_PAGO_CONFIG) private readonly config: MercadoPagoConfig,
     private readonly mercadoPago: MercadoPagoClient,
+    private readonly confirmationEmails: ConfirmationEmailDispatcher,
   ) {}
 
   /**
    * Processes one verified notification at most once (#177 D11) and returns its outcome code.
    * The claim row is written before the payment read; a failed read rolls the transaction back and
-   * leaves it unprocessed, so Mercado Pago's retry re-claims it.
+   * leaves it unprocessed, so Mercado Pago's retry re-claims it. After a confirmation commits,
+   * the queued confirmation email is tried without waiting: a send failure never changes the answer.
    */
   async handle({ notificationId, type, dataId }: WebhookNotification): Promise<string> {
     if (
@@ -81,7 +89,7 @@ export class PaymentWebhookService {
       .onConflictDoNothing({ target: paymentWebhookNotifications.notificationId });
     if (await this.isProcessed(this.db, claimId)) return 'duplicate';
 
-    const outcome = await this.db.transaction(async (tx) => {
+    const { outcome, confirmedRegistrationId } = await this.db.transaction(async (tx) => {
       // Serializes every notification for this payment, so each read happens after the previous
       // one committed and a stale read can never overwrite a newer status. The lock keeps a pooled
       // connection busy during one bounded (10s) provider read. That is accepted at this event's
@@ -90,19 +98,30 @@ export class PaymentWebhookService {
       await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`mp-payment:${paymentId}`}))`);
       // Serializes concurrent deliveries of the same notification: the second waits here, then
       // sees it processed.
-      if (await this.isProcessed(tx, claimId, true)) return 'duplicate';
+      if (await this.isProcessed(tx, claimId, true)) return { outcome: 'duplicate' };
       const read = await this.readPayment(paymentId);
       if (read === 'payment_not_found' && !(await this.isPastNotFoundGrace(tx, claimId)))
         throw new InternalServerErrorException(PROVIDER_UNAVAILABLE);
-      const result = typeof read === 'string' ? read : await this.apply(tx, read);
+      const result: Applied =
+        typeof read === 'string' ? { outcome: read } : await this.apply(tx, read);
       await tx
         .update(paymentWebhookNotifications)
-        .set({ processedAt: sql`now()`, outcome: result })
+        .set({ processedAt: sql`now()`, outcome: result.outcome })
         .where(eq(paymentWebhookNotifications.notificationId, claimId));
       return result;
     });
     this.logger.log(`Mercado Pago payment ${paymentId} notification ${claimId}: ${outcome}`);
+    if (confirmedRegistrationId) this.sendConfirmationEmail(confirmedRegistrationId);
     return outcome;
+  }
+
+  /** Fire and forget: the outbox row is committed, so the sweep retries whatever fails here. */
+  private sendConfirmationEmail(registrationId: string) {
+    this.confirmationEmails.dispatchRegistration(registrationId).catch((error: unknown) => {
+      this.logger.error(
+        `Confirmation email dispatch for registration ${registrationId} failed (${error instanceof Error ? error.name : 'unknown'}); the sweep will retry it.`,
+      );
+    });
   }
 
   private async isProcessed(db: Database | RegistrationTransaction, claimId: string, lock = false) {
@@ -156,7 +175,7 @@ export class PaymentWebhookService {
     }
   }
 
-  private async apply(tx: RegistrationTransaction, payment: ProviderPayment): Promise<string> {
+  private async apply(tx: RegistrationTransaction, payment: ProviderPayment): Promise<Applied> {
     const registrationId = UUID.test(payment.externalReference ?? '')
       ? (payment.externalReference as string)
       : null;
@@ -195,7 +214,7 @@ export class PaymentWebhookService {
             }
           : null,
     });
-    if (!registration || !checkout) return decision.outcome;
+    if (!registration || !checkout) return { outcome: decision.outcome };
 
     if (decision.recordPayment) {
       const values = {
@@ -212,8 +231,9 @@ export class PaymentWebhookService {
           set: { ...values, updatedAt: sql`now()` },
         });
     }
-    if (decision.confirm) await this.confirm(tx, registration, checkout.id, payment);
-    return decision.outcome;
+    if (!decision.confirm) return { outcome: decision.outcome };
+    await this.confirm(tx, registration, checkout.id, payment);
+    return { outcome: decision.outcome, confirmedRegistrationId: registration.id };
   }
 
   private async expectedAmountCents(tx: RegistrationTransaction, registrationId: string) {

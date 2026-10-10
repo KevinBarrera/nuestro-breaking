@@ -40,7 +40,11 @@ export class BrevoEmailSender extends EmailSender {
     } catch {
       throw new EmailSendError('network', true);
     }
-    if (!response.ok) throw failureFor(response.status);
+    if (!response.ok) {
+      // Release the connection; the body itself is never read into an error or a log.
+      await response.text().catch(() => undefined);
+      throw failureFor(response.status);
+    }
 
     const body: unknown = await response.json().catch(() => null);
     return { providerMessageId: messageId(body) };
@@ -61,7 +65,8 @@ export class BrevoEmailSender extends EmailSender {
 
 function failureFor(status: number): EmailSendError {
   if (status === 429) return new EmailSendError('rate_limited', true, status);
-  if (status >= 500) return new EmailSendError('provider_unavailable', true, status);
+  if (status === 408 || status >= 500)
+    return new EmailSendError('provider_unavailable', true, status);
   if (status === 401 || status === 403) return new EmailSendError('unauthorized', false, status);
   return new EmailSendError('rejected', false, status);
 }

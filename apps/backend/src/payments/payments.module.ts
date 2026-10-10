@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { DatabaseModule } from '@/database/database.module';
 import { PublicCatalogService } from '@/events/public-catalog';
 import { PublicRateLimitModule } from '@/http';
+import { NotificationsModule } from '@/notifications';
 import { PublicCheckoutController } from './checkout/public-checkout.controller';
 import { PublicCheckoutService } from './checkout/public-checkout.service';
 import { FetchMercadoPagoClient } from './fetch-mercado-pago-client';
@@ -23,7 +24,7 @@ import {
  * loaded by `@/database/environment` when the module graph is imported.
  */
 @Module({
-  imports: [DatabaseModule, PublicRateLimitModule],
+  imports: [DatabaseModule, NotificationsModule, PublicRateLimitModule],
   controllers: [PublicCheckoutController, PaymentWebhookController, PublicPaymentStatusController],
   providers: [
     { provide: MERCADO_PAGO_CONFIG, useFactory: () => readMercadoPagoConfig(process.env) },

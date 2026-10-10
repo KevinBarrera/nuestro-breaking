@@ -10,6 +10,7 @@ import { DATABASE_CLIENT } from '@/database/database.constants';
 import * as schema from '@/database/schema';
 import { DatabaseService } from '@/database/database.service';
 import { configureHttp } from '@/http';
+import { ConfirmationEmailDispatcher } from '@/notifications';
 import { MercadoPagoClient, MercadoPagoClientError, type ProviderPayment } from '@/payments';
 import { PAYMENT_NOT_FOUND_GRACE_SECONDS } from '@/payments/webhook/payment-webhook.service';
 import { confirmRegistration } from '@/events/registration-confirmation/confirm-registration';
@@ -22,7 +23,9 @@ const PAYMENT_ID = '1234567890';
 const PRICE_CENTS = 150050;
 
 // Verified Mercado Pago webhook (#177 D11) against PostgreSQL. The client is a stub whose
-// `getPayment` answers what each test sets; requests are signed here with the fake secret.
+// `getPayment` answers what each test sets; requests are signed here with the fake secret. The
+// email dispatcher is a no-op, so queued emails stay pending here; sending is covered by
+// `confirmation-email-dispatch.e2e-spec.ts`.
 describe('Mercado Pago payment webhook (e2e)', () => {
   const harness = new PostgresHarness();
   let client: Sql;
@@ -57,6 +60,12 @@ describe('Mercado Pago payment webhook (e2e)', () => {
       .useValue(drizzle({ client, schema }))
       .overrideProvider(MercadoPagoClient)
       .useValue(stub)
+      .overrideProvider(ConfirmationEmailDispatcher)
+      .useValue({
+        dispatchRegistration: () => Promise.resolve(),
+        sweep: () => Promise.resolve(),
+        whenIdle: () => Promise.resolve(),
+      })
       .compile();
     app = moduleRef.createNestApplication<INestApplication<App>>();
     // The real HTTP setup, so the JSON body parser keeps unsafe integer ids exact (D12).

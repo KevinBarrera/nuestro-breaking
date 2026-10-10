@@ -22,6 +22,7 @@ import {
   type ProviderPayment,
 } from '@/payments/mercado-pago-client';
 import { MERCADO_PAGO_CONFIG, type MercadoPagoConfig } from '@/payments/mercado-pago-config';
+import { enqueueConfirmationEmail } from '@/notifications';
 import { decidePayment } from './payment-decision';
 
 type Database = DatabaseService['db'];
@@ -242,7 +243,10 @@ export class PaymentWebhookService {
     return !!fact;
   }
 
-  /** Confirms with `approved_payment` and appends the `payment_approval` fact in the same transaction. */
+  /**
+   * Confirms with `approved_payment`, appends the `payment_approval` fact and queues the buyer's
+   * confirmation email, all in the same transaction. Cash confirmations never pass through here.
+   */
   private async confirm(
     tx: RegistrationTransaction,
     registration: { id: string; eventId: string },
@@ -283,5 +287,6 @@ export class PaymentWebhookService {
       },
       facts: { providerPaymentId: payment.id, checkoutId },
     });
+    await enqueueConfirmationEmail(tx, registration.id);
   }
 }

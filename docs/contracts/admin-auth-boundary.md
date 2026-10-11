@@ -107,7 +107,8 @@ Global administrators manage who can use the admin panel: they invite people, sh
 - Only users with an active `admin` role in `global` scope. Anyone else, including event-scoped admins and judges, gets the same `401 Unauthenticated` as a missing session.
 - Mutations also need the trusted `Origin` and the `X-CSRF-Token` header (`403 Request denied` otherwise).
 - Responses that carry a link or the team list send `Cache-Control: no-store`.
-- A `:userId` that is not a UUID gets `400`.
+- A `:userId` that is not a UUID gets `400`. Any letter case is accepted and treated as the same id.
+- Every change re-checks the caller after taking the team lock: a caller who lost global admin access or was deactivated while the request waited gets the same `401` and nothing changes.
 
 ### Endpoints
 
@@ -153,8 +154,8 @@ Request fields:
 
 Two safety rules apply to access changes and deactivation:
 
-- **No self-changes.** A global admin cannot change their own access or deactivate themself.
-- **At least one global admin remains.** A change that would leave no activated global admin (an active user with a password and an active global `admin` role) is refused. These changes are serialized under one database lock, so two global admins deactivating each other at the same time still leave one.
+- **No self-changes.** A global admin cannot change their own access or deactivate themself. The check compares ids, so an uppercased own id is refused too.
+- **At least one global admin remains.** A change that would leave no activated global admin (an active user with a password and an active global `admin` role) is refused. Every team change is serialized under one database lock, so two global admins deactivating each other at the same time still leave one: the second request finds its caller deactivated and gets `401`.
 
 ### Error codes
 

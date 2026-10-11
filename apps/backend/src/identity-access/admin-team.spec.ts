@@ -3,7 +3,8 @@ import {
   parseActivationToken,
   parseAccessChangeInput,
   parseInviteInput,
-  parseReasonInput,
+  parseOptionalReasonInput,
+  parseRequiredReasonInput,
   type TeamInvitationRow,
   type TeamRoleRow,
 } from './admin-team';
@@ -114,28 +115,32 @@ describe('parseAccessChangeInput', () => {
   });
 });
 
-describe('parseReasonInput', () => {
-  it('requires a trimmed reason of 1 to 500 characters when asked to', () => {
-    expect(parseReasonInput({ reason: '  Left the team ' }, true)).toEqual({
+describe('parseRequiredReasonInput', () => {
+  it('requires a trimmed reason of 1 to 500 characters', () => {
+    expect(parseRequiredReasonInput({ reason: '  Left the team ' })).toEqual({
       ok: true,
-      value: { reason: 'Left the team' },
+      value: 'Left the team',
     });
-    expect(parseReasonInput({ reason: 'a'.repeat(500) }, true)).toMatchObject({ ok: true });
+    expect(parseRequiredReasonInput({ reason: 'a'.repeat(500) })).toMatchObject({ ok: true });
     for (const reason of [undefined, '', '   ', 'a'.repeat(501), 'line\nbreak', 42])
-      expect(parseReasonInput({ reason }, true)).toEqual({
+      expect(parseRequiredReasonInput({ reason })).toEqual({
         ok: false,
         fieldErrors: { reason: 'invalid' },
       });
-  });
-
-  it('treats a missing or blank optional reason as none', () => {
-    expect(parseReasonInput({}, false)).toEqual({ ok: true, value: { reason: null } });
-    expect(parseReasonInput(undefined, false)).toEqual({ ok: true, value: { reason: null } });
-    expect(parseReasonInput({ reason: '  ' }, false)).toEqual({
-      ok: true,
-      value: { reason: null },
+    expect(parseRequiredReasonInput(undefined)).toEqual({
+      ok: false,
+      fieldErrors: { reason: 'invalid' },
     });
-    expect(parseReasonInput({ reason: 'tab\there' }, false)).toEqual({
+  });
+});
+
+describe('parseOptionalReasonInput', () => {
+  it('treats a missing or blank reason as none', () => {
+    expect(parseOptionalReasonInput({})).toEqual({ ok: true, value: null });
+    expect(parseOptionalReasonInput(undefined)).toEqual({ ok: true, value: null });
+    expect(parseOptionalReasonInput({ reason: '  ' })).toEqual({ ok: true, value: null });
+    expect(parseOptionalReasonInput({ reason: ' Back ' })).toEqual({ ok: true, value: 'Back' });
+    expect(parseOptionalReasonInput({ reason: 'tab\there' })).toEqual({
       ok: false,
       fieldErrors: { reason: 'invalid' },
     });

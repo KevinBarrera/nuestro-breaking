@@ -6,7 +6,6 @@ import { hasControlCharacters } from './password-policy';
 export type TeamAccessInput = { kind: 'global' } | { kind: 'events'; eventIds: string[] };
 export type InviteInput = { displayName: string; email: string; access: TeamAccessInput };
 export type AccessChangeInput = { access: TeamAccessInput; reason: string | null };
-export type ReasonInput = { reason: string | null };
 export type ParseResult<T> =
   { ok: true; value: T } | { ok: false; fieldErrors: Record<string, 'invalid'> };
 
@@ -104,16 +103,26 @@ export function parseAccessChangeInput(body: unknown): ParseResult<AccessChangeI
   return { ok: true, value: { access, reason } };
 }
 
-/** Validates a body that only carries a reason, required for deactivation and optional otherwise. */
-export function parseReasonInput(body: unknown, required: boolean): ParseResult<ReasonInput> {
+function reasonOf(body: unknown): string | null | undefined {
   const raw =
     body && typeof body === 'object' && !Array.isArray(body)
       ? (body as Record<string, unknown>).reason
       : undefined;
-  const reason = parseReason(raw);
-  if (reason === undefined || (required && reason === null))
-    return { ok: false, fieldErrors: { reason: 'invalid' } };
-  return { ok: true, value: { reason } };
+  return parseReason(raw);
+}
+
+/** Validates a body whose reason is required, as for deactivation. */
+export function parseRequiredReasonInput(body: unknown): ParseResult<string> {
+  const reason = reasonOf(body);
+  return reason ? { ok: true, value: reason } : { ok: false, fieldErrors: { reason: 'invalid' } };
+}
+
+/** Validates a body whose reason is optional, as for reactivation; blank means none (`null`). */
+export function parseOptionalReasonInput(body: unknown): ParseResult<string | null> {
+  const reason = reasonOf(body);
+  return reason === undefined
+    ? { ok: false, fieldErrors: { reason: 'invalid' } }
+    : { ok: true, value: reason };
 }
 
 /** An activation token as issued (64 lowercase hex characters), or `null`. */

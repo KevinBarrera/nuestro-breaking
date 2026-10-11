@@ -8,6 +8,7 @@ import { AppModule } from '@/app.module';
 import { DATABASE_CLIENT } from '@/database/database.constants';
 import * as schema from '@/database/schema';
 import { DatabaseService } from '@/database/database.service';
+import { ADMIN_TEAM_LOCK_KEY } from '@/identity-access/admin-team.service';
 import { hashPassword } from '@/identity-access/password-policy';
 import { PostgresHarness } from './support/postgres-harness';
 
@@ -16,6 +17,7 @@ const origin = 'http://localhost:5173';
 // Mutation checks read the variable directly, like the other admin mutation specs.
 const mutationOrigin = process.env.AUTH_TRUSTED_ORIGIN ?? origin;
 const password = 'SufficientlyStrong1!';
+const LOCK_WAIT_LIMIT_MS = 5_000;
 
 type Session = { id: string; email: string; sessionId: string; cookie: string; csrf: string };
 type Method = 'post' | 'put';
@@ -116,6 +118,62 @@ describe('admin team access changes (e2e)', () => {
       WHERE u.active AND u.password_hash IS NOT NULL AND r.role = 'admin'
         AND r.scope_type = 'global' AND r.active AND r.revoked_at IS NULL`;
     return rows.map((row) => row.id);
+  }
+
+  /**
+   * Supertest builds requests lazily: nothing is sent until something calls `.then`. This sends the
+   * request now and returns a plain promise of its response.
+   */
+  const dispatch = (call: request.Test): Promise<request.Response> =>
+    call.then((response) => response);
+
+  /**
+   * Holds the service's team lock while `start` dispatches requests, waits until every one of them
+   * passed authorization and is blocked on the lock, runs `whileBlocked`, then releases the lock.
+   * Fails fast, with the statuses, if a request finishes before it ever waits on the lock.
+   */
+  async function overlapOnTeamLock(
+    start: () => Promise<request.Response>[],
+    whileBlocked: () => Promise<unknown> = () => Promise.resolve(),
+  ): Promise<request.Response[]> {
+    let settled: Promise<request.Response[]> = Promise.resolve([]);
+    await client.begin(async (tx) => {
+      await tx`SELECT pg_advisory_xact_lock(${ADMIN_TEAM_LOCK_KEY})`;
+      const requests = start();
+      settled = Promise.all(requests);
+      let early: string | undefined;
+      settled.then(
+        (responses) => {
+          early = `requests finished before waiting on the team lock: ${responses
+            .map((response) => `${response.status} ${JSON.stringify(response.body)}`)
+            .join('; ')}`;
+        },
+        (error: unknown) => {
+          early = `a request failed before waiting on the team lock: ${String(error)}`;
+        },
+      );
+      const deadline = Date.now() + LOCK_WAIT_LIMIT_MS;
+      for (;;) {
+        if (early) throw new Error(early);
+        const [{ waiting }] = await tx<{ waiting: number }[]>`
+          SELECT count(*)::int AS waiting FROM pg_locks
+          WHERE locktype = 'advisory' AND objid = ${ADMIN_TEAM_LOCK_KEY} AND NOT granted`;
+        if (waiting === requests.length) break;
+        if (Date.now() > deadline)
+          throw new Error(
+            `only ${waiting} of ${requests.length} requests waited on the team lock within ${LOCK_WAIT_LIMIT_MS} ms`,
+          );
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      }
+      await whileBlocked();
+    });
+    return settled;
+  }
+
+  async function deniedCount() {
+    const [{ count }] = await client<{ count: number }[]>`
+      SELECT count(*)::int AS count FROM auth_audit WHERE action = 'denied'`;
+    return count;
   }
 
   it('refuses event-scoped admins, judges and anonymous callers on every endpoint', async () => {
@@ -248,6 +306,14 @@ describe('admin team access changes (e2e)', () => {
     expect(self.body).toMatchObject({ code: 'self_change' });
     const selfOff = await deactivate(admin, admin.id).expect(409);
     expect(selfOff.body).toMatchObject({ code: 'self_deactivation' });
+    // The route accepts any UUID spelling; an uppercased own id is still the caller.
+    const upper = admin.id.toUpperCase();
+    const selfUpper = await changeAccess(admin, upper, {
+      access: { kind: 'events', eventIds: [first] },
+    }).expect(409);
+    expect(selfUpper.body).toMatchObject({ code: 'self_change' });
+    const selfOffUpper = await deactivate(admin, upper).expect(409);
+    expect(selfOffUpper.body).toMatchObject({ code: 'self_deactivation' });
 
     // Only activated admins count: with the caller's password cleared, `other` is the last one.
     await client`UPDATE users SET password_hash = NULL WHERE id = ${admin.id}`;
@@ -310,32 +376,125 @@ describe('admin team access changes (e2e)', () => {
     const left = await global('left');
     const right = await global('right');
 
-    // Hold the service's advisory lock until both requests passed authorization and wait on it,
-    // so they truly overlap instead of running one after the other.
-    let pending: Promise<request.Response[]> = Promise.resolve([]);
-    await client.begin(async (tx) => {
-      await tx`SELECT pg_advisory_xact_lock(214000002)`;
-      pending = Promise.all([
-        deactivate(left, right.id, { reason: 'Race' }).then((response) => response),
-        deactivate(right, left.id, { reason: 'Race' }).then((response) => response),
-      ]);
-      for (;;) {
-        const [{ waiting }] = await tx<{ waiting: number }[]>`
-          SELECT count(*)::int AS waiting FROM pg_locks
-          WHERE locktype = 'advisory' AND objid = 214000002 AND NOT granted`;
-        if (waiting === 2) break;
-        await new Promise((resolve) => setTimeout(resolve, 20));
-      }
-    });
-    const responses = await pending;
+    // Both requests pass authorization and then wait on the team lock, so they truly overlap
+    // instead of running one after the other. The one that runs second finds its caller already
+    // deactivated by the first and is refused as unauthenticated.
+    const responses = await overlapOnTeamLock(() => [
+      dispatch(deactivate(left, right.id, { reason: 'Race' })),
+      dispatch(deactivate(right, left.id, { reason: 'Race' })),
+    ]);
 
-    const byCode = responses.map((response) => response.status).sort();
-    expect(byCode).toEqual([200, 409]);
+    expect(responses.map((response) => response.status).sort()).toEqual([200, 401]);
+    expect(await activeGlobalAdmins()).toHaveLength(1);
+    expect((await audit()).filter((row) => row.action === 'deactivated')).toHaveLength(1);
+  });
+
+  it('keeps at least one activated global admin when two removals overlap', async () => {
+    const admin = await global('admin');
+    const left = await global('left');
+    const right = await global('right');
+    const { first } = await twoEvents();
+    // The caller keeps its session but is not activated, so only `left` and `right` count.
+    await client`UPDATE users SET password_hash = NULL WHERE id = ${admin.id}`;
+
+    const responses = await overlapOnTeamLock(() => [
+      dispatch(deactivate(admin, left.id, { reason: 'Race' })),
+      dispatch(changeAccess(admin, right.id, { access: { kind: 'events', eventIds: [first] } })),
+    ]);
+
+    expect(responses.map((response) => response.status).sort()).toEqual([200, 409]);
     expect(responses.find((response) => response.status === 409)?.body).toMatchObject({
       code: 'last_global_admin',
     });
     expect(await activeGlobalAdmins()).toHaveLength(1);
-    expect((await audit()).filter((row) => row.action === 'deactivated')).toHaveLength(1);
+    expect(await audit()).toHaveLength(1);
+  });
+
+  it('re-grants an event scope that was revoked earlier', async () => {
+    const admin = await global('admin');
+    const { first, second } = await twoEvents();
+    const scoped = await member('scoped@example.test', [
+      { role: 'admin', scopeType: 'event', scopeId: first },
+    ]);
+    for (const eventId of [second, first])
+      expect(
+        (
+          await changeAccess(admin, scoped.id, {
+            access: { kind: 'events', eventIds: [eventId] },
+          }).expect(200)
+        ).body,
+      ).toEqual({ changed: true });
+
+    await passTypes(scoped, first).expect(200);
+    await passTypes(scoped, second).expect(401);
+    const active = await client<{ scope_id: string }[]>`
+      SELECT scope_id FROM user_roles WHERE user_id = ${scoped.id} AND active`;
+    expect(active).toEqual([{ scope_id: first }]);
+  });
+
+  it('refuses with 401 and changes nothing when the caller lost global access while waiting', async () => {
+    const admin = await global('admin');
+    await global('keeper');
+    const { first } = await twoEvents();
+    const target = await global('target');
+    const scoped = await member('scoped@example.test', [
+      { role: 'admin', scopeType: 'event', scopeId: first },
+    ]);
+    const off = await global('off');
+    await deactivate(admin, off.id).expect(200);
+    const auditBefore = await audit();
+    const deniedBefore = await deniedCount();
+
+    // The caller's global role is revoked after authorization, while every call waits on the lock.
+    const responses = await overlapOnTeamLock(
+      () => [
+        dispatch(deactivate(admin, target.id)),
+        dispatch(changeAccess(admin, scoped.id, { access: { kind: 'global' } })),
+        dispatch(reactivate(admin, off.id)),
+        dispatch(mutate('post', `/admin/team/${scoped.id}/invitation`, admin)),
+        dispatch(
+          mutate('post', '/admin/team', admin, {
+            displayName: 'New',
+            email: 'new@example.test',
+            access: { kind: 'global' },
+          }),
+        ),
+      ],
+      () => client`
+        UPDATE user_roles SET active = false, revoked_at = now()
+        WHERE user_id = ${admin.id} AND scope_type = 'global'`,
+    );
+    expect(responses.map((response) => response.status)).toEqual([401, 401, 401, 401, 401]);
+
+    // A caller deactivated while waiting is refused the same way.
+    const keeper = await signIn('keeper@example.test').expect(201);
+    const keeperSession: Session = {
+      id: (
+        await client<{ id: string }[]>`SELECT id FROM users WHERE email = 'keeper@example.test'`
+      )[0].id,
+      email: 'keeper@example.test',
+      sessionId: '',
+      cookie: (keeper.headers['set-cookie'] as unknown as string[])[0].split(';')[0],
+      csrf: (keeper.body as { csrfToken: string }).csrfToken,
+    };
+    const [deactivated] = await overlapOnTeamLock(
+      () => [dispatch(deactivate(keeperSession, target.id))],
+      () => client`UPDATE users SET active = false WHERE id = ${keeperSession.id}`,
+    );
+    expect(deactivated.status).toBe(401);
+
+    expect(await audit()).toEqual(auditBefore);
+    expect(await deniedCount()).toBe(deniedBefore + 6);
+    expect(
+      await client`SELECT id FROM users WHERE id IN (${target.id}, ${off.id}) AND active`,
+    ).toEqual([{ id: target.id }]);
+    expect(
+      await client`SELECT scope_type FROM user_roles WHERE user_id = ${scoped.id} AND active`,
+    ).toEqual([{ scope_type: 'event' }]);
+    expect(await client`SELECT id FROM users WHERE email = 'new@example.test'`).toHaveLength(0);
+    expect(
+      await client`SELECT id FROM admin_invitations WHERE user_id = ${scoped.id}`,
+    ).toHaveLength(0);
   });
 
   it('reactivates: the old password works again, a never-activated member is pending again', async () => {

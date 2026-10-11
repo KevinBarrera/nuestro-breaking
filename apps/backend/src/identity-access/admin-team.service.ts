@@ -17,6 +17,7 @@ import {
 } from '@/database/schema';
 import type { DatabaseService } from '@/database/database.service';
 import { readTrustedOrigin } from '@/http';
+import { SessionAccessService } from './session-access.service';
 import { activationLink, INVITATION_TTL_MS, newInvitationToken } from './admin-invitation';
 import {
   buildTeamMembers,
@@ -39,10 +40,28 @@ const activeAdminRole = and(
 );
 const openInvitation = and(isNull(adminInvitations.usedAt), isNull(adminInvitations.cancelledAt));
 
-// Serializes every change that can remove an activated global admin (scope changes and
-// deactivations), so two of them cannot each see "another admin remains" and together leave none.
-// Any constant works as long as no other code uses it for a different purpose.
-const GLOBAL_ADMIN_SET_LOCK_KEY = 214_000_002;
+/**
+ * Advisory lock that serializes every team change. Two changes cannot each see "another admin
+ * remains" and together leave none, and a caller whose own access is removed by a change that
+ * commits first is re-checked after the lock and refused. Any constant works as long as no other
+ * code uses it for a different purpose.
+ */
+export const ADMIN_TEAM_LOCK_KEY = 214_000_002;
+
+/** Thrown inside a team transaction when the caller is no longer an active global admin. */
+class StaleActorAuthority extends Error {}
+
+/** True for `users` rows that hold an active `admin` role in `global` scope. */
+function hasActiveGlobalAdminRole(tx: Transaction) {
+  return exists(
+    tx
+      .select({ one: sql`1` })
+      .from(userRoles)
+      .where(
+        and(eq(userRoles.userId, users.id), eq(userRoles.scopeType, 'global'), activeAdminRole),
+      ),
+  );
+}
 
 type ScopedRole = { scopeType: string; scopeId: string | null };
 const roleKey = (role: ScopedRole) => `${role.scopeType}:${role.scopeId ?? ''}`;
@@ -50,7 +69,10 @@ const roleKey = (role: ScopedRole) => `${role.scopeType}:${role.scopeId ?? ''}`;
 /** Team management for global administrators (#214 T3). Every change writes `admin_team_audit`. */
 @Injectable()
 export class AdminTeamService {
-  constructor(@Inject(DATABASE_CLIENT) private readonly db: DatabaseService['db']) {}
+  constructor(
+    @Inject(DATABASE_CLIENT) private readonly db: DatabaseService['db'],
+    private readonly sessions: SessionAccessService,
+  ) {}
 
   async list(now: Date = new Date()): Promise<TeamMember[]> {
     const roles = await this.db
@@ -81,7 +103,7 @@ export class AdminTeamService {
     now: Date = new Date(),
   ): Promise<IssuedInvitation> {
     try {
-      return await this.db.transaction(async (tx) => {
+      return await this.asActor(actor, async (tx) => {
         const [existing] = await tx
           .select({ id: users.id })
           .from(users)
@@ -130,7 +152,7 @@ export class AdminTeamService {
     actor: TeamActor,
     now: Date = new Date(),
   ): Promise<IssuedInvitation> {
-    return this.db.transaction(async (tx) => {
+    return this.asActor(actor, async (tx) => {
       const member = await this.lockMember(tx, userId);
       if (!member.active) throw memberDeactivated();
       const cancelled = await this.cancelOpen(tx, userId, now);
@@ -147,7 +169,7 @@ export class AdminTeamService {
   }
 
   async cancel(userId: string, actor: TeamActor, now: Date = new Date()): Promise<void> {
-    await this.db.transaction(async (tx) => {
+    await this.asActor(actor, async (tx) => {
       await this.lockMember(tx, userId);
       if ((await this.cancelOpen(tx, userId, now)) === 0)
         throw new NotFoundException({
@@ -174,10 +196,11 @@ export class AdminTeamService {
     actor: TeamActor,
     now: Date = new Date(),
   ): Promise<{ changed: boolean }> {
-    if (userId === actor.userId) throw conflict('self_change', 'You cannot change your own access');
-    return this.db.transaction(async (tx) => {
-      await this.lockGlobalAdminSet(tx);
-      await this.lockMember(tx, userId);
+    return this.asActor(actor, async (tx) => {
+      const member = await this.lockMember(tx, userId);
+      // The locked row's id, not the route parameter, so no spelling of the caller's id slips by.
+      if (member.id === actor.userId)
+        throw conflict('self_change', 'You cannot change your own access');
       await this.assertEventsExist(tx, input.access, 'Invalid access change');
 
       const current = await tx
@@ -233,11 +256,10 @@ export class AdminTeamService {
     actor: TeamActor,
     now: Date = new Date(),
   ): Promise<MemberStatusResult> {
-    if (userId === actor.userId)
-      throw conflict('self_deactivation', 'You cannot deactivate yourself');
-    return this.db.transaction(async (tx) => {
-      await this.lockGlobalAdminSet(tx);
+    return this.asActor(actor, async (tx) => {
       const member = await this.lockMember(tx, userId);
+      if (member.id === actor.userId)
+        throw conflict('self_deactivation', 'You cannot deactivate yourself');
       if (!member.active) throw memberDeactivated();
       if (member.globalAdmin) await this.assertAnotherGlobalAdmin(tx, userId);
 
@@ -270,7 +292,7 @@ export class AdminTeamService {
     reason: string | null,
     actor: TeamActor,
   ): Promise<MemberStatusResult> {
-    return this.db.transaction(async (tx) => {
+    return this.asActor(actor, async (tx) => {
       const member = await this.lockMember(tx, userId);
       if (member.active) throw conflict('member_active', 'Member is already active');
       await tx.update(users).set({ active: true }).where(eq(users.id, userId));
@@ -288,11 +310,38 @@ export class AdminTeamService {
   }
 
   /**
-   * Locks the user row so concurrent team changes for one member serialize. Lock order: every
-   * path that touches a member and their invitations (here, activation and `admin:bootstrap`)
-   * locks the `users` row first and `admin_invitations` rows after it, so the paths cannot
-   * deadlock each other. Paths that can remove a global admin take the global-admin-set advisory
-   * lock before the `users` row.
+   * Runs one team change as `actor`: takes the team lock, then re-checks that the caller is still
+   * an active user with an active global admin role, since authorization ran before the lock and a
+   * change that committed meanwhile may have removed it. A stale caller gets the same `401` as any
+   * other denial, and nothing changes.
+   */
+  private async asActor<T>(actor: TeamActor, work: (tx: Transaction) => Promise<T>): Promise<T> {
+    try {
+      return await this.db.transaction(async (tx) => {
+        await tx.execute(
+          sql`SELECT pg_advisory_xact_lock(${sql.raw(String(ADMIN_TEAM_LOCK_KEY))})`,
+        );
+        const [current] = await tx
+          .select({ id: users.id })
+          .from(users)
+          .where(
+            and(eq(users.id, actor.userId), eq(users.active, true), hasActiveGlobalAdminRole(tx)),
+          );
+        if (!current) throw new StaleActorAuthority();
+        return work(tx);
+      });
+    } catch (error) {
+      // Audited after the rollback, so the denial is recorded even though the change is not.
+      if (error instanceof StaleActorAuthority) return this.sessions.denied();
+      throw error;
+    }
+  }
+
+  /**
+   * Locks the user row so concurrent changes for one member serialize. Lock order: team changes
+   * take the team advisory lock first; every path that touches a member and their invitations
+   * (here, activation and `admin:bootstrap`) then locks the `users` row and `admin_invitations`
+   * rows after it, so the paths cannot deadlock each other.
    */
   private async lockMember(tx: Transaction, userId: string) {
     const [member] = await tx
@@ -300,18 +349,7 @@ export class AdminTeamService {
         id: users.id,
         active: users.active,
         hasPassword: sql<boolean>`${users.passwordHash} IS NOT NULL`,
-        globalAdmin: exists(
-          tx
-            .select({ one: sql`1` })
-            .from(userRoles)
-            .where(
-              and(
-                eq(userRoles.userId, users.id),
-                eq(userRoles.scopeType, 'global'),
-                activeAdminRole,
-              ),
-            ),
-        ).mapWith(Boolean),
+        globalAdmin: hasActiveGlobalAdminRole(tx).mapWith(Boolean),
       })
       .from(users)
       .where(
@@ -335,12 +373,6 @@ export class AdminTeamService {
     return member;
   }
 
-  private async lockGlobalAdminSet(tx: Transaction): Promise<void> {
-    await tx.execute(
-      sql`SELECT pg_advisory_xact_lock(${sql.raw(String(GLOBAL_ADMIN_SET_LOCK_KEY))})`,
-    );
-  }
-
   /**
    * Refuses a change that would leave no activated global admin besides `userId`. Only active
    * users with a password count: a pending global admin cannot sign in to manage the team.
@@ -354,18 +386,7 @@ export class AdminTeamService {
           ne(users.id, userId),
           eq(users.active, true),
           isNotNull(users.passwordHash),
-          exists(
-            tx
-              .select({ one: sql`1` })
-              .from(userRoles)
-              .where(
-                and(
-                  eq(userRoles.userId, users.id),
-                  eq(userRoles.scopeType, 'global'),
-                  activeAdminRole,
-                ),
-              ),
-          ),
+          hasActiveGlobalAdminRole(tx),
         ),
       )
       .limit(1);

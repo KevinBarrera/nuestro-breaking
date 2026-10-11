@@ -5,6 +5,7 @@ import type { Request, Response } from 'express';
 import { DATABASE_CLIENT } from '@/database/database.constants';
 import { authAudit, authSessions, userRoles, users } from '@/database/schema';
 import type { DatabaseService } from '@/database/database.service';
+import { readTrustedOrigin } from '@/http';
 
 export const sessionCookieName = 'nb_admin_session';
 export const sessionCookieOptions = {
@@ -128,8 +129,9 @@ export class SessionAccessService {
     return { userId: session.user.id, sessionId: session.session.id };
   }
 
+  /** Reads the origin like CORS and sign-in do, so a blank or padded variable cannot deny every mutation. */
   private async assertTrustedOrigin(request: Request): Promise<void> {
-    const trusted = process.env.AUTH_TRUSTED_ORIGIN ?? 'http://localhost:5173';
+    const trusted = readTrustedOrigin(process.env);
     if (request.headers.origin !== trusted) {
       await this.db.insert(authAudit).values({ action: 'denied' });
       throw new ForbiddenException('Request denied');

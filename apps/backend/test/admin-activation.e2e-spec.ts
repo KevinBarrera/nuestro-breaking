@@ -14,9 +14,8 @@ import { PostgresHarness } from './support/postgres-harness';
 
 jest.setTimeout(120_000);
 const origin = 'http://localhost:5173';
-// Admin mutation checks read the variable directly; public auth routes use `readTrustedOrigin`.
-const mutationOrigin = process.env.AUTH_TRUSTED_ORIGIN ?? origin;
-const publicOrigin = readTrustedOrigin(process.env);
+// Admin mutations and the public auth routes read the trusted origin the same way.
+const trustedOrigin = readTrustedOrigin(process.env);
 const password = 'SufficientlyStrong1!';
 const newPassword = 'Another-Strong-Pass9';
 
@@ -69,7 +68,7 @@ describe('admin account activation (e2e)', () => {
   ) {
     const response = await http()
       .post('/admin/team')
-      .set('Origin', mutationOrigin)
+      .set('Origin', trustedOrigin)
       .set('Cookie', admin.cookie)
       .set('X-CSRF-Token', admin.csrf)
       .send({ displayName: 'Invitee', email, access })
@@ -79,9 +78,9 @@ describe('admin account activation (e2e)', () => {
   }
 
   const check = (token: unknown) =>
-    http().post('/auth/activation/check').set('Origin', publicOrigin).send({ token });
+    http().post('/auth/activation/check').set('Origin', trustedOrigin).send({ token });
   const activate = (token: unknown, secret: unknown = newPassword) =>
-    http().post('/auth/activation').set('Origin', publicOrigin).send({ token, password: secret });
+    http().post('/auth/activation').set('Origin', trustedOrigin).send({ token, password: secret });
 
   async function activatedAudit() {
     return client<
@@ -143,14 +142,14 @@ describe('admin account activation (e2e)', () => {
     const cancelled = await invite(admin, 'cancelled@example.test');
     await http()
       .delete(`/admin/team/${cancelled.userId}/invitation`)
-      .set('Origin', mutationOrigin)
+      .set('Origin', trustedOrigin)
       .set('Cookie', admin.cookie)
       .set('X-CSRF-Token', admin.csrf)
       .expect(200);
     const replaced = await invite(admin, 'replaced@example.test');
     await http()
       .post(`/admin/team/${replaced.userId}/invitation`)
-      .set('Origin', mutationOrigin)
+      .set('Origin', trustedOrigin)
       .set('Cookie', admin.cookie)
       .set('X-CSRF-Token', admin.csrf)
       .expect(201);
@@ -198,7 +197,7 @@ describe('admin account activation (e2e)', () => {
     await activate(invitation.token, 42).expect(400);
     await http()
       .post('/auth/activation')
-      .set('Origin', publicOrigin)
+      .set('Origin', trustedOrigin)
       .send({ token: invitation.token })
       .expect(400);
     await check(invitation.token).expect(200);
@@ -210,7 +209,7 @@ describe('admin account activation (e2e)', () => {
     const recovery = (
       await http()
         .post(`/admin/team/${admin.id}/invitation`)
-        .set('Origin', mutationOrigin)
+        .set('Origin', trustedOrigin)
         .set('Cookie', admin.cookie)
         .set('X-CSRF-Token', admin.csrf)
         .expect(201)
@@ -242,7 +241,7 @@ describe('admin account activation (e2e)', () => {
       activate(invitation.token),
       http()
         .post(`/admin/team/${invitation.userId}/invitation`)
-        .set('Origin', mutationOrigin)
+        .set('Origin', trustedOrigin)
         .set('Cookie', admin.cookie)
         .set('X-CSRF-Token', admin.csrf),
     ]);

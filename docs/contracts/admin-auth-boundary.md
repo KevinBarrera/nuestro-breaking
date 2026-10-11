@@ -107,7 +107,7 @@ Global administrators manage who can use the admin panel: they invite people, sh
 ### Who can call it
 
 - Only users with an active `admin` role in `global` scope. Anyone else, including event-scoped admins and judges, gets the same `401 Unauthenticated` as a missing session.
-- Mutations also need the trusted `Origin` and the `X-CSRF-Token` header (`403 Request denied` otherwise).
+- Mutations also need the trusted `Origin` and the `X-CSRF-Token` header (`403 Request denied` otherwise). The trusted origin is `AUTH_TRUSTED_ORIGIN` read the same way as for CORS and sign-in: surrounding spaces are trimmed, and a blank value falls back to `http://localhost:5173`.
 - Responses that carry a link or the team list send `Cache-Control: no-store`.
 - A `:userId` that is not a UUID gets `400`. Any letter case is accepted and treated as the same id.
 - Every change re-checks the caller after taking the team lock: a caller who lost global admin access or was deactivated while the request waited gets the same `401` and nothing changes.

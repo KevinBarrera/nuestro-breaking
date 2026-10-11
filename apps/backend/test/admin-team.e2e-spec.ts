@@ -16,7 +16,7 @@ import { PostgresHarness } from './support/postgres-harness';
 jest.setTimeout(120_000);
 const origin = 'http://localhost:5173';
 // Mutation checks read the variable directly, like the other admin mutation specs.
-const mutationOrigin = process.env.AUTH_TRUSTED_ORIGIN ?? origin;
+const mutationOrigin = readTrustedOrigin(process.env);
 const password = 'SufficientlyStrong1!';
 
 type Session = { id: string; sessionId: string; cookie: string; csrf: string };

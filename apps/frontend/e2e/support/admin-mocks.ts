@@ -199,8 +199,8 @@ export async function revealControls(page: Page, name: AdminScreenName) {
   if (name === 'Actividades') await page.getByRole('button', { name: /^Todas/ }).waitFor();
   if (name === 'Equipo')
     await page
-      .getByRole('list', { name: 'Miembros del equipo' })
-      .getByRole('listitem')
+      .getByRole('table', { name: 'Miembros del equipo' })
+      .getByRole('cell')
       .first()
       .waitFor();
   if (name === 'Agregar administrador')

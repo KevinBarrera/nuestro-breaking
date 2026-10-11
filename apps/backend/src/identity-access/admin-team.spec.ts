@@ -1,7 +1,9 @@
 import {
   buildTeamMembers,
   parseActivationToken,
+  parseAccessChangeInput,
   parseInviteInput,
+  parseReasonInput,
   type TeamInvitationRow,
   type TeamRoleRow,
 } from './admin-team';
@@ -79,6 +81,64 @@ describe('parseInviteInput', () => {
         access: { kind: 'global' },
       }),
     ).toEqual({ ok: false, fieldErrors: { displayName: 'invalid', email: 'invalid' } });
+  });
+});
+
+describe('parseAccessChangeInput', () => {
+  it('accepts a new access with an optional trimmed reason', () => {
+    expect(parseAccessChangeInput({ access: { kind: 'global' } })).toEqual({
+      ok: true,
+      value: { access: { kind: 'global' }, reason: null },
+    });
+    expect(
+      parseAccessChangeInput({
+        access: { kind: 'events', eventIds: [eventA.toUpperCase()] },
+        reason: '  Moved to the other event ',
+      }),
+    ).toEqual({
+      ok: true,
+      value: { access: { kind: 'events', eventIds: [eventA] }, reason: 'Moved to the other event' },
+    });
+  });
+
+  it('reports the invalid fields', () => {
+    expect(parseAccessChangeInput({ access: { kind: 'events', eventIds: [] } })).toEqual({
+      ok: false,
+      fieldErrors: { access: 'invalid' },
+    });
+    expect(parseAccessChangeInput({ access: { kind: 'global' }, reason: 'a\u0007b' })).toEqual({
+      ok: false,
+      fieldErrors: { reason: 'invalid' },
+    });
+    expect(parseAccessChangeInput(null)).toEqual({ ok: false, fieldErrors: { body: 'invalid' } });
+  });
+});
+
+describe('parseReasonInput', () => {
+  it('requires a trimmed reason of 1 to 500 characters when asked to', () => {
+    expect(parseReasonInput({ reason: '  Left the team ' }, true)).toEqual({
+      ok: true,
+      value: { reason: 'Left the team' },
+    });
+    expect(parseReasonInput({ reason: 'a'.repeat(500) }, true)).toMatchObject({ ok: true });
+    for (const reason of [undefined, '', '   ', 'a'.repeat(501), 'line\nbreak', 42])
+      expect(parseReasonInput({ reason }, true)).toEqual({
+        ok: false,
+        fieldErrors: { reason: 'invalid' },
+      });
+  });
+
+  it('treats a missing or blank optional reason as none', () => {
+    expect(parseReasonInput({}, false)).toEqual({ ok: true, value: { reason: null } });
+    expect(parseReasonInput(undefined, false)).toEqual({ ok: true, value: { reason: null } });
+    expect(parseReasonInput({ reason: '  ' }, false)).toEqual({
+      ok: true,
+      value: { reason: null },
+    });
+    expect(parseReasonInput({ reason: 'tab\there' }, false)).toEqual({
+      ok: false,
+      fieldErrors: { reason: 'invalid' },
+    });
   });
 });
 

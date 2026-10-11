@@ -138,7 +138,25 @@ export async function bootstrapAdmin(
         .update(authSessions)
         .set({ revokedAt: now })
         .where(and(eq(authSessions.userId, userId), isNull(authSessions.revokedAt)));
-      await tx.insert(userRoles).values({ userId, role: 'admin', scopeType: 'global' });
+      // A deactivated user may still hold an active global admin role; keep it instead of
+      // adding a duplicate.
+      const [existingRole] = await tx
+        .select({ id: userRoles.id })
+        .from(userRoles)
+        .where(
+          and(
+            eq(userRoles.userId, userId),
+            eq(userRoles.role, 'admin'),
+            eq(userRoles.scopeType, 'global'),
+            isNull(userRoles.scopeId),
+            eq(userRoles.active, true),
+            isNull(userRoles.revokedAt),
+          ),
+        )
+        .limit(1);
+      if (!existingRole) {
+        await tx.insert(userRoles).values({ userId, role: 'admin', scopeType: 'global' });
+      }
     }
 
     await tx

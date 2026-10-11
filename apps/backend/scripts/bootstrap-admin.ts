@@ -3,12 +3,13 @@ import {
   BOOTSTRAP_EXIT_CODES,
   bootstrapAdmin,
   parseAdminBootstrapInput,
+  type AdminBootstrapInput,
   type AdminBootstrapOutcome,
 } from '@/identity-access/admin-bootstrap';
 
 // Hosted first-admin bootstrap (#214). See docs/runbooks/admin-bootstrap.md.
 async function main(): Promise<void> {
-  let input;
+  let input: AdminBootstrapInput;
   try {
     input = parseAdminBootstrapInput(process.env);
   } catch (error) {
@@ -17,11 +18,27 @@ async function main(): Promise<void> {
     return;
   }
   const database = new DatabaseService();
+  let outcome: AdminBootstrapOutcome;
   try {
-    const outcome = await bootstrapAdmin(database.db, input);
-    report(outcome);
-  } finally {
+    outcome = await bootstrapAdmin(database.db, input);
+  } catch (error) {
+    await closeQuietly(database);
+    throw error;
+  }
+  report(outcome);
+  if (!(await closeQuietly(database))) {
+    // The transaction already committed and its result was printed; keep that exit code.
+    process.stderr.write('Warning: the database connection did not close cleanly.\n');
+  }
+}
+
+/** Never throws, so a teardown error cannot hide or rewrite the bootstrap result. */
+async function closeQuietly(database: DatabaseService): Promise<boolean> {
+  try {
     await database.onModuleDestroy();
+    return true;
+  } catch {
+    return false;
   }
 }
 

@@ -194,6 +194,26 @@ describe('admin bootstrap (e2e)', () => {
     expect(revoked).toBe(true);
   });
 
+  it('keeps the single global admin role of a deactivated admin it reactivates', async () => {
+    const [{ id }] = await client<{ id: string }[]>`
+      INSERT INTO users (email, display_name, active, password_hash)
+      VALUES (${input.email}, 'Old Name', false, ${await hashPassword('SufficientlyStrong1!')})
+      RETURNING id`;
+    await client`INSERT INTO user_roles (user_id, role, scope_type, scope_id)
+      VALUES (${id}, 'admin', 'global', NULL)`;
+
+    await expect(bootstrapAdmin(db, input, now)).resolves.toMatchObject({ kind: 'issued' });
+
+    const state = await snapshot();
+    expect(state.users).toEqual([
+      { email: input.email, display_name: 'First Admin', active: true, password_hash: null },
+    ]);
+    expect(state.roles).toEqual([
+      { email: input.email, role: 'admin', scope_type: 'global', scope_id: null, active: true },
+    ]);
+    expect(state.invitations.filter((row) => row.cancelled_at === null)).toHaveLength(1);
+  });
+
   it('lets only one of two concurrent runs create the admin', async () => {
     const outcomes = await Promise.all([
       bootstrapAdmin(db, input, now),

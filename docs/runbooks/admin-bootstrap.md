@@ -12,8 +12,11 @@ database and takes a password. `admin:bootstrap` works in any environment and
 never takes a password: it prints a one-time activation link, and the
 administrator chooses their own password from that link.
 
-> The `/activar-cuenta` page that opens the link arrives in a later slice of
-> #214. Until it ships, the link is issued and stored but cannot be used yet.
+The link opens the public **Activa tu cuenta** page (`/activar-cuenta`). It
+shows the administrator's name and email, asks for a password that meets the
+rules (12 or more characters with an uppercase letter, a lowercase letter, a
+number and a symbol), and then sends them to the admin sign-in. The page
+removes the token from the address bar as soon as it reads it.
 
 ## What it does
 

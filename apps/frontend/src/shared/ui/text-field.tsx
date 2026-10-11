@@ -25,6 +25,7 @@ export function TextField({
   prefix,
   id,
   className = '',
+  'aria-describedby': extraDescribedBy,
   ...inputProps
 }: TextFieldProps) {
   const generatedId = useId();
@@ -32,7 +33,13 @@ export function TextField({
   const hintId = `${inputId}-hint`;
   const prefixId = `${inputId}-prefix`;
   const errorId = `${inputId}-error`;
-  const describedBy = [prefix ? prefixId : null, hint ? hintId : null, error ? errorId : null]
+  // A caller's own description (such as a rule list) is kept after the field's own parts.
+  const describedBy = [
+    prefix ? prefixId : null,
+    hint ? hintId : null,
+    error ? errorId : null,
+    extraDescribedBy ?? null,
+  ]
     .filter(Boolean)
     .join(' ');
 

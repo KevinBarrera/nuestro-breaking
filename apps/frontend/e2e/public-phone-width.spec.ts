@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { activationToken, mockActivation } from './support/activation-mocks.ts';
 import { themes, useTheme } from './support/admin-mocks.ts';
 import {
   catalogReply,
@@ -75,6 +76,43 @@ for (const theme of themes) {
       const details = page.locator('summary');
       if (await details.count()) await details.first().click();
 
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+        width,
+      );
+      for (const target of await page.locator(targets).all()) {
+        if (!(await target.isVisible())) continue;
+        const box = await target.boundingBox();
+        const name = (await target.getAttribute('id')) ?? (await target.textContent()) ?? '';
+        expect(box!.height, name).toBeGreaterThanOrEqual(44);
+        expect(box!.x + box!.width, name).toBeLessThanOrEqual(width);
+      }
+    });
+  }
+}
+
+// Activa tu cuenta (#214) is phone-first: the form, the rule list and the invalid-link state fit
+// 375px with 44px targets in both themes.
+for (const theme of themes) {
+  for (const [state, heading] of [
+    ['ready', 'Activa tu cuenta'],
+    ['invalid', 'Enlace no válido'],
+  ] as const) {
+    test(`Activa tu cuenta (${state}) fits ${width}px with 44px targets in the ${theme} theme`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 800 });
+      await useTheme(page, theme);
+      await mockActivation(
+        page,
+        state === 'ready' ? undefined : { status: 410, json: { code: 'invalid_link' } },
+      );
+      await page.goto(`/activar-cuenta#${activationToken}`);
+      await expect(page.getByRole('heading', { level: 1, name: heading })).toBeVisible();
+      await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
+      if (state === 'ready') {
+        await page.getByLabel('Crea tu contraseña').fill('corta');
+        await page.getByRole('button', { name: 'Activar cuenta' }).click();
+      }
       expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
         width,
       );

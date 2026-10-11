@@ -12,6 +12,7 @@ import { DatabaseService } from '@/database/database.service';
 import { configureHttp } from '@/http';
 import { MercadoPagoClient, MercadoPagoClientError, type ProviderPayment } from '@/payments';
 import { PAYMENT_NOT_FOUND_GRACE_SECONDS } from '@/payments/webhook/payment-webhook.service';
+import { confirmRegistration } from '@/events/registration-confirmation/confirm-registration';
 import { PostgresHarness } from './support/postgres-harness';
 
 jest.setTimeout(120_000);
@@ -146,6 +147,9 @@ describe('Mercado Pago payment webhook (e2e)', () => {
     client<{ notification_id: string; processed: boolean; outcome: string | null }[]>`
       SELECT notification_id, processed_at IS NOT NULL AS processed, outcome FROM payment_webhook_notifications
       ORDER BY received_at`;
+  const confirmationEmailRows = () =>
+    client<{ registration_id: string; status: string; attempts: number }[]>`
+      SELECT registration_id, status, attempts FROM registration_confirmation_emails`;
 
   it.each([
     ['a missing signature', { signature: null }],
@@ -473,5 +477,79 @@ describe('Mercado Pago payment webhook (e2e)', () => {
     expect(reads).toHaveLength(0);
     expect(await notificationRows()).toHaveLength(0);
     expect((await registrationRow(id)).status).toBe('pending_payment');
+  });
+
+  // Transactional outbox (#179 D2): the webhook's confirmation queues exactly one email row.
+  describe('confirmation email outbox', () => {
+    it('queues one pending email when an approved payment confirms the registration', async () => {
+      const id = await pendingRegistration();
+      setPayment(id);
+
+      await notify(1001).expect(200);
+
+      expect(await confirmationEmailRows()).toEqual([
+        { registration_id: id, status: 'pending', attempts: 0 },
+      ]);
+    });
+
+    it('queues no second email for a retried or a different notification of the same payment', async () => {
+      const id = await pendingRegistration();
+      setPayment(id);
+
+      await Promise.all([notify(1001).expect(200), notify(1001).expect(200)]);
+      await notify(1001).expect(200);
+      await notify(1002).expect(200);
+
+      expect(await confirmationEmailRows()).toEqual([
+        { registration_id: id, status: 'pending', attempts: 0 },
+      ]);
+    });
+
+    it('queues the email only when a pending OXXO or SPEI payment is approved later', async () => {
+      const id = await pendingRegistration();
+      setPayment(id, { status: 'pending' });
+
+      await notify(1001).expect(200);
+      expect(await confirmationEmailRows()).toHaveLength(0);
+
+      setPayment(id, { status: 'approved' });
+      await notify(1002).expect(200);
+      await notify(1003).expect(200);
+
+      expect(await confirmationEmailRows()).toEqual([
+        { registration_id: id, status: 'pending', attempts: 0 },
+      ]);
+    });
+
+    it('queues no email for a rejected payment', async () => {
+      const id = await pendingRegistration();
+      setPayment(id, { status: 'rejected' });
+
+      await notify(1001).expect(200);
+
+      expect(await confirmationEmailRows()).toHaveLength(0);
+    });
+
+    it('queues no email when a registration is confirmed with cash', async () => {
+      const id = await pendingRegistration();
+      const [{ eventId }] = await client<{ eventId: string }[]>`
+        SELECT event_id AS "eventId" FROM event_registrations WHERE id = ${id}`;
+
+      const confirmed = await drizzle({ client, schema }).transaction((tx) =>
+        confirmRegistration(tx, { eventId, registrationId: id, source: 'admin_cash' }),
+      );
+
+      expect(confirmed).not.toBeNull();
+      expect(await confirmationEmailRows()).toHaveLength(0);
+    });
+
+    it('queues no email for an approval after a cash confirmation', async () => {
+      const id = await pendingRegistration('confirmed');
+      setPayment(id);
+
+      await notify(1001).expect(200);
+
+      expect(await confirmationEmailRows()).toHaveLength(0);
+    });
   });
 });

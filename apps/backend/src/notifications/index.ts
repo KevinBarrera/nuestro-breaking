@@ -1,3 +1,5 @@
+export { enqueueConfirmationEmail } from './confirmation-email-outbox';
+export type { OutboxTransaction } from './confirmation-email-outbox';
 export { EMAIL_CONFIG, readEmailConfig } from './email-config';
 export type { EmailConfig } from './email-config';
 export { EmailSendError, EmailSender } from './email-sender';

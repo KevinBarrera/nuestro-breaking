@@ -12,3 +12,4 @@ export * from './check-ins';
 export * from './event-catalog';
 export * from './event-catalog-audit';
 export * from './payments';
+export * from './notifications';

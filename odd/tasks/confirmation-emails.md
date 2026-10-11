@@ -33,9 +33,9 @@ Send one confirmation email, in Spanish, to an online buyer when the verified Me
 ## Tasks
 
 - [x] T1 — Provider foundation: ADR `docs/adr/0007-email-delivery-service.md`, email config reader with spec, `EmailSender` abstract token, `BrevoEmailSender` fetch implementation with spec (sandbox header, error mapping, no secrets in errors), module wiring, fake env in `test/support/e2e-env.ts`. Route: delegated (several non-trivial files).
-- [ ] T2 — Outbox: `registration_confirmation_emails` schema and migration `0019`, insert in `PaymentWebhookService.confirm` in the same transaction, PostgreSQL e2e proving exactly one row per confirmation across webhook retries and OXXO/SPEI later approval, and none for cash confirmation. Route: delegated.
-- [ ] T3 — Content and dispatch: pure Spanish content builder with Jest spec, dispatcher (immediate try after commit, periodic retry with backoff, max attempts, logging without personal data), Jest specs with a stubbed `EmailSender` for content, idempotency and failure without rollback. Route: delegated.
-- [ ] T4 — Docs: contract `docs/contracts/confirmation-email.md`, README env vars, Brevo runbook, plan update. Route: delegated with T3.
+- [x] T2 — Outbox: `registration_confirmation_emails` schema and migration `0019`, insert in `PaymentWebhookService.confirm` in the same transaction, PostgreSQL e2e proving exactly one row per confirmation across webhook retries and OXXO/SPEI later approval, and none for cash confirmation. Also document the four email env vars in the README now (review R3-boot-gate: since T1 the backend refuses to boot without them). Route: delegated.
+- [ ] T3 — Content and dispatch: pure Spanish content builder with Jest spec, dispatcher (immediate try after commit, periodic retry with backoff, max attempts, logging without personal data), Jest specs with a stubbed `EmailSender` for content, idempotency and failure without rollback. Includes the T1 review suggestions: e2e must force `EMAIL_SANDBOX=true` and a fake key even when the shell exports real values; consume or cancel the response body on non-2xx; treat 408 as retryable. Route: delegated.
+- [ ] T4 — Docs: contract `docs/contracts/confirmation-email.md`, Brevo runbook, plan update. Route: delegated with T3.
 
 ## Acceptance criteria
 
@@ -57,8 +57,10 @@ From #179:
 ## Progress
 
 - 2026-10-10 — Exploration done, D1 chosen by the user, branch `feat/179-01-email-foundation` created from `dev` at `7a3d6a0`.
-- 2026-10-10 — T1 done (delegated writer): ADR 0007, `apps/backend/src/notifications` (`readEmailConfig`, `EmailSender`, `EmailSendError`, `BrevoEmailSender`, `NotificationsModule` in `AppModule`), fake e2e env. RED observed (missing modules), then GREEN. Checks: backend lint, Jest (318 passed), build, `pnpm format`, and the `payment-webhook` e2e (24 passed, AppModule boots). Sandbox header is sent both as an HTTP header and in the payload `headers` object. `.env.example` not touched; env vars go to the README in T4.
+- 2026-10-10 — T1 done (delegated writer): ADR 0007, `apps/backend/src/notifications` (`readEmailConfig`, `EmailSender`, `EmailSendError`, `BrevoEmailSender`, `NotificationsModule` in `AppModule`), fake e2e env. RED observed (missing modules), then GREEN. Checks: backend lint, Jest (318 passed), build, `pnpm format`, and the `payment-webhook` e2e (24 passed, AppModule boots). Sandbox header is sent both as an HTTP header and in the payload `headers` object. `.env.example` not touched; env vars go to the README in T2.
+- 2026-10-10 — T1 commit `ceca34c`. RDD assess: medium, `slice_budget_reached`; review granted (standing user instruction), reliability lens approved and acknowledged (lineage `review-b56572ec6f9af5dc`). Advisory findings: boot gate before docs (WARNING, moved to T2), e2e sandbox overridable, unconsumed error body, 408 not retryable (all moved to T3). Reviewed boundary is now `ceca34c`.
+- 2026-10-10 — T2 done (delegated writer): `registration_confirmation_emails` schema (`schema/notifications.ts`) and migration `0019`, `enqueueConfirmationEmail` in `apps/backend/src/notifications` called from `PaymentWebhookService.confirm` after the audit insert, README section for the four email env vars. Six outbox e2e tests in `payment-webhook.e2e-spec.ts` (approval, duplicate and different notifications, OXXO/SPEI later approval, rejected, cash confirmation, approval after cash). RED observed (missing relation), then GREEN. Deviation: `db:generate` diffed against the stale `0002` snapshot, so the generated snapshot was dropped and `0019` was hand-written like `0003`–`0018`; the migration count in `event-activity-foundation.e2e-spec.ts` went to 20. Checks: `pnpm format`, backend lint, Jest (318 passed), build, full backend e2e (245 passed).
 
 ## Next step
 
-T2.
+T3 and T4 (content, dispatch and docs), stacked on `feat/179-02-confirmation-outbox`.

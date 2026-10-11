@@ -70,7 +70,11 @@ export const globalAdminSession = {
 export async function mockTeamApi(page: Page, session: unknown = globalAdminSession) {
   await page.route(
     (url) => api(url) && url.pathname === '/auth/session',
-    (route) => route.fulfill({ json: session, headers: { 'X-CSRF-Token': 'csrf-token' } }),
+    (route) =>
+      route.fulfill({
+        json: session,
+        headers: { 'X-CSRF-Token': 'csrf-token', 'Access-Control-Expose-Headers': 'X-CSRF-Token' },
+      }),
   );
   await page.route(
     (url) => api(url) && url.pathname === '/admin/events',

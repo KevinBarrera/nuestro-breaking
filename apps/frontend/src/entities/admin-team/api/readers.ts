@@ -1,4 +1,5 @@
 import {
+  type IssuedLink,
   teamErrorCodes,
   teamMemberStatuses,
   type TeamAccess,
@@ -80,4 +81,20 @@ export function readTeamFailure(status: number, body: unknown): TeamFailure {
     if (known) return { kind: 'rule', code: known };
   }
   return { kind: 'error' };
+}
+
+// The activation link must be an absolute http(s) URL carrying the token in its fragment.
+export function readIssuedLink(value: unknown): IssuedLink | null {
+  if (!isRecord(value)) return null;
+  const { userId, activationUrl, expiresAt } = value;
+  if (typeof userId !== 'string' || typeof activationUrl !== 'string' || !isInstant(expiresAt))
+    return null;
+  let url: URL;
+  try {
+    url = new URL(activationUrl);
+  } catch {
+    return null;
+  }
+  if (!['https:', 'http:'].includes(url.protocol) || url.hash.length < 2) return null;
+  return { userId, activationUrl, expiresAt };
 }

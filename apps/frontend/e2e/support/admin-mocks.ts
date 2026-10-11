@@ -20,6 +20,7 @@ export const adminScreens = [
   { name: 'Nuevo pase', path: `/admin/events/${eventId}/passes/new` },
   // Team screens (#214): global admins only, outside any event.
   { name: 'Equipo', path: '/admin/team' },
+  { name: 'Agregar administrador', path: '/admin/team/new' },
 ] as const;
 
 export type AdminScreenName = (typeof adminScreens)[number]['name'];
@@ -202,6 +203,8 @@ export async function revealControls(page: Page, name: AdminScreenName) {
       .getByRole('listitem')
       .first()
       .waitFor();
+  if (name === 'Agregar administrador')
+    await page.getByRole('group', { name: 'Eventos' }).getByRole('checkbox').first().waitFor();
   if (name === 'Resumen') {
     await page.getByRole('table', { name: 'Pases a la venta' }).waitFor();
     await page.getByRole('button', { name: 'Quitar fecha de cierre' }).waitFor();
@@ -274,6 +277,40 @@ export const adminDialogs: {
         .getByRole('link', { name: 'Pases' })
         .click();
       return page.getByRole('alertdialog', { name: '¿Salir sin guardar?' });
+    },
+  },
+  {
+    name: 'deactivate access',
+    screen: 'Equipo',
+    open: async (page) => {
+      await page.getByRole('button', { name: 'Desactivar a Coordinación principal' }).click();
+      const dialog = page.getByRole('alertdialog', {
+        name: '¿Desactivar a Coordinación principal?',
+      });
+      // The empty-reason error shows too, so its text is measured.
+      await dialog.getByRole('button', { name: 'Desactivar acceso' }).click();
+      await dialog.getByText('Escribe el motivo.').waitFor();
+      return dialog;
+    },
+  },
+  {
+    name: 'change access',
+    screen: 'Equipo',
+    open: async (page) => {
+      await page.getByRole('button', { name: /^Cambiar acceso de Persona de entrada/ }).click();
+      const dialog = page.getByRole('dialog', { name: /^Cambiar acceso de Persona de entrada/ });
+      await dialog.getByRole('checkbox').first().waitFor();
+      return dialog;
+    },
+  },
+  {
+    name: 'cancel invitation',
+    screen: 'Equipo',
+    open: async (page) => {
+      await page
+        .getByRole('button', { name: /^Cancelar invitación de Persona de entrada/ })
+        .click();
+      return page.getByRole('alertdialog', { name: /^¿Cancelar la invitación de/ });
     },
   },
 ];

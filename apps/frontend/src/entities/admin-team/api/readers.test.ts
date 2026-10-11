@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { readTeam, readTeamFailure } from './readers';
+import { readIssuedLink, readTeam, readTeamFailure } from './readers';
 
 const member = {
   id: 'u1',
@@ -51,5 +51,26 @@ describe('readTeamFailure', () => {
     });
     expect(readTeamFailure(409, { code: 'something_else' })).toEqual({ kind: 'error' });
     expect(readTeamFailure(500, { code: 'email_in_use' })).toEqual({ kind: 'error' });
+  });
+});
+
+describe('readIssuedLink', () => {
+  const link = {
+    userId: 'u1',
+    activationUrl: 'https://admin.example.org/activar-cuenta#abc123',
+    expiresAt: '2026-10-14T18:20:00.000Z',
+  };
+
+  it('accepts an absolute http(s) link with a fragment token', () => {
+    expect(readIssuedLink(link)).toEqual(link);
+  });
+
+  it('rejects links without a token or with another scheme', () => {
+    expect(
+      readIssuedLink({ ...link, activationUrl: 'https://admin.example.org/activar-cuenta' }),
+    ).toBeNull();
+    expect(readIssuedLink({ ...link, activationUrl: 'javascript:alert(1)#x' })).toBeNull();
+    expect(readIssuedLink({ ...link, activationUrl: '/activar-cuenta#abc' })).toBeNull();
+    expect(readIssuedLink({ ...link, expiresAt: 'later' })).toBeNull();
   });
 });

@@ -18,6 +18,14 @@ export type TeamMember = {
   invitation: TeamInvitation | null;
 };
 
+// What an invite or a regenerated link returns. The link is shown once and never stored.
+export type IssuedLink = { userId: string; activationUrl: string; expiresAt: string };
+
+// `access` as the invite and change-access requests send it.
+export type TeamAccessInput = { kind: 'global' } | { kind: 'events'; eventIds: string[] };
+
+export type InviteInput = { displayName: string; email: string; access: TeamAccessInput };
+
 // 404 and 409 `code` values the team endpoints answer with.
 export const teamErrorCodes = [
   'member_not_found',

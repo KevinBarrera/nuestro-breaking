@@ -79,6 +79,7 @@ const appRoutes: RouteObject[] = [
         ],
       },
       { path: routes.adminTeam, ...adminPage('AdminTeamPage') },
+      { path: routes.adminTeamNew, ...adminPage('AdminTeamNewPage') },
     ],
   },
   {

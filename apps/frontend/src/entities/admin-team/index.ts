@@ -1,7 +1,20 @@
-export { listTeam, TeamError, teamFailure } from './api/team-api';
+export {
+  cancelInvitation,
+  changeMemberAccess,
+  deactivateMember,
+  inviteMember,
+  listTeam,
+  reactivateMember,
+  regenerateInvitation,
+  TeamError,
+  teamFailure,
+} from './api/team-api';
 export { teamErrorCodes } from './api/types';
 export type {
+  InviteInput,
+  IssuedLink,
   TeamAccess,
+  TeamAccessInput,
   TeamErrorCode,
   TeamEvent,
   TeamFailure,

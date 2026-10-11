@@ -6,3 +6,4 @@ export { AdminEventPassesPage } from './ui/admin-event-passes-page';
 export { PassCreateScreen, PassDetailScreen, PassListScreen } from './ui/pass-screens';
 export { AdminEventOverviewPage } from './ui/admin-event-overview-page';
 export { AdminTeamPage } from './ui/admin-team-page';
+export { AdminTeamNewPage } from './ui/admin-team-new-page';

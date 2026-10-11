@@ -208,7 +208,7 @@ The public activation page reads the token from the link fragment and sends it i
 This boundary does not include:
 
 - public account registration;
-- full user management UI (the team pages arrive in a later slice of #214);
+- complete user management beyond the admin team (the Equipo screens cover admins only, not judges or dancers);
 - complete role administration;
 - QR/PIN/check-in credentials;
 - payment authorization;

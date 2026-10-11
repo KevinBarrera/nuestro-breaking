@@ -5,7 +5,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { and, eq, exists, inArray, isNull, sql } from 'drizzle-orm';
 import { DATABASE_CLIENT } from '@/database/database.constants';
 import { adminInvitations, adminTeamAudit, events, userRoles, users } from '@/database/schema';
 import type { DatabaseService } from '@/database/database.service';
@@ -158,7 +158,12 @@ export class AdminTeamService {
     });
   }
 
-  /** Locks the user row so concurrent regenerate or cancel calls for one member serialize. */
+  /**
+   * Locks the user row so concurrent regenerate or cancel calls for one member serialize. Lock
+   * order: every path that touches a member and their invitations (here, activation and
+   * `admin:bootstrap`) locks the `users` row first and `admin_invitations` rows after it, so the
+   * paths cannot deadlock each other.
+   */
   private async lockMember(tx: Transaction, userId: string) {
     const [member] = await tx
       .select({ id: users.id, active: users.active })
@@ -166,7 +171,12 @@ export class AdminTeamService {
       .where(
         and(
           eq(users.id, userId),
-          sql`EXISTS (SELECT 1 FROM ${userRoles} WHERE ${userRoles.userId} = ${users.id} AND ${userRoles.role} = 'admin' AND ${userRoles.active} AND ${userRoles.revokedAt} IS NULL)`,
+          exists(
+            tx
+              .select({ one: sql`1` })
+              .from(userRoles)
+              .where(and(eq(userRoles.userId, users.id), activeAdminRole)),
+          ),
         ),
       )
       .for('update');

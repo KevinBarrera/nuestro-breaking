@@ -23,9 +23,10 @@ export function invalidLink(): GoneException {
 export class AccountActivationService {
   constructor(@Inject(DATABASE_CLIENT) private readonly db: DatabaseService['db']) {}
 
-  private usable(token: string, now: Date) {
+  /** An invitation the token can still use, for an active user. */
+  private usable(tokenDigest: string, now: Date) {
     return and(
-      eq(adminInvitations.tokenDigest, digest(token)),
+      eq(adminInvitations.tokenDigest, tokenDigest),
       isNull(adminInvitations.usedAt),
       isNull(adminInvitations.cancelledAt),
       gt(adminInvitations.expiresAt, now),
@@ -42,7 +43,7 @@ export class AccountActivationService {
       })
       .from(adminInvitations)
       .innerJoin(users, eq(users.id, adminInvitations.userId))
-      .where(this.usable(token, now));
+      .where(this.usable(digest(token), now));
     if (!invitation) throw invalidLink();
     return {
       displayName: invitation.displayName ?? '',
@@ -53,18 +54,37 @@ export class AccountActivationService {
 
   /** Sets the password, consumes the link and revokes every existing session of the user. */
   async activate(token: string, password: string, now: Date = new Date()): Promise<void> {
-    // Hash before locking: Argon2id is deliberately slow.
+    const tokenDigest = digest(token);
+    // Cheap unlocked read first, so an unknown or unusable token never costs an Argon2id hash.
+    const [candidate] = await this.db
+      .select({ userId: adminInvitations.userId })
+      .from(adminInvitations)
+      .innerJoin(users, eq(users.id, adminInvitations.userId))
+      .where(this.usable(tokenDigest, now));
+    if (!candidate) throw invalidLink();
+
+    // Hash outside the transaction: Argon2id is deliberately slow and must not hold row locks.
     const passwordHash = await hashPassword(password);
     await this.db.transaction(async (tx) => {
+      // Lock order is the user row, then the invitation row, as in every team path
+      // (`AdminTeamService` regenerate and cancel, `admin:bootstrap`), so they cannot deadlock.
+      // Both rows are re-validated under the locks: the link may have been used, cancelled or
+      // replaced, or the user deactivated, since the unlocked read.
+      const [user] = await tx
+        .select({ id: users.id })
+        .from(users)
+        .where(and(eq(users.id, candidate.userId), eq(users.active, true)))
+        .for('update');
+      if (!user) throw invalidLink();
       const [invitation] = await tx
-        .select({ id: adminInvitations.id, userId: adminInvitations.userId })
+        .select({ id: adminInvitations.id })
         .from(adminInvitations)
         .innerJoin(users, eq(users.id, adminInvitations.userId))
-        .where(this.usable(token, now))
-        .for('update');
+        .where(and(eq(adminInvitations.userId, user.id), this.usable(tokenDigest, now)))
+        .for('update', { of: adminInvitations });
       if (!invitation) throw invalidLink();
 
-      await tx.update(users).set({ passwordHash }).where(eq(users.id, invitation.userId));
+      await tx.update(users).set({ passwordHash }).where(eq(users.id, user.id));
       await tx
         .update(adminInvitations)
         .set({ usedAt: now })
@@ -72,12 +92,12 @@ export class AccountActivationService {
       const revoked = await tx
         .update(authSessions)
         .set({ revokedAt: now })
-        .where(and(eq(authSessions.userId, invitation.userId), isNull(authSessions.revokedAt)))
+        .where(and(eq(authSessions.userId, user.id), isNull(authSessions.revokedAt)))
         .returning({ id: authSessions.id });
       await tx.insert(adminTeamAudit).values({
         action: 'activated',
-        actorUserId: invitation.userId,
-        targetUserId: invitation.userId,
+        actorUserId: user.id,
+        targetUserId: user.id,
         details: { revokedSessions: revoked.length },
       });
     });

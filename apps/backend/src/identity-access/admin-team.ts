@@ -16,7 +16,10 @@ export type TeamMember = {
   email: string;
   status: TeamMemberStatus;
   access: TeamAccess;
-  /** The open (neither used nor cancelled) invitation, if any. */
+  /**
+   * The open (neither used nor cancelled) invitation, if any. Always `null` for a deactivated
+   * member: activation refuses their links, so an open one is hidden rather than shown as usable.
+   */
   invitation: { expiresAt: string; expired: boolean } | null;
 };
 

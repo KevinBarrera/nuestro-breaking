@@ -396,4 +396,18 @@ describe('admin team API (e2e)', () => {
       invitation: null,
     });
   });
+
+  it('answers two concurrent invitations of the same new email with one 201 and one 409', async () => {
+    const admin = await globalAdmin();
+    const body = { displayName: 'Twin', email: 'twin@example.test', access: { kind: 'global' } };
+
+    const responses = await Promise.all([invite(admin, body), invite(admin, body)]);
+
+    expect(responses.map((response) => response.status).sort()).toEqual([201, 409]);
+    expect(responses.find((response) => response.status === 409)?.body).toMatchObject({
+      code: 'email_in_use',
+    });
+    const users = await client`SELECT id FROM users WHERE email = 'twin@example.test'`;
+    expect(users).toHaveLength(1);
+  });
 });

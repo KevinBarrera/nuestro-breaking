@@ -221,6 +221,37 @@ describe('admin account activation (e2e)', () => {
     await signIn('global@example.test', newPassword).expect(201);
   });
 
+  it('lets exactly one of two concurrent activations with the same link succeed', async () => {
+    const admin = await globalAdmin();
+    const invitation = await invite(admin, 'race@example.test');
+
+    const responses = await Promise.all([activate(invitation.token), activate(invitation.token)]);
+
+    expect(responses.map((response) => response.status).sort()).toEqual([200, 410]);
+    expect(responses.find((response) => response.status === 410)?.body).toMatchObject({
+      code: 'invalid_link',
+    });
+    expect(await activatedAudit()).toHaveLength(1);
+  });
+
+  it('serializes a recovery link regeneration racing an activation without errors', async () => {
+    const admin = await globalAdmin();
+    const invitation = await invite(admin, 'regen-race@example.test');
+
+    const [activated, regenerated] = await Promise.all([
+      activate(invitation.token),
+      http()
+        .post(`/admin/team/${invitation.userId}/invitation`)
+        .set('Origin', mutationOrigin)
+        .set('Cookie', admin.cookie)
+        .set('X-CSRF-Token', admin.csrf),
+    ]);
+
+    // Either order is valid; a deadlock or lock error would surface as a 500.
+    expect([200, 410]).toContain(activated.status);
+    expect(regenerated.status).toBe(201);
+  });
+
   it('requires the trusted origin on public activation requests', async () => {
     const admin = await globalAdmin();
     const invitation = await invite(admin, 'origin@example.test');

@@ -35,13 +35,21 @@ export class AccountActivationController {
     }
   }
 
-  private fields(request: Request, body: unknown, names: string[]): Record<string, string> {
+  private fields<Name extends string>(
+    request: Request,
+    body: unknown,
+    names: readonly Name[],
+  ): Record<Name, string> {
     if (!request.is('application/json') || !body || typeof body !== 'object' || Array.isArray(body))
       throw new BadRequestException('Invalid request');
     const input = body as Record<string, unknown>;
-    if (names.some((name) => typeof input[name] !== 'string'))
-      throw new BadRequestException('Invalid request');
-    return input as Record<string, string>;
+    const fields = {} as Record<Name, string>;
+    for (const name of names) {
+      const value = input[name];
+      if (typeof value !== 'string') throw new BadRequestException('Invalid request');
+      fields[name] = value;
+    }
+    return fields;
   }
 
   @Post('check')

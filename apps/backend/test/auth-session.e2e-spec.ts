@@ -55,11 +55,33 @@ describe('admin session foundation (e2e)', () => {
       .send({ email, password });
   }
 
+  it('reports globalAdmin false for event-scoped admins and judges (#214)', async () => {
+    const { id, password } = await provision('admin');
+    await client`UPDATE user_roles SET scope_type = 'event', scope_id = gen_random_uuid() WHERE user_id = ${id}`;
+    await client`INSERT INTO user_roles (user_id, role) VALUES (${id}, 'judge')`;
+    const signed = await signIn(password).expect(201);
+    expect((signed.body as { user: { globalAdmin: boolean } }).user.globalAdmin).toBe(false);
+    const cookie = signed.headers['set-cookie'] as unknown as string[];
+    const current = await request(app.getHttpServer())
+      .get('/auth/session')
+      .set('Cookie', cookie)
+      .expect(200);
+    const user = (current.body as { user: { roles: string[]; globalAdmin: boolean } }).user;
+    expect(user.globalAdmin).toBe(false);
+    expect([...user.roles].sort()).toEqual(['admin', 'judge']);
+  });
+
   it('creates an opaque session, returns safe details and revokes it on protected sign-out', async () => {
     const { id, password } = await provision();
     const signed = await signIn(password).expect(201);
     const signedBody = signed.body as {
-      user: { id: string; email: string; displayName: string; roles: string[] };
+      user: {
+        id: string;
+        email: string;
+        displayName: string;
+        roles: string[];
+        globalAdmin: boolean;
+      };
       csrfToken: string;
     };
     expect(signedBody.user).toEqual({
@@ -67,6 +89,7 @@ describe('admin session foundation (e2e)', () => {
       email: 'admin@example.com',
       displayName: 'Admin User',
       roles: ['admin'],
+      globalAdmin: true,
     });
     expect(signedBody.csrfToken).toMatch(/^[a-f0-9]{64}$/);
     const cookie = signed.headers['set-cookie'] as unknown as string[];

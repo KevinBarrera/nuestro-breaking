@@ -17,6 +17,11 @@ export const routes = {
   adminEventPasses: '/admin/events/:eventId/passes',
   adminEventPassNew: '/admin/events/:eventId/passes/new',
   adminEventPass: '/admin/events/:eventId/passes/:passTypeId',
+  // Team management (#214), global admins only.
+  adminTeam: '/admin/team',
+  adminTeamNew: '/admin/team/new',
+  // Public activation page; the one-time token travels in the fragment (#214 D7).
+  activateAccount: '/activar-cuenta',
   // Former address of the pass list; it redirects to `adminEventPasses` for old bookmarks.
   adminEventPassTypesLegacy: '/admin/events/:eventId/pass-types',
   dancer: '/dancer',

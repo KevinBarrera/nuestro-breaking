@@ -78,6 +78,7 @@ const appRoutes: RouteObject[] = [
           { path: routes.adminEventPass, ...adminPage('PassDetailScreen') },
         ],
       },
+      { path: routes.adminTeam, ...adminPage('AdminTeamPage') },
     ],
   },
   {

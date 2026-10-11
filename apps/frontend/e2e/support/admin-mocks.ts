@@ -1,4 +1,5 @@
 import type { Locator, Page } from '@playwright/test';
+import { teamMembers } from './team-mocks.ts';
 
 // Shared mocked admin API for specs that sweep every admin screen (contrast, targets, phone
 // width). Screen-specific behavior stays in each screen's own spec.
@@ -17,6 +18,8 @@ export const adminScreens = [
   { name: 'Pases', path: `/admin/events/${eventId}/passes` },
   { name: 'Pase', path: `/admin/events/${eventId}/passes/${fullPassId}` },
   { name: 'Nuevo pase', path: `/admin/events/${eventId}/passes/new` },
+  // Team screens (#214): global admins only, outside any event.
+  { name: 'Equipo', path: '/admin/team' },
 ] as const;
 
 export type AdminScreenName = (typeof adminScreens)[number]['name'];
@@ -149,7 +152,11 @@ const registration = {
 
 export async function mockAdminApi(page: Page) {
   const routes: [(url: URL) => boolean, unknown][] = [
-    [(url) => url.pathname === '/auth/session', { user: { id: 'admin', roles: ['admin'] } }],
+    [
+      (url) => url.pathname === '/auth/session',
+      { user: { id: 'admin', roles: ['admin'], globalAdmin: true } },
+    ],
+    [(url) => url.pathname === '/admin/team', { members: teamMembers() }],
     [(url) => url.pathname === '/admin/events', [{ id: eventId, name: 'Encuentro del barrio' }]],
     [(url) => url.pathname.endsWith('/foundation'), foundation],
     [(url) => url.pathname.endsWith('/activities'), activities],
@@ -189,6 +196,12 @@ export async function revealControls(page: Page, name: AdminScreenName) {
   }
   if (name === 'Pase' || name === 'Nuevo pase') await accessControls(page).first().waitFor();
   if (name === 'Actividades') await page.getByRole('button', { name: /^Todas/ }).waitFor();
+  if (name === 'Equipo')
+    await page
+      .getByRole('list', { name: 'Miembros del equipo' })
+      .getByRole('listitem')
+      .first()
+      .waitFor();
   if (name === 'Resumen') {
     await page.getByRole('table', { name: 'Pases a la venta' }).waitFor();
     await page.getByRole('button', { name: 'Quitar fecha de cierre' }).waitFor();

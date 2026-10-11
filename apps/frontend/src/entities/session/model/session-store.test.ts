@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { useSessionStore } from './session-store';
 
 const session = {
-  user: { id: 'admin-1', displayName: 'Admin', roles: ['admin' as const] },
+  user: { id: 'admin-1', displayName: 'Admin', roles: ['admin' as const], globalAdmin: false },
   expiresAt: '2026-11-14T18:00:00.000Z',
 };
 

@@ -91,6 +91,8 @@ The exact status-code split may be chosen during implementation, but responses m
 
 The existing in-memory session entity may cache the current server-reported user for rendering, but the backend remains authoritative for protected API decisions.
 
+`POST /auth/admin/sign-in` and `GET /auth/session` return `user.globalAdmin`: `true` when the user has an active `admin` role in `global` scope (#214). The admin UI uses it only to show the Equipo screens; every team request is still checked on the server.
+
 ## Implementation follow-up slices
 
 1. **Backend session foundation**: database tables/migration for password hashes, sessions, scoped roles, durable auth audit, sign-in/session/sign-out endpoints, protected cookie settings, and CSRF/origin controls required before those state-changing endpoints are usable.

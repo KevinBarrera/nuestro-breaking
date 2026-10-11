@@ -1,3 +1,4 @@
+import { useSessionStore } from '@/entities/session';
 import { ThemeToggle } from '@/features/theme-toggle';
 import { routes } from '@/shared/config';
 import type { PropsWithChildren } from 'react';
@@ -21,6 +22,7 @@ export function AdminShell({ signingOut, signOutFailed, onSignOut, children }: A
   const { pathname } = useLocation();
   const location = readAdminLocation(pathname);
   const events = useAdminEvents();
+  const globalAdmin = useSessionStore((state) => state.session.user?.globalAdmin === true);
   const content = useRef<HTMLDivElement>(null);
 
   // The content column, not the window, scrolls from md up, so a new route starts at its top.
@@ -67,7 +69,12 @@ export function AdminShell({ signingOut, signOutFailed, onSignOut, children }: A
       </header>
       <div aria-hidden="true" className="h-[5px] shrink-0 bg-brand-bar" />
       <div className="flex flex-1 flex-col md:min-h-0 md:flex-row">
-        <AdminSideNav location={location} onLanding={pathname === routes.admin} />
+        <AdminSideNav
+          location={location}
+          onLanding={pathname === routes.admin}
+          showTeam={globalAdmin}
+          onTeam={pathname === routes.adminTeam || pathname.startsWith(`${routes.adminTeam}/`)}
+        />
         <div ref={content} className="min-w-0 flex-1 md:overflow-y-auto">
           {children}
         </div>

@@ -26,8 +26,9 @@ test('admin screens and catalog forms expose no native select', async ({ page })
   for (const screen of adminScreens) {
     await page.goto(screen.path);
     await revealControls(page, screen.name);
-    // The topbar event selector is on every event screen.
-    await expect(listboxTriggers(page).first()).toBeVisible();
+    // The topbar event selector is on every event screen (the team screens sit outside events).
+    if (screen.path.startsWith('/admin/events/'))
+      await expect(listboxTriggers(page).first()).toBeVisible();
     expect(await exposedNativeSelects(page), screen.name).toBe(0);
   }
 

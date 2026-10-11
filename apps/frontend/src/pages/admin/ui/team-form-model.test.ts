@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   accessDraftFrom,
   accessInput,
+  inviteMayExist,
   reasonError,
   serverFieldErrors,
   teamFailureMessage,
@@ -118,5 +119,22 @@ describe('reasonError', () => {
     expect(reasonError('  ')).toBe('Escribe el motivo.');
     expect(reasonError('x'.repeat(501))).toBe('Escribe un motivo de hasta 500 caracteres.');
     expect(reasonError('Terminó su participación')).toBeNull();
+  });
+});
+
+describe('inviteMayExist', () => {
+  it('flags an invite whose outcome is unknown', () => {
+    expect(inviteMayExist({ kind: 'unknown' }, false)).toBe(true);
+  });
+
+  it('flags an email in use only after an earlier unknown outcome', () => {
+    expect(inviteMayExist({ kind: 'rule', code: 'email_in_use' }, true)).toBe(true);
+    expect(inviteMayExist({ kind: 'rule', code: 'email_in_use' }, false)).toBe(false);
+  });
+
+  it('does not flag refusals or plain errors', () => {
+    expect(inviteMayExist({ kind: 'error' }, true)).toBe(false);
+    expect(inviteMayExist({ kind: 'denied' }, true)).toBe(false);
+    expect(inviteMayExist({ kind: 'invalid', fieldErrors: {} }, true)).toBe(false);
   });
 });

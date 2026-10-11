@@ -30,13 +30,14 @@ async function teamRequest(path: string, init: RequestInit = {}): Promise<unknow
     response = await fetch(apiUrl(path), { ...init, credentials: 'include' });
   } catch (error) {
     if (init.signal?.aborted) throw error;
-    throw new TeamError({ kind: 'error' });
+    // The request may have reached the server before the connection failed.
+    throw new TeamError({ kind: 'unknown' });
   }
   let body: unknown = null;
   try {
     body = await response.json();
   } catch {
-    if (response.ok) throw new TeamError({ kind: 'error' });
+    if (response.ok) throw new TeamError({ kind: 'unknown' });
   }
   if (!response.ok) throw new TeamError(readTeamFailure(response.status, body));
   return body;
@@ -77,9 +78,10 @@ async function mutate(path: string, method: string, body?: unknown): Promise<unk
 const memberPath = (userId: string, action: string) =>
   `/admin/team/${encodeURIComponent(userId)}/${action}`;
 
+// A 2xx answer whose link cannot be read still means the link was issued.
 function issued(value: unknown): IssuedLink {
   const link = readIssuedLink(value);
-  if (!link) throw new TeamError({ kind: 'error' });
+  if (!link) throw new TeamError({ kind: 'unknown' });
   return link;
 }
 

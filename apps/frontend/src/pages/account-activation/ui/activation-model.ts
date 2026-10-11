@@ -84,20 +84,9 @@ export function weakPasswordMessage(failedRules: string[]): string {
     : 'La contraseña no cumple las reglas.';
 }
 
-export function formatLinkExpiry(expiresAt: string, timeZone?: string): string {
-  const parts = new Intl.DateTimeFormat('es-MX', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    hourCycle: 'h23',
-    timeZone,
-  }).formatToParts(new Date(expiresAt));
-  const part = (type: Intl.DateTimeFormatPartTypes) =>
-    parts.find((entry) => entry.type === type)?.value ?? '';
-  return `${part('day')} de ${part('month')} de ${part('year')}, ${part('hour')}:${part('minute')}`;
-}
-
 export const invalidLinkMessage =
   'Este enlace no es válido o ya venció. Pide uno nuevo a un administrador.';
+
+// Shown when a retry finds the link used after an attempt whose answer was lost.
+export const maybeActiveMessage =
+  'Es posible que tu cuenta ya esté activa. Intenta iniciar sesión; si no puedes, pide un nuevo enlace.';

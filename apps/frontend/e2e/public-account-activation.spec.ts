@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { activationToken, mockActivation } from './support/activation-mocks.ts';
+import { activationDetails, activationToken, mockActivation } from './support/activation-mocks.ts';
 
 const invalidLink = 'Este enlace no es válido o ya venció. Pide uno nuevo a un administrador.';
 const strong = 'Breaking2026!';
@@ -102,4 +102,62 @@ test('a link that stops working during activation shows the invalid-link message
   await form.getByLabel('Repite la contraseña').fill(strong);
   await form.getByRole('button', { name: 'Activar cuenta' }).click();
   await expect(page.getByRole('alert')).toHaveText(invalidLink);
+});
+
+test('a retry that finds the link used after a lost answer suggests signing in', async ({
+  page,
+}) => {
+  await mockActivation(page);
+  let attempts = 0;
+  await page.route(
+    (url) => url.port === '3000' && url.pathname === '/auth/activation',
+    (route) => {
+      attempts += 1;
+      // The first answer is lost after the server activated the account.
+      if (attempts === 1) return route.abort('failed');
+      return route.fulfill({ status: 410, json: { code: 'invalid_link' } });
+    },
+  );
+  await page.goto(`/activar-cuenta#${activationToken}`);
+  const form = page.getByRole('form', { name: 'Activa tu cuenta' });
+  await form.getByLabel('Crea tu contraseña').fill(strong);
+  await form.getByLabel('Repite la contraseña').fill(strong);
+  await form.getByRole('button', { name: 'Activar cuenta' }).click();
+  await expect(form.getByRole('alert')).toContainText('No pudimos activar tu cuenta.');
+
+  await form.getByRole('button', { name: 'Activar cuenta' }).click();
+  await expect(page.getByRole('status')).toHaveText(
+    'Es posible que tu cuenta ya esté activa. Intenta iniciar sesión; si no puedes, pide un nuevo enlace.',
+  );
+  await expect(page.getByText(invalidLink)).toHaveCount(0);
+  expect(attempts).toBe(2);
+  await page.getByRole('link', { name: 'Ir a iniciar sesión' }).click();
+  await expect(page).toHaveURL('/admin');
+});
+
+test('a failed link check says to reopen the original link and retries from memory', async ({
+  page,
+}) => {
+  let reply = { status: 500, json: { statusCode: 500 } as unknown };
+  const checks: string[] = [];
+  await page.route(
+    (url) => url.port === '3000' && url.pathname === '/auth/activation/check',
+    (route) => {
+      checks.push(route.request().postData() ?? '');
+      return route.fulfill(reply);
+    },
+  );
+  await page.goto(`/activar-cuenta#${activationToken}`);
+  await expect(page.getByRole('alert')).toHaveText(
+    'No pudimos comprobar tu enlace. Usa «Reintentar». Si recargaste o cerraste esta página, vuelve a abrir el enlace original.',
+  );
+  // The token is no longer in the address bar, so a reload could not check it again.
+  expect(page.url()).toMatch(/\/activar-cuenta$/);
+
+  reply = { status: 200, json: activationDetails };
+  const before = checks.length;
+  await page.getByRole('button', { name: 'Reintentar' }).click();
+  await expect(page.getByRole('form', { name: 'Activa tu cuenta' })).toBeVisible();
+  expect(checks.length).toBeGreaterThan(before);
+  expect(JSON.parse(checks[checks.length - 1])).toEqual({ token: activationToken });
 });

@@ -5,13 +5,14 @@ import {
   type ActivationDetails,
 } from '@/entities/session';
 import { routes } from '@/shared/config';
+import { formatLinkExpiry } from '@/shared/lib';
 import { Notice, TextField } from '@/shared/ui';
 import { continueButtonClass, PublicFrame } from '@/widgets/public-layout';
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
-import { useNavigate } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import {
-  formatLinkExpiry,
   invalidLinkMessage,
+  maybeActiveMessage,
   passwordChecklist,
   readActivationToken,
   validateActivation,
@@ -19,17 +20,24 @@ import {
   type ActivationErrors,
 } from './activation-model';
 
+const checkFailedMessage =
+  'No pudimos comprobar tu enlace. Usa «Reintentar». Si recargaste o cerraste esta página, vuelve a abrir el enlace original.';
+const activateFailedMessage =
+  'No pudimos activar tu cuenta. Inténtalo de nuevo. Si recargas o cierras esta página, vuelve a abrir el enlace original.';
+
 type CheckState =
   | { status: 'checking' }
   | { status: 'invalid' }
   | { status: 'failed' }
+  | { status: 'maybe-active' }
   | { status: 'ready'; details: ActivationDetails };
 
 const mainClass = 'mx-auto flex w-full max-w-md flex-1 flex-col gap-5 px-5 py-7';
 
 // Activa tu cuenta (#214, phone-first). The one-time token sits in the URL fragment, which
 // browsers never send (D7). It is read once, then removed from the address bar, so it does
-// not stay in the history or get copied along with the address.
+// not stay in the history or get copied along with the address. The token then lives only in
+// memory: "Reintentar" reuses it, but a reload loses it, so failures say to reopen the link.
 export function AccountActivationPage() {
   const [token] = useState(() => readActivationToken(window.location.hash));
   const [state, setState] = useState<CheckState>(() =>
@@ -70,7 +78,7 @@ export function AccountActivationPage() {
         {state.status === 'failed' && (
           <>
             <h1 className="text-2xl font-extrabold text-heading">Activa tu cuenta</h1>
-            <Notice tone="danger">No pudimos comprobar tu enlace. Inténtalo de nuevo.</Notice>
+            <Notice tone="danger">{checkFailedMessage}</Notice>
             <button
               type="button"
               className={continueButtonClass}
@@ -88,8 +96,10 @@ export function AccountActivationPage() {
             token={token}
             details={state.details}
             onInvalid={() => setState({ status: 'invalid' })}
+            onMaybeActive={() => setState({ status: 'maybe-active' })}
           />
         )}
+        {state.status === 'maybe-active' && <MaybeActive />}
       </main>
     </PublicFrame>
   );
@@ -104,13 +114,27 @@ function InvalidLink() {
   );
 }
 
+// A lost answer after the account was activated makes the retry find a used link.
+function MaybeActive() {
+  return (
+    <>
+      <h1 className="text-2xl font-extrabold text-heading">Activa tu cuenta</h1>
+      <Notice tone="info">{maybeActiveMessage}</Notice>
+      <Link to={routes.admin} replace className={`${continueButtonClass} w-full`}>
+        Ir a iniciar sesión
+      </Link>
+    </>
+  );
+}
+
 type ActivationFormProps = {
   token: string;
   details: ActivationDetails;
   onInvalid: () => void;
+  onMaybeActive: () => void;
 };
 
-function ActivationForm({ token, details, onInvalid }: ActivationFormProps) {
+function ActivationForm({ token, details, onInvalid, onMaybeActive }: ActivationFormProps) {
   const navigate = useNavigate();
   const [password, setPassword] = useState('');
   const [confirmation, setConfirmation] = useState('');
@@ -118,6 +142,8 @@ function ActivationForm({ token, details, onInvalid }: ActivationFormProps) {
   const [failure, setFailure] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const pending = useRef(false);
+  // Set when an attempt failed without a clear answer: it may have activated the account.
+  const outcomeUnknown = useRef(false);
   const passwordId = useId();
   const confirmationId = useId();
   const rulesId = useId();
@@ -143,11 +169,16 @@ function ActivationForm({ token, details, onInvalid }: ActivationFormProps) {
       });
     } catch (error) {
       const reason = activationFailure(error);
-      if (reason.kind === 'invalid-link') onInvalid();
-      else if (reason.kind === 'weak-password') {
+      if (reason.kind === 'invalid-link') {
+        if (outcomeUnknown.current) onMaybeActive();
+        else onInvalid();
+      } else if (reason.kind === 'weak-password') {
         setErrors({ password: weakPasswordMessage(reason.failedRules) });
         document.getElementById(passwordId)?.focus();
-      } else setFailure('No pudimos activar tu cuenta. Inténtalo de nuevo.');
+      } else {
+        outcomeUnknown.current = true;
+        setFailure(activateFailedMessage);
+      }
     } finally {
       pending.current = false;
       setSending(false);

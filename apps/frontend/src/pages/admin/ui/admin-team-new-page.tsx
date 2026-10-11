@@ -9,6 +9,8 @@ import { styles } from './catalog-copy';
 import { AccessFieldset } from './team-access-fieldset';
 import {
   accessInput,
+  inviteMayExist,
+  inviteMayExistMessage,
   serverFieldErrors,
   teamFailureMessage,
   validateInvite,
@@ -31,10 +33,14 @@ export function AdminTeamNewPage() {
   const [draft, setDraft] = useState(emptyDraft);
   const [errors, setErrors] = useState<InviteErrors>({});
   const [failure, setFailure] = useState<string | null>(null);
+  const [mayExist, setMayExist] = useState(false);
   const [sending, setSending] = useState(false);
   const [issued, setIssued] = useState<{ name: string; link: IssuedLink } | null>(null);
   const { events, retry } = useTeamEvents(allowed && !issued);
   const pending = useRef(false);
+  // The email of an invite whose answer was lost: a retry with it may get `email_in_use`
+  // because that first invite did go through.
+  const unknownEmail = useRef<string | null>(null);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -42,6 +48,7 @@ export function AdminTeamNewPage() {
     const found = validateInvite(draft);
     setErrors(found);
     setFailure(null);
+    setMayExist(false);
     if (Object.keys(found).length > 0) {
       const first = Object.keys(found)[0];
       event.currentTarget
@@ -51,16 +58,23 @@ export function AdminTeamNewPage() {
     }
     pending.current = true;
     setSending(true);
+    const name = draft.displayName.trim();
+    const email = draft.email.trim();
     try {
-      const name = draft.displayName.trim();
       const link = await inviteMember({
         displayName: name,
-        email: draft.email.trim(),
+        email,
         access: accessInput(draft.access),
       });
       setIssued({ name, link });
     } catch (error) {
       const reason = teamFailure(error);
+      const sameEmail = unknownEmail.current === email.toLowerCase();
+      if (reason.kind === 'unknown') unknownEmail.current = email.toLowerCase();
+      if (inviteMayExist(reason, sameEmail)) {
+        setMayExist(true);
+        return;
+      }
       if (reason.kind === 'invalid') setErrors(serverFieldErrors(reason.fieldErrors));
       else if (reason.kind === 'rule' && reason.code === 'email_in_use')
         setErrors({ email: teamFailureMessage(reason) });
@@ -104,6 +118,17 @@ export function AdminTeamNewPage() {
                 className={`${styles.card} space-y-6 sm:p-8`}
               >
                 {failure && <Notice tone="danger">{failure}</Notice>}
+                {mayExist && (
+                  <Notice tone="danger">
+                    {inviteMayExistMessage}{' '}
+                    <Link
+                      to={routes.adminTeam}
+                      className="inline-flex min-h-11 items-center font-bold underline"
+                    >
+                      Ir a Equipo
+                    </Link>
+                  </Notice>
+                )}
                 <div className="grid gap-8 md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] md:items-start">
                   <section aria-labelledby="team-new-person" className="space-y-5">
                     <h2 id="team-new-person" className="text-lg font-extrabold text-heading">
@@ -132,8 +157,8 @@ export function AdminTeamNewPage() {
                       onChange={(event) => setDraft({ ...draft, email: event.currentTarget.value })}
                     />
                     <p className="rounded-xl bg-surface-inner p-4 text-sm text-fg">
-                      Al crear la invitación verás un enlace de activación. Envíalo por un medio
-                      privado; vence en 72 horas y sirve una sola vez.
+                      Al crear la invitación verás un enlace de activación y cuándo vence. Envíalo
+                      por un medio privado; sirve una sola vez.
                     </p>
                   </section>
                   <AccessFieldset

@@ -106,6 +106,39 @@ test('an email that already has an account is explained on the field', async ({ 
   await expect(form.getByLabel('Correo')).toHaveAttribute('aria-invalid', 'true');
 });
 
+test('a lost invite answer points to Equipo instead of asking for another email', async ({
+  page,
+}) => {
+  await mockTeamApi(page);
+  let attempts = 0;
+  await page.route(
+    (url) => api(url) && url.pathname === '/admin/team',
+    (route) => {
+      if (route.request().method() !== 'POST') return route.fallback();
+      attempts += 1;
+      // The first invite is created, but its answer never arrives.
+      if (attempts === 1) return route.abort('failed');
+      return route.fulfill({ status: 409, json: { statusCode: 409, code: 'email_in_use' } });
+    },
+  );
+  const mayExist =
+    'Es posible que la invitación sí se haya creado. Revisa Equipo: si la persona aparece, usa «Nuevo enlace» para darle un enlace. Ir a Equipo';
+  await page.goto('/admin/team/new');
+  const form = page.getByRole('form', { name: 'Agregar administrador' });
+  await form.getByLabel('Nombre').fill('Ana');
+  await form.getByLabel('Correo').fill('ana@example.org');
+  await form.getByText('Todos los eventos', { exact: true }).click();
+  await form.getByRole('button', { name: 'Crear invitación' }).click();
+  await expect(form.getByRole('alert')).toHaveText(mayExist);
+
+  await form.getByRole('button', { name: 'Crear invitación' }).click();
+  await expect.poll(() => attempts).toBe(2);
+  await expect(form.getByRole('alert')).toHaveText(mayExist);
+  await expect(form.getByLabel('Correo')).not.toHaveAttribute('aria-invalid', 'true');
+  await form.getByRole('link', { name: 'Ir a Equipo' }).click();
+  await expect(page).toHaveURL('/admin/team');
+});
+
 test('deactivating requires a reason and reports the last global admin rule', async ({ page }) => {
   await mockTeamApi(page);
   let reply = { status: 409, json: { statusCode: 409, code: 'last_global_admin' } as unknown };

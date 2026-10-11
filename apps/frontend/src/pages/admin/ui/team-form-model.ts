@@ -26,6 +26,16 @@ export function teamFailureMessage(failure: TeamFailure): string {
   return 'No se pudo completar la operación. Inténtalo de nuevo.';
 }
 
+// After a lost or unreadable answer the invitation may exist, and a retry with the same email
+// then gets `email_in_use`; both cases point to Equipo instead of asking for another email.
+export function inviteMayExist(failure: TeamFailure, earlierUnknown: boolean): boolean {
+  if (failure.kind === 'unknown') return true;
+  return earlierUnknown && failure.kind === 'rule' && failure.code === 'email_in_use';
+}
+
+export const inviteMayExistMessage =
+  'Es posible que la invitación sí se haya creado. Revisa Equipo: si la persona aparece, usa «Nuevo enlace» para darle un enlace.';
+
 export type AccessDraft = { scope: 'global' | 'events'; eventIds: string[] };
 
 export function accessInput(draft: AccessDraft): TeamAccessInput {

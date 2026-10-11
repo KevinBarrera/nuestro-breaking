@@ -41,8 +41,11 @@ export type TeamErrorCode = (typeof teamErrorCodes)[number];
 
 // `denied` covers 401 and 403: a missing session, a lost global admin role, or a failed
 // origin or CSRF check. `invalid` carries the 400 `fieldErrors` (never the submitted values).
+// `unknown` means the request was sent but its answer was lost or unreadable, so a write may
+// have been applied; `error` covers everything else, including a write that was never sent.
 export type TeamFailure =
   | { kind: 'denied' }
   | { kind: 'invalid'; fieldErrors: Record<string, string> }
   | { kind: 'rule'; code: TeamErrorCode }
+  | { kind: 'unknown' }
   | { kind: 'error' };

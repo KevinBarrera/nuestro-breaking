@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
   failedPasswordRules,
-  formatLinkExpiry,
   passwordChecklist,
   readActivationToken,
   validateActivation,
@@ -88,13 +87,5 @@ describe('weakPasswordMessage', () => {
       'La contraseña no cumple: un símbolo, por ejemplo ! # $ %; un número.',
     );
     expect(weakPasswordMessage([])).toBe('La contraseña no cumple las reglas.');
-  });
-});
-
-describe('formatLinkExpiry', () => {
-  it('formats the expiry in the given time zone', () => {
-    expect(formatLinkExpiry('2026-10-15T00:20:00.000Z', 'America/Mexico_City')).toBe(
-      '14 de octubre de 2026, 18:20',
-    );
   });
 });

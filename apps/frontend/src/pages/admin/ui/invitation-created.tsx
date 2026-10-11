@@ -1,4 +1,5 @@
 import type { IssuedLink } from '@/entities/admin-team';
+import { formatLinkExpiry } from '@/shared/lib';
 import { useEffect, useId, useRef, useState } from 'react';
 import { styles } from './catalog-copy';
 
@@ -75,7 +76,7 @@ export function InvitationCreated({ title, name, link, onDone }: InvitationCreat
         <li>
           <strong>Se muestra una sola vez.</strong> Si se pierde, genera uno nuevo desde Equipo.
         </li>
-        <li>Vence en 72 horas y sirve una sola vez.</li>
+        <li>Vence el {formatLinkExpiry(link.expiresAt)} y sirve una sola vez.</li>
         <li>Quien tenga el enlace puede activar la cuenta: no lo publiques en grupos.</li>
       </ul>
       <div className="flex justify-end">

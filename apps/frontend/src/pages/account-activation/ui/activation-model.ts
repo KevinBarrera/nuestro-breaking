@@ -1,3 +1,5 @@
+import { hasControlCharacters } from '@/shared/lib';
+
 // Pure logic for the public account activation page (#214).
 
 // Tokens are 32 random bytes in hex. Anything else is not a link we issued, so the page shows
@@ -19,12 +21,6 @@ export const passwordRules = [
   'no_control_characters',
 ] as const;
 export type PasswordRule = (typeof passwordRules)[number];
-
-const hasControlCharacters = (value: string) =>
-  [...value].some((character) => {
-    const code = character.charCodeAt(0);
-    return code < 32 || code === 127;
-  });
 
 export function failedPasswordRules(password: string): PasswordRule[] {
   const passes: Record<PasswordRule, boolean> = {

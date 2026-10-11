@@ -3,7 +3,7 @@ import { buttonClass, Modal, Notice, TextField } from '@/shared/ui';
 import { useId, useState } from 'react';
 import { Button } from 'react-aria-components';
 import { AccessFieldset } from './team-access-fieldset';
-import { accessDraftFrom, reasonError, type AccessDraft } from './team-form-model';
+import { accessDraftFrom, accessError, reasonError, type AccessDraft } from './team-form-model';
 import type { TeamEventsState } from './use-team-events';
 
 type DeactivateDialogProps = {
@@ -108,12 +108,9 @@ export function ChangeAccessDialog({
   const [accessMessage, setAccessMessage] = useState<string | null>(null);
 
   function confirm() {
-    if (access.scope === 'events' && access.eventIds.length === 0) {
-      setAccessMessage('Elige al menos un evento.');
-      return;
-    }
-    setAccessMessage(null);
-    onConfirm(access);
+    const message = accessError(access);
+    setAccessMessage(message);
+    if (!message) onConfirm(access);
   }
 
   return (

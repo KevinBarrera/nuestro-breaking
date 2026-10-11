@@ -30,23 +30,24 @@ function readMember(value: unknown): TeamMember | null {
   if (!isRecord(value)) return null;
   const { id, displayName, email, status, invitation } = value;
   const access = readAccess(value.access);
-  const status_ = teamMemberStatuses.find((known) => known === status);
+  const knownStatus = teamMemberStatuses.find((known) => known === status);
   if (
     typeof id !== 'string' ||
     typeof displayName !== 'string' ||
     typeof email !== 'string' ||
-    !status_ ||
+    !knownStatus ||
     !access
   )
     return null;
-  if (invitation === null) return { id, displayName, email, status: status_, access, invitation };
+  if (invitation === null)
+    return { id, displayName, email, status: knownStatus, access, invitation };
   if (!isRecord(invitation) || !isInstant(invitation.expiresAt)) return null;
   if (typeof invitation.expired !== 'boolean') return null;
   return {
     id,
     displayName,
     email,
-    status: status_,
+    status: knownStatus,
     access,
     invitation: { expiresAt: invitation.expiresAt, expired: invitation.expired },
   };

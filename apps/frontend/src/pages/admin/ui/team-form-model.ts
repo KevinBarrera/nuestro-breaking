@@ -4,6 +4,7 @@ import type {
   TeamErrorCode,
   TeamFailure,
 } from '@/entities/admin-team';
+import { hasControlCharacters } from '@/shared/lib';
 
 // Pure form logic and Spanish messages for the team screens (#214).
 
@@ -57,6 +58,11 @@ const emailMessage = 'Escribe un correo válido, por ejemplo nombre@dominio.com.
 const noEventMessage = 'Elige al menos un evento.';
 const reasonMessage = 'Escribe un motivo de hasta 500 caracteres.';
 
+// Shared by the invite form and the Cambiar acceso dialog.
+export function accessError(access: AccessDraft): string | null {
+  return access.scope === 'events' && access.eventIds.length === 0 ? noEventMessage : null;
+}
+
 // Mirrors the backend limits so most mistakes show before a request.
 export function validateInvite(draft: InviteDraft): InviteErrors {
   const errors: InviteErrors = {};
@@ -65,8 +71,8 @@ export function validateInvite(draft: InviteDraft): InviteErrors {
   else if (name.length > 200) errors.displayName = 'Usa 200 caracteres o menos.';
   const email = draft.email.trim();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) errors.email = emailMessage;
-  if (draft.access.scope === 'events' && draft.access.eventIds.length === 0)
-    errors.access = noEventMessage;
+  const access = accessError(draft.access);
+  if (access) errors.access = access;
   return errors;
 }
 
@@ -89,10 +95,6 @@ export function serverFieldErrors(fieldErrors: Record<string, string>): ServerFi
 export function reasonError(reason: string): string | null {
   const trimmed = reason.trim();
   if (!trimmed) return 'Escribe el motivo.';
-  if (
-    trimmed.length > 500 ||
-    [...trimmed].some((c) => c.charCodeAt(0) < 32 || c.charCodeAt(0) === 127)
-  )
-    return reasonMessage;
+  if (trimmed.length > 500 || hasControlCharacters(trimmed)) return reasonMessage;
   return null;
 }

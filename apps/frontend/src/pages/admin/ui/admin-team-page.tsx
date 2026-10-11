@@ -309,7 +309,7 @@ function TeamList({ members, user, onAction }: TeamListProps) {
       {members.map((member) => {
         const status = memberStatus(member, now);
         const isSelf = member.id === user?.id;
-        const actions = memberActions(member, isSelf);
+        const actions = memberActions(member, isSelf, now);
         return (
           <li
             key={member.id}

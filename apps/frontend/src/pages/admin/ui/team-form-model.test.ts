@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   accessDraftFrom,
+  accessError,
   accessInput,
   inviteMayExist,
   reasonError,
@@ -136,5 +137,13 @@ describe('inviteMayExist', () => {
     expect(inviteMayExist({ kind: 'error' }, true)).toBe(false);
     expect(inviteMayExist({ kind: 'denied' }, true)).toBe(false);
     expect(inviteMayExist({ kind: 'invalid', fieldErrors: {} }, true)).toBe(false);
+  });
+});
+
+describe('accessError', () => {
+  it('asks for an event only when access is limited to events', () => {
+    expect(accessError({ scope: 'events', eventIds: [] })).toBe('Elige al menos un evento.');
+    expect(accessError({ scope: 'events', eventIds: ['e1'] })).toBeNull();
+    expect(accessError({ scope: 'global', eventIds: [] })).toBeNull();
   });
 });

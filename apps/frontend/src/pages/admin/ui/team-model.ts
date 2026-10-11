@@ -52,12 +52,13 @@ export function memberStatus(member: TeamMember, now: Date): StatusView {
 export type MemberAction =
   'regenerate' | 'cancel-invitation' | 'change-access' | 'deactivate' | 'reactivate';
 
-// The backend refuses self changes and self deactivation, so they are not offered; a person
-// may still issue their own recovery link (#214 D8).
+// The person's own row offers no actions (#214 D9). The backend refuses self changes and self
+// deactivation; it still accepts a self recovery link (D8), but the panel leaves that to another
+// global admin.
 export function memberActions(member: TeamMember, isSelf: boolean, now: Date): MemberAction[] {
-  if (member.status === 'deactivated') return isSelf ? [] : ['reactivate', 'change-access'];
+  if (isSelf) return [];
+  if (member.status === 'deactivated') return ['reactivate', 'change-access'];
   const actions: MemberAction[] = ['regenerate'];
-  if (isSelf) return actions;
   if (member.status === 'pending' && invitationOpen(member.invitation, now))
     actions.push('cancel-invitation');
   actions.push('change-access', 'deactivate');

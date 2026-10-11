@@ -11,7 +11,7 @@ import {
 import { useSessionStore, type User } from '@/entities/session';
 import { routes } from '@/shared/config';
 import { ConfirmDialog, Notice } from '@/shared/ui';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router';
 import { styles } from './catalog-copy';
 import { InvitationCreated } from './invitation-created';
@@ -302,65 +302,96 @@ type TeamListProps = {
   onAction: (action: MemberAction, member: TeamMember) => void;
 };
 
+// One ARIA table. Below `lg` (where the side navigation leaves too little room for four
+// columns) each row stacks as a card; from `lg` up the rows share the table's columns through
+// subgrid, so every column lines up and the actions stay on their row.
+const subgridRow = 'lg:col-span-4 lg:grid lg:grid-cols-subgrid';
+const headerCell = 'px-5 py-3 text-xs font-bold tracking-[0.08em] text-muted uppercase';
+
 function TeamList({ members, user, onAction }: TeamListProps) {
   const now = new Date();
   return (
-    <ul aria-label="Miembros del equipo" className={`${styles.card} divide-y divide-row p-0`}>
-      {members.map((member) => {
-        const status = memberStatus(member, now);
-        const isSelf = member.id === user?.id;
-        const actions = memberActions(member, isSelf, now);
-        return (
-          <li
-            key={member.id}
-            className="grid gap-3 px-5 py-4 md:grid-cols-[minmax(0,2fr)_minmax(0,2fr)_minmax(0,1.3fr)] md:items-start"
-          >
-            <div className="min-w-0">
-              <p className="font-bold break-words">
-                {member.displayName}
-                {isSelf && <span className="font-medium text-muted"> (tú)</span>}
-              </p>
-              <p className="text-sm break-words text-muted">{member.email}</p>
-            </div>
-            <Cell label="Acceso">{accessSummary(member.access)}</Cell>
-            <div>
-              <span
-                className={`inline-block rounded-full px-3 py-1 text-sm font-bold ${toneClass[status.tone]}`}
-              >
-                {status.label}
-              </span>
-              {status.hint && <p className="mt-1 text-sm text-muted">{status.hint}</p>}
-            </div>
-            {actions.length > 0 && (
-              <div className="flex flex-wrap gap-2 md:col-span-3 md:justify-end">
-                {actions.map((action) => {
-                  const [text, label] = actionLabels[action](member.displayName);
-                  return (
-                    <button
-                      key={action}
-                      type="button"
-                      aria-label={label}
-                      className={action === 'deactivate' ? styles.danger : styles.secondary}
-                      onClick={() => onAction(action, member)}
-                    >
-                      {text}
-                    </button>
-                  );
-                })}
+    <div
+      role="table"
+      aria-label="Miembros del equipo"
+      className="overflow-hidden rounded-xl border border-line bg-surface lg:grid lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1.3fr)_minmax(0,1fr)_fit-content(45%)]"
+    >
+      <div role="rowgroup" className={`sr-only lg:not-sr-only ${subgridRow}`}>
+        <div role="row" className={`${subgridRow} border-b border-line bg-surface-inner`}>
+          <span role="columnheader" className={headerCell}>
+            Persona
+          </span>
+          <span role="columnheader" className={headerCell}>
+            Acceso
+          </span>
+          <span role="columnheader" className={headerCell}>
+            Estado
+          </span>
+          <span role="columnheader" className={headerCell}>
+            <span className="sr-only">Acciones</span>
+          </span>
+        </div>
+      </div>
+      <div role="rowgroup" className={`divide-y divide-row ${subgridRow}`}>
+        {members.map((member) => {
+          const status = memberStatus(member, now);
+          const isSelf = member.id === user?.id;
+          const actions = memberActions(member, isSelf, now);
+          const muted = member.status === 'deactivated';
+          return (
+            <div
+              key={member.id}
+              role="row"
+              className={`grid gap-3 px-5 py-4 lg:items-center lg:gap-0 lg:px-0 ${subgridRow}`}
+            >
+              <div role="cell" className="min-w-0 lg:px-5">
+                <p className={`font-bold break-words ${muted ? 'text-muted' : 'text-heading'}`}>
+                  {member.displayName}
+                  {isSelf && <span className="font-medium text-muted"> (tú)</span>}
+                </p>
+                <p className="text-sm break-words text-muted">{member.email}</p>
               </div>
-            )}
-          </li>
-        );
-      })}
-    </ul>
-  );
-}
-
-function Cell({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <p className="min-w-0 break-words">
-      <span className="sr-only">{label}: </span>
-      {children}
-    </p>
+              <p role="cell" className={`min-w-0 break-words lg:px-5 ${muted ? 'text-muted' : ''}`}>
+                {accessSummary(member.access)}
+              </p>
+              <div role="cell" className="lg:px-5">
+                <span
+                  className={`inline-block rounded-full px-3 py-1 text-sm font-bold ${toneClass[status.tone]}`}
+                >
+                  {status.label}
+                </span>
+                {status.hint && <p className="mt-1 text-sm text-muted">{status.hint}</p>}
+              </div>
+              <div
+                role="cell"
+                className={`${actions.length === 0 ? 'hidden lg:flex' : 'flex'} flex-wrap gap-2 lg:justify-end lg:px-5`}
+              >
+                {actions.length === 0 ? (
+                  <span className="text-muted">
+                    <span aria-hidden="true">—</span>
+                    <span className="sr-only">Sin acciones</span>
+                  </span>
+                ) : (
+                  actions.map((action) => {
+                    const [text, label] = actionLabels[action](member.displayName);
+                    return (
+                      <button
+                        key={action}
+                        type="button"
+                        aria-label={label}
+                        className={action === 'deactivate' ? styles.danger : styles.secondary}
+                        onClick={() => onAction(action, member)}
+                      >
+                        {text}
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }

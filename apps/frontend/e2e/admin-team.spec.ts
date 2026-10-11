@@ -2,7 +2,12 @@ import { expect, test, type Page } from '@playwright/test';
 import { globalAdminSession, mockTeamApi } from './support/team-mocks.ts';
 
 const sideNav = (page: Page) => page.getByRole('navigation', { name: 'Navegación administrativa' });
-const members = (page: Page) => page.getByRole('list', { name: 'Miembros del equipo' });
+const members = (page: Page) => page.getByRole('table', { name: 'Miembros del equipo' });
+// Member rows only: the header row holds column headers, not cells.
+const memberRows = (page: Page) =>
+  members(page)
+    .getByRole('row')
+    .filter({ has: page.getByRole('cell') });
 
 test('a global admin reaches Equipo from the navigation and sees every status', async ({
   page,
@@ -15,9 +20,18 @@ test('a global admin reaches Equipo from the navigation and sees every status', 
   await expect(team).toHaveAttribute('aria-current', 'page');
   await expect(page.getByRole('heading', { level: 1, name: 'Equipo' })).toBeVisible();
 
-  const rows = members(page).getByRole('listitem');
+  await expect(members(page).getByRole('columnheader')).toHaveText([
+    'Persona',
+    'Acceso',
+    'Estado',
+    'Acciones',
+  ]);
+  const rows = memberRows(page);
   await expect(rows).toHaveCount(5);
   await expect(rows.nth(0)).toContainText('Kevin Barrera (tú)');
+  // The person's own row offers no actions (D9).
+  await expect(rows.nth(0).getByRole('button')).toHaveCount(0);
+  await expect(rows.nth(0).getByRole('cell').last()).toHaveText('—Sin acciones');
   await expect(rows.nth(0)).toContainText('Todos los eventos');
   await expect(rows.nth(0)).toContainText('Activo');
   await expect(rows.nth(2)).toContainText('Los más pesados - Preliminares - Noviembre 2026');
@@ -28,6 +42,14 @@ test('a global admin reaches Equipo from the navigation and sees every status', 
   );
   await expect(rows.nth(3)).toContainText('Invitación vencida');
   await expect(rows.nth(4)).toContainText('Desactivado');
+
+  // From `md` up the actions share the row's line instead of wrapping under it.
+  const chip = await rows.nth(1).getByText('Activo').boundingBox();
+  const action = await rows
+    .nth(1)
+    .getByRole('button', { name: /^Desactivar/ })
+    .boundingBox();
+  expect(action!.y).toBeLessThan(chip!.y + chip!.height);
 });
 
 test('an event-scoped admin has no Equipo item and a direct visit shows Sin acceso', async ({
@@ -64,5 +86,5 @@ test('a team list failure offers Reintentar', async ({ page }) => {
   await expect(page.getByRole('alert')).toContainText('No se pudo cargar el equipo.');
   failing = false;
   await page.getByRole('button', { name: 'Reintentar' }).click();
-  await expect(members(page).getByRole('listitem')).toHaveCount(5);
+  await expect(memberRows(page)).toHaveCount(5);
 });

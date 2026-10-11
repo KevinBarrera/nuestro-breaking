@@ -89,6 +89,7 @@ export function AdminTeamNewPage() {
     <main className="px-4 py-8 text-fg sm:px-8 lg:py-12">
       <div className="mx-auto max-w-5xl space-y-6">
         <Breadcrumbs
+          variant="link"
           items={[{ label: 'Equipo', to: routes.adminTeam }, { label: 'Agregar administrador' }]}
         />
         {issued ? (
@@ -151,6 +152,7 @@ export function AdminTeamNewPage() {
                       type="email"
                       autoComplete="off"
                       hint="Con este correo iniciará sesión."
+                      hintPlacement="below"
                       value={draft.email}
                       error={errors.email}
                       disabled={sending}

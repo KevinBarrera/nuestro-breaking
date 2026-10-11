@@ -36,7 +36,7 @@ async function mockWrite(
 }
 
 const member = (page: Page, name: string) =>
-  page.getByRole('list', { name: 'Miembros del equipo' }).getByRole('listitem').filter({
+  page.getByRole('table', { name: 'Miembros del equipo' }).getByRole('row').filter({
     hasText: name,
   });
 
@@ -83,6 +83,8 @@ test('inviting shows the link once, copies it and returns to Equipo', async ({ p
 
   await page.getByRole('button', { name: 'Volver a Equipo' }).click();
   await expect(page).toHaveURL('/admin/team');
+  // Equipo must finish loading before going back, or the back navigation can race it.
+  await expect(page.getByRole('table', { name: 'Miembros del equipo' })).toBeVisible();
   await page.goBack();
   await expect(page.getByRole('form', { name: 'Agregar administrador' })).toBeVisible();
   await expect(page.getByLabel('Enlace de activación')).toHaveCount(0);
@@ -197,7 +199,7 @@ test('a new link for a pending member is shown once on Equipo', async ({ page })
   expect(writes).toHaveLength(1);
   await page.getByRole('button', { name: 'Volver a Equipo' }).click();
   await expect(page.getByLabel('Enlace de activación')).toHaveCount(0);
-  await expect(page.getByRole('list', { name: 'Miembros del equipo' })).toBeVisible();
+  await expect(page.getByRole('table', { name: 'Miembros del equipo' })).toBeVisible();
 });
 
 test('cancels an invitation, reactivates and changes access', async ({ page }) => {

@@ -101,8 +101,10 @@ describe('memberActions', () => {
     ]);
   });
 
-  it('only lets a person regenerate their own link', () => {
-    expect(memberActions(member(), true, now)).toEqual(['regenerate']);
+  it("offers no actions on the person's own row (D9)", () => {
+    expect(memberActions(member(), true, now)).toEqual([]);
+    expect(memberActions(member({ status: 'pending' }), true, now)).toEqual([]);
+    expect(memberActions(member({ status: 'deactivated' }), true, now)).toEqual([]);
   });
 });
 

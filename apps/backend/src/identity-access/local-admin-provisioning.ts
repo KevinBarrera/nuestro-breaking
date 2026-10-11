@@ -1,7 +1,7 @@
-import { hash, argon2id } from 'argon2';
 import { and, eq, isNull, ne } from 'drizzle-orm';
 import { userRoles, users } from '@/database/schema';
 import type { DatabaseService } from '@/database/database.service';
+import { hashPassword, hasControlCharacters, isStrongPassword } from './password-policy';
 
 export type ProvisioningDatabase = DatabaseService['db'];
 
@@ -113,32 +113,17 @@ export function parseLocalAdminInput(
   if (!displayName || displayName.length > 200 || hasControlCharacters(rawDisplayName)) {
     throw new Error('A non-empty display name (up to 200 characters) is required.');
   }
-  if (
-    password.length < 12 ||
-    password.length > 1024 ||
-    !/[a-z]/.test(password) ||
-    !/[A-Z]/.test(password) ||
-    !/[0-9]/.test(password) ||
-    !/[^a-zA-Z0-9\s]/.test(password) ||
-    hasControlCharacters(password)
-  ) {
+  if (!isStrongPassword(password)) {
     throw new Error('A strong password is required via LOCAL_ADMIN_PASSWORD.');
   }
   return { email, displayName, password };
-}
-
-function hasControlCharacters(value: string): boolean {
-  return [...value].some((character) => {
-    const code = character.charCodeAt(0);
-    return code < 32 || code === 127;
-  });
 }
 
 export async function provisionLocalAdmin(
   db: ProvisioningDatabase,
   input: LocalAdminInput,
 ): Promise<void> {
-  const passwordHash = await hash(input.password, { type: argon2id });
+  const passwordHash = await hashPassword(input.password);
   await db.transaction(async (tx) => {
     const [user] = await tx
       .insert(users)

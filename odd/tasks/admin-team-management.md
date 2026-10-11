@@ -34,6 +34,7 @@ Global administrators manage who can access the admin panel without a developer,
 - D5 (technical default) — The bootstrap command creates a global admin only when no active global admin exists, checked inside the same transaction under an advisory lock, and never prints secrets. It works in hosted environments and prints a one-time activation link instead of taking a password.
 - D6 (technical default) — Team management is limited to users with an active `admin` role in `global` scope. Judge roles are out of scope.
 - D7 (technical default, 2026-10-11) — Activation links have the form `<admin origin>/activar-cuenta#<token>`: the token sits in the URL fragment, which browsers never send, so it stays out of server and proxy logs. `admin:bootstrap` exits `0` when it issues a link, `1` on errors (bad input, database failure; nothing changes), and `2` when it refuses because the environment already has a global admin (activated, or pending with another email), so automation can tell "already bootstrapped" from a failure.
+- D9 (user, 2026-10-11) — The UI follows the Equipo design: the user's own row offers no actions ("—"). The API still accepts a self link (D8), but the panel does not offer it; recovery comes from another global admin.
 - D8 (technical default, 2026-10-11) — Every unusable activation link (unknown, malformed, expired, used, cancelled, replaced, or for a deactivated user) gets one `410 { code: "invalid_link" }` response on both check and activate, so the response never reveals which case applies. A global admin may regenerate a link for any active or pending admin, themself included; it is the password-recovery path (D2) and the current password keeps working until the link is used. The user confirmed this on 2026-10-11 (slice 2 review R1-001): a global admin may also issue a recovery link for another global admin, and the regeneration is audited with the issuing actor. Inviting refuses (`409 email_in_use`) any email that already has an account, judges included.
 
 ## Tasks
@@ -47,6 +48,8 @@ Global administrators manage who can access the admin panel without a developer,
 - [x] T7 — Frontend session scope and Equipo page with global-admin-only navigation. Route: delegated.
 - [x] T8 — Agregar administrador form, Invitación creada screen, and Desactivar acceso confirmation. Route: delegated.
 - [x] T9 — Public Activa tu cuenta page (phone-first) with live password rules. Route: delegated.
+- [x] T10 — Fix the `403 Request denied` on every admin mutation when `AUTH_TRUSTED_ORIGIN` is blank or padded: the mutation origin checks read the variable raw, while CORS and sign-in use `readTrustedOrigin`. Found in manual testing on 2026-10-11 (a cookie-less `POST /admin/team` from the allowed origin got `403`, not `401`). Route: delegated with T11.
+- [x] T11 — Match the Equipo and Agregar administrador designs (D9): team table with Persona, Acceso and Estado headers and actions on the same row; the user's own row shows "—"; event checkboxes nested inside the "Solo algunos eventos" card with the pink selected border; email hint below the input; breadcrumb "Equipo / Agregar administrador" with a pink underlined link. Route: delegated (several non-trivial files).
 
 ## Acceptance criteria
 
@@ -89,6 +92,11 @@ See issue #214. Summary: bootstrap is one-time and idempotent; event-scoped admi
 
 - 2026-10-11: The user confirmed R1-001 (see D8); no code change. Chained PRs opened for slices 1 to 4 (`feat/214-01-team-foundation` → `dev`, then each slice targets the previous one).
 
+- 2026-10-11: Manual testing by the user found the design gaps and the `403` above; T10 and T11 added on `feat/214-04-team-frontend` (PR #219). Event creation, Archivados and Datos del evento belong to #213, not this feature.
+
+- 2026-10-11: T10 done in `2e5b984` and `eff7fe2` (delegated writer): `assertTrustedOrigin` uses `readTrustedOrigin`; new `session-access.service.spec.ts` (RED 3 failed, then GREEN 4 passed); every backend e2e spec now sends the origin the way the server reads it (they had sent `Origin: ""` because the local environment loads a blank value). T11 done in `05ae602` and `4a52fd0` (delegated writer): ARIA table on CSS subgrid from `lg` (below `lg` rows stack as cards, since four columns do not fit next to the side nav at `md`), self row "—" (`memberActions` returns `[]` for self; RED then GREEN), event checkboxes inside the "Solo algunos eventos" card with the pink border (no tint: no tint token, and a translucent one fails the contrast sweep), email hint below the input (`TextField` `hintPlacement`), breadcrumb `variant="link"`; a flaky `goBack()` step in `admin-team-manage.spec.ts` now waits for the table. Checks: backend lint passed; `test` 31 suites, 417 passed; `test:e2e` 31 suites, 303 passed; `pnpm verify:pr` passed (Vitest 283, Playwright 316); `admin-select.spec.ts` 6 passed; `pnpm format` clean.
+- 2026-10-11: T10/T11 review (`9f3c765`..`4a52fd0`; high, `high_risk`, four lenses, consent granted) approved and acknowledged; boundary advances to `4a52fd0`. Advisories fixed in `bd7f544`: stale e2e comments (R2-001, R2-002), the doc's "tint" (R2-003, R3-002), and the layout test now pins a desktop viewport and says `lg` (R2-004, R3-003). R3-001 needs no change (the import exists). Follow-ups: R1-001, a blank `AUTH_TRUSTED_ORIGIN` now falls back to `http://localhost:5173` like CORS and sign-in, so production must set it (the deploy notes already require it); R4-001, recovery now needs a second activated global admin, as the support runbook advises (D9).
+
 ## Next step
 
-The user reviews and merges the chained PRs bottom-up.
+Push `feat/214-04-team-frontend` to update PR #219; the user reviews and merges the chain bottom-up. Event creation, Archivados and Datos del evento are #213.

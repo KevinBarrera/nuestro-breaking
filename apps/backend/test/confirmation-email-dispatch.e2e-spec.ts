@@ -1,5 +1,5 @@
 import { createHmac } from 'node:crypto';
-import { INestApplication } from '@nestjs/common';
+import { INestApplication, Logger } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import { type Sql } from 'postgres';
@@ -11,6 +11,7 @@ import * as schema from '@/database/schema';
 import { DatabaseService } from '@/database/database.service';
 import { configureHttp } from '@/http';
 import {
+  CONFIRMATION_EMAIL_LEASE_SECONDS,
   CONFIRMATION_EMAIL_MAX_ATTEMPTS,
   ConfirmationEmailDispatcher,
   EmailSendError,
@@ -36,6 +37,8 @@ describe('Confirmation email dispatch (e2e)', () => {
   let client: Sql;
   let app: INestApplication<App>;
   let dispatcher: ConfirmationEmailDispatcher;
+  let warn: jest.SpyInstance;
+  let error: jest.SpyInstance;
   const payments = new Map<string, ProviderPayment>();
   const sent: OutgoingEmail[] = [];
   // Each test may replace how the stubbed transport answers; it records every call first.
@@ -54,11 +57,11 @@ describe('Confirmation email dispatch (e2e)', () => {
     },
   };
 
-  beforeAll(async () => {
-    client = await harness.start();
+  /** The real `AppModule` on the harness database; `database` stands in for `DatabaseService`. */
+  async function createApp(database: object = { db: {} }) {
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
       .overrideProvider(DatabaseService)
-      .useValue({ db: {} })
+      .useValue(database)
       .overrideProvider(DATABASE_CLIENT)
       .useValue(drizzle({ client, schema }))
       .overrideProvider(MercadoPagoClient)
@@ -66,9 +69,15 @@ describe('Confirmation email dispatch (e2e)', () => {
       .overrideProvider(EmailSender)
       .useValue(sender)
       .compile();
-    app = moduleRef.createNestApplication<INestApplication<App>>();
-    configureHttp(app, {});
-    await app.init();
+    const created = moduleRef.createNestApplication<INestApplication<App>>();
+    configureHttp(created, {});
+    await created.init();
+    return created;
+  }
+
+  beforeAll(async () => {
+    client = await harness.start();
+    app = await createApp();
     dispatcher = app.get(ConfirmationEmailDispatcher);
   });
   beforeEach(async () => {
@@ -76,8 +85,13 @@ describe('Confirmation email dispatch (e2e)', () => {
     sent.length = 0;
     answer = (call) => Promise.resolve({ providerMessageId: `<msg-${call}@smtp>` });
     await harness.reset();
+    warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    error = jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
   });
-  afterEach(() => dispatcher.whenIdle());
+  afterEach(async () => {
+    await dispatcher.whenIdle();
+    jest.restoreAllMocks();
+  });
   afterAll(async () => {
     await app?.close();
     await harness.stop();
@@ -167,6 +181,37 @@ describe('Confirmation email dispatch (e2e)', () => {
       WHERE id = ${id}`;
     await client`INSERT INTO registration_confirmation_emails (registration_id) VALUES (${id})`;
     return id;
+  }
+
+  /** Another confirmed registration with a queued email, in the same event as `registrationId`. */
+  async function anotherQueuedRegistration(registrationId: string, folio: string) {
+    const [{ id }] = await client<{ id: string }[]>`
+      WITH participant AS (
+        INSERT INTO participants (full_name, first_name, first_last_name, email)
+        VALUES ('Beto Ruiz', 'Beto', 'Ruiz', 'beto.buyer@example.test') RETURNING id)
+      INSERT INTO event_registrations (event_id, participant_id, status, confirmation_source,
+        confirmed_at, folio)
+      SELECT r.event_id, participant.id, 'confirmed', 'approved_payment', now(), ${folio}
+      FROM participant, event_registrations r WHERE r.id = ${registrationId} RETURNING id`;
+    await client`INSERT INTO registration_confirmation_emails (registration_id) VALUES (${id})`;
+    return id;
+  }
+
+  /** A sender answer for call 1 that holds until released; `entered` resolves once it starts. */
+  function heldFirstCall(release: (settle: { ok: () => void; fail: () => void }) => void) {
+    let entered: () => void = () => undefined;
+    const started = new Promise<void>((resolve) => (entered = resolve));
+    answer = (call) => {
+      if (call !== 1) return Promise.resolve({ providerMessageId: `<msg-${call}@smtp>` });
+      return new Promise<SentEmail>((resolve, reject) => {
+        release({
+          ok: () => resolve({ providerMessageId: '<msg-1@smtp>' }),
+          fail: () => reject(new EmailSendError('rejected', false, 400)),
+        });
+        entered();
+      });
+    };
+    return started;
   }
 
   type OutboxRow = {
@@ -390,29 +435,117 @@ describe('Confirmation email dispatch (e2e)', () => {
 
   it('keeps a newer outcome when a worker whose lease expired finishes late', async () => {
     const id = await queuedRegistration();
-    let releaseFirst: () => void = () => undefined;
-    answer = (call) =>
-      call === 1
-        ? new Promise((_resolve, reject) => {
-            releaseFirst = () => reject(new EmailSendError('rejected', false, 400));
-          })
-        : Promise.resolve({ providerMessageId: '<second@smtp>' });
+    let failFirst: () => void = () => undefined;
+    const firstSending = heldFirstCall(({ fail }) => (failFirst = fail));
 
     const first = dispatcher.dispatchRegistration(id);
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    await firstSending;
     // The first worker's lease runs out while it is still waiting on the provider.
     await makeDue();
     await dispatcher.sweep();
-    releaseFirst();
+    failFirst();
     await first;
 
     expect(sent).toHaveLength(2);
     expect((await outboxRows())[0]).toMatchObject({
       status: 'sent',
       attempts: 2,
-      provider_message_id: '<second@smtp>',
+      provider_message_id: '<msg-2@smtp>',
       last_error_code: null,
     });
+    // The late worker names its result as ignored instead of reporting a failure.
+    expect(warn).toHaveBeenCalledWith(
+      `Confirmation email for registration ${id} attempt 1 finished after its lease expired; result ignored.`,
+    );
+    expect(error).not.toHaveBeenCalled();
+  });
+
+  it('leases each row of a sweep just before its own send', async () => {
+    const first = await queuedRegistration();
+    await anotherQueuedRegistration(first, 'LMP-CD34');
+    await anotherQueuedRegistration(first, 'LMP-EF56');
+    const seen: { unclaimed: number; leaseSeconds: number }[] = [];
+    answer = async (call) => {
+      const [row] = await client<{ unclaimed: number; lease_seconds: number }[]>`
+        SELECT count(*) FILTER (WHERE attempts = 0)::int AS unclaimed,
+          min(extract(epoch FROM next_attempt_at - now()))
+            FILTER (WHERE status = 'pending' AND attempts = 1)::float AS lease_seconds
+        FROM registration_confirmation_emails`;
+      seen.push({ unclaimed: row.unclaimed, leaseSeconds: row.lease_seconds });
+      return { providerMessageId: `<msg-${call}@smtp>` };
+    };
+
+    await dispatcher.sweep();
+
+    expect(sent).toHaveLength(3);
+    // Rows waiting their turn stay unclaimed, so their lease cannot run out before their send.
+    expect(seen.map((s) => s.unclaimed)).toEqual([2, 1, 0]);
+    for (const { leaseSeconds } of seen)
+      expect(leaseSeconds).toBeGreaterThan(CONFIRMATION_EMAIL_LEASE_SECONDS - 5);
+    expect((await outboxRows()).map((row) => row.status)).toEqual(['sent', 'sent', 'sent']);
+  });
+
+  it('logs a retried attempt as a warning and a final failure as an error', async () => {
+    const id = await queuedRegistration();
+    answer = () => Promise.reject(new EmailSendError('rate_limited', true, 429));
+
+    await dispatcher.dispatchRegistration(id);
+    expect(warn).toHaveBeenCalledWith(
+      `Confirmation email for registration ${id} attempt 1 failed (rate_limited); retry scheduled.`,
+    );
+
+    answer = () => Promise.reject(new EmailSendError('rejected', false, 400));
+    await makeDue();
+    await dispatcher.sweep();
+    expect(error).toHaveBeenCalledWith(
+      `Confirmation email for registration ${id} marked failed (rejected) after 2 attempt(s); it needs manual follow-up.`,
+    );
+  });
+
+  it('marks the email failed as not confirmed when the registration is not confirmed', async () => {
+    const id = await pendingRegistration();
+    await client`INSERT INTO registration_confirmation_emails (registration_id) VALUES (${id})`;
+
+    await dispatcher.dispatchRegistration(id);
+
+    expect(sent).toHaveLength(0);
+    expect((await outboxRows())[0]).toMatchObject({
+      status: 'failed',
+      last_error_code: 'not_confirmed',
+    });
+  });
+
+  it('waits for an in-flight send before the database closes on shutdown', async () => {
+    const order: string[] = [];
+    let releaseSend: () => void = () => undefined;
+    const sending = heldFirstCall(({ ok }) => {
+      releaseSend = () => {
+        if (order.includes('send finished')) return;
+        order.push('send finished');
+        ok();
+      };
+    });
+    // `onModuleDestroy` of the real `DatabaseService` ends the pool; this stand-in records when.
+    const shuttingDown = await createApp({
+      db: {},
+      onModuleDestroy: () => {
+        order.push('database closed');
+        releaseSend();
+      },
+    });
+    const id = await queuedRegistration();
+
+    const dispatching = shuttingDown.get(ConfirmationEmailDispatcher).dispatchRegistration(id);
+    await sending;
+    const closing = shuttingDown.close();
+    // Released by the database close if that came first; otherwise by this timer.
+    const timer = setTimeout(() => releaseSend(), 200);
+    await Promise.all([dispatching, closing]);
+    clearTimeout(timer);
+
+    expect(order[0]).toBe('send finished');
+    expect(order).toContain('database closed');
+    expect((await outboxRows())[0]).toMatchObject({ status: 'sent', attempts: 1 });
   });
 
   it('leaves no queued email when the confirmation transaction aborts after queuing it', async () => {

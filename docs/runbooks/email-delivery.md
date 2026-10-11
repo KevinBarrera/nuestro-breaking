@@ -104,6 +104,8 @@ ORDER BY created_at;
 | `rejected`             | Brevo refused the message, often an unauthenticated sender domain or an invalid recipient. Check Brevo's logs. |
 | `missing_recipient`    | The participant has no email address. Correct the participant's address, then requeue.                         |
 | `not_confirmed`        | The registration was not confirmed when sending (for example voided). Usually nothing to do.                   |
+| `missing_folio`        | A confirmed registration has no folio. A data defect the database should prevent; report it to a developer.    |
+| `registration_missing` | The registration, its participant or its event was not found. A data defect; report it to a developer.         |
 | `rate_limited`         | Brevo asked us to slow down. Retried on its own.                                                               |
 | `provider_unavailable` | Brevo answered with an error or timed out. Retried on its own.                                                 |
 | `network`              | Brevo could not be reached. Retried on its own; check the server's outbound network if it keeps happening.     |
@@ -128,13 +130,16 @@ until it is turned back on.
 
 ## Troubleshooting
 
-| What you see                                     | What it means and what to do                                                                            |
-| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------- |
-| Backend refuses to start                         | An email variable is missing or invalid. The error names the variable.                                  |
-| Rows are `sent` but no email arrives             | `EMAIL_SANDBOX` is `true`, or Brevo bounced it. Check the variable and Brevo's logs.                    |
-| Every row fails with `rejected` after going live | The sender domain is not authenticated in Brevo yet. Finish step 1, or go back to `EMAIL_SANDBOX=true`. |
-| Rows stay `pending` with no attempts             | The immediate send did not run and the sweep is off. Check `EMAIL_DISPATCH_INTERVAL_MS` is not `0`.     |
-| Log shows `Confirmation email ... failed (...)`  | The row is now `failed`. Use section 4 to find it and section 5 to requeue it after the fix.            |
+| What you see                                                                                          | What it means and what to do                                                                                                                                      |
+| ----------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Backend refuses to start                                                                              | An email variable is missing or invalid. The error names the variable.                                                                                            |
+| Rows are `sent` but no email arrives                                                                  | `EMAIL_SANDBOX` is `true`, or Brevo bounced it. Check the variable and Brevo's logs.                                                                              |
+| Every row fails with `rejected` after going live                                                      | The sender domain is not authenticated in Brevo yet. Finish step 1, or go back to `EMAIL_SANDBOX=true`.                                                           |
+| Rows stay `pending` with no attempts                                                                  | The immediate send did not run and the sweep is off. Check `EMAIL_DISPATCH_INTERVAL_MS` is not `0`.                                                               |
+| Error log `... marked failed (<code>) ...`                                                            | The row is now `failed`. Use section 4 to find it and section 5 to requeue it after the fix.                                                                      |
+| Warning log `... attempt N failed (<code>); retry scheduled.`                                         | One attempt failed and the row is still `pending`. Nothing to do unless it ends `failed`.                                                                         |
+| Warning log `... finished after its lease expired; result ignored.`                                   | A slow send outlived its 2 minute lease and another attempt took the row. Check the row's `status`; if it is `sent`, the buyer may have received the email twice. |
+| Error log `Confirmation email sweep failed (...)` or `... dispatch for registration ... failed (...)` | The database query failed, not the email. The row stays `pending` and the next sweep retries it.                                                                  |
 
 ## Going to production
 

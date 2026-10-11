@@ -9,6 +9,7 @@ export {
   CONFIRMATION_EMAIL_MAX_ATTEMPTS,
   ConfirmationEmailDispatcher,
 } from './confirmation-email-dispatcher';
+export type { ConfirmationEmailErrorCode, DispatchErrorCode } from './confirmation-email-policy';
 export { enqueueConfirmationEmail } from './confirmation-email-outbox';
 export type { OutboxTransaction } from './confirmation-email-outbox';
 export { ConfirmationEmailSweeper } from './confirmation-email-sweeper';

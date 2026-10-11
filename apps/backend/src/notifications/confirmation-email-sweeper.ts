@@ -12,7 +12,12 @@ import { EMAIL_CONFIG, type EmailConfig } from './email-config';
  * Retries due confirmation emails every `EMAIL_DISPATCH_INTERVAL_MS` (#179 D3) inside the backend
  * process: no queue or scheduler dependency. A sweep never overlaps the previous one, and the
  * timer never keeps the process alive. On shutdown it stops the timer and waits for in-flight
- * sends; this module is destroyed before the database module it imports, so the pool is still open.
+ * sends (immediate dispatches included), so their results are recorded before the pool closes.
+ * This wait must stay in `onModuleDestroy`: Nest runs that hook in reverse import depth, so this
+ * module goes before the `DatabaseModule` it imports, whose `DatabaseService` ends the pool in its
+ * own `onModuleDestroy`. `beforeApplicationShutdown` would be too late, because Nest calls it only
+ * after every `onModuleDestroy` (Nest 11 `NestApplicationContext.close`). The e2e
+ * `confirmation-email-dispatch` spec proves the order with a send in flight.
  */
 @Injectable()
 export class ConfirmationEmailSweeper implements OnApplicationBootstrap, OnModuleDestroy {

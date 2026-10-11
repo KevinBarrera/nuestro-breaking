@@ -39,6 +39,23 @@ describe('ConfirmationEmailSweeper', () => {
     expect(dispatcher.whenIdle).toHaveBeenCalled();
   });
 
+  it('waits for in-flight sends before its module is destroyed', async () => {
+    let finishSends: () => void = () => undefined;
+    const { sweeper, dispatcher } = sweeperWith(() => Promise.resolve());
+    dispatcher.whenIdle.mockImplementation(
+      () => new Promise<void>((resolve) => (finishSends = resolve)),
+    );
+    let destroyed = false;
+
+    const destroying = sweeper.onModuleDestroy().then(() => (destroyed = true));
+    await jest.advanceTimersByTimeAsync(1_000);
+    expect(destroyed).toBe(false);
+
+    finishSends();
+    await destroying;
+    expect(destroyed).toBe(true);
+  });
+
   it('never starts when the interval is 0', async () => {
     const { sweeper, dispatcher } = sweeperWith(() => Promise.resolve(), {
       ...CONFIG,

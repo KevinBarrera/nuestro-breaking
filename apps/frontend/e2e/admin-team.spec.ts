@@ -43,7 +43,8 @@ test('a global admin reaches Equipo from the navigation and sees every status', 
   await expect(rows.nth(3)).toContainText('Invitación vencida');
   await expect(rows.nth(4)).toContainText('Desactivado');
 
-  // From `md` up the actions share the row's line instead of wrapping under it.
+  // From `lg` up the actions share the row's line instead of wrapping under it.
+  await page.setViewportSize({ width: 1280, height: 800 });
   const chip = await rows.nth(1).getByText('Activo').boundingBox();
   const action = await rows
     .nth(1)

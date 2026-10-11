@@ -14,6 +14,7 @@ describe('readEmailConfig', () => {
       senderAddress: 'boletos@example.test',
       senderName: 'Los más pesados',
       sandbox: true,
+      dispatchIntervalMs: 60_000,
     });
   });
 
@@ -30,6 +31,7 @@ describe('readEmailConfig', () => {
       senderAddress: 'boletos@example.test',
       senderName: 'Los más pesados',
       sandbox: false,
+      dispatchIntervalMs: 60_000,
     });
   });
 
@@ -67,6 +69,25 @@ describe('readEmailConfig', () => {
   it('lets an explicit EMAIL_SANDBOX win in production', () => {
     expect(readEmailConfig({ ...ENV, NODE_ENV: 'production' }).sandbox).toBe(true);
   });
+
+  it('reads the dispatch interval, where 0 turns the periodic retry off', () => {
+    expect(
+      readEmailConfig({ ...ENV, EMAIL_DISPATCH_INTERVAL_MS: ' 30000 ' }).dispatchIntervalMs,
+    ).toBe(30_000);
+    expect(readEmailConfig({ ...ENV, EMAIL_DISPATCH_INTERVAL_MS: '0' }).dispatchIntervalMs).toBe(0);
+    expect(readEmailConfig({ ...ENV, EMAIL_DISPATCH_INTERVAL_MS: ' ' }).dispatchIntervalMs).toBe(
+      60_000,
+    );
+  });
+
+  it.each(['-1', '1.5', 'abc', '1e3', '999', '86400001'])(
+    'rejects EMAIL_DISPATCH_INTERVAL_MS %p',
+    (value) => {
+      expect(() => readEmailConfig({ ...ENV, EMAIL_DISPATCH_INTERVAL_MS: value })).toThrow(
+        /EMAIL_DISPATCH_INTERVAL_MS must be 0 or a whole number of milliseconds from 1000 to 86400000/,
+      );
+    },
+  );
 
   it.each(['boletos', 'boletos@', '@example.test', 'boletos@example', 'a b@example.test'])(
     'rejects sender address %p',

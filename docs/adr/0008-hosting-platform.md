@@ -27,6 +27,29 @@ The frontend and the backend therefore need to share one registrable domain that
 - **Railway, Hobby plan:** the backend container and PostgreSQL. Staging and production are two environments in the same project.
 - Each environment has its own frontend host, backend host, database, secrets and `AUTH_TRUSTED_ORIGIN`. All of them use HTTPS.
 
+## Hostnames and HTTPS
+
+TLS has two legs, and both certificates are free and renew automatically:
+
+- **Browser to Cloudflare:** Cloudflare's Universal SSL certificate, included in the free plan.
+- **Cloudflare to Railway:** the certificate Railway issues for each custom domain.
+
+Universal SSL covers the apex domain and first-level subdomains only. A deeper name such as `api.staging.[domain]` gets no valid certificate unless a paid add-on is bought. Every hostname therefore stays at the first level:
+
+| Environment | Frontend           | Backend                |
+| ----------- | ------------------ | ---------------------- |
+| Production  | `[domain]`         | `api.[domain]`         |
+| Staging     | `staging.[domain]` | `staging-api.[domain]` |
+
+Both environments stay under the same registrable domain, which the admin session cookie requires.
+
+Cloudflare's SSL/TLS encryption mode is **Full**, as Railway recommends:
+
+- **Not Full (strict):** while Railway provisions or renews a certificate, it can briefly serve its default `*.up.railway.app` certificate. Strict mode rejects that hostname mismatch with error 526.
+- **Never Flexible:** the leg from Cloudflare to Railway would travel unencrypted, and Railway's HTTP-to-HTTPS redirect can loop.
+
+If a Railway certificate stays stuck in validation, turn the Cloudflare proxy off for that record until Railway issues the certificate, then turn it back on.
+
 ## Required cost controls
 
 Railway bills by usage: CPU, memory, disk and network egress. Without a cap, traffic from an attack turns directly into a bill. The following controls are required before any environment is exposed:
@@ -82,5 +105,7 @@ The hard limit applies to the whole workspace, not to one project. If staging an
 - Railway plans: https://docs.railway.com/pricing/plans
 - Railway usage limits: https://docs.railway.com/reference/usage-limits
 - Cloudflare rate limiting on all plans: https://blog.cloudflare.com/unmetered-ratelimiting/
+- Cloudflare Universal SSL coverage: https://developers.cloudflare.com/ssl/edge-certificates/universal-ssl/limitations/
+- Railway SSL troubleshooting with Cloudflare: https://docs.railway.com/networking/troubleshooting/ssl
 - Cloudflare Containers pricing: https://developers.cloudflare.com/containers/pricing/
 - Neon pricing: https://neon.com/pricing

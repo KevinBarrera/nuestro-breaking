@@ -34,7 +34,7 @@ Global administrators manage who can access the admin panel without a developer,
 - D5 (technical default) — The bootstrap command creates a global admin only when no active global admin exists, checked inside the same transaction under an advisory lock, and never prints secrets. It works in hosted environments and prints a one-time activation link instead of taking a password.
 - D6 (technical default) — Team management is limited to users with an active `admin` role in `global` scope. Judge roles are out of scope.
 - D7 (technical default, 2026-10-11) — Activation links have the form `<admin origin>/activar-cuenta#<token>`: the token sits in the URL fragment, which browsers never send, so it stays out of server and proxy logs. `admin:bootstrap` exits `0` when it issues a link, `1` on errors (bad input, database failure; nothing changes), and `2` when it refuses because the environment already has a global admin (activated, or pending with another email), so automation can tell "already bootstrapped" from a failure.
-- D8 (technical default, 2026-10-11) — Every unusable activation link (unknown, malformed, expired, used, cancelled, replaced, or for a deactivated user) gets one `410 { code: "invalid_link" }` response on both check and activate, so the response never reveals which case applies. A global admin may regenerate a link for any active or pending admin, themself included; it is the password-recovery path (D2) and the current password keeps working until the link is used. Inviting refuses (`409 email_in_use`) any email that already has an account, judges included.
+- D8 (technical default, 2026-10-11) — Every unusable activation link (unknown, malformed, expired, used, cancelled, replaced, or for a deactivated user) gets one `410 { code: "invalid_link" }` response on both check and activate, so the response never reveals which case applies. A global admin may regenerate a link for any active or pending admin, themself included; it is the password-recovery path (D2) and the current password keeps working until the link is used. The user confirmed this on 2026-10-11 (slice 2 review R1-001): a global admin may also issue a recovery link for another global admin, and the regeneration is audited with the issuing actor. Inviting refuses (`409 email_in_use`) any email that already has an account, judges included.
 
 ## Tasks
 
@@ -87,6 +87,8 @@ See issue #214. Summary: bootstrap is one-time and idempotent; event-scoped admi
 
 - 2026-10-11: Slice 4 fix review (`76f0161`..`9f3c765`; medium, `slice_budget_reached`, consent granted) approved and acknowledged; boundary advances to `9f3c765`. Advisory R3-001 left as a follow-up: the activation page marks the outcome unknown after any unclear failure, including a 5xx or 429, so a later 410 shows the softer "tu cuenta ya podría estar activa" notice; that notice still offers sign-in and asks for a new link.
 
+- 2026-10-11: The user confirmed R1-001 (see D8); no code change. Chained PRs opened for slices 1 to 4 (`feat/214-01-team-foundation` → `dev`, then each slice targets the previous one).
+
 ## Next step
 
-Confirm R1-001 with the user, then open the chained PRs for slices 1 to 4 (user decision).
+The user reviews and merges the chained PRs bottom-up.

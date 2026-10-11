@@ -4,7 +4,8 @@ This guide covers creating the **first global administrator** of a hosted
 environment (staging or production) with `admin:bootstrap`
 ([#214](https://github.com/KevinBarrera/nuestro-breaking/issues/214)). A
 developer runs it **once per environment**. After that, global administrators
-add and remove people from the admin panel.
+add and remove people from the admin panel; see
+[Managing the team](support.md#managing-the-team).
 
 `admin:provision` is a different command: it only works against a local
 database and takes a password. `admin:bootstrap` works in any environment and
@@ -80,7 +81,8 @@ Automation can treat `2` as "already bootstrapped" and `1` as a failure.
 - **Not activated yet:** run the command again with the **same email**. The old
   link stops working and a new one is printed.
 - **Already activated:** the command refuses. A global administrator issues a
-  new link from the admin panel instead.
+  new link from the admin panel instead
+  ([Managing the team](support.md#managing-the-team)).
 
 ## Security notes
 

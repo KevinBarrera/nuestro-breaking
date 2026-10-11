@@ -62,6 +62,8 @@ not be inferred from this runbook:
 - Snapshot endpoint, authentication, version-conflict, or transport commands.
 - Dashboard, alert, audit-review, credential-revocation, or incident-ticket
   workflows.
+  An administrator who lost access (expired link, forgotten password) is not a
+  recovery case: see [Managing the team](support.md#managing-the-team).
 - Production migration rollback, data repair, broker/adapter, or
   multi-instance recovery procedures.
 

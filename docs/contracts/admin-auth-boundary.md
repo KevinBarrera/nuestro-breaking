@@ -98,6 +98,23 @@ The existing in-memory session entity may cache the current server-reported user
 3. **Frontend boundary integration**: replace non-enforcing `RoleAreaBoundary` behavior with server session read, sign-in/denied UI, and route-level loading state.
 4. **Operational hardening**: finalize session lifetime/renewal, Argon2id parameters, audit retention, incident ownership, and provisioning process.
 
+## Team management API (#214)
+
+Only users with an active `admin` role in `global` scope can call these endpoints. Anyone else, including event-scoped admins and judges, gets the same `401 Unauthenticated` as a missing session. Mutations also need the trusted `Origin` and the `X-CSRF-Token` header (`403 Request denied` otherwise). Responses that carry a link or the team list send `Cache-Control: no-store`.
+
+| Endpoint                                | Request                          | Success                                    | Errors                                                                                                    |
+| --------------------------------------- | -------------------------------- | ------------------------------------------ | --------------------------------------------------------------------------------------------------------- |
+| `GET /admin/team`                       | none                             | `200 { members: Member[] }`                | `401`                                                                                                     |
+| `POST /admin/team`                      | `{ displayName, email, access }` | `201 { userId, activationUrl, expiresAt }` | `400 { fieldErrors }` (`invalid` per field, or `access: "unknown_event"`); `409 { code: "email_in_use" }` |
+| `POST /admin/team/:userId/invitation`   | none                             | `201 { userId, activationUrl, expiresAt }` | `404 { code: "member_not_found" }`; `409 { code: "member_deactivated" }`                                  |
+| `DELETE /admin/team/:userId/invitation` | none                             | `200 { cancelled: true }`                  | `404 { code: "member_not_found" }` or `{ code: "no_open_invitation" }`                                    |
+
+- `access` is `{ kind: "global" }` or `{ kind: "events", eventIds: [...] }` (1 to 100 unique existing event ids). The email is trimmed and lowercased.
+- `Member` is `{ id, displayName, email, status, access, invitation }`. `status` is `active` (has a password), `pending` (no password yet) or `deactivated` (`users.active = false`). `access` is `{ kind: "global" }` or `{ kind: "events", events: [{ id, name }] }`. `invitation` is the open invitation, `{ expiresAt, expired }`, or `null`. Only users with an active `admin` role are listed; judge-only accounts are not.
+- Inviting creates the user without a password, its roles and a 72-hour invitation. The response is the only time the link (`<admin origin>/activar-cuenta#<token>`) is shown; only the token digest is stored. Any email that already has an account gets `409`, including judges; pending and deactivated admins use regenerate or (later) reactivate instead.
+- Regenerate cancels the open invitation, if any, and issues a new link. It works for pending admins and, as the password-recovery path, for active ones, the caller included; the current password keeps working until the new link is used.
+- Every change writes `admin_team_audit` (`invited` with `details.access`, `invitation_regenerated` with `details.replacedOpenInvitation`, `invitation_cancelled`) with the actor user and session and the target user.
+
 ## Explicit exclusions
 
 This boundary does not include:

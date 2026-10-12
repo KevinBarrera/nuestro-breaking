@@ -30,6 +30,9 @@ export const events = pgTable(
     salesEnabled: boolean('sales_enabled').default(false).notNull(),
     salesOpensAt: timestamp('sales_opens_at', { withTimezone: true }),
     salesClosesAt: timestamp('sales_closes_at', { withTimezone: true }),
+    // Set when an admin archives the event (#213 D6): its data stays, the public pages treat it as
+    // not found. Restoring clears it.
+    archivedAt: timestamp('archived_at', { withTimezone: true }),
   },
   (table) => [
     primaryKey({ columns: [table.id], name: 'events_pk' }),

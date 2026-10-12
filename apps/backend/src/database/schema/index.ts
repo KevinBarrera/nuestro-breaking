@@ -14,3 +14,4 @@ export * from './event-catalog-audit';
 export * from './payments';
 export * from './notifications';
 export * from './admin-team';
+export * from './event-admin-audit';

@@ -148,6 +148,13 @@
       "when": 1791761412715,
       "tag": "0020_admin_team_management",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1791847812715,
+      "tag": "0021_event_admin_lifecycle",
+      "breakpoints": true
     }
   ]
 }

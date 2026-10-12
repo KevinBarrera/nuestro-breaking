@@ -44,12 +44,13 @@ describe('GET /admin/events (e2e)', () => {
     const [second, first] = await client<{ id: string; name: string }[]>`
       INSERT INTO events (organization_id, name, time_zone)
       VALUES (${organizationId}, 'Zeta', 'Etc/UTC'), (${organizationId}, 'Alpha', 'Etc/UTC')
-      RETURNING id, name`;
+      RETURNING id, name, slug, folio_prefix AS "folioPrefix", archived_at AS "archivedAt"`;
     const [{ id: otherOrganization }] = await client<{ id: string }[]>`
       INSERT INTO organizations (name) VALUES ('Other organizer') RETURNING id`;
     const [third] = await client<{ id: string; name: string }[]>`
       INSERT INTO events (organization_id, name, time_zone)
-      VALUES (${otherOrganization}, 'Beta', 'Etc/UTC') RETURNING id, name`;
+      VALUES (${otherOrganization}, 'Beta', 'Etc/UTC')
+      RETURNING id, name, slug, folio_prefix AS "folioPrefix", archived_at AS "archivedAt"`;
     return { first, second, third, organizationId };
   }
 
@@ -78,7 +79,7 @@ describe('GET /admin/events (e2e)', () => {
     expect(JSON.stringify(denied.body)).not.toMatch(/Alpha|Beta|Zeta/);
   });
 
-  it('returns every persisted event for global admin with only UUID and name', async () => {
+  it('returns every persisted event for global admin with id, name, slug, folio prefix and archived state', async () => {
     const { first, second, third } = await fixture();
     const { cookie } = await session([{ role: 'admin', scopeType: 'global' }]);
     expect((await list().set('Cookie', cookie).expect(200)).body).toEqual([first, third, second]);

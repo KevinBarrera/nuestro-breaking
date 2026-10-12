@@ -25,7 +25,9 @@ export type EventAdminAuditAction = (typeof EVENT_ADMIN_AUDIT_ACTIONS)[number];
 
 // Event audit (#213 D4, migration 0021). Append-only: a trigger refuses UPDATE and DELETE.
 // `eventId` has no foreign key and the row keeps the slug and name, so the `deleted` row outlives
-// the event. Every action comes from an admin session.
+// the event. Every action comes from an admin session. The actor foreign keys to `users` and
+// `auth_sessions` are safe: like the `admin_team_audit` actors, users are deactivated and sessions
+// revoked, never deleted, so the audit never blocks a cleanup the application performs.
 export const eventAdminAudit = pgTable(
   'event_admin_audit',
   {

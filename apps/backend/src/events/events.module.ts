@@ -2,6 +2,8 @@ import { Module } from '@nestjs/common';
 import { DatabaseModule } from '@/database/database.module';
 import { IdentityAccessModule } from '@/identity-access/identity-access.module';
 import { PublicRateLimitModule } from '@/http';
+import { AdminEventsController } from './admin-events/admin-events.controller';
+import { AdminEventsService } from './admin-events/admin-events.service';
 import { EventFoundationGuard } from './foundation/event-foundation.guard';
 import { EventFoundationController } from './foundation/event-foundation.controller';
 import { EventFoundationService } from './foundation/event-foundation.service';
@@ -29,6 +31,7 @@ import { PublicRegistrationService } from './public-registration/public-registra
 @Module({
   imports: [DatabaseModule, IdentityAccessModule, PublicRateLimitModule],
   controllers: [
+    AdminEventsController,
     EventFoundationController,
     RegistrationSearchController,
     ManualRegistrationController,
@@ -42,6 +45,7 @@ import { PublicRegistrationService } from './public-registration/public-registra
     PublicRegistrationController,
   ],
   providers: [
+    AdminEventsService,
     EventFoundationService,
     EventFoundationGuard,
     RegistrationSearchService,

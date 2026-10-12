@@ -21,6 +21,11 @@ export type EventOrganization =
  * `DEFAULT_ORGANIZATION_NAME` when none exists. With more than one there is no choice yet, so the
  * caller refuses the creation. Runs inside the caller's transaction, and the lock is held until it
  * ends, so the event insert is serialized with the organization it may have created.
+ *
+ * Precondition: the transaction runs at READ COMMITTED (the PostgreSQL and project default). The
+ * organization read is a new statement after the lock, so it sees an organization that a concurrent
+ * creation committed while this one waited. Under REPEATABLE READ or SERIALIZABLE the snapshot may
+ * predate that commit, and a second organization could be created.
  */
 export async function resolveEventOrganization(tx: Transaction): Promise<EventOrganization> {
   await tx.execute(

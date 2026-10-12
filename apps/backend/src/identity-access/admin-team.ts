@@ -1,9 +1,11 @@
 import { normalizeAdminDisplayName, normalizeAdminEmail } from './admin-invitation';
+import { hasControlCharacters } from './password-policy';
 
 // Pure input parsing and response mapping for team management (#214 T3, T4).
 
 export type TeamAccessInput = { kind: 'global' } | { kind: 'events'; eventIds: string[] };
 export type InviteInput = { displayName: string; email: string; access: TeamAccessInput };
+export type AccessChangeInput = { access: TeamAccessInput; reason: string | null };
 export type ParseResult<T> =
   { ok: true; value: T } | { ok: false; fieldErrors: Record<string, 'invalid'> };
 
@@ -71,6 +73,56 @@ export function parseInviteInput(body: unknown): ParseResult<InviteInput> {
   if (!access) fieldErrors.access = 'invalid';
   if (!displayName || !email || !access) return { ok: false, fieldErrors };
   return { ok: true, value: { displayName, email, access } };
+}
+
+const MAX_REASON = 500;
+
+/**
+ * A trimmed reason of 1 to 500 characters without control characters. `undefined` means the
+ * value is invalid; `null` means it is missing or blank, which only optional reasons accept.
+ */
+function parseReason(raw: unknown): string | null | undefined {
+  if (raw === undefined || raw === null) return null;
+  if (typeof raw !== 'string' || hasControlCharacters(raw)) return undefined;
+  const reason = raw.trim();
+  if (!reason) return null;
+  return reason.length <= MAX_REASON ? reason : undefined;
+}
+
+/** Validates an access change: the complete new access and an optional reason. */
+export function parseAccessChangeInput(body: unknown): ParseResult<AccessChangeInput> {
+  if (!body || typeof body !== 'object' || Array.isArray(body))
+    return { ok: false, fieldErrors: { body: 'invalid' } };
+  const input = body as Record<string, unknown>;
+  const access = parseAccess(input.access);
+  const reason = parseReason(input.reason);
+  const fieldErrors: Record<string, 'invalid'> = {};
+  if (!access) fieldErrors.access = 'invalid';
+  if (reason === undefined) fieldErrors.reason = 'invalid';
+  if (!access || reason === undefined) return { ok: false, fieldErrors };
+  return { ok: true, value: { access, reason } };
+}
+
+function reasonOf(body: unknown): string | null | undefined {
+  const raw =
+    body && typeof body === 'object' && !Array.isArray(body)
+      ? (body as Record<string, unknown>).reason
+      : undefined;
+  return parseReason(raw);
+}
+
+/** Validates a body whose reason is required, as for deactivation. */
+export function parseRequiredReasonInput(body: unknown): ParseResult<string> {
+  const reason = reasonOf(body);
+  return reason ? { ok: true, value: reason } : { ok: false, fieldErrors: { reason: 'invalid' } };
+}
+
+/** Validates a body whose reason is optional, as for reactivation; blank means none (`null`). */
+export function parseOptionalReasonInput(body: unknown): ParseResult<string | null> {
+  const reason = reasonOf(body);
+  return reason === undefined
+    ? { ok: false, fieldErrors: { reason: 'invalid' } }
+    : { ok: true, value: reason };
 }
 
 /** An activation token as issued (64 lowercase hex characters), or `null`. */

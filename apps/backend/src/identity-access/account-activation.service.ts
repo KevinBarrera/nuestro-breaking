@@ -34,16 +34,23 @@ export class AccountActivationService {
     );
   }
 
-  async check(token: string, now: Date = new Date()) {
+  /** Unlocked read of the usable invitation for a token digest, or `undefined`. */
+  private async findUsable(tokenDigest: string, now: Date) {
     const [invitation] = await this.db
       .select({
+        userId: adminInvitations.userId,
         displayName: users.displayName,
         email: users.email,
         expiresAt: adminInvitations.expiresAt,
       })
       .from(adminInvitations)
       .innerJoin(users, eq(users.id, adminInvitations.userId))
-      .where(this.usable(digest(token), now));
+      .where(this.usable(tokenDigest, now));
+    return invitation;
+  }
+
+  async check(token: string, now: Date = new Date()) {
+    const invitation = await this.findUsable(digest(token), now);
     if (!invitation) throw invalidLink();
     return {
       displayName: invitation.displayName ?? '',
@@ -56,11 +63,7 @@ export class AccountActivationService {
   async activate(token: string, password: string, now: Date = new Date()): Promise<void> {
     const tokenDigest = digest(token);
     // Cheap unlocked read first, so an unknown or unusable token never costs an Argon2id hash.
-    const [candidate] = await this.db
-      .select({ userId: adminInvitations.userId })
-      .from(adminInvitations)
-      .innerJoin(users, eq(users.id, adminInvitations.userId))
-      .where(this.usable(tokenDigest, now));
+    const candidate = await this.findUsable(tokenDigest, now);
     if (!candidate) throw invalidLink();
 
     // Hash outside the transaction: Argon2id is deliberately slow and must not hold row locks.

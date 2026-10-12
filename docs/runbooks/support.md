@@ -46,6 +46,46 @@ not authority and must not be used to invent a recovery outcome.
 Stop disclosure or recovery guidance at that boundary and escalate. Do not use
 offline operation, local records, or manual event replay as a support remedy.
 
+## Managing the team
+
+Unlike the planned sections above, this one describes implemented behavior
+([#214](https://github.com/KevinBarrera/nuestro-breaking/issues/214)). Only a
+**global administrator** can manage the team. The admin panel's **Equipo**
+page arrives in a later slice of #214; until then these actions exist only as
+the API described in the
+[admin authentication boundary](../contracts/admin-auth-boundary.md#team-management-api-214).
+
+For a brand-new environment with no administrator yet, use the
+[admin bootstrap runbook](admin-bootstrap.md) instead.
+
+| I need to…                       | Do this                                                                                                                                            |
+| -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Add someone                      | Invite them with their name, email and access: every event (global) or only some events. You get an activation link.                               |
+| Give them the link               | Share it privately (direct message, in person), never in a public channel, ticket or repository. It is shown only once and works for 72 hours.     |
+| The link expired or was lost     | Regenerate the link. The old one stops working at once.                                                                                            |
+| Someone forgot their password    | Regenerate a link for them; they choose a new password from it. Their current password keeps working until they use the link. Nobody else sets it. |
+| Change which events someone sees | Change their access. It applies on their next action; they stay signed in.                                                                         |
+| Remove someone's access          | Deactivate them with a short reason. They are signed out everywhere at once, and any open link stops working.                                      |
+| Bring someone back               | Reactivate them. If they had set a password, it works again; if they never did, regenerate a link.                                                 |
+
+### Rules to keep in mind
+
+- **There is always at least one global administrator.** The system refuses
+  to deactivate, or move to event-only access, the last global administrator
+  who has activated their account.
+- **You cannot deactivate yourself or change your own access.** Ask another
+  global administrator.
+- An email that already has an account cannot be invited again. Regenerate or
+  reactivate the existing member instead.
+- Every action (invite, regenerate, cancel, access change, deactivate,
+  reactivate, activation) is recorded with who did it, to whom, when and the
+  reason.
+- **Keep at least two activated global administrators.** If the only one
+  forgets their password while signed out, nobody can issue them a new link,
+  and `admin:bootstrap` refuses because an activated global administrator
+  exists. While still signed in, a global administrator can regenerate a link
+  for themself.
+
 ## Escalation and ownership gaps
 
 Future owners must define support access approval, redaction standards, case
@@ -61,8 +101,9 @@ keep the case blocked rather than making an unsupported disclosure or change.
 
 - Support console, ticketing system, access-review workflow, case retention,
   audit search, and disclosure-notification procedure.
-- Account or credential recovery, session inspection, reset, revocation, or
-  identity-proofing procedure.
+- Participant account or credential recovery, session inspection, reset,
+  revocation, or identity-proofing procedure. (Admin access recovery is
+  covered in [Managing the team](#managing-the-team).)
 - Production log access, incident-response playbook, database repair, restore,
   or manual data-replay procedure.
 - Jurisdiction-specific consent, retention/deletion, guardian/minor-data, tax,
@@ -74,4 +115,5 @@ keep the case blocked rather than making an unsupported disclosure or change.
 - [Data Lifecycle Model](../models/data-lifecycle.md)
 - [API and Event Versioning Contract](../contracts/api-event-versioning.md)
 - [ADR 0002: Identity sessions](../adr/0002-identity-session.md)
+- [Admin bootstrap runbook](admin-bootstrap.md)
 - [ADR 0005: Connectivity-only policy](../adr/0005-no-offline-policy.md)

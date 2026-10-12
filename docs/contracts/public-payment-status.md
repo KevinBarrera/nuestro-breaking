@@ -5,7 +5,7 @@ This contract describes how the return page learns the result of an online payme
 ## Current answer
 
 - `GET /public/events/:slug/registrations/:registrationId/payment-status` needs **no login, session, cookie or CSRF token**. It is rate limited and uses the public CORS rules of the [public event catalog](public-event-catalog.md#cors).
-- It keeps answering **after sales close**: a buyer may come back from Mercado Pago, or pay an OXXO voucher, late.
+- It keeps answering **after sales close**, and for an [archived event](admin-event-lifecycle.md#archiving-and-restoring): a buyer may come back from Mercado Pago, or pay an OXXO voucher, late. The webhook still records a late confirmation for an archived event.
 - The registration UUID is the only reference (D2). It is random, not guessable, and no new token is stored.
 - It only reads. Mercado Pago is never called.
 

@@ -11,9 +11,9 @@ This contract describes how a buyer without an account creates a `pending_paymen
 
 ## Endpoint
 
-| Method | Path                                 | Auth | Success | Errors                                                                                    |
-| ------ | ------------------------------------ | ---- | ------- | ----------------------------------------------------------------------------------------- |
-| `POST` | `/public/events/:slug/registrations` | None | 201     | 400 invalid body, 404 unknown slug, 409 sales closed or rule violation, 429 rate limited. |
+| Method | Path                                 | Auth | Success | Errors                                                                                                |
+| ------ | ------------------------------------ | ---- | ------- | ----------------------------------------------------------------------------------------------------- |
+| `POST` | `/public/events/:slug/registrations` | None | 201     | 400 invalid body, 404 unknown or archived slug, 409 sales closed or rule violation, 429 rate limited. |
 
 Code: `apps/backend/src/events/public-registration/`. The pure validator is `parsePublicRegistrationRequest` in `public-registration-request.ts`; the pure pass rules are `passRuleViolation` in `public-registration-rules.ts`.
 
@@ -105,7 +105,7 @@ The body is validated before the event is looked up, so a malformed body is a 40
 
 ## Sales and event (404, 409)
 
-The endpoint reuses `PublicCatalogService.requireOpen`: an unknown or malformed slug is the neutral `404 { "message": "Event not found" }`, and closed sales are `409 { "statusCode": 409, "message": "Sales are closed", "reason": "disabled" | "not_yet_open" | "ended" }`.
+The endpoint reuses `PublicCatalogService.requireOpen`: an unknown, malformed or [archived](admin-event-lifecycle.md#archiving-and-restoring) slug is the neutral `404 { "message": "Event not found" }`, and closed sales are `409 { "statusCode": 409, "message": "Sales are closed", "reason": "disabled" | "not_yet_open" | "ended" }`.
 
 ## Catalog rules (409)
 
@@ -156,6 +156,7 @@ Legal acceptance (terms and privacy notice) is not stored yet (D6). #180 adds it
 
 - [Public event catalog](public-event-catalog.md)
 - [Public payment status](public-payment-status.md)
+- [Admin event lifecycle](admin-event-lifecycle.md)
 - [Admin registration audit policy](admin-registration-audit-policy.md)
 - [Admin registration operations](admin-registration-operations.md)
 - Feature tasks: `odd/tasks/public-pending-registration.md`

@@ -13,11 +13,11 @@ This contract describes the public, read-only catalog of one event for issue #17
 
 ## Endpoint
 
-| Method | Path                           | Auth | Success | Errors                                                                                            |
-| ------ | ------------------------------ | ---- | ------- | ------------------------------------------------------------------------------------------------- |
-| `GET`  | `/public/events/:slug/catalog` | None | 200     | 404 `{ "message": "Event not found" }` for an unknown or malformed slug. 429 over the rate limit. |
+| Method | Path                           | Auth | Success | Errors                                                                                                      |
+| ------ | ------------------------------ | ---- | ------- | ----------------------------------------------------------------------------------------------------------- |
+| `GET`  | `/public/events/:slug/catalog` | None | 200     | 404 `{ "message": "Event not found" }` for an unknown, malformed or archived slug. 429 over the rate limit. |
 
-A slug that does not match the stored slug rule (lowercase kebab-case, at most 80 characters; see the [event sales contract](event-sales.md)) is answered with the same 404 as an unknown one, so the response never says why a slug failed.
+A slug that does not match the stored slug rule (lowercase kebab-case, at most 80 characters; see the [event sales contract](event-sales.md)) is answered with the same 404 as an unknown one, so the response never says why a slug failed. An [archived event](admin-event-lifecycle.md#archiving-and-restoring) gets that same 404.
 
 Code: `apps/backend/src/events/public-catalog/`. The pure projection is `toPublicCatalog` in `public-catalog.projection.ts`.
 
@@ -80,7 +80,9 @@ When `sales.state` is `closed`, the response still has `event` and `sales` (so t
 
 - returns `{ eventId, slug }` when sales are open at `now`;
 - throws `SalesClosedException` (409, body `{ "statusCode": 409, "message": "Sales are closed", "reason": "<reason>" }`) when they are closed;
-- throws the same neutral 404 as the catalog for an unknown or malformed slug.
+- throws the same neutral 404 as the catalog for an unknown, malformed or archived slug.
+
+`requireEvent` (used by [payment status](public-payment-status.md)) still finds an archived event, so buyers can follow up on a payment.
 
 Callers pass `now` explicitly, so tests stay deterministic. [Public registration](public-registration.md) calls it inside the request that writes, not relying on an earlier catalog read.
 
@@ -127,4 +129,5 @@ The limit keys on Express `req.ip`. Behind a reverse proxy or load balancer, `re
 - [Public registration contract](public-registration.md)
 - [Event sales contract](event-sales.md)
 - [Event catalog contract](event-catalog.md)
+- [Admin event lifecycle contract](admin-event-lifecycle.md)
 - [November 2026 online purchase plan](../product/november-2026-online-purchase-plan.md)

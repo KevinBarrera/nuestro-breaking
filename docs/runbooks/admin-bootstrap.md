@@ -87,6 +87,37 @@ Automation can treat `2` as "already bootstrapped" and `1` as a failure.
   new link from the admin panel instead
   ([Managing the team](support.md#managing-the-team)).
 
+## Setting up an event
+
+Once the first administrator has activated their account, a **global
+administrator** sets up an event without any script
+([#213](https://github.com/KevinBarrera/nuestro-breaking/issues/213)). The
+API is described in the
+[admin event lifecycle contract](../contracts/admin-event-lifecycle.md).
+
+1. **Bootstrap the first administrator** (above) and activate the account.
+2. **Create the event** with its name, public address (slug), folio prefix,
+   time zone and optional dates (`POST /admin/events`). In an empty database
+   this also creates the organization. Choose the slug and folio prefix with
+   care: they **cannot change** later, because shared links and printed folios
+   use them.
+3. **Add the catalog** from the panel: **Actividades** and **Pases**.
+4. **Open sales** in the event's "Venta en línea" section when the catalog is
+   ready. A new event starts with sales off.
+5. Invite the event's team from **Equipo**
+   ([Managing the team](support.md#managing-the-team)).
+
+Current limits:
+
+- The panel screens to create and edit events (**Crear evento**, **Datos del
+  evento**) are still being built; until then, step 2 is an API call.
+- There is no way yet to add a venue from the panel or the API, and an
+  activity needs a venue of its event. A new event can get passes, but not
+  activities, until that is added.
+
+To retire or remove an event, see
+[Archiving and deleting events](support.md#archiving-and-deleting-events).
+
 ## Security notes
 
 - The link is shown **once** and is never stored in readable form. Copy it and

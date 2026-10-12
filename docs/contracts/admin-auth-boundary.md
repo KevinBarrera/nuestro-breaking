@@ -159,6 +159,8 @@ Two safety rules apply to access changes and deactivation:
 - **No self-changes.** A global admin cannot change their own access or deactivate themself. The check compares ids, so an uppercased own id is refused too.
 - **At least one global admin remains.** A change that would leave no activated global admin (an active user with a password and an active global `admin` role) is refused. Every team change is serialized under one database lock, so two global admins deactivating each other at the same time still leave one: the second request finds its caller deactivated and gets `401`.
 
+Deleting an empty event ([admin event lifecycle](admin-event-lifecycle.md#deleting-an-empty-event)) removes the `user_roles` scoped to it. A member whose only access was that event then drops out of the team list, and their email cannot be invited again.
+
 ### Error codes
 
 All are JSON bodies with `statusCode`, `message` and `code`, except `400`, which carries `fieldErrors` (`invalid` per field, or `access: "unknown_event"`) and never echoes the submitted values.

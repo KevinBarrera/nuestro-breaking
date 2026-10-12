@@ -9,6 +9,7 @@ import { AppModule } from '@/app.module';
 import { DATABASE_CLIENT } from '@/database/database.constants';
 import * as schema from '@/database/schema';
 import { DatabaseService } from '@/database/database.service';
+import { readTrustedOrigin } from '@/http';
 import { PostgresHarness } from './support/postgres-harness';
 
 jest.setTimeout(120_000);
@@ -62,7 +63,7 @@ describe('admin registration commands (e2e)', () => {
     >`INSERT INTO auth_sessions (user_id, token_digest, expires_at) VALUES (${userId}, ${createHash('sha256').update(token).digest('hex')}, now() + interval '1 hour') RETURNING id`;
     return { cookie: `nb_admin_session=${token}`, userId, sessionId };
   }
-  const trustedOrigin = process.env.AUTH_TRUSTED_ORIGIN ?? 'http://localhost:5173';
+  const trustedOrigin = readTrustedOrigin(process.env);
   const headers = (cookie: string) => ({
     Cookie: cookie,
     Origin: trustedOrigin,

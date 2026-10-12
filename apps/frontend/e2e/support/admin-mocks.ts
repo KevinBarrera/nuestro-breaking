@@ -1,4 +1,5 @@
 import type { Locator, Page } from '@playwright/test';
+import { teamMembers } from './team-mocks.ts';
 
 // Shared mocked admin API for specs that sweep every admin screen (contrast, targets, phone
 // width). Screen-specific behavior stays in each screen's own spec.
@@ -17,6 +18,9 @@ export const adminScreens = [
   { name: 'Pases', path: `/admin/events/${eventId}/passes` },
   { name: 'Pase', path: `/admin/events/${eventId}/passes/${fullPassId}` },
   { name: 'Nuevo pase', path: `/admin/events/${eventId}/passes/new` },
+  // Team screens (#214): global admins only, outside any event.
+  { name: 'Equipo', path: '/admin/team' },
+  { name: 'Agregar administrador', path: '/admin/team/new' },
 ] as const;
 
 export type AdminScreenName = (typeof adminScreens)[number]['name'];
@@ -149,7 +153,11 @@ const registration = {
 
 export async function mockAdminApi(page: Page) {
   const routes: [(url: URL) => boolean, unknown][] = [
-    [(url) => url.pathname === '/auth/session', { user: { id: 'admin', roles: ['admin'] } }],
+    [
+      (url) => url.pathname === '/auth/session',
+      { user: { id: 'admin', roles: ['admin'], globalAdmin: true } },
+    ],
+    [(url) => url.pathname === '/admin/team', { members: teamMembers() }],
     [(url) => url.pathname === '/admin/events', [{ id: eventId, name: 'Encuentro del barrio' }]],
     [(url) => url.pathname.endsWith('/foundation'), foundation],
     [(url) => url.pathname.endsWith('/activities'), activities],
@@ -189,6 +197,14 @@ export async function revealControls(page: Page, name: AdminScreenName) {
   }
   if (name === 'Pase' || name === 'Nuevo pase') await accessControls(page).first().waitFor();
   if (name === 'Actividades') await page.getByRole('button', { name: /^Todas/ }).waitFor();
+  if (name === 'Equipo')
+    await page
+      .getByRole('table', { name: 'Miembros del equipo' })
+      .getByRole('cell')
+      .first()
+      .waitFor();
+  if (name === 'Agregar administrador')
+    await page.getByRole('group', { name: 'Eventos' }).getByRole('checkbox').first().waitFor();
   if (name === 'Resumen') {
     await page.getByRole('table', { name: 'Pases a la venta' }).waitFor();
     await page.getByRole('button', { name: 'Quitar fecha de cierre' }).waitFor();
@@ -261,6 +277,40 @@ export const adminDialogs: {
         .getByRole('link', { name: 'Pases' })
         .click();
       return page.getByRole('alertdialog', { name: '¿Salir sin guardar?' });
+    },
+  },
+  {
+    name: 'deactivate access',
+    screen: 'Equipo',
+    open: async (page) => {
+      await page.getByRole('button', { name: 'Desactivar a Coordinación principal' }).click();
+      const dialog = page.getByRole('alertdialog', {
+        name: '¿Desactivar a Coordinación principal?',
+      });
+      // The empty-reason error shows too, so its text is measured.
+      await dialog.getByRole('button', { name: 'Desactivar acceso' }).click();
+      await dialog.getByText('Escribe el motivo.').waitFor();
+      return dialog;
+    },
+  },
+  {
+    name: 'change access',
+    screen: 'Equipo',
+    open: async (page) => {
+      await page.getByRole('button', { name: /^Cambiar acceso de Persona de entrada/ }).click();
+      const dialog = page.getByRole('dialog', { name: /^Cambiar acceso de Persona de entrada/ });
+      await dialog.getByRole('checkbox').first().waitFor();
+      return dialog;
+    },
+  },
+  {
+    name: 'cancel invitation',
+    screen: 'Equipo',
+    open: async (page) => {
+      await page
+        .getByRole('button', { name: /^Cancelar invitación de Persona de entrada/ })
+        .click();
+      return page.getByRole('alertdialog', { name: /^¿Cancelar la invitación de/ });
     },
   },
 ];

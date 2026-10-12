@@ -26,9 +26,17 @@ const groups: { title: string; items: NavItem[] }[] = [
 const itemClass =
   'flex min-h-11 items-center justify-between gap-2 rounded-md px-3 text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus';
 
-type AdminSideNavProps = { location: AdminLocation; onLanding: boolean };
+type AdminSideNavProps = {
+  location: AdminLocation;
+  onLanding: boolean;
+  // Equipo (#214) is only for global admins; `onTeam` marks it current on its screens.
+  showTeam: boolean;
+  onTeam: boolean;
+};
 
-export function AdminSideNav({ location, onLanding }: AdminSideNavProps) {
+const linkClass = `${itemClass} font-medium text-fg hover:bg-row aria-[current=page]:bg-nav-active aria-[current=page]:font-semibold aria-[current=page]:text-nav-active-fg`;
+
+export function AdminSideNav({ location, onLanding, showTeam, onTeam }: AdminSideNavProps) {
   function renderItem(item: NavItem) {
     // Without an event in the URL, Resumen falls back to the event list landing.
     const overview = item.section === 'overview';
@@ -53,11 +61,7 @@ export function AdminSideNav({ location, onLanding }: AdminSideNavProps) {
       );
     const active = item.section === location.section || (overview && onLanding);
     return (
-      <Link
-        to={target}
-        aria-current={active ? 'page' : undefined}
-        className={`${itemClass} font-medium text-fg hover:bg-row aria-[current=page]:bg-nav-active aria-[current=page]:font-semibold aria-[current=page]:text-nav-active-fg`}
-      >
+      <Link to={target} aria-current={active ? 'page' : undefined} className={linkClass}>
         {item.label}
       </Link>
     );
@@ -78,6 +82,22 @@ export function AdminSideNav({ location, onLanding }: AdminSideNavProps) {
           </ul>
         </div>
       ))}
+      {showTeam && (
+        <div className="mb-4 last:mb-0">
+          <p className="px-3 pb-2 text-xs font-bold tracking-[0.08em] text-muted">ADMINISTRACIÓN</p>
+          <ul className="flex flex-col gap-1">
+            <li>
+              <Link
+                to={routes.adminTeam}
+                aria-current={onTeam ? 'page' : undefined}
+                className={linkClass}
+              >
+                Equipo
+              </Link>
+            </li>
+          </ul>
+        </div>
+      )}
     </nav>
   );
 }

@@ -8,14 +8,15 @@ import { AppModule } from '@/app.module';
 import { DATABASE_CLIENT } from '@/database/database.constants';
 import * as schema from '@/database/schema';
 import { DatabaseService } from '@/database/database.service';
+import { readTrustedOrigin } from '@/http';
 import { ADMIN_TEAM_LOCK_KEY } from '@/identity-access/admin-team.service';
 import { hashPassword } from '@/identity-access/password-policy';
 import { PostgresHarness } from './support/postgres-harness';
 
 jest.setTimeout(120_000);
 const origin = 'http://localhost:5173';
-// Mutation checks read the variable directly, like the other admin mutation specs.
-const mutationOrigin = process.env.AUTH_TRUSTED_ORIGIN ?? origin;
+// Mutation checks read the origin through readTrustedOrigin, like the server.
+const mutationOrigin = readTrustedOrigin(process.env);
 const password = 'SufficientlyStrong1!';
 const LOCK_WAIT_LIMIT_MS = 5_000;
 

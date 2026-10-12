@@ -91,6 +91,8 @@ The exact status-code split may be chosen during implementation, but responses m
 
 The existing in-memory session entity may cache the current server-reported user for rendering, but the backend remains authoritative for protected API decisions.
 
+`POST /auth/admin/sign-in` and `GET /auth/session` return `user.globalAdmin`: `true` when the user has an active `admin` role in `global` scope (#214). The admin UI uses it only to show the Equipo screens; every team request is still checked on the server.
+
 ## Implementation follow-up slices
 
 1. **Backend session foundation**: database tables/migration for password hashes, sessions, scoped roles, durable auth audit, sign-in/session/sign-out endpoints, protected cookie settings, and CSRF/origin controls required before those state-changing endpoints are usable.
@@ -105,7 +107,7 @@ Global administrators manage who can use the admin panel: they invite people, sh
 ### Who can call it
 
 - Only users with an active `admin` role in `global` scope. Anyone else, including event-scoped admins and judges, gets the same `401 Unauthenticated` as a missing session.
-- Mutations also need the trusted `Origin` and the `X-CSRF-Token` header (`403 Request denied` otherwise).
+- Mutations also need the trusted `Origin` and the `X-CSRF-Token` header (`403 Request denied` otherwise). The trusted origin is `AUTH_TRUSTED_ORIGIN` read the same way as for CORS and sign-in: surrounding spaces are trimmed, and a blank value falls back to `http://localhost:5173`.
 - Responses that carry a link or the team list send `Cache-Control: no-store`.
 - A `:userId` that is not a UUID gets `400`. Any letter case is accepted and treated as the same id.
 - Every change re-checks the caller after taking the team lock: a caller who lost global admin access or was deactivated while the request waited gets the same `401` and nothing changes.
@@ -206,7 +208,7 @@ The public activation page reads the token from the link fragment and sends it i
 This boundary does not include:
 
 - public account registration;
-- full user management UI (the team pages arrive in a later slice of #214);
+- complete user management beyond the admin team (the Equipo screens cover admins only, not judges or dancers);
 - complete role administration;
 - QR/PIN/check-in credentials;
 - payment authorization;

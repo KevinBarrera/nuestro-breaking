@@ -55,6 +55,15 @@ const appRoutes: RouteObject[] = [
   },
   // Mercado Pago's return (#177), outside the purchase layout so it needs no catalog.
   { path: routes.publicPayment, element: <PublicPaymentReturnPage /> },
+  // Admin account activation (#214), public: the invitee has no session yet.
+  {
+    path: routes.activateAccount,
+    hydrateFallbackElement: routeFallback,
+    errorElement: routeError,
+    lazy: async () => ({
+      Component: (await import('@/pages/account-activation')).AccountActivationPage,
+    }),
+  },
   { path: routes.adminEventPassTypesLegacy, element: <LegacyPassTypesRedirect /> },
   {
     hydrateFallbackElement: routeFallback,
@@ -78,6 +87,8 @@ const appRoutes: RouteObject[] = [
           { path: routes.adminEventPass, ...adminPage('PassDetailScreen') },
         ],
       },
+      { path: routes.adminTeam, ...adminPage('AdminTeamPage') },
+      { path: routes.adminTeamNew, ...adminPage('AdminTeamNewPage') },
     ],
   },
   {

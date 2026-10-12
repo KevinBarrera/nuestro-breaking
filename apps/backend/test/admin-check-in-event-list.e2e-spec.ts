@@ -9,6 +9,7 @@ import { AppModule } from '@/app.module';
 import { DATABASE_CLIENT } from '@/database/database.constants';
 import * as schema from '@/database/schema';
 import { DatabaseService } from '@/database/database.service';
+import { readTrustedOrigin } from '@/http';
 import { PostgresHarness } from './support/postgres-harness';
 
 jest.setTimeout(120_000);
@@ -103,7 +104,7 @@ describe('GET /admin/events (e2e)', () => {
     await request(app.getHttpServer())
       .post(`/admin/events/${third.id}/registrations/${first.id}/check-in`)
       .set('Cookie', cookie)
-      .set('Origin', process.env.AUTH_TRUSTED_ORIGIN ?? 'http://localhost:5173')
+      .set('Origin', readTrustedOrigin(process.env))
       .send({})
       .expect(401);
   });

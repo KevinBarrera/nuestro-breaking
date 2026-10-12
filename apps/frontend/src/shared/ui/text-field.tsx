@@ -4,6 +4,8 @@ import { FieldError } from './field-error';
 type TextFieldProps = Omit<InputHTMLAttributes<HTMLInputElement>, 'prefix'> & {
   label: string;
   hint?: ReactNode;
+  // Where the hint sits: under the label (default) or under the input.
+  hintPlacement?: 'above' | 'below';
   // Shows "(opcional)" after the label.
   optional?: boolean;
   error?: string | null;
@@ -20,11 +22,13 @@ const frame =
 export function TextField({
   label,
   hint,
+  hintPlacement = 'above',
   optional = false,
   error,
   prefix,
   id,
   className = '',
+  'aria-describedby': extraDescribedBy,
   ...inputProps
 }: TextFieldProps) {
   const generatedId = useId();
@@ -32,7 +36,13 @@ export function TextField({
   const hintId = `${inputId}-hint`;
   const prefixId = `${inputId}-prefix`;
   const errorId = `${inputId}-error`;
-  const describedBy = [prefix ? prefixId : null, hint ? hintId : null, error ? errorId : null]
+  // A caller's own description (such as a rule list) is kept after the field's own parts.
+  const describedBy = [
+    prefix ? prefixId : null,
+    hint ? hintId : null,
+    error ? errorId : null,
+    extraDescribedBy ?? null,
+  ]
     .filter(Boolean)
     .join(' ');
 
@@ -42,7 +52,7 @@ export function TextField({
         {label}
         {optional ? <span className="font-normal text-muted"> (opcional)</span> : null}
       </label>
-      {hint ? (
+      {hint && hintPlacement === 'above' ? (
         <p id={hintId} className="mt-0.5 text-sm text-muted">
           {hint}
         </p>
@@ -64,6 +74,11 @@ export function TextField({
           className="min-h-11 min-w-0 flex-1 bg-transparent px-3 py-2 text-fg outline-none placeholder:text-muted disabled:opacity-60"
         />
       </div>
+      {hint && hintPlacement === 'below' ? (
+        <p id={hintId} className="mt-1 text-sm text-muted">
+          {hint}
+        </p>
+      ) : null}
       {error ? <FieldError id={errorId}>{error}</FieldError> : null}
     </div>
   );

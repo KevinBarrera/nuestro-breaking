@@ -18,6 +18,7 @@ function readSession(value: unknown): UserSession {
     id: details.id,
     displayName: typeof details.displayName === 'string' ? details.displayName : '',
     roles: details.roles as User['roles'],
+    globalAdmin: details.globalAdmin === true,
   };
   const expiresAt =
     'expiresAt' in value && typeof value.expiresAt === 'string' ? value.expiresAt : undefined;

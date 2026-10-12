@@ -50,9 +50,13 @@ offline operation, local records, or manual event replay as a support remedy.
 
 Unlike the planned sections above, this one describes implemented behavior
 ([#214](https://github.com/KevinBarrera/nuestro-breaking/issues/214)). Only a
-**global administrator** can manage the team. The admin panel's **Equipo**
-page arrives in a later slice of #214; until then these actions exist only as
-the API described in the
+**global administrator** can manage the team, from the admin panel's
+**Equipo** page (side navigation, "Administración" group; other admins do not
+see it). Each row offers the actions below as buttons: **Nuevo enlace**,
+**Cancelar invitación**, **Cambiar acceso**, **Desactivar** and **Reactivar**;
+your own row shows "—" and offers none. **Agregar administrador** opens the
+invite form. The API behind them is
+described in the
 [admin authentication boundary](../contracts/admin-auth-boundary.md#team-management-api-214).
 
 For a brand-new environment with no administrator yet, use the
@@ -83,8 +87,9 @@ For a brand-new environment with no administrator yet, use the
 - **Keep at least two activated global administrators.** If the only one
   forgets their password while signed out, nobody can issue them a new link,
   and `admin:bootstrap` refuses because an activated global administrator
-  exists. While still signed in, a global administrator can regenerate a link
-  for themself.
+  exists. The panel offers no actions on your own row, so a new link always
+  comes from another global administrator (the API still accepts a link for
+  yourself).
 
 ## Escalation and ownership gaps
 

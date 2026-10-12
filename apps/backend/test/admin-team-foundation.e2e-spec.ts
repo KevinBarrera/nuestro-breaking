@@ -9,14 +9,15 @@ import { AppModule } from '@/app.module';
 import { DATABASE_CLIENT } from '@/database/database.constants';
 import * as schema from '@/database/schema';
 import { DatabaseService } from '@/database/database.service';
+import { readTrustedOrigin } from '@/http';
 import { hashPassword } from '@/identity-access/password-policy';
 import { SessionAccessService } from '@/identity-access/session-access.service';
 import { PostgresHarness } from './support/postgres-harness';
 
 jest.setTimeout(120_000);
 const origin = 'http://localhost:5173';
-// Mutation checks read the variable directly, like the other admin mutation specs.
-const mutationOrigin = process.env.AUTH_TRUSTED_ORIGIN ?? origin;
+// Mutation checks read the trusted origin like CORS and sign-in do.
+const mutationOrigin = readTrustedOrigin(process.env);
 const password = 'SufficientlyStrong1!';
 
 // Foundation for admin team management (#214 T1): invitation and team audit tables, the

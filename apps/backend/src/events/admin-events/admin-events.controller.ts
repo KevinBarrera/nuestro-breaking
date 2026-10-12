@@ -1,14 +1,30 @@
-import { Body, Controller, Param, ParseUUIDPipe, Patch, Post, Req, Res } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  HttpCode,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+  Req,
+  Res,
+} from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { SessionAccessService } from '@/identity-access/session-access.service';
-import { parseCreateEventInput, parseUpdateEventInput } from './admin-event-input';
+import { invalidEvent } from './admin-event-errors';
+import {
+  parseCreateEventInput,
+  parseDeleteEventInput,
+  parseUpdateEventInput,
+} from './admin-event-input';
 import type { AdminEvent } from './admin-event.read-model';
-import { AdminEventsService, invalidEvent } from './admin-events.service';
+import { AdminEventsService } from './admin-events.service';
 
 /**
  * Event lifecycle from the admin panel (#213). Creating an event is limited to global admins;
- * editing is open to global admins and admins scoped to the event; archiving and restoring are
- * limited to global admins.
+ * editing is open to global admins and admins scoped to the event; archiving, restoring and
+ * deleting are limited to global admins.
  */
 @Controller('admin/events')
 export class AdminEventsController {
@@ -77,5 +93,24 @@ export class AdminEventsController {
   ): Promise<AdminEvent> {
     const actor = await this.sessions.authorizeGlobalAdminMutation(request, response);
     return this.adminEvents.restore(eventId, actor);
+  }
+
+  /**
+   * Body: `{ confirmSlug }`, which must equal the event's slug exactly (else `400 { fieldErrors:
+   * { confirmSlug: "invalid" } }`). Only an empty event can go: anything else is `409 { code:
+   * "event_not_empty", blockers }`. Archived events can be deleted. Answers `204` with no body.
+   */
+  @Delete(':eventId')
+  @HttpCode(204)
+  async delete(
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+    @Body() body: unknown,
+  ): Promise<void> {
+    const actor = await this.sessions.authorizeGlobalAdminMutation(request, response);
+    const parsed = parseDeleteEventInput(body);
+    if (!parsed.ok) throw invalidEvent(parsed.fieldErrors);
+    await this.adminEvents.delete(eventId, parsed.value.confirmSlug, actor);
   }
 }

@@ -1,6 +1,7 @@
 import {
   eventWindowErrors,
   parseCreateEventInput,
+  parseDeleteEventInput,
   parseUpdateEventInput,
 } from './admin-event-input';
 
@@ -181,5 +182,22 @@ describe('eventWindowErrors', () => {
     expect(eventWindowErrors(null, end)).toEqual({ startsAt: 'invalid' });
     expect(eventWindowErrors(end, start)).toEqual({ endsAt: 'invalid' });
     expect(eventWindowErrors(start, start)).toEqual({ endsAt: 'invalid' });
+  });
+});
+
+describe('parseDeleteEventInput', () => {
+  it('keeps the typed slug exactly as sent', () => {
+    expect(parseDeleteEventInput({ confirmSlug: ' lmp ' })).toEqual({
+      ok: true,
+      value: { confirmSlug: ' lmp ' },
+    });
+  });
+
+  it('requires a string confirmation', () => {
+    for (const body of [undefined, null, {}, { confirmSlug: 7 }, 'lmp'])
+      expect(parseDeleteEventInput(body)).toEqual({
+        ok: false,
+        fieldErrors: { confirmSlug: 'invalid' },
+      });
   });
 });

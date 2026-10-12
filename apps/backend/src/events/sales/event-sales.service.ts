@@ -1,8 +1,9 @@
-import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { eq } from 'drizzle-orm';
 import { DATABASE_CLIENT } from '@/database/database.constants';
 import type { DatabaseService } from '@/database/database.service';
 import { events } from '@/database/schema';
+import { eventArchived } from '@/events/shared/event-archived';
 import type { AdminEventSales, EventSalesChanges } from './event-sales.types';
 import { salesState } from './sales-state';
 
@@ -50,12 +51,7 @@ export class EventSalesService {
         .where(eq(events.id, eventId))
         .for('update');
       if (!current) throw new NotFoundException('Event not found');
-      if (current.archivedAt && changes.salesEnabled)
-        throw new ConflictException({
-          statusCode: 409,
-          message: 'Event is archived',
-          code: 'event_archived',
-        });
+      if (current.archivedAt && changes.salesEnabled) throw eventArchived();
       const [row] = await tx
         .update(events)
         .set(changes)

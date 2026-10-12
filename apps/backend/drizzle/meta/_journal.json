@@ -141,6 +141,13 @@
       "when": 1791675612715,
       "tag": "0019_registration_confirmation_emails",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1791761412715,
+      "tag": "0020_admin_team_management",
+      "breakpoints": true
     }
   ]
 }

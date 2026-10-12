@@ -97,7 +97,7 @@ The hard limit applies to the whole workspace, not to one project. If staging an
 
   If backups fall short, the production database can move to another managed PostgreSQL provider without changing the rest.
 
-- Hosted environments need a supported way to create the first administrator, because `admin:provision` refuses to run outside a local database (#214).
+- Hosted environments need a supported way to create the first administrator, because `admin:provision` refuses to run outside a local database (#214). `admin:bootstrap` covers this; see the [admin bootstrap runbook](../runbooks/admin-bootstrap.md).
 - Socket.IO ([ADR 0004](0004-realtime-transport.md)) keeps working on Railway, because the backend is a normal Node process.
 
 ## Sources

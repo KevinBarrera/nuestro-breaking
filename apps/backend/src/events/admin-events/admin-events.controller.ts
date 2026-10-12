@@ -7,7 +7,8 @@ import { AdminEventsService, invalidEvent } from './admin-events.service';
 
 /**
  * Event lifecycle from the admin panel (#213). Creating an event is limited to global admins;
- * editing is open to global admins and admins scoped to the event.
+ * editing is open to global admins and admins scoped to the event; archiving and restoring are
+ * limited to global admins.
  */
 @Controller('admin/events')
 export class AdminEventsController {
@@ -50,5 +51,31 @@ export class AdminEventsController {
     const parsed = parseUpdateEventInput(body);
     if (!parsed.ok) throw invalidEvent(parsed.fieldErrors);
     return this.adminEvents.update(eventId, parsed.value, actor);
+  }
+
+  /**
+   * Archives the event and turns sales off; it then drops out of the public catalog, registration
+   * and checkout. Already archived is `409 { code: "event_archived" }`. Named and answered
+   * (`201`) like the pass type and activity archive routes.
+   */
+  @Post(':eventId/archive')
+  async archive(
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<AdminEvent> {
+    const actor = await this.sessions.authorizeGlobalAdminMutation(request, response);
+    return this.adminEvents.archive(eventId, actor);
+  }
+
+  /** Restores an archived event with sales still off. Not archived is `409 { code: "event_not_archived" }`. */
+  @Post(':eventId/restore')
+  async restore(
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<AdminEvent> {
+    const actor = await this.sessions.authorizeGlobalAdminMutation(request, response);
+    return this.adminEvents.restore(eventId, actor);
   }
 }

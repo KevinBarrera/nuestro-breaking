@@ -5,7 +5,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { DATABASE_CLIENT } from '@/database/database.constants';
 import type { DatabaseService } from '@/database/database.service';
 import { eventAdminAudit, events } from '@/database/schema';
@@ -117,19 +117,70 @@ export class AdminEventsService {
         .returning(adminEventColumns);
       const before = toAdminEvent(current);
       const after = toAdminEvent(row);
-      await tx.insert(eventAdminAudit).values({
-        eventId,
-        eventSlug: after.slug,
-        eventName: after.name,
-        action: 'updated',
-        actorUserId: actor.userId,
-        actorSessionId: actor.sessionId,
-        details: {
-          before: Object.fromEntries(changed.map((key) => [key, before[key]])),
-          after: Object.fromEntries(changed.map((key) => [key, after[key]])),
-        },
+      await this.audit(tx, after, 'updated', actor, {
+        before: Object.fromEntries(changed.map((key) => [key, before[key]])),
+        after: Object.fromEntries(changed.map((key) => [key, after[key]])),
       });
       return after;
+    });
+  }
+
+  /**
+   * Archives the event (#213 D6): sets `archived_at`, turns online sales off and keeps the sales
+   * window, so restoring and reopening sales starts from the same dates. The audit keeps the
+   * previous switch. Archiving an archived event is `409 event_archived`, like pass types.
+   */
+  async archive(eventId: string, actor: EventActor): Promise<AdminEvent> {
+    return this.db.transaction(async (tx) => {
+      const current = await lockEvent(tx, eventId);
+      if (current.archivedAt) throw conflict('event_archived', 'Event is archived');
+      const [row] = await tx
+        .update(events)
+        .set({ archivedAt: sql`now()`, salesEnabled: false })
+        .where(eq(events.id, eventId))
+        .returning(adminEventColumns);
+      const event = toAdminEvent(row);
+      await this.audit(tx, event, 'archived', actor, { salesEnabled: current.salesEnabled });
+      return event;
+    });
+  }
+
+  /**
+   * Clears `archived_at` and leaves sales off, so an admin reopens them on purpose. Restoring an
+   * event that is not archived is `409 event_not_archived`.
+   */
+  async restore(eventId: string, actor: EventActor): Promise<AdminEvent> {
+    return this.db.transaction(async (tx) => {
+      const current = await lockEvent(tx, eventId);
+      if (!current.archivedAt) throw conflict('event_not_archived', 'Event is not archived');
+      const [row] = await tx
+        .update(events)
+        .set({ archivedAt: null })
+        .where(eq(events.id, eventId))
+        .returning(adminEventColumns);
+      const event = toAdminEvent(row);
+      await this.audit(tx, event, 'restored', actor, {
+        archivedAt: current.archivedAt.toISOString(),
+      });
+      return event;
+    });
+  }
+
+  private async audit(
+    tx: Transaction,
+    event: AdminEvent,
+    action: 'updated' | 'archived' | 'restored',
+    actor: EventActor,
+    details: Record<string, unknown>,
+  ) {
+    await tx.insert(eventAdminAudit).values({
+      eventId: event.id,
+      eventSlug: event.slug,
+      eventName: event.name,
+      action,
+      actorUserId: actor.userId,
+      actorSessionId: actor.sessionId,
+      details,
     });
   }
 }

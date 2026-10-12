@@ -1,4 +1,4 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { eq } from 'drizzle-orm';
 import { DATABASE_CLIENT } from '@/database/database.constants';
 import type { DatabaseService } from '@/database/database.service';
@@ -38,13 +38,30 @@ export class EventSalesService {
     return toEventSales(row, new Date());
   }
 
+  /**
+   * Saves the settings under a row lock, so an archive cannot interleave. An archived event (#213
+   * D6) can still save its settings with sales off, but turning sales on is `409 event_archived`.
+   */
   async update(eventId: string, changes: EventSalesChanges): Promise<AdminEventSales> {
-    const [row] = await this.db
-      .update(events)
-      .set(changes)
-      .where(eq(events.id, eventId))
-      .returning(columns);
-    if (!row) throw new NotFoundException('Event not found');
-    return toEventSales(row, new Date());
+    return this.db.transaction(async (tx) => {
+      const [current] = await tx
+        .select({ archivedAt: events.archivedAt })
+        .from(events)
+        .where(eq(events.id, eventId))
+        .for('update');
+      if (!current) throw new NotFoundException('Event not found');
+      if (current.archivedAt && changes.salesEnabled)
+        throw new ConflictException({
+          statusCode: 409,
+          message: 'Event is archived',
+          code: 'event_archived',
+        });
+      const [row] = await tx
+        .update(events)
+        .set(changes)
+        .where(eq(events.id, eventId))
+        .returning(columns);
+      return toEventSales(row, new Date());
+    });
   }
 }

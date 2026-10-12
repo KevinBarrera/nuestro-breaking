@@ -1,5 +1,5 @@
 import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import { DATABASE_CLIENT } from '@/database/database.constants';
 import type { DatabaseService } from '@/database/database.service';
 import { activities, eventPassTypeActivities, eventPassTypes, events } from '@/database/schema';
@@ -21,9 +21,12 @@ export class SalesClosedException extends ConflictException {
 export class PublicCatalogService {
   constructor(@Inject(DATABASE_CLIENT) private readonly db: Database) {}
 
-  /** The public catalog of the event with this slug. Unknown or malformed slugs are a 404. */
+  /**
+   * The public catalog of the event with this slug. Unknown or malformed slugs, and archived events
+   * (#213 D6), are a 404.
+   */
   async catalog(slug: string, now: Date): Promise<PublicEventCatalog> {
-    const event = await this.event(slug);
+    const event = await this.event(slug, { archived: 'hidden' });
     if (salesState(event, now).state === 'closed') return toPublicCatalog(event, [], [], now);
 
     const passes = await this.db
@@ -56,10 +59,11 @@ export class PublicCatalogService {
 
   /**
    * Reusable guard for public writes such as registration (#174): resolves the event by slug and
-   * throws `SalesClosedException` unless sales are open at `now`. Unknown slugs are a 404.
+   * throws `SalesClosedException` unless sales are open at `now`. Unknown slugs and archived events
+   * are the same 404.
    */
   async requireOpen(slug: string, now: Date): Promise<{ eventId: string; slug: string }> {
-    const event = await this.event(slug);
+    const event = await this.event(slug, { archived: 'hidden' });
     const state = salesState(event, now);
     if (state.state === 'closed') throw new SalesClosedException(state.reason);
     return { eventId: event.id, slug: event.slug };
@@ -67,14 +71,18 @@ export class PublicCatalogService {
 
   /**
    * Resolves the event by slug whatever its sales window, for public reads that must keep working
-   * after sales close (#178). Unknown or malformed slugs are the same 404 as `requireOpen`.
+   * after sales close (#178). Archived events are kept so buyers can follow up on a payment
+   * (#213 D6). Unknown or malformed slugs are the same 404 as `requireOpen`.
    */
   async requireEvent(slug: string): Promise<{ eventId: string; slug: string }> {
-    const event = await this.event(slug);
+    const event = await this.event(slug, { archived: 'visible' });
     return { eventId: event.id, slug: event.slug };
   }
 
-  private async event(slug: string): Promise<CatalogEventRow> {
+  private async event(
+    slug: string,
+    options: { archived: 'hidden' | 'visible' },
+  ): Promise<CatalogEventRow> {
     // A malformed slug cannot match a row, so it is a 404 without a query.
     if (!isEventSlug(slug)) throw new NotFoundException('Event not found');
     const [row] = await this.db
@@ -90,7 +98,11 @@ export class PublicCatalogService {
         salesClosesAt: events.salesClosesAt,
       })
       .from(events)
-      .where(eq(events.slug, slug));
+      .where(
+        options.archived === 'hidden'
+          ? and(eq(events.slug, slug), isNull(events.archivedAt))
+          : eq(events.slug, slug),
+      );
     if (!row) throw new NotFoundException('Event not found');
     return row;
   }

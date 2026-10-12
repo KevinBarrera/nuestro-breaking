@@ -98,6 +98,37 @@ The existing in-memory session entity may cache the current server-reported user
 3. **Frontend boundary integration**: replace non-enforcing `RoleAreaBoundary` behavior with server session read, sign-in/denied UI, and route-level loading state.
 4. **Operational hardening**: finalize session lifetime/renewal, Argon2id parameters, audit retention, incident ownership, and provisioning process.
 
+## Team management API (#214)
+
+Only users with an active `admin` role in `global` scope can call these endpoints. Anyone else, including event-scoped admins and judges, gets the same `401 Unauthenticated` as a missing session. Mutations also need the trusted `Origin` and the `X-CSRF-Token` header (`403 Request denied` otherwise). Responses that carry a link or the team list send `Cache-Control: no-store`.
+
+| Endpoint                                | Request                          | Success                                    | Errors                                                                                                    |
+| --------------------------------------- | -------------------------------- | ------------------------------------------ | --------------------------------------------------------------------------------------------------------- |
+| `GET /admin/team`                       | none                             | `200 { members: Member[] }`                | `401`                                                                                                     |
+| `POST /admin/team`                      | `{ displayName, email, access }` | `201 { userId, activationUrl, expiresAt }` | `400 { fieldErrors }` (`invalid` per field, or `access: "unknown_event"`); `409 { code: "email_in_use" }` |
+| `POST /admin/team/:userId/invitation`   | none                             | `201 { userId, activationUrl, expiresAt }` | `404 { code: "member_not_found" }`; `409 { code: "member_deactivated" }`                                  |
+| `DELETE /admin/team/:userId/invitation` | none                             | `200 { cancelled: true }`                  | `404 { code: "member_not_found" }` or `{ code: "no_open_invitation" }`                                    |
+
+- `access` is `{ kind: "global" }` or `{ kind: "events", eventIds: [...] }` (1 to 100 unique existing event ids). The email is trimmed and lowercased.
+- `Member` is `{ id, displayName, email, status, access, invitation }`. `status` is `active` (has a password), `pending` (no password yet) or `deactivated` (`users.active = false`). `access` is `{ kind: "global" }` or `{ kind: "events", events: [{ id, name }] }`. `invitation` is the open invitation, `{ expiresAt, expired }`, or `null`; it is always `null` for a `deactivated` member, even when an open invitation row remains, because activation refuses that member's links. Only users with an active `admin` role are listed; judge-only accounts are not.
+- Inviting creates the user without a password, its roles and a 72-hour invitation. The response is the only time the link (`<admin origin>/activar-cuenta#<token>`) is shown; only the token digest is stored. Any email that already has an account gets `409`, including judges; pending and deactivated admins use regenerate or (later) reactivate instead.
+- Regenerate cancels the open invitation, if any, and issues a new link. It works for pending admins and, as the password-recovery path, for active ones, the caller included; the current password keeps working until the new link is used.
+- Every change writes `admin_team_audit` (`invited` with `details.access`, `invitation_regenerated` with `details.replacedOpenInvitation`, `invitation_cancelled`) with the actor user and session and the target user.
+
+## Account activation API (#214)
+
+The public activation page reads the token from the link fragment and sends it in the JSON body, never in the query string. Both routes need the exact trusted `Origin` (`403 Request denied` otherwise, audited as `denied`), like sign-in.
+
+| Endpoint                      | Request               | Success                                 | Errors                                                                                     |
+| ----------------------------- | --------------------- | --------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `POST /auth/activation/check` | `{ token }`           | `200 { displayName, email, expiresAt }` | `400 Invalid request`; `410` invalid link                                                  |
+| `POST /auth/activation`       | `{ token, password }` | `200 { activated: true }`               | `400 Invalid request`; `400 { message: "Weak password", failedRules }`; `410` invalid link |
+
+- Any link that cannot be used (unknown, malformed, expired, used, cancelled, replaced by a newer link, or for a deactivated user) gets the same `410 { statusCode: 410, message: "Invalid or expired link", code: "invalid_link" }`, so the response never reveals which case applies.
+- `failedRules` lists the ids from the shared password policy (`min_length`, `max_length`, `lowercase`, `uppercase`, `digit`, `symbol`, `no_control_characters`). The password is checked before the token, and a weak password leaves the link open.
+- Activation stores the Argon2id hash, marks the invitation used, revokes every existing session of the user, and writes `admin_team_audit` `activated` with the invitee as actor, no session and `details.revokedSessions`. It does not sign the user in; the frontend sends them to sign-in.
+- Neither sign-in nor activation is rate limited yet; the 256-bit token makes guessing impractical, and per-IP throttling for both is a follow-up.
+
 ## Explicit exclusions
 
 This boundary does not include:

@@ -1,12 +1,13 @@
 import { expect, test, type Page } from '@playwright/test';
+import { eventSummary } from './support/event-mocks.ts';
 
 const firstId = 'a1b2c3d4-1234-4567-89ab-123456789abc';
 const secondId = 'b1b2c3d4-1234-4567-89ab-123456789abc';
 const endpoint = (url: URL) => url.port === '3000' && url.pathname === '/admin/events';
 const session = (url: URL) => url.port === '3000' && url.pathname === '/auth/session';
 const events = [
-  { id: firstId, name: 'Encuentro del barrio' },
-  { id: secondId, name: 'Batalla de otoño' },
+  eventSummary(firstId, 'Encuentro del barrio', { folioPrefix: 'EB' }),
+  eventSummary(secondId, 'Batalla de otoño', { folioPrefix: 'BO' }),
 ];
 // Copy from the retired sample planning view; none of it may come back.
 const sampleCopy = [
@@ -25,7 +26,9 @@ test.beforeEach(async ({ page }) => {
 });
 
 const main = (page: Page) => page.getByRole('main');
-const card = (page: Page, name: string) => main(page).getByRole('article', { name });
+// Each event is one card-sized link to its overview, named by the event.
+const card = (page: Page, name: string) =>
+  main(page).getByRole('list', { name: 'Eventos' }).getByRole('link', { name, exact: true });
 
 async function expectNoSampleContent(page: Page) {
   for (const text of sampleCopy) await expect(page.getByText(text)).toHaveCount(0);
@@ -44,27 +47,16 @@ test('several events show a picker built only from the returned events', async (
   await expect(main(page).getByRole('heading', { name: 'Eventos', level: 1 })).toBeVisible();
   for (const event of events) {
     const eventCard = card(page, event.name);
-    await expect(eventCard.getByRole('heading', { name: event.name, level: 2 })).toBeVisible();
-    await expect(eventCard.getByRole('link', { name: 'Abrir evento' })).toHaveAttribute(
-      'href',
-      `/admin/events/${event.id}`,
-    );
-    for (const [name, section] of [
-      ['Check-in', 'check-in'],
-      ['Actividades', 'activities'],
-      ['Pases', 'passes'],
-    ])
-      await expect(eventCard.getByRole('link', { name, exact: true })).toHaveAttribute(
-        'href',
-        `/admin/events/${event.id}/${section}`,
-      );
+    await expect(eventCard).toHaveAttribute('href', `/admin/events/${event.id}`);
+    await expect(eventCard).toContainText(`/e/${event.slug}`);
+    await expect(eventCard).toContainText(`Folios ${event.folioPrefix}-····`);
   }
   await expect(page).toHaveURL(/\/admin$/);
   await expectNoSampleContent(page);
 
-  await card(page, 'Encuentro del barrio').getByRole('link', { name: 'Check-in' }).click();
-  await expect(page).toHaveURL(new RegExp(`/admin/events/${firstId}/check-in$`));
-  await expect(page.getByRole('heading', { name: 'Control de entrada' })).toBeVisible();
+  await card(page, 'Encuentro del barrio').click();
+  await expect(page).toHaveURL(new RegExp(`/admin/events/${firstId}$`));
+  await expect(page.getByRole('heading', { name: 'Resumen del evento' })).toBeVisible();
 });
 
 test('a single event redirects to its overview without leaving /admin in history', async ({
@@ -88,7 +80,7 @@ test('the picker fits a phone without horizontal scroll', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 800 });
   await page.route(endpoint, (route) => route.fulfill({ json: events }));
   await page.goto('/admin');
-  const open = card(page, 'Batalla de otoño').getByRole('link', { name: 'Abrir evento' });
+  const open = card(page, 'Batalla de otoño');
   await expect(open).toBeVisible();
   const bounds = await open.boundingBox();
   expect(bounds!.height).toBeGreaterThanOrEqual(44);

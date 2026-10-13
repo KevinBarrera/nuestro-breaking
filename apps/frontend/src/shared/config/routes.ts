@@ -10,6 +10,8 @@ export const routes = {
   // Mercado Pago's return address for every outcome (#177 D8): `?registration=<id>`.
   publicPayment: '/e/:slug/pago',
   admin: '/admin',
+  // Nuevo evento (#213), global admins only. A static segment, so it wins over `:eventId`.
+  adminEventNew: '/admin/events/new',
   adminEventOverview: '/admin/events/:eventId',
   adminEventFoundation: '/admin/events/:eventId/foundation',
   adminEventCheckIn: '/admin/events/:eventId/check-in',

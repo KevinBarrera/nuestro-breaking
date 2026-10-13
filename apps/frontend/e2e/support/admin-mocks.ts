@@ -1,4 +1,5 @@
 import type { Locator, Page } from '@playwright/test';
+import { archivedEvent, eventSummary } from './event-mocks.ts';
 import { teamMembers } from './team-mocks.ts';
 
 // Shared mocked admin API for specs that sweep every admin screen (contrast, targets, phone
@@ -21,6 +22,9 @@ export const adminScreens = [
   // Team screens (#214): global admins only, outside any event.
   { name: 'Equipo', path: '/admin/team' },
   { name: 'Agregar administrador', path: '/admin/team/new' },
+  // The event list (#213): global admins see Crear evento and the Archivados toggle. Kept
+  // after the event screens, since sweeps use the first entry for the event selector.
+  { name: 'Eventos', path: '/admin' },
 ] as const;
 
 export type AdminScreenName = (typeof adminScreens)[number]['name'];
@@ -158,7 +162,6 @@ export async function mockAdminApi(page: Page) {
       { user: { id: 'admin', roles: ['admin'], globalAdmin: true } },
     ],
     [(url) => url.pathname === '/admin/team', { members: teamMembers() }],
-    [(url) => url.pathname === '/admin/events', [{ id: eventId, name: 'Encuentro del barrio' }]],
     [(url) => url.pathname.endsWith('/foundation'), foundation],
     [(url) => url.pathname.endsWith('/activities'), activities],
     [(url) => url.pathname.endsWith('/pass-types'), passTypes],
@@ -173,6 +176,18 @@ export async function mockAdminApi(page: Page) {
       (url) => api(url) && matches(url),
       (route) => route.fulfill({ json }),
     );
+  // Archived events only with `?archived=true`, as the backend answers.
+  const events = [eventSummary(eventId, 'Encuentro del barrio', { folioPrefix: 'EB' })];
+  await page.route(
+    (url) => api(url) && url.pathname === '/admin/events',
+    (route) =>
+      route.fulfill({
+        json:
+          new URL(route.request().url()).searchParams.get('archived') === 'true'
+            ? [...events, archivedEvent]
+            : events,
+      }),
+  );
 }
 
 export async function useTheme(page: Page, theme: (typeof themes)[number]) {
@@ -184,6 +199,10 @@ const accessControls = (page: Page) =>
 
 // Puts each screen in a state that shows its main interactive controls.
 export async function revealControls(page: Page, name: AdminScreenName) {
+  if (name === 'Eventos') {
+    await page.getByRole('button', { name: /^Archivados/ }).click();
+    await page.getByRole('button', { name: /^Restaurar / }).waitFor();
+  }
   if (name === 'Check-in') {
     await page.getByRole('textbox', { name: 'Buscar inscripción' }).fill('Luz');
     await page.getByRole('button', { name: 'Buscar' }).click();

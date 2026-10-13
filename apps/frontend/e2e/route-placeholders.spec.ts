@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { eventId, mockAdminApi } from './support/admin-mocks.ts';
+import { eventSummary } from './support/event-mocks.ts';
 import { selectTrigger } from './support/select.ts';
 
 const sessionEndpoint = (url: URL) => url.port === '3000' && url.pathname === '/auth/session';
@@ -198,8 +199,8 @@ test('signing out from a deep screen goes to /admin, so signing in starts at the
   await page.route(adminEventsEndpoint, (route) =>
     route.fulfill({
       json: [
-        { id: eventId, name: 'Encuentro del barrio' },
-        { id: 'b1b2c3d4-1234-4567-89ab-123456789abc', name: 'Batalla de otoño' },
+        eventSummary(eventId, 'Encuentro del barrio'),
+        eventSummary('b1b2c3d4-1234-4567-89ab-123456789abc', 'Batalla de otoño'),
       ],
     }),
   );
@@ -299,8 +300,8 @@ test('keeps a narrow keyboard-accessible admin header on the event picker', asyn
     eventsRequested = true;
     return route.fulfill({
       json: [
-        { id: 'a1b2c3d4-1234-4567-89ab-123456789abc', name: 'Encuentro del barrio' },
-        { id: 'b1b2c3d4-1234-4567-89ab-123456789abc', name: 'Batalla de otoño' },
+        eventSummary('a1b2c3d4-1234-4567-89ab-123456789abc', 'Encuentro del barrio'),
+        eventSummary('b1b2c3d4-1234-4567-89ab-123456789abc', 'Batalla de otoño'),
       ],
     });
   });
@@ -314,7 +315,7 @@ test('keeps a narrow keyboard-accessible admin header on the event picker', asyn
   const signOut = header.getByRole('button', { name: 'Cerrar sesión' });
   await expect(home).toHaveAttribute('aria-current', 'page');
   await expect(header.getByRole('link')).toHaveCount(0);
-  await expect(page.getByRole('article', { name: 'Encuentro del barrio' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Encuentro del barrio', exact: true })).toBeVisible();
   await page.keyboard.press('Tab');
   await expect(header.getByRole('button', { name: 'Cambiar a tema oscuro' })).toBeFocused();
   await page.keyboard.press('Tab');

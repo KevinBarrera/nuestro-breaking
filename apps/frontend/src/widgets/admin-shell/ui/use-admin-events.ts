@@ -16,20 +16,32 @@ function isAdminEventList(value: unknown): value is AdminEvent[] {
 
 // Loads the events this account may manage; any failure leaves the list empty so the
 // selector simply stays hidden. Pages keep their own detailed loading and error states.
-export function useAdminEvents() {
-  const [events, setEvents] = useState<AdminEvent[]>([]);
+// When the URL names an event the list lacks (one just created), it reads the list again,
+// once per event id. An archived event stays out of the list (#213), so the selector stays
+// hidden on its screens.
+export function useAdminEvents(currentEventId?: string) {
+  const [events, setEvents] = useState<AdminEvent[] | null>(null);
+  const [refetchedFor, setRefetchedFor] = useState<string | null>(null);
+  const missing =
+    events !== null &&
+    currentEventId !== undefined &&
+    currentEventId !== refetchedFor &&
+    !events.some((event) => event.id === currentEventId);
+  if (missing) setRefetchedFor(currentEventId);
 
   useEffect(() => {
     const controller = new AbortController();
     void fetch(apiUrl('/admin/events'), { credentials: 'include', signal: controller.signal })
       .then(async (response) => {
-        if (!response.ok) return;
+        if (!response.ok) return setEvents((previous) => previous ?? []);
         const value: unknown = await response.json();
-        if (!controller.signal.aborted && isAdminEventList(value)) setEvents(value);
+        if (!controller.signal.aborted) setEvents(isAdminEventList(value) ? value : []);
       })
-      .catch(() => undefined);
+      .catch(() => {
+        if (!controller.signal.aborted) setEvents((previous) => previous ?? []);
+      });
     return () => controller.abort();
-  }, []);
+  }, [refetchedFor]);
 
-  return events;
+  return events ?? [];
 }

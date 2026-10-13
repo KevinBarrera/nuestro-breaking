@@ -21,7 +21,7 @@ const headerControl =
 export function AdminShell({ signingOut, signOutFailed, onSignOut, children }: AdminShellProps) {
   const { pathname } = useLocation();
   const location = readAdminLocation(pathname);
-  const events = useAdminEvents();
+  const events = useAdminEvents(location.eventId);
   const globalAdmin = useSessionStore((state) => state.session.user?.globalAdmin === true);
   const content = useRef<HTMLDivElement>(null);
 
@@ -71,7 +71,7 @@ export function AdminShell({ signingOut, signOutFailed, onSignOut, children }: A
       <div className="flex flex-1 flex-col md:min-h-0 md:flex-row">
         <AdminSideNav
           location={location}
-          onLanding={pathname === routes.admin}
+          onLanding={pathname === routes.admin || pathname === routes.adminEventNew}
           showTeam={globalAdmin}
           onTeam={pathname === routes.adminTeam || pathname.startsWith(`${routes.adminTeam}/`)}
         />

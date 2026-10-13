@@ -441,6 +441,48 @@ describe('public registration (e2e)', () => {
     expect(JSON.stringify(audit)).not.toMatch(PERSONAL);
   });
 
+  it('gives an online pending registration 72 payment hours plus one day, and restarts them on reuse', async () => {
+    const ids = await fixture();
+    const expiry = async (id: string) =>
+      new Date(
+        (
+          await client<{ expires_at: string }[]>`
+            SELECT expires_at FROM event_registrations WHERE id = ${id}`
+        )[0].expires_at,
+      ).getTime();
+    const before = Date.now();
+    const first = (
+      await register({ buyer: buyer(), passes: [{ passTypeId: ids.full }] }).expect(201)
+    ).body as PublicRegistrationResult;
+    const created = await expiry(first.registrationId);
+    expect(created).toBeGreaterThanOrEqual(before + 4 * DAY - 1000);
+    expect(created).toBeLessThanOrEqual(Date.now() + 4 * DAY + 1000);
+
+    await client`UPDATE event_registrations SET expires_at = now() + interval '1 hour'
+      WHERE id = ${first.registrationId}`;
+    const reused = Date.now();
+    await register({ buyer: buyer(), passes: [{ passTypeId: ids.general }] }).expect(201);
+
+    expect(await expiry(first.registrationId)).toBeGreaterThanOrEqual(reused + 4 * DAY - 1000);
+  });
+
+  it('never gives an expiry to an admin manual registration reused by an online buyer', async () => {
+    const ids = await fixture();
+    const manual = await existing(ids.event, 'pending_payment', {
+      email: 'ana@example.com',
+      phone: null,
+    });
+
+    const reused = await register({
+      buyer: buyer(),
+      passes: [{ passTypeId: ids.full }],
+    }).expect(201);
+
+    expect((reused.body as PublicRegistrationResult).registrationId).toBe(manual);
+    const [row] = await client`SELECT expires_at FROM event_registrations WHERE id = ${manual}`;
+    expect(row.expires_at).toBeNull();
+  });
+
   it('creates a new registration when the only match is voided', async () => {
     const ids = await fixture();
     const voided = await existing(ids.event, 'voided', {

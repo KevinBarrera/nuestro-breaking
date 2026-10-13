@@ -7,6 +7,8 @@ export interface CheckoutPreferenceInput {
   passes: { name: string; priceCents: number }[];
   publicAppUrl: string;
   notificationUrl: string;
+  /** End of the offline payment window (#181 S1). */
+  paymentDueAt: Date;
 }
 
 /** Integer cents to pesos with cents kept as decimals (150050 → 1500.5). */
@@ -17,7 +19,8 @@ export function centsToPesos(cents: number): number {
 /**
  * The Checkout Pro preference for a pending registration (#177 D8): one MXN item per paid pass,
  * the registration id as `external_reference` and the buyer's result page for every outcome,
- * returning automatically after approval when the buyer site is https.
+ * returning automatically after approval when the buyer site is https, and the end of the offline
+ * payment window (#181 S1).
  * Free passes are left out because a Mercado Pago item needs a positive price; the total is the
  * same. No payer data is sent.
  */
@@ -38,5 +41,7 @@ export function buildPreferenceRequest(input: CheckoutPreferenceInput): Preferen
     // the buyer returns with the "Volver al sitio" button instead.
     ...(input.publicAppUrl.startsWith('https://') ? { auto_return: 'approved' as const } : {}),
     notification_url: input.notificationUrl,
+    // Mercado Pago's documented example carries an explicit offset, so UTC is sent as +00:00.
+    date_of_expiration: input.paymentDueAt.toISOString().replace(/Z$/, '+00:00'),
   };
 }

@@ -21,6 +21,7 @@ describe('buildPreferenceRequest', () => {
     ],
     publicAppUrl: 'https://example.test',
     notificationUrl: 'https://api.example.test/webhook',
+    paymentDueAt: new Date('2026-11-04T10:00:00.000Z'),
   };
 
   it('sends one MXN item per pass, the registration as reference and the return page', () => {
@@ -36,6 +37,8 @@ describe('buildPreferenceRequest', () => {
       back_urls: { success: returnUrl, failure: returnUrl, pending: returnUrl },
       auto_return: 'approved',
       notification_url: 'https://api.example.test/webhook',
+      // Mercado Pago's own example carries an explicit offset, so UTC is sent as +00:00.
+      date_of_expiration: '2026-11-04T10:00:00.000+00:00',
     });
   });
 

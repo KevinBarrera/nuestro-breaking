@@ -49,6 +49,7 @@ each one means.
 | `MERCADO_PAGO_WEBHOOK_SECRET`   | The **test seller's** webhook secret (see step 4)               |
 | `PUBLIC_APP_URL`                | Your local frontend origin, for example `http://localhost:5173` |
 | `MERCADO_PAGO_NOTIFICATION_URL` | `<tunnel-url>/public/payments/mercado-pago/webhook`             |
+| `PENDING_PAYMENT_HOURS`         | Optional. Leave unset for the default `72`                      |
 
 - The test Access Token starts with `APP_USR-`. That is normal: Mercado Pago's
   Checkout Pro test credentials use the same prefix as live ones.

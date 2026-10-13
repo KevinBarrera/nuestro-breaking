@@ -99,9 +99,10 @@ describe('public checkout (e2e)', () => {
     const [{ id }] = await client<{ id: string }[]>`
       WITH participant AS (INSERT INTO participants (full_name) VALUES ('Buyer') RETURNING id)
       INSERT INTO event_registrations (event_id, participant_id, status, confirmation_source,
-          confirmed_at, folio)
+          confirmed_at, folio, expires_at)
       SELECT ${eventId}, id, ${status}, ${confirmed ? 'admin_cash' : null},
-        ${confirmed ? new Date().toISOString() : null}, ${confirmed ? 'LMP-0001' : null}
+        ${confirmed ? new Date().toISOString() : null}, ${confirmed ? 'LMP-0001' : null},
+        now() + interval '96 hours'
       FROM participant RETURNING id`;
     for (const pass of passes)
       await client`INSERT INTO event_registration_passes (event_id, event_registration_id, pass_type_id, price_cents)
@@ -139,6 +140,7 @@ describe('public checkout (e2e)', () => {
         back_urls: { success: returnUrl, failure: returnUrl, pending: returnUrl },
         auto_return: 'approved',
         notification_url: process.env.MERCADO_PAGO_NOTIFICATION_URL,
+        date_of_expiration: expect.stringMatching(/\+00:00$/) as unknown,
       },
     ]);
     expect(await checkoutRows()).toEqual([
@@ -150,6 +152,34 @@ describe('public checkout (e2e)', () => {
         currency: 'MXN',
       },
     ]);
+  });
+
+  it('ends the offline payment window after 72 hours and keeps the registration one day longer', async () => {
+    const ids = await fixture();
+    const id = await registration(ids.event, [{ passTypeId: ids.full, priceCents: 150050 }]);
+    const before = Date.now();
+
+    await checkout(id).expect(201);
+
+    const due = new Date(sent[0].date_of_expiration!).getTime();
+    expect(due).toBeGreaterThanOrEqual(before + 3 * DAY);
+    expect(due).toBeLessThanOrEqual(Date.now() + 3 * DAY);
+    const [row] = await client<{ expires_at: string }[]>`
+      SELECT expires_at FROM event_registrations WHERE id = ${id}`;
+    expect(new Date(row.expires_at).getTime()).toBe(due + DAY);
+  });
+
+  it('keeps an admin manual registration without expiry when it is paid online', async () => {
+    const ids = await fixture();
+    // Rows created by the fixture are online ones; an admin manual registration has no expiry.
+    const id = await registration(ids.event, [{ passTypeId: ids.full, priceCents: 150050 }]);
+    await client`UPDATE event_registrations SET expires_at = NULL WHERE id = ${id}`;
+
+    await checkout(id).expect(201);
+
+    expect(sent[0].date_of_expiration).toMatch(/\+00:00$/);
+    const [row] = await client`SELECT expires_at FROM event_registrations WHERE id = ${id}`;
+    expect(row.expires_at).toBeNull();
   });
 
   it('creates a fresh preference on every call', async () => {

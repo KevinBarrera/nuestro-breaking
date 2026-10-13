@@ -13,6 +13,8 @@ export interface PreferenceRequest {
   back_urls: { success: string; failure: string; pending: string };
   auto_return?: 'approved';
   notification_url: string;
+  /** ISO 8601 end of the offline payment window (OXXO, SPEI); Mercado Pago refunds later payments. */
+  date_of_expiration?: string;
 }
 
 export interface CreatedPreference {

@@ -25,6 +25,9 @@ export const eventRegistrations = pgTable(
     status: text('status').notNull().default('pending_payment'),
     confirmationSource: text('confirmation_source'),
     confirmedAt: timestamp('confirmed_at', { withTimezone: true }),
+    // When an unpaid online registration expires (#181). Null for admin manual registrations,
+    // which never expire on their own. Kept as history once the registration leaves pending.
+    expiresAt: timestamp('expires_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
   },

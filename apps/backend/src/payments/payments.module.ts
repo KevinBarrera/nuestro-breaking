@@ -1,6 +1,10 @@
 import { Module } from '@nestjs/common';
 import { DatabaseModule } from '@/database/database.module';
 import { PublicCatalogService } from '@/events/public-catalog';
+import {
+  PENDING_PAYMENT_WINDOW,
+  readPendingPaymentWindow,
+} from '@/events/shared/pending-payment-window';
 import { PublicRateLimitModule } from '@/http';
 import { NotificationsModule } from '@/notifications';
 import { PublicCheckoutController } from './checkout/public-checkout.controller';
@@ -28,6 +32,7 @@ import {
   controllers: [PublicCheckoutController, PaymentWebhookController, PublicPaymentStatusController],
   providers: [
     { provide: MERCADO_PAGO_CONFIG, useFactory: () => readMercadoPagoConfig(process.env) },
+    { provide: PENDING_PAYMENT_WINDOW, useFactory: () => readPendingPaymentWindow(process.env) },
     {
       provide: MercadoPagoClient,
       useFactory: (config: MercadoPagoConfig) => new FetchMercadoPagoClient(config),

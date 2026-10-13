@@ -25,6 +25,7 @@ export const adminScreens = [
   // The event list (#213): global admins see Crear evento and the Archivados toggle. Kept
   // after the event screens, since sweeps use the first entry for the event selector.
   { name: 'Eventos', path: '/admin' },
+  { name: 'Nuevo evento', path: '/admin/events/new' },
 ] as const;
 
 export type AdminScreenName = (typeof adminScreens)[number]['name'];
@@ -202,6 +203,12 @@ export async function revealControls(page: Page, name: AdminScreenName) {
   if (name === 'Eventos') {
     await page.getByRole('button', { name: /^Archivados/ }).click();
     await page.getByRole('button', { name: /^Restaurar / }).waitFor();
+  }
+  // An empty submit shows the field errors, so their text is measured too.
+  if (name === 'Nuevo evento') {
+    const form = page.getByRole('form', { name: 'Nuevo evento' });
+    await form.getByRole('button', { name: 'Crear evento' }).click();
+    await form.getByText('Escribe el nombre del evento.').waitFor();
   }
   if (name === 'Check-in') {
     await page.getByRole('textbox', { name: 'Buscar inscripción' }).fill('Luz');

@@ -37,6 +37,8 @@ Administrators create, edit, archive, restore and delete empty events from the a
 - D6 (technical default) — Archiving sets `archived_at` and turns online sales off. The public catalog, registration and checkout treat an archived event as not found; payment status (`requireEvent`) keeps working so buyers can follow up. The webhook stays unchanged. Restoring clears `archived_at` and leaves sales off.
 - D7 (technical default) — An event is empty when it has no activities, pass types, registrations, check-ins or catalog audit rows. Deleting removes its venues and its event-scoped `user_roles`, and frees the slug. Any other event gets `409 { code: "event_not_empty" }`.
 
+- D8 (user, 2026-10-12) — Venue management joins #213: global or event-scoped admins create and edit the event's venues (minimal fields) from the admin API, and Datos del evento gets a venues section, so a new event can get activities without scripts.
+
 ## Tasks
 
 - [x] T1 — Backend foundation: migration `0021` with `events.archived_at` and `event_admin_audit`, Drizzle schema, shared event input parsing (name, slug, folio prefix, IANA time zone, paired dates) reusing the existing patterns, and the organization resolver (D1). Route: delegated (several non-trivial files).
@@ -45,9 +47,10 @@ Administrators create, edit, archive, restore and delete empty events from the a
 - [x] T4 — Archive and restore: global admins only; archive closes sales and hides the event from public catalog, registration and checkout (D6); restore leaves sales closed; a late Mercado Pago confirmation is still recorded (e2e); both audited. Route: delegated.
 - [x] T5 — Delete empty events: global admins only; refuse non-empty events (D7); remove setup rows and free the slug; audited `deleted`. Route: delegated.
 - [x] T6 — Contract docs and admin runbook for the new endpoints and flow. Route: delegated with T5.
+- [ ] T11 — Venue API (D8): list, create and edit the event's venues; global or event-scoped admins; archived events refused; audited; contract docs. Route: delegated. Slice 2.
 - [ ] T7 — Frontend events API slice; event list with Crear evento (global admins), first-run empty state and Archivados toggle. Route: delegated.
 - [ ] T8 — Nuevo evento form with slug suggested from the name and live URL and sample folio preview. Route: delegated.
-- [ ] T9 — Datos del evento page replacing Fundamentos (D2): editable name, time zone and dates; locked slug and folio prefix. Route: delegated.
+- [ ] T9 — Datos del evento page replacing Fundamentos (D2): editable name, time zone and dates; locked slug and folio prefix; venues section (D8). Route: delegated.
 - [ ] T10 — Archivar o eliminar section, Archivar evento dialog, Eliminar un evento vacío dialog (type the slug), restore from Archivados; `docs/frontend-architecture.md`. Route: delegated.
 
 ## Acceptance criteria
@@ -82,4 +85,4 @@ See issue #213. Summary: a global admin sets up an event from an empty database 
 
 ## Next step
 
-User decision on venues, then slice 3 (T7).
+T11 — venue API (D8), then slice 3 (T7).

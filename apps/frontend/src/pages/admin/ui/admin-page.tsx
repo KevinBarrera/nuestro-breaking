@@ -2,8 +2,8 @@ import { restoreEvent, adminEventFailure, type AdminEvent } from '@/entities/adm
 import { useSessionStore } from '@/entities/session';
 import { routes } from '@/shared/config';
 import { Notice } from '@/shared/ui';
-import { useId, useRef, useState } from 'react';
-import { Link, Navigate } from 'react-router';
+import { useEffect, useId, useRef, useState } from 'react';
+import { Link, Navigate, useLocation, useNavigate } from 'react-router';
 import { styles } from './catalog-copy';
 import {
   eventDates,
@@ -15,6 +15,7 @@ import {
   salesChip,
   splitEvents,
 } from './event-model';
+import { listNotice } from './event-lifecycle-model';
 import { useEventList } from './use-event-list';
 
 const eventPath = (pattern: string, eventId: string) => pattern.replace(':eventId', eventId);
@@ -57,9 +58,21 @@ export function AdminPage() {
   const { state, reload } = useEventList(globalAdmin);
   const [showArchived, setShowArchived] = useState(false);
   const [restoring, setRestoring] = useState<string | null>(null);
-  const [message, setMessage] = useState<Message | null>(null);
+  const location = useLocation();
+  const navigate = useNavigate();
+  // Datos del evento comes back here after archiving or deleting, with a notice (#213 T10).
+  const arrivalNotice = listNotice(location.state);
+  const [message, setMessage] = useState<Message | null>(() =>
+    arrivalNotice ? { tone: 'info', text: arrivalNotice } : null,
+  );
   const heading = useRef<HTMLHeadingElement>(null);
   const archivedId = useId();
+
+  // The notice is shown once: it is dropped from the history entry, so a reload does not
+  // repeat it.
+  useEffect(() => {
+    if (arrivalNotice) void navigate('.', { replace: true, state: null });
+  }, [arrivalNotice, navigate]);
 
   const { active, archived } =
     state.status === 'ready' ? splitEvents(state.events) : { active: [], archived: [] };

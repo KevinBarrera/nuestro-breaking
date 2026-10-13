@@ -1,11 +1,22 @@
-import type { AdminEvent, AdminEventFailure, AdminVenue } from '@/entities/admin-event';
+import type {
+  AdminEvent,
+  AdminEventFailure,
+  AdminVenue,
+  EventDeleteBlocker,
+} from '@/entities/admin-event';
 
 // What Datos del evento shows for one event. `saves` counts the event answers applied, so the
-// form can start again from the saved event.
+// form can start again from the saved event. `deleteBlockers` is null when not known.
 export type DetailsLoad =
   | { status: 'loading' }
   | { status: 'failed'; failure: AdminEventFailure }
-  | { status: 'ready'; event: AdminEvent; venues: AdminVenue[]; saves: number };
+  | {
+      status: 'ready';
+      event: AdminEvent;
+      venues: AdminVenue[];
+      deleteBlockers: EventDeleteBlocker[] | null;
+      saves: number;
+    };
 
 export type DetailsState = { eventId: string; load: DetailsLoad };
 
@@ -25,4 +36,14 @@ export function withVenues(
 ): DetailsState {
   if (state.eventId !== eventId || state.load.status !== 'ready') return state;
   return { ...state, load: { ...state.load, venues: update(state.load.venues) } };
+}
+
+// A delete refused with `event_not_empty` says what the event has now.
+export function withDeleteBlockers(
+  state: DetailsState,
+  eventId: string,
+  deleteBlockers: EventDeleteBlocker[],
+): DetailsState {
+  if (state.eventId !== eventId || state.load.status !== 'ready') return state;
+  return { ...state, load: { ...state.load, deleteBlockers } };
 }

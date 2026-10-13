@@ -28,7 +28,14 @@ import {
   type EventDetailsDraft,
   type EventErrors,
 } from './event-form-model';
-import { withEvent, withVenues, type DetailsState } from './event-details-state';
+import {
+  withDeleteBlockers,
+  withEvent,
+  withVenues,
+  type DetailsState,
+} from './event-details-state';
+import { restoredHereNotice } from './event-lifecycle-model';
+import { EventLifecycleSection } from './event-lifecycle-section';
 import { eventFailureMessage, eventZoneName } from './event-model';
 import { VenuesSection } from './venues-section';
 
@@ -46,6 +53,7 @@ function loadFailureMessage(failure: AdminEventFailure) {
 export function AdminEventDetailsPage() {
   const { eventId = '' } = useParams<'eventId'>();
   const canEdit = useSessionStore((state) => state.session.user?.roles.includes('admin') === true);
+  const globalAdmin = useSessionStore((state) => state.session.user?.globalAdmin === true);
   const [state, setState] = useState<DetailsState>({ eventId, load: { status: 'loading' } });
   const [revision, setRevision] = useState(0);
   // Both belong to the event they were set for, so switching events drops them.
@@ -56,9 +64,9 @@ export function AdminEventDetailsPage() {
   useEffect(() => {
     const controller = new AbortController();
     getEventFoundation(eventId, controller.signal)
-      .then(({ event, venues }) => {
+      .then(({ event, venues, deleteBlockers }) => {
         if (!controller.signal.aborted)
-          setState({ eventId, load: { status: 'ready', event, venues, saves: 0 } });
+          setState({ eventId, load: { status: 'ready', event, venues, deleteBlockers, saves: 0 } });
       })
       .catch((error: unknown) => {
         if (!controller.signal.aborted)
@@ -78,11 +86,23 @@ export function AdminEventDetailsPage() {
     setRevision((value) => value + 1);
   }
 
+  // Archived or restored elsewhere: read the event again; the reload decides the state.
+  function reloadEvent() {
+    setArchivedFor(null);
+    retry();
+  }
+
   // Answers may arrive after other writes or after switching events, so they go through the
   // latest state and are dropped for an event that is no longer shown (`event-details-state`).
   function saved(event: AdminEvent) {
     setState((previous) => withEvent(previous, event));
     setNotice({ eventId: event.id, text: savedNotice });
+  }
+
+  function restored(event: AdminEvent) {
+    setArchivedFor(null);
+    setState((previous) => withEvent(previous, event));
+    setNotice({ eventId: event.id, text: restoredHereNotice });
   }
 
   function venuesChanged(venueEventId: string, update: (venues: AdminVenue[]) => AdminVenue[]) {
@@ -116,7 +136,7 @@ export function AdminEventDetailsPage() {
         )}
         {ready && (
           <>
-            {archived && <Notice>{archivedNotice}</Notice>}
+            {archived && <Notice>{archivedNotice(globalAdmin)}</Notice>}
             {!archived && !canEdit && <Notice>{readOnlyNotice}</Notice>}
             {noticeText && !archived && <Notice>{noticeText}</Notice>}
             <EventDetailsForm
@@ -128,14 +148,26 @@ export function AdminEventDetailsPage() {
               onEdit={() => setNotice(null)}
             />
             <VenuesSection
-              key={ready.event.id}
+              key={`venues-${ready.event.id}`}
               eventId={ready.event.id}
               venues={ready.venues}
               editable={editable}
               onChange={venuesChanged}
               onArchived={() => setArchivedFor(ready.event.id)}
             />
-            {/* #213 T10: the "Archivar o eliminar" section goes here. */}
+            {globalAdmin && (
+              <EventLifecycleSection
+                key={`lifecycle-${ready.event.id}`}
+                event={ready.event}
+                archived={archived}
+                deleteBlockers={ready.deleteBlockers}
+                onRestored={restored}
+                onNotEmpty={(blockers) =>
+                  setState((previous) => withDeleteBlockers(previous, ready.event.id, blockers))
+                }
+                onStale={reloadEvent}
+              />
+            )}
           </>
         )}
       </div>

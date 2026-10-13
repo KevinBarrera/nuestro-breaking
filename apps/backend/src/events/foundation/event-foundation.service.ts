@@ -3,6 +3,7 @@ import { asc, eq } from 'drizzle-orm';
 import { DATABASE_CLIENT } from '@/database/database.constants';
 import { type DatabaseService } from '@/database/database.service';
 import { activities, eventVenues, events, venues } from '@/database/schema';
+import { deleteBlockers } from '@/events/admin-events/event-delete-blockers';
 import { type EventFoundation } from './event-foundation.types';
 
 @Injectable()
@@ -30,7 +31,7 @@ export class EventFoundationService {
       throw new NotFoundException('Event not found');
     }
 
-    const [attachedVenues, eventActivities] = await Promise.all([
+    const [attachedVenues, eventActivities, blockers] = await Promise.all([
       this.db
         .select({ id: venues.id, name: venues.name })
         .from(eventVenues)
@@ -49,6 +50,7 @@ export class EventFoundationService {
         .from(activities)
         .where(eq(activities.eventId, eventId))
         .orderBy(asc(activities.startsAt), asc(activities.id)),
+      deleteBlockers(this.db, eventId),
     ]);
 
     return {
@@ -74,6 +76,7 @@ export class EventFoundationService {
         endsAt: activity.endsAt.toISOString(),
         planningStatus: 'draft',
       })),
+      deleteBlockers: blockers,
       deferredFields: ['priceDisplay', 'capacity', 'registrationRequirements'],
     };
   }

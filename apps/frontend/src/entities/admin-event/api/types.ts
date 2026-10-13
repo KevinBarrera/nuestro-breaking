@@ -33,10 +33,6 @@ export type UpdateEventInput = Partial<
 
 export type AdminVenue = { id: string; name: string };
 
-// What Datos del evento reads from `GET /admin/events/:eventId/foundation`: the event and its
-// venues (the venue list; there is no separate route). Its activities are left out.
-export type EventFoundation = { event: AdminEvent; venues: AdminVenue[] };
-
 // 409 `code` values of the event and venue writes, except `event_not_empty`, which carries
 // its blockers.
 export const adminEventErrorCodes = [
@@ -58,6 +54,17 @@ export const eventDeleteBlockers = [
   'registrationAudit',
 ] as const;
 export type EventDeleteBlocker = (typeof eventDeleteBlockers)[number];
+
+// What Datos del evento reads from `GET /admin/events/:eventId/foundation`: the event, its
+// venues (the venue list; there is no separate route) and what keeps it from being deleted
+// (empty when it can be). `deleteBlockers` is null when the answer did not say (an older
+// backend, or a kind this panel does not know); delete then relies on `409 event_not_empty`.
+// Its activities are left out.
+export type EventFoundation = {
+  event: AdminEvent;
+  venues: AdminVenue[];
+  deleteBlockers: EventDeleteBlocker[] | null;
+};
 
 // `unauthorized` is a 401 (no session or role, including the CSRF prefetch); `forbidden` a 403
 // (origin or CSRF check). `invalid` carries the 400 `fieldErrors` codes (never the values).

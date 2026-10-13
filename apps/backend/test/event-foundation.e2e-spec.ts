@@ -205,6 +205,7 @@ describe('GET /admin/events/:eventId/foundation (e2e)', () => {
           planningStatus: 'draft',
         },
       ],
+      deleteBlockers: ['activities'],
       deferredFields: ['priceDisplay', 'capacity', 'registrationRequirements'],
     });
   });
@@ -239,6 +240,7 @@ describe('GET /admin/events/:eventId/foundation (e2e)', () => {
       },
       venues: [],
       activities: [],
+      deleteBlockers: [],
       deferredFields: ['priceDisplay', 'capacity', 'registrationRequirements'],
     });
     await request(app.getHttpServer())

@@ -75,9 +75,16 @@ describe('readEventFoundation', () => {
         event: { ...event, windowStatus: 'bounded' },
         venues,
         activities: [{ id: 'x' }],
+        deleteBlockers: ['registrations', 'activities'],
         deferredFields: [],
       }),
-    ).toEqual({ event, venues });
+    ).toEqual({ event, venues, deleteBlockers: ['activities', 'registrations'] });
+  });
+
+  it('reads an empty blocker list as deletable and anything else as not known', () => {
+    expect(readEventFoundation({ event, venues, deleteBlockers: [] })?.deleteBlockers).toEqual([]);
+    for (const deleteBlockers of [undefined, null, 'activities', ['activities', 'payments']])
+      expect(readEventFoundation({ event, venues, deleteBlockers })?.deleteBlockers).toBeNull();
   });
 
   it('rejects a foundation with a malformed event or venue', () => {

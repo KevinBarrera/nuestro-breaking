@@ -7,6 +7,7 @@ export {
   deleteEvent,
   getEventFoundation,
   listAdminEvents,
+  onAdminEventsChanged,
   renameVenue,
   restoreEvent,
   updateEvent,

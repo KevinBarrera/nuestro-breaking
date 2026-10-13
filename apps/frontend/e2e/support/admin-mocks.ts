@@ -135,6 +135,8 @@ const foundation = {
     { id: 'e2b2c3d4-1234-4567-89ab-123456789abc', name: 'Foro al aire libre con nombre largo' },
   ],
   activities: [],
+  // Empty, so "Eliminar evento" is enabled and its dialog can be opened (#213 T10).
+  deleteBlockers: [],
   deferredFields: [],
 };
 
@@ -323,6 +325,33 @@ export const adminDialogs: {
         .getByRole('link', { name: 'Pases' })
         .click();
       return page.getByRole('alertdialog', { name: '¿Salir sin guardar?' });
+    },
+  },
+  {
+    name: 'archive event',
+    screen: 'Datos del evento',
+    open: async (page) => {
+      await page
+        .getByRole('region', { name: 'Archivar o eliminar' })
+        .getByRole('button', { name: 'Archivar evento' })
+        .click();
+      return page.getByRole('alertdialog', { name: /^¿Archivar Encuentro del barrio/ });
+    },
+  },
+  {
+    name: 'delete empty event',
+    screen: 'Datos del evento',
+    open: async (page) => {
+      await page
+        .getByRole('region', { name: 'Archivar o eliminar' })
+        .getByRole('button', { name: 'Eliminar evento' })
+        .click();
+      const dialog = page.getByRole('alertdialog', { name: /^¿Eliminar Encuentro del barrio/ });
+      // The typed address enables "Eliminar para siempre", so its contrast is measured.
+      await dialog
+        .getByLabel('Para confirmar, escribe la dirección del evento')
+        .fill(foundation.event.slug);
+      return dialog;
     },
   },
   {

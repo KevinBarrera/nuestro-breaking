@@ -1,6 +1,11 @@
 import type { AdminEvent } from '@/entities/admin-event';
 import { describe, expect, it } from 'vitest';
-import { withEvent, withVenues, type DetailsState } from './event-details-state';
+import {
+  withDeleteBlockers,
+  withEvent,
+  withVenues,
+  type DetailsState,
+} from './event-details-state';
 
 const event: AdminEvent = {
   id: 'a',
@@ -17,7 +22,7 @@ const centro = { id: 'v1', name: 'Centro' };
 const foro = { id: 'v2', name: 'Foro' };
 const ready = (venues = [centro]): DetailsState => ({
   eventId: 'a',
-  load: { status: 'ready', event, venues, saves: 0 },
+  load: { status: 'ready', event, venues, deleteBlockers: [], saves: 0 },
 });
 
 describe('withEvent', () => {
@@ -28,6 +33,7 @@ describe('withEvent', () => {
       status: 'ready',
       event: { ...event, name: 'Encuentro 2026' },
       venues: [centro, foro],
+      deleteBlockers: [],
       saves: 1,
     });
   });
@@ -55,5 +61,14 @@ describe('withVenues', () => {
   it('ignores a venue answer for another event', () => {
     const state = ready();
     expect(withVenues(state, 'b', () => [])).toBe(state);
+  });
+});
+
+describe('withDeleteBlockers', () => {
+  it('records what a refused delete reported, only for the event shown', () => {
+    const state = withDeleteBlockers(ready(), 'a', ['registrations']);
+    expect(state.load.status === 'ready' && state.load.deleteBlockers).toEqual(['registrations']);
+    const other = ready();
+    expect(withDeleteBlockers(other, 'b', ['activities'])).toBe(other);
   });
 });

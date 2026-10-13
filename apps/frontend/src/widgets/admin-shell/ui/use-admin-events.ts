@@ -1,4 +1,4 @@
-import { listAdminEvents, type AdminEvent } from '@/entities/admin-event';
+import { listAdminEvents, onAdminEventsChanged, type AdminEvent } from '@/entities/admin-event';
 import { useEffect, useState } from 'react';
 
 // The selector only needs each event's id and name.
@@ -8,7 +8,8 @@ export type ShellEvent = Pick<AdminEvent, 'id' | 'name'>;
 // empty, so the selector simply stays hidden. Pages keep their own detailed loading and error
 // states. When the URL names an event the list lacks (one just created), it reads the list
 // again, once per event id. An archived event stays out of the list (#213), so the selector
-// stays hidden on its screens.
+// stays hidden on its screens. A write that changes the list (archive, restore, delete, rename)
+// reads it again.
 export function useAdminEvents(currentEventId?: string) {
   const [events, setEvents] = useState<ShellEvent[] | null>(null);
   const [refetchedFor, setRefetchedFor] = useState<string | null>(null);
@@ -18,6 +19,9 @@ export function useAdminEvents(currentEventId?: string) {
     currentEventId !== refetchedFor &&
     !events.some((event) => event.id === currentEventId);
   if (missing) setRefetchedFor(currentEventId);
+  const [changes, setChanges] = useState(0);
+
+  useEffect(() => onAdminEventsChanged(() => setChanges((value) => value + 1)), []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -29,7 +33,7 @@ export function useAdminEvents(currentEventId?: string) {
         if (!controller.signal.aborted) setEvents((previous) => previous ?? []);
       });
     return () => controller.abort();
-  }, [refetchedFor]);
+  }, [refetchedFor, changes]);
 
   return events ?? [];
 }

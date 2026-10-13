@@ -106,32 +106,46 @@ async function mutate(path: string, method: string, body?: unknown): Promise<unk
 
 // A 2xx answer that cannot be read means the write may have been applied, so it is reported
 // as `unknown`, never as a failure the user could safely retry.
+// Writes that change what the event list shows (create, edit, archive, restore, delete) tell
+// listeners, such as the shell's event selector, to read the list again.
+const listChanges = new EventTarget();
+
+export function onAdminEventsChanged(listener: () => void): () => void {
+  listChanges.addEventListener('change', listener);
+  return () => listChanges.removeEventListener('change', listener);
+}
+
+function listChanged<T>(value: T): T {
+  listChanges.dispatchEvent(new Event('change'));
+  return value;
+}
+
 function written<T>(value: T | null): T {
   if (value === null) throw new AdminEventError({ kind: 'unknown' });
   return value;
 }
 
 export async function createEvent(input: CreateEventInput): Promise<AdminEvent> {
-  return written(readAdminEvent(await mutate('/admin/events', 'POST', input)));
+  return listChanged(written(readAdminEvent(await mutate('/admin/events', 'POST', input))));
 }
 
 export async function updateEvent(eventId: string, input: UpdateEventInput): Promise<AdminEvent> {
-  return written(readAdminEvent(await mutate(eventPath(eventId), 'PATCH', input)));
+  return listChanged(written(readAdminEvent(await mutate(eventPath(eventId), 'PATCH', input))));
 }
 
 // Closes sales and hides the event from the public site; its data stays readable.
 export async function archiveEvent(eventId: string): Promise<AdminEvent> {
-  return written(readAdminEvent(await mutate(eventPath(eventId, '/archive'), 'POST')));
+  return listChanged(written(readAdminEvent(await mutate(eventPath(eventId, '/archive'), 'POST'))));
 }
 
 // Brings an archived event back with sales still closed.
 export async function restoreEvent(eventId: string): Promise<AdminEvent> {
-  return written(readAdminEvent(await mutate(eventPath(eventId, '/restore'), 'POST')));
+  return listChanged(written(readAdminEvent(await mutate(eventPath(eventId, '/restore'), 'POST'))));
 }
 
 // Only an empty event can be deleted, and only with its exact slug typed again.
 export async function deleteEvent(eventId: string, confirmSlug: string): Promise<void> {
-  await mutate(eventPath(eventId), 'DELETE', { confirmSlug });
+  listChanged(await mutate(eventPath(eventId), 'DELETE', { confirmSlug }));
 }
 
 export async function createVenue(eventId: string, name: string): Promise<AdminVenue> {

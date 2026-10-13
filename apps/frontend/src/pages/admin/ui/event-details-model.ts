@@ -65,8 +65,11 @@ export function detailsChanges(event: AdminEvent, draft: EventDetailsDraft): Upd
 
 export const savedNotice = 'Cambios guardados.';
 
-export const archivedNotice =
-  'Este evento está archivado, así que sus datos no se pueden editar. Restáuralo desde la lista de eventos para cambiarlos.';
+// Global admins restore it on this page ("Archivar o eliminar") or from the event list.
+export const archivedNotice = (canRestore: boolean) =>
+  canRestore
+    ? 'Este evento está archivado, así que sus datos no se pueden editar. Restáuralo abajo, en «Archivar o eliminar», para cambiarlos.'
+    : 'Este evento está archivado, así que sus datos no se pueden editar. Pide a un administrador general que lo restaure.';
 
 export const readOnlyNotice =
   'Solo lectura: tu cuenta puede ver los datos de este evento, pero no cambiarlos.';

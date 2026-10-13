@@ -1,10 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   adminEventFailure,
+  archiveEvent,
   createEvent,
   deleteEvent,
   getEventFoundation,
   listAdminEvents,
+  onAdminEventsChanged,
   renameVenue,
   restoreEvent,
 } from './event-api';
@@ -90,8 +92,14 @@ describe('listAdminEvents', () => {
 describe('getEventFoundation', () => {
   it('reads the event and venues of the foundation with credentials', async () => {
     const venues = [{ id: 'v1', name: 'Centro cultural' }];
-    const fetchMock = stubFetch(() => Response.json({ event, venues, activities: [] }));
-    expect(await getEventFoundation(id, new AbortController().signal)).toEqual({ event, venues });
+    const fetchMock = stubFetch(() =>
+      Response.json({ event, venues, activities: [], deleteBlockers: [] }),
+    );
+    expect(await getEventFoundation(id, new AbortController().signal)).toEqual({
+      event,
+      venues,
+      deleteBlockers: [],
+    });
     expect(call(fetchMock, 0)[0]).toMatch(new RegExp(`/admin/events/${id}/foundation$`));
     expect(call(fetchMock, 0)[1].credentials).toBe('include');
   });
@@ -146,6 +154,23 @@ describe('event writes', () => {
     expect(url).toMatch(new RegExp(`/admin/events/${id}/restore$`));
     expect(init.method).toBe('POST');
     expect(init.body).toBeUndefined();
+  });
+
+  it('tells listeners after a write that changes the event list, not after a failure', async () => {
+    const listener = vi.fn();
+    const stop = onAdminEventsChanged(listener);
+    stubFetch(() => Response.json(event, { status: 201 }));
+    await archiveEvent(id);
+    stubFetch(() => new Response(null, { status: 204 }));
+    await deleteEvent(id, 'los-mas-pesados');
+    expect(listener).toHaveBeenCalledTimes(2);
+    stubFetch(() => Response.json({ code: 'event_not_archived' }, { status: 409 }));
+    await failureOf(restoreEvent(id));
+    expect(listener).toHaveBeenCalledTimes(2);
+    stop();
+    stubFetch(() => Response.json(event, { status: 201 }));
+    await restoreEvent(id);
+    expect(listener).toHaveBeenCalledTimes(2);
   });
 
   it('renames a venue with PATCH', async () => {

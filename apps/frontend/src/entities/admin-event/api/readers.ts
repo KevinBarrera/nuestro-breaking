@@ -50,7 +50,16 @@ export function readEventFoundation(value: unknown): EventFoundation | null {
   const event = readAdminEvent(value.event);
   const venues = value.venues.map(readVenue);
   if (!event || !venues.every((venue) => venue !== null)) return null;
-  return { event, venues };
+  return { event, venues, deleteBlockers: readDeleteBlockers(value.deleteBlockers) };
+}
+
+const isDeleteBlocker = (value: unknown): value is EventDeleteBlocker =>
+  eventDeleteBlockers.some((blocker) => blocker === value);
+
+// Only a list of known kinds is trusted; anything else means "not known", never "empty".
+function readDeleteBlockers(value: unknown): EventDeleteBlocker[] | null {
+  if (!Array.isArray(value) || !value.every(isDeleteBlocker)) return null;
+  return eventDeleteBlockers.filter((blocker) => value.includes(blocker));
 }
 
 // Maps a failed response to what the screens need: only known codes, field error codes and

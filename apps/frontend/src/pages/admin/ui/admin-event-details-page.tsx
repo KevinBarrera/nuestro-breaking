@@ -60,6 +60,8 @@ export function AdminEventDetailsPage() {
   const [notice, setNotice] = useState<{ eventId: string; text: string } | null>(null);
   // A write was refused with `event_archived`: someone archived the event meanwhile.
   const [archivedFor, setArchivedFor] = useState<string | null>(null);
+  // Said before a reload (an archive whose answer was lost); it outlives the reload.
+  const [staleNotice, setStaleNotice] = useState<{ eventId: string; text: string } | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -79,6 +81,7 @@ export function AdminEventDetailsPage() {
   const ready = load.status === 'ready' ? load : null;
   const archived = archivedFor === eventId || (ready !== null && ready.event.archivedAt !== null);
   const noticeText = notice?.eventId === eventId ? notice.text : null;
+  const staleText = staleNotice?.eventId === eventId ? staleNotice.text : null;
   const editable = canEdit && !archived;
 
   function retry() {
@@ -87,20 +90,23 @@ export function AdminEventDetailsPage() {
   }
 
   // Archived or restored elsewhere: read the event again; the reload decides the state.
-  function reloadEvent() {
+  function reloadEvent(message?: string) {
     setArchivedFor(null);
+    setStaleNotice(message ? { eventId, text: message } : null);
     retry();
   }
 
   // Answers may arrive after other writes or after switching events, so they go through the
   // latest state and are dropped for an event that is no longer shown (`event-details-state`).
   function saved(event: AdminEvent) {
+    setStaleNotice(null);
     setState((previous) => withEvent(previous, event));
     setNotice({ eventId: event.id, text: savedNotice });
   }
 
   function restored(event: AdminEvent) {
     setArchivedFor(null);
+    setStaleNotice(null);
     setState((previous) => withEvent(previous, event));
     setNotice({ eventId: event.id, text: restoredHereNotice });
   }
@@ -136,6 +142,7 @@ export function AdminEventDetailsPage() {
         )}
         {ready && (
           <>
+            {staleText && <Notice tone="danger">{staleText}</Notice>}
             {archived && <Notice>{archivedNotice(globalAdmin)}</Notice>}
             {!archived && !canEdit && <Notice>{readOnlyNotice}</Notice>}
             {noticeText && !archived && <Notice>{noticeText}</Notice>}

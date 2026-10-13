@@ -365,9 +365,12 @@ test('switching events while a save is pending opens the other event', async ({ 
   await expect(page).toHaveURL(new RegExp(`/admin/events/${otherId}/foundation$`));
   await expect(form(page).getByLabel('Nombre del evento')).toHaveValue('Otro evento');
 
+  const answered = page.waitForResponse(
+    (response) => response.request().method() === 'PATCH' && eventEndpoint(new URL(response.url())),
+  );
   save.release();
+  await answered;
   // The late answer belongs to the first event, so this page keeps showing the second one.
-  await page.waitForTimeout(200);
   await expect(form(page).getByLabel('Nombre del evento')).toHaveValue('Otro evento');
   await expect(main(page).getByText('Cambios guardados.')).toHaveCount(0);
   await expect(main(page).getByText('Cargando datos del evento…')).toHaveCount(0);

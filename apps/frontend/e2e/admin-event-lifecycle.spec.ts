@@ -38,6 +38,7 @@ const main = (page: Page) => page.getByRole('main');
 const section = (page: Page) => main(page).getByRole('region', { name: 'Archivar o eliminar' });
 
 // The list serves `listed()`, so a screen that reads it after a write sees the new state.
+// `json` may be a function, so a reload after a write sees the new state.
 async function openDetails(
   page: Page,
   json: unknown,
@@ -45,7 +46,9 @@ async function openDetails(
 ) {
   await mockSession(page, session);
   await mockEventList(page, listed ?? (() => [eventSummary(eventId, event.name)]));
-  await page.route(foundationEndpoint, (route) => route.fulfill({ json }));
+  await page.route(foundationEndpoint, (route) =>
+    route.fulfill({ json: typeof json === 'function' ? (json as () => unknown)() : json }),
+  );
   await page.goto(detailsPath);
   await expect(main(page).getByRole('form', { name: 'Datos del evento' })).toBeVisible();
 }
@@ -187,6 +190,85 @@ test('a delete refused because the event is not empty explains what blocks it', 
   );
   await expect(page.getByText('Event is not empty')).toHaveCount(0);
   await expect(page).toHaveURL(new RegExp(`${detailsPath}$`));
+});
+
+test('a delete refused with blockers this panel does not know still says it cannot be deleted', async ({
+  page,
+}) => {
+  await openDetails(page, foundation());
+  await capture(page, eventEndpoint(), 'DELETE', () => ({
+    status: 409,
+    json: { code: 'event_not_empty', message: 'Event is not empty', blockers: ['futureKind'] },
+  }));
+  await section(page).getByRole('button', { name: 'Eliminar evento' }).click();
+  const dialog = page.getByRole('alertdialog', { name: '¿Eliminar Encuentro del barrio?' });
+  await dialog.getByLabel('Para confirmar, escribe la dirección del evento').fill(event.slug);
+  await dialog.getByRole('button', { name: 'Eliminar para siempre' }).click();
+
+  await expect(dialog).toHaveCount(0);
+  await expect(section(page).getByRole('button', { name: 'Eliminar evento' })).toBeDisabled();
+  await expect(section(page)).toContainText('No disponible: este evento ya tiene datos.');
+  await expect(section(page)).not.toContainText('Solo para un evento vacío');
+});
+
+test('an archive refused because the event was archived meanwhile shows it archived', async ({
+  page,
+}) => {
+  let archivedElsewhere = false;
+  await openDetails(page, () => foundation(archivedElsewhere ? { archivedAt } : {}, []));
+  await capture(page, eventEndpoint('/archive'), 'POST', () => {
+    archivedElsewhere = true;
+    return { status: 409, json: { code: 'event_archived', message: 'Event is archived' } };
+  });
+  await section(page).getByRole('button', { name: 'Archivar evento' }).click();
+  const dialog = page.getByRole('alertdialog', { name: '¿Archivar Encuentro del barrio?' });
+  await dialog.getByRole('button', { name: 'Archivar evento' }).click();
+
+  await expect(dialog).toHaveCount(0);
+  await expect(section(page).getByRole('button', { name: 'Restaurar evento' })).toBeVisible();
+  await expect(main(page)).toContainText('Restáuralo abajo, en «Archivar o eliminar»');
+  await expect(main(page).getByRole('button', { name: 'Guardar cambios' })).toHaveCount(0);
+  await expect(page.getByText('Event is archived')).toHaveCount(0);
+  await expect(page).toHaveURL(new RegExp(`${detailsPath}$`));
+});
+
+test('an archive whose answer was lost says so and shows the event as it is now', async ({
+  page,
+}) => {
+  let archivedBeforeLoss = false;
+  await openDetails(page, () => foundation(archivedBeforeLoss ? { archivedAt } : {}, []));
+  // The archive went through, then the answer was lost.
+  await page.route(eventEndpoint('/archive'), (route) => {
+    archivedBeforeLoss = true;
+    return route.abort('connectionreset');
+  });
+  await section(page).getByRole('button', { name: 'Archivar evento' }).click();
+  const dialog = page.getByRole('alertdialog', { name: '¿Archivar Encuentro del barrio?' });
+  await dialog.getByRole('button', { name: 'Archivar evento' }).click();
+
+  await expect(dialog).toHaveCount(0);
+  await expect(section(page).getByRole('button', { name: 'Restaurar evento' })).toBeVisible();
+  await expect(main(page).getByRole('alert')).toContainText(
+    'No pudimos confirmar si el evento se archivó. Revisamos su estado de nuevo.',
+  );
+});
+
+test('a restore refused because the event was restored meanwhile shows it editable', async ({
+  page,
+}) => {
+  let restoredElsewhere = false;
+  await openDetails(page, () => foundation(restoredElsewhere ? {} : { archivedAt }, []));
+  await capture(page, eventEndpoint('/restore'), 'POST', () => {
+    restoredElsewhere = true;
+    return { status: 409, json: { code: 'event_not_archived', message: 'Event is not archived' } };
+  });
+  await section(page).getByRole('button', { name: 'Restaurar evento' }).click();
+
+  await expect(section(page).getByRole('button', { name: 'Archivar evento' })).toBeVisible();
+  await expect(main(page).getByRole('button', { name: 'Guardar cambios' })).toBeVisible();
+  await expect(main(page)).not.toContainText('Restáuralo abajo');
+  await expect(main(page).getByRole('alert')).toHaveCount(0);
+  await expect(page.getByText('Event is not archived')).toHaveCount(0);
 });
 
 test('a delete whose answer was lost says it may be gone and shows the list', async ({ page }) => {

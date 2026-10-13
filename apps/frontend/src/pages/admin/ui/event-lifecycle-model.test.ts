@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   blockerList,
+  deleteAvailability,
   deleteFailureMessage,
   deleteUnavailableReason,
   listNotice,
@@ -26,6 +27,34 @@ describe('blockerList', () => {
     ).toBe(
       'actividades, pases, inscripciones, check-ins, historial de cambios del catálogo e historial de inscripciones',
     );
+  });
+});
+
+describe('deleteAvailability', () => {
+  it('allows the delete when the event is known to be empty', () => {
+    expect(deleteAvailability([], false)).toEqual({ kind: 'available' });
+  });
+
+  it('lets the API decide when emptiness is not known', () => {
+    expect(deleteAvailability(null, false)).toEqual({ kind: 'unknown' });
+  });
+
+  it('blocks the delete when the event has data', () => {
+    expect(deleteAvailability(['activities'], false)).toEqual({
+      kind: 'blocked',
+      reason: deleteUnavailableReason(['activities']),
+    });
+  });
+
+  it('blocks the delete after a refusal even when no known blocker was named', () => {
+    expect(deleteAvailability([], true)).toEqual({
+      kind: 'blocked',
+      reason: deleteUnavailableReason([]),
+    });
+    expect(deleteAvailability(null, true)).toEqual({
+      kind: 'blocked',
+      reason: deleteUnavailableReason([]),
+    });
   });
 });
 

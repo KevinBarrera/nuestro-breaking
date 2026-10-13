@@ -16,10 +16,10 @@ import {
   archiveConsequences,
   archivedListNotice,
   archiveHint,
+  deleteAvailability,
   deleteAvailableHint,
   deletedNotice,
   deleteFailureMessage,
-  deleteUnavailableReason,
   deleteUnknownHint,
   deleteUnknownNotice,
   restoreHint,
@@ -35,8 +35,9 @@ type EventLifecycleSectionProps = {
   onRestored: (event: AdminEvent) => void;
   // A delete was refused with `event_not_empty`.
   onNotEmpty: (blockers: EventDeleteBlocker[]) => void;
-  // The event changed state elsewhere (archived or restored meanwhile): read it again.
-  onStale: () => void;
+  // The event changed state elsewhere (archived or restored meanwhile), or an answer was lost:
+  // read it again. The page keeps `message` across the reload, which remounts this section.
+  onStale: (message?: string) => void;
 };
 
 type Dialog = 'archive' | 'delete' | null;
@@ -58,7 +59,10 @@ export function EventLifecycleSection({
   const [pending, setPending] = useState(false);
   const [dialogError, setDialogError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-  const deletable = deleteBlockers === null || deleteBlockers.length === 0;
+  // A delete was refused with `event_not_empty`, whatever blockers it named.
+  const [refused, setRefused] = useState(false);
+  const availability = deleteAvailability(deleteBlockers, refused);
+  const deletable = availability.kind !== 'blocked';
 
   const toList = (notice: string) => void navigate(routes.admin, { state: { notice } });
 
@@ -89,8 +93,7 @@ export function EventLifecycleSection({
       if (failure.kind === 'unknown') {
         // It may have been archived: read the event again to show its real state.
         setDialog(null);
-        setMessage('No pudimos confirmar si el evento se archivó. Revisamos su estado de nuevo.');
-        onStale();
+        onStale('No pudimos confirmar si el evento se archivó. Revisamos su estado de nuevo.');
         return;
       }
       setDialogError(eventFailureMessage(failure));
@@ -126,6 +129,7 @@ export function EventLifecycleSection({
       if (failure.kind === 'not_empty') {
         // The button turns into the design's disabled state, with the reason next to it.
         setDialog(null);
+        setRefused(true);
         onNotEmpty(failure.blockers);
         heading.current?.focus();
         return;
@@ -134,11 +138,12 @@ export function EventLifecycleSection({
     }
   }
 
-  const deleteHint = !deletable
-    ? deleteUnavailableReason(deleteBlockers ?? [])
-    : deleteBlockers === null
-      ? deleteUnknownHint
-      : deleteAvailableHint;
+  const deleteHint =
+    availability.kind === 'blocked'
+      ? availability.reason
+      : availability.kind === 'unknown'
+        ? deleteUnknownHint
+        : deleteAvailableHint;
 
   return (
     <section aria-labelledby={headingId} className={`${styles.card} space-y-5 sm:p-8`}>
@@ -219,7 +224,7 @@ export function EventLifecycleSection({
       {dialog === 'delete' && (
         <DeleteDialog
           event={event}
-          knownEmpty={deleteBlockers !== null}
+          knownEmpty={availability.kind === 'available'}
           isPending={pending}
           error={dialogError}
           onClose={close}

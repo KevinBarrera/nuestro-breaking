@@ -29,6 +29,20 @@ export const blockerList = (blockers: EventDeleteBlocker[]) =>
 export const deleteUnavailableReason = (blockers: EventDeleteBlocker[]) =>
   `No disponible: este evento ya tiene ${blockers.length > 0 ? blockerList(blockers) : 'datos'}. Solo se elimina un evento vacío, por ejemplo uno creado por error. Para quitarlo de la operación, archívalo.`;
 
+// Whether "Eliminar evento" works. A `409 event_not_empty` always means it does not, even when
+// the refusal named only kinds this panel does not know (then the reason says "datos").
+export type DeleteAvailability =
+  { kind: 'available' } | { kind: 'unknown' } | { kind: 'blocked'; reason: string };
+
+export function deleteAvailability(
+  blockers: EventDeleteBlocker[] | null,
+  refused: boolean,
+): DeleteAvailability {
+  if (refused || (blockers !== null && blockers.length > 0))
+    return { kind: 'blocked', reason: deleteUnavailableReason(blockers ?? []) };
+  return blockers === null ? { kind: 'unknown' } : { kind: 'available' };
+}
+
 export const deleteAvailableHint =
   'Solo para un evento vacío, por ejemplo uno creado por error. No se puede deshacer.';
 

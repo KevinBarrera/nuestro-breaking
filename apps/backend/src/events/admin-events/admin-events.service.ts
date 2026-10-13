@@ -202,7 +202,8 @@ export class AdminEventsService {
    * Deletes an empty event (#213 D7). The row lock also blocks new child rows, since their foreign
    * key checks wait for it, so the emptiness check holds until commit. `confirmSlug` must equal the
    * slug exactly. Archived events can be deleted too. The event's venue links go, and so do venues
-   * no other event uses; event-scoped `user_roles` go as well (they have no foreign key). The
+   * no other event uses; event-scoped `user_roles` go as well (they have no foreign key), and a
+   * member left without any role stays in the team as `no_access` (#213 D9). The
    * `deleted` audit row has no foreign key to the event, so it outlives it, and the slug is free.
    */
   async delete(eventId: string, confirmSlug: string, actor: EventActor): Promise<void> {

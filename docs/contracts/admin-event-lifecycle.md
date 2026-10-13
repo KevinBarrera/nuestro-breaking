@@ -133,7 +133,7 @@ An event is **empty** when it has none of the rows below. Each kind present is l
 When the event is empty, one transaction (with the event row locked, so nothing new can attach to it meanwhile):
 
 1. removes the event's `event_venues` links, and the venues no other event uses (including venues created with the venue API);
-2. removes the event-scoped roles (`user_roles` with `scope_type = 'event'` and this `scope_id`), so those admins lose access to it;
+2. removes the event-scoped roles (`user_roles` with `scope_type = 'event'` and this `scope_id`), so those admins lose access to it. A member whose only access was that event stays in the team as `no_access`, and a global admin gives them access again with an access change (#213 D9, [team member statuses](admin-auth-boundary.md#member-statuses));
 3. deletes the event and writes the `deleted` audit row.
 
 Archived events can be deleted too, if they are empty. Anything else stays **archive only**: payment and folio history must survive.
@@ -154,13 +154,12 @@ Table `event_admin_audit` (migration `0021`; migration `0022` adds the venue act
 
 ## Known gaps
 
-| Gap                                                                                                                                                              | Follow-up        |
-| ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
-| The admin panel screens for create, edit, archive, restore, delete and venues are still being built in #213.                                                     | #213 slice 3     |
-| Sales changes are still not audited (see the [event sales contract](event-sales.md#known-gaps)).                                                                 | Later hardening  |
-| Deleting an event removes its event-scoped roles. A member whose only access was that event drops out of the team list, and their email cannot be invited again. | Needs a decision |
-| Venues cannot be deleted, or attached to a second event, from the API. Two concurrent deletes of empty events sharing one venue can leave that venue unlinked.   | Later hardening  |
-| An event-scoped role added at the same moment as a delete (the team API does not lock the event) could outlive the event; it grants nothing.                     | Later hardening  |
+| Gap                                                                                                                                                            | Follow-up       |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------- |
+| The admin panel screens for create, edit, archive, restore, delete and venues are still being built in #213.                                                   | #213 slice 3    |
+| Sales changes are still not audited (see the [event sales contract](event-sales.md#known-gaps)).                                                               | Later hardening |
+| Venues cannot be deleted, or attached to a second event, from the API. Two concurrent deletes of empty events sharing one venue can leave that venue unlinked. | Later hardening |
+| An event-scoped role added at the same moment as a delete (the team API does not lock the event) could outlive the event; it grants nothing.                   | Later hardening |
 
 ## Cross-references
 

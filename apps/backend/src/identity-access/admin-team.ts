@@ -9,9 +9,16 @@ export type AccessChangeInput = { access: TeamAccessInput; reason: string | null
 export type ParseResult<T> =
   { ok: true; value: T } | { ok: false; fieldErrors: Record<string, 'invalid'> };
 
+/**
+ * `none` is a member with no active admin role left, for example because the only event they
+ * administered was deleted (#213 D9). A global admin gives them access again with an access change.
+ */
 export type TeamAccess =
-  { kind: 'global' } | { kind: 'events'; events: { id: string; name: string }[] };
-export type TeamMemberStatus = 'active' | 'pending' | 'deactivated';
+  | { kind: 'global' }
+  | { kind: 'events'; events: { id: string; name: string }[] }
+  | { kind: 'none' };
+/** `no_access` is an active (not deactivated) member whose access is `none`. */
+export type TeamMemberStatus = 'active' | 'pending' | 'no_access' | 'deactivated';
 export type TeamMember = {
   id: string;
   displayName: string;
@@ -25,14 +32,17 @@ export type TeamMember = {
   invitation: { expiresAt: string; expired: boolean } | null;
 };
 
-/** One active `admin` role of a user, with the event it scopes when it is event-scoped. */
+/**
+ * One active `admin` role of a team member, with the event it scopes when it is event-scoped. A
+ * member without any active admin role comes as one row whose `scopeType` is `null`.
+ */
 export type TeamRoleRow = {
   userId: string;
   displayName: string | null;
   email: string;
   active: boolean;
   hasPassword: boolean;
-  scopeType: string;
+  scopeType: string | null;
   eventId: string | null;
   eventName: string | null;
 };
@@ -132,7 +142,9 @@ export function parseActivationToken(value: unknown): string | null {
 
 /**
  * Groups role rows into one member per user. Global access wins over event roles; event lists are
- * sorted by name. Members are sorted by status (active, pending, deactivated), then by name.
+ * sorted by name; a member with neither (no active role, or only roles for events that no longer
+ * exist) has access `none`. Members are sorted by status (active, pending, no access,
+ * deactivated), then by name.
  */
 export function buildTeamMembers(
   roles: TeamRoleRow[],
@@ -150,17 +162,15 @@ export function buildTeamMembers(
       if (row.scopeType === 'event' && row.eventId) events.set(row.eventId, row.eventName ?? '');
     const access: TeamAccess = rows.some((row) => row.scopeType === 'global')
       ? { kind: 'global' }
-      : {
-          kind: 'events',
-          events: [...events.entries()]
-            .map(([eventId, name]) => ({ id: eventId, name }))
-            .sort((left, right) => left.name.localeCompare(right.name, 'es')),
-        };
-    const status: TeamMemberStatus = !first.active
-      ? 'deactivated'
-      : first.hasPassword
-        ? 'active'
-        : 'pending';
+      : events.size
+        ? {
+            kind: 'events',
+            events: [...events.entries()]
+              .map(([eventId, name]) => ({ id: eventId, name }))
+              .sort((left, right) => left.name.localeCompare(right.name, 'es')),
+          }
+        : { kind: 'none' };
+    const status = memberStatus(first.active, first.hasPassword, access.kind !== 'none');
     const expiresAt = first.active ? open.get(id) : undefined;
     return {
       id,
@@ -174,11 +184,27 @@ export function buildTeamMembers(
     };
   });
 
-  const order: Record<TeamMemberStatus, number> = { active: 0, pending: 1, deactivated: 2 };
+  const order: Record<TeamMemberStatus, number> = {
+    active: 0,
+    pending: 1,
+    no_access: 2,
+    deactivated: 3,
+  };
   return members.sort(
     (left, right) =>
       order[left.status] - order[right.status] ||
       left.displayName.localeCompare(right.displayName, 'es') ||
       left.email.localeCompare(right.email),
   );
+}
+
+/** Deactivation wins; then a member without access is `no_access`; then the password decides. */
+export function memberStatus(
+  active: boolean,
+  hasPassword: boolean,
+  hasAccess: boolean,
+): TeamMemberStatus {
+  if (!active) return 'deactivated';
+  if (!hasAccess) return 'no_access';
+  return hasPassword ? 'active' : 'pending';
 }

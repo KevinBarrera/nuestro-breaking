@@ -5,7 +5,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { and, eq, exists, inArray, isNotNull, isNull, ne, sql } from 'drizzle-orm';
+import { and, eq, exists, inArray, isNotNull, isNull, ne, or, sql } from 'drizzle-orm';
 import { DATABASE_CLIENT } from '@/database/database.constants';
 import {
   adminInvitations,
@@ -21,15 +21,17 @@ import { SessionAccessService } from './session-access.service';
 import { activationLink, INVITATION_TTL_MS, newInvitationToken } from './admin-invitation';
 import {
   buildTeamMembers,
+  memberStatus,
   type AccessChangeInput,
   type InviteInput,
   type TeamAccessInput,
   type TeamMember,
+  type TeamMemberStatus,
 } from './admin-team';
 
 export type TeamActor = { userId: string; sessionId: string };
 export type IssuedInvitation = { userId: string; activationUrl: string; expiresAt: string };
-export type MemberStatusResult = { status: 'active' | 'pending' | 'deactivated' };
+export type MemberStatusResult = { status: TeamMemberStatus };
 
 type Transaction = Parameters<Parameters<DatabaseService['db']['transaction']>[0]>[0];
 
@@ -63,6 +65,53 @@ function hasActiveGlobalAdminRole(tx: Transaction) {
   );
 }
 
+/**
+ * True for `users` rows that belong to the team: they hold or held an `admin` role (revoked ones
+ * included) or received an admin invitation. A member keeps their place when their last role goes,
+ * for example when the only event they administered is deleted and its roles with it (#213 D9).
+ * Judges and other users never invited as admins stay out.
+ */
+function isTeamMember(tx: Pick<DatabaseService['db'], 'select'>) {
+  return or(
+    exists(
+      tx
+        .select({ one: sql`1` })
+        .from(userRoles)
+        .where(and(eq(userRoles.userId, users.id), eq(userRoles.role, 'admin'))),
+    ),
+    exists(
+      tx
+        .select({ one: sql`1` })
+        .from(adminInvitations)
+        .where(eq(adminInvitations.userId, users.id)),
+    ),
+  );
+}
+
+/** True for `users` rows with an active admin role that grants something: global, or an existing event. */
+function hasAdminAccess(tx: Transaction) {
+  return exists(
+    tx
+      .select({ one: sql`1` })
+      .from(userRoles)
+      .where(
+        and(
+          eq(userRoles.userId, users.id),
+          activeAdminRole,
+          or(
+            eq(userRoles.scopeType, 'global'),
+            exists(
+              tx
+                .select({ one: sql`1` })
+                .from(events)
+                .where(and(eq(userRoles.scopeType, 'event'), eq(events.id, userRoles.scopeId))),
+            ),
+          ),
+        ),
+      ),
+  );
+}
+
 type ScopedRole = { scopeType: string; scopeId: string | null };
 const roleKey = (role: ScopedRole) => `${role.scopeType}:${role.scopeId ?? ''}`;
 
@@ -86,10 +135,10 @@ export class AdminTeamService {
         eventId: events.id,
         eventName: events.name,
       })
-      .from(userRoles)
-      .innerJoin(users, eq(users.id, userRoles.userId))
+      .from(users)
+      .leftJoin(userRoles, and(eq(userRoles.userId, users.id), activeAdminRole))
       .leftJoin(events, and(eq(userRoles.scopeType, 'event'), eq(events.id, userRoles.scopeId)))
-      .where(activeAdminRole);
+      .where(isTeamMember(this.db));
     const invitations = await this.db
       .select({ userId: adminInvitations.userId, expiresAt: adminInvitations.expiresAt })
       .from(adminInvitations)
@@ -155,6 +204,8 @@ export class AdminTeamService {
     return this.asActor(actor, async (tx) => {
       const member = await this.lockMember(tx, userId);
       if (!member.active) throw memberDeactivated();
+      // A link for someone without access would only set a password nobody can sign in with.
+      if (!member.hasAccess) throw conflict('member_no_access', 'Member has no access');
       const cancelled = await this.cancelOpen(tx, userId, now);
       const issued = await this.issue(tx, userId, actor, now);
       await tx.insert(adminTeamAudit).values({
@@ -296,7 +347,7 @@ export class AdminTeamService {
       const member = await this.lockMember(tx, userId);
       if (member.active) throw conflict('member_active', 'Member is already active');
       await tx.update(users).set({ active: true }).where(eq(users.id, userId));
-      const status = member.hasPassword ? 'active' : 'pending';
+      const status = memberStatus(true, member.hasPassword, member.hasAccess);
       await tx.insert(adminTeamAudit).values({
         action: 'reactivated',
         actorUserId: actor.userId,
@@ -338,7 +389,8 @@ export class AdminTeamService {
   }
 
   /**
-   * Locks the user row so concurrent changes for one member serialize. Lock order: team changes
+   * Locks the row of a team member (see `isTeamMember`, so a member without access is found too)
+   * so concurrent changes for one member serialize. Lock order: team changes
    * take the team advisory lock first; every path that touches a member and their invitations
    * (here, activation and `admin:bootstrap`) then locks the `users` row and `admin_invitations`
    * rows after it, so the paths cannot deadlock each other.
@@ -350,19 +402,10 @@ export class AdminTeamService {
         active: users.active,
         hasPassword: sql<boolean>`${users.passwordHash} IS NOT NULL`,
         globalAdmin: hasActiveGlobalAdminRole(tx).mapWith(Boolean),
+        hasAccess: hasAdminAccess(tx).mapWith(Boolean),
       })
       .from(users)
-      .where(
-        and(
-          eq(users.id, userId),
-          exists(
-            tx
-              .select({ one: sql`1` })
-              .from(userRoles)
-              .where(and(eq(userRoles.userId, users.id), activeAdminRole)),
-          ),
-        ),
-      )
+      .where(and(eq(users.id, userId), isTeamMember(tx)))
       .for('update');
     if (!member)
       throw new NotFoundException({
@@ -447,8 +490,9 @@ function memberDeactivated() {
   return conflict('member_deactivated', 'Member is deactivated');
 }
 
-/** The audited shape of a set of admin roles: global wins, event ids are sorted. */
-function accessOf(roles: ScopedRole[]): TeamAccessInput {
+/** The audited shape of a set of admin roles: global wins, event ids are sorted, none is `none`. */
+function accessOf(roles: ScopedRole[]): TeamAccessInput | { kind: 'none' } {
+  if (!roles.length) return { kind: 'none' };
   if (roles.some((role) => role.scopeType === 'global')) return { kind: 'global' };
   const eventIds = roles.flatMap((role) =>
     role.scopeType === 'event' && role.scopeId ? [role.scopeId] : [],

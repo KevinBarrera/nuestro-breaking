@@ -16,7 +16,13 @@ describe('readTeam', () => {
     expect(readTeam({ members: [member, global] })).toEqual([member, global]);
   });
 
+  it('reads members without access (#213 D9)', () => {
+    const none = { ...member, status: 'no_access', access: { kind: 'none' }, invitation: null };
+    expect(readTeam({ members: [none] })).toEqual([none]);
+  });
+
   it('rejects the whole list when one member is malformed', () => {
+    expect(readTeam({ members: [{ ...member, access: { kind: 'owner' } }] })).toBeNull();
     expect(readTeam({ members: [member, { ...member, status: 'unknown' }] })).toBeNull();
     expect(readTeam({ members: [{ ...member, access: { kind: 'events' } }] })).toBeNull();
     expect(readTeam({ members: [{ ...member, invitation: { expiresAt: 'soon' } }] })).toBeNull();

@@ -113,8 +113,9 @@ Only a **global administrator** can archive, restore or delete an event.
 - An archived event cannot be edited, and sales cannot be turned on until it is
   restored.
 - Deleting frees the slug for a new event. It also removes access granted only
-  for that event; a member whose only access was that event drops out of
-  **Equipo** and cannot be invited again with the same email.
+  for that event; a member whose only access was that event stays in
+  **Equipo** as "Sin acceso". Use **Cambiar acceso** to give them other
+  events (or all of them); inviting the same email again is refused.
 - Every create, edit, archive, restore and delete is recorded with who did it
   and when, and the record outlives a deleted event.
 

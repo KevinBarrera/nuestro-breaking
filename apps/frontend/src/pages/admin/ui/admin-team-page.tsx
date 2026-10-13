@@ -253,9 +253,11 @@ export function AdminTeamPage() {
           onConfirm={() =>
             void run(async () => {
               const status = await reactivateMember(member.id);
-              return status === 'pending'
-                ? `${name} está activo otra vez. Genera un enlace nuevo para que active su cuenta.`
-                : `${name} está activo otra vez.`;
+              if (status === 'pending')
+                return `${name} está activo otra vez. Genera un enlace nuevo para que active su cuenta.`;
+              if (status === 'no_access')
+                return `${name} está activo otra vez, pero sin acceso. Usa «Cambiar acceso» para darle eventos.`;
+              return `${name} está activo otra vez.`;
             }, false)
           }
         />

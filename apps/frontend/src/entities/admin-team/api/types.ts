@@ -1,9 +1,12 @@
 // Team management API shapes (#214); see docs/contracts/admin-auth-boundary.md.
 export type TeamEvent = { id: string; name: string };
 
-export type TeamAccess = { kind: 'global' } | { kind: 'events'; events: TeamEvent[] };
+// `none`: no admin access left, for example after the only event they managed was deleted
+// (#213 D9). Such a member has status `no_access` unless they are deactivated.
+export type TeamAccess =
+  { kind: 'global' } | { kind: 'events'; events: TeamEvent[] } | { kind: 'none' };
 
-export const teamMemberStatuses = ['active', 'pending', 'deactivated'] as const;
+export const teamMemberStatuses = ['active', 'pending', 'no_access', 'deactivated'] as const;
 export type TeamMemberStatus = (typeof teamMemberStatuses)[number];
 
 export type TeamInvitation = { expiresAt: string; expired: boolean };
@@ -32,6 +35,7 @@ export const teamErrorCodes = [
   'no_open_invitation',
   'email_in_use',
   'member_deactivated',
+  'member_no_access',
   'member_active',
   'self_change',
   'self_deactivation',

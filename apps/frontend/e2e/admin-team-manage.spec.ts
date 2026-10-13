@@ -3,8 +3,13 @@ import {
   coordinatorId,
   deactivatedId,
   firstEventId,
+  globalAdminSession,
   mockTeamApi,
+  noAccessId,
+  noAccessMember,
   pendingId,
+  secondEventId,
+  teamMembers,
 } from './support/team-mocks.ts';
 
 const api = (url: URL) => url.port === '3000';
@@ -245,4 +250,51 @@ test('cancels an invitation, reactivates and changes access', async ({ page }) =
   expect(changes.map((request) => request.postDataJSON() as unknown)).toEqual([
     { access: { kind: 'global' } },
   ]);
+});
+
+test('a member without access shows "Sin acceso" and gets events back', async ({ page }) => {
+  let restored = false;
+  await mockTeamApi(page, globalAdminSession, () => [
+    ...teamMembers(),
+    restored
+      ? {
+          ...noAccessMember,
+          status: 'active',
+          access: {
+            kind: 'events',
+            events: [{ id: secondEventId, name: 'Nuestro Breaking Noviembre 2026' }],
+          },
+        }
+      : noAccessMember,
+  ]);
+  const changes = await mockWrite(page, 'PUT', `/admin/team/${noAccessId}/access`, {
+    status: 200,
+    json: { changed: true },
+  });
+  await page.goto('/admin/team');
+
+  const row = member(page, 'Persona sin acceso');
+  await expect(row.getByRole('cell').nth(1)).toHaveText('Sin acceso');
+  await expect(row.getByRole('cell').nth(2)).toContainText('Sin acceso');
+  await expect(row.getByRole('cell').nth(2)).toContainText(
+    'Usa «Cambiar acceso» para darle eventos',
+  );
+  // No new link: it would only set a password that cannot sign in.
+  await expect(row.getByRole('button')).toHaveText(['Cambiar acceso', 'Desactivar']);
+
+  await row.getByRole('button', { name: 'Cambiar acceso de Persona sin acceso' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Cambiar acceso de Persona sin acceso' });
+  await dialog.getByRole('button', { name: 'Guardar acceso' }).click();
+  await expect(dialog.getByText('Elige al menos un evento.')).toBeVisible();
+  expect(changes).toHaveLength(0);
+
+  await dialog.getByRole('checkbox', { name: 'Nuestro Breaking Noviembre 2026' }).check();
+  restored = true;
+  await dialog.getByRole('button', { name: 'Guardar acceso' }).click();
+  await expect(page.getByRole('status')).toHaveText('Se cambió el acceso de Persona sin acceso.');
+  expect(changes.map((request) => request.postDataJSON() as unknown)).toEqual([
+    { access: { kind: 'events', eventIds: [secondEventId] } },
+  ]);
+  await expect(row).toContainText('Nuestro Breaking Noviembre 2026');
+  await expect(row).toContainText('Activo');
 });

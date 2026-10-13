@@ -17,6 +17,7 @@ const isInstant = (value: unknown): value is string =>
 function readAccess(value: unknown): TeamAccess | null {
   if (!isRecord(value)) return null;
   if (value.kind === 'global') return { kind: 'global' };
+  if (value.kind === 'none') return { kind: 'none' };
   if (value.kind !== 'events' || !Array.isArray(value.events)) return null;
   const events = value.events.map((event: unknown) =>
     isRecord(event) && typeof event.id === 'string' && typeof event.name === 'string'

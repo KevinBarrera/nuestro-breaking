@@ -1,6 +1,6 @@
 # Admin event lifecycle contract
 
-This contract describes how administrators create, edit, archive, restore and delete events, and manage their venues, through the admin API ([#213](https://github.com/KevinBarrera/nuestro-breaking/issues/213)). The backend endpoints below are implemented and covered by backend e2e tests. The admin panel screens for them arrive later in #213 (event list with "Crear evento", "Nuevo evento", "Datos del evento", archive and delete dialogs).
+This contract describes how administrators create, edit, archive, restore and delete events, and manage their venues, through the admin API ([#213](https://github.com/KevinBarrera/nuestro-breaking/issues/213)). The backend endpoints below are implemented and covered by backend e2e tests. The admin panel uses them from the event list ("Crear evento", Archivados with "Restaurar"), "Nuevo evento" and "Datos del evento" (edit, venues, and "Archivar o eliminar" with the archive and delete dialogs); see [frontend architecture](../frontend-architecture.md).
 
 ## Current answer
 
@@ -15,35 +15,23 @@ This contract describes how administrators create, edit, archive, restore and de
 
 All routes sit under `/admin/events` and use the [admin authentication boundary](admin-auth-boundary.md). Writes need a trusted `Origin` and the `X-CSRF-Token` header. Code: `apps/backend/src/events/admin-events/`, venues in `src/events/venue-admin/` (list: `src/events/check-in-event-list/`).
 
-| Method and path                                | Who                                 | Body                                                        | Success                            |
-| ---------------------------------------------- | ----------------------------------- | ----------------------------------------------------------- | ---------------------------------- |
-| `GET /admin/events`                            | Any admin (global or event-scoped)  | None. `?archived=true` also returns archived events.        | `200` list of event summaries      |
-| `GET /admin/events/:eventId/foundation`        | Admin or judge for the event        | None                                                        | `200` event, venues and activities |
-| `POST /admin/events`                           | Global admin                        | `{ name, slug, folioPrefix, timeZone, startsAt?, endsAt? }` | `201` event                        |
-| `PATCH /admin/events/:eventId`                 | Global admin or admin for the event | Any of `{ name, timeZone, startsAt, endsAt }`               | `200` event                        |
-| `POST /admin/events/:eventId/archive`          | Global admin                        | None                                                        | `201` event                        |
-| `POST /admin/events/:eventId/restore`          | Global admin                        | None                                                        | `201` event                        |
-| `DELETE /admin/events/:eventId`                | Global admin                        | `{ confirmSlug }`                                           | `204`, no body                     |
-| `POST /admin/events/:eventId/venues`           | Global admin or admin for the event | `{ name }`                                                  | `201` venue                        |
-| `PATCH /admin/events/:eventId/venues/:venueId` | Global admin or admin for the event | `{ name }`                                                  | `200` venue                        |
+| Method and path                                | Who                                 | Body                                                        | Success                                             |
+| ---------------------------------------------- | ----------------------------------- | ----------------------------------------------------------- | --------------------------------------------------- |
+| `GET /admin/events`                            | Any admin (global or event-scoped)  | None. `?archived=true` also returns archived events.        | `200` list of events                                |
+| `GET /admin/events/:eventId/foundation`        | Admin or judge for the event        | None                                                        | `200` event, venues, activities and delete blockers |
+| `POST /admin/events`                           | Global admin                        | `{ name, slug, folioPrefix, timeZone, startsAt?, endsAt? }` | `201` event                                         |
+| `PATCH /admin/events/:eventId`                 | Global admin or admin for the event | Any of `{ name, timeZone, startsAt, endsAt }`               | `200` event                                         |
+| `POST /admin/events/:eventId/archive`          | Global admin                        | None                                                        | `201` event                                         |
+| `POST /admin/events/:eventId/restore`          | Global admin                        | None                                                        | `201` event                                         |
+| `DELETE /admin/events/:eventId`                | Global admin                        | `{ confirmSlug }`                                           | `204`, no body                                      |
+| `POST /admin/events/:eventId/venues`           | Global admin or admin for the event | `{ name }`                                                  | `201` venue                                         |
+| `PATCH /admin/events/:eventId/venues/:venueId` | Global admin or admin for the event | `{ name }`                                                  | `200` venue                                         |
 
 A caller without the required role gets `401` and an audited `denied` row in `auth_audit`, the same as other admin routes. A missing or foreign `Origin`, or a missing CSRF token, is `403`. A path id that is not a UUID is `400`.
 
 ### Response shapes
 
-The list returns summaries ordered by name, limited to the events the caller may manage. Archived events are left out unless `?archived=true` (any other value is ignored):
-
-```json
-{
-  "id": "…",
-  "name": "Los más pesados",
-  "slug": "los-mas-pesados-2026",
-  "folioPrefix": "LMP",
-  "archivedAt": null
-}
-```
-
-`POST`, `PATCH`, archive and restore return the full event:
+The list, `POST`, `PATCH`, archive and restore all return the same event object. The list is ordered by name and limited to the events the caller may manage. Archived events are left out unless `?archived=true` (any other value is ignored). Every field is a column of the event row, so the list needs no extra queries; the admin event cards use the dates, time zone and `salesEnabled` (#213 T9):
 
 ```json
 {
@@ -59,7 +47,11 @@ The list returns summaries ordered by name, limited to the events the caller may
 }
 ```
 
+The admin panel's list reader requires these fields, so deploy the backend with or before the frontend that reads them. `salesEnabled` is only the switch. Whether sales are open right now also depends on the sales window, which the [event sales API](event-sales.md) reports as `state`.
+
 Dates are ISO 8601 in UTC, or `null`. The foundation `event` object carries the same fields plus `windowStatus`.
+
+The foundation also carries `deleteBlockers` (#213 T10): the same values, in the same order, as the `blockers` of `409 event_not_empty` (see [Deleting an empty event](#deleting-an-empty-event)), and `[]` when the event can be deleted. Datos del evento uses it to enable "Eliminar evento" or explain why it is disabled. It is read without a lock, so it is a hint: delete checks again. The admin panel treats a missing field as "not known" and lets the API decide.
 
 ## Venues
 
@@ -156,7 +148,6 @@ Table `event_admin_audit` (migration `0021`; migration `0022` adds the venue act
 
 | Gap                                                                                                                                                            | Follow-up       |
 | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------- |
-| The admin panel screens for create, edit, archive, restore, delete and venues are still being built in #213.                                                   | #213 slice 3    |
 | Sales changes are still not audited (see the [event sales contract](event-sales.md#known-gaps)).                                                               | Later hardening |
 | Venues cannot be deleted, or attached to a second event, from the API. Two concurrent deletes of empty events sharing one venue can leave that venue unlinked. | Later hardening |
 | An event-scoped role added at the same moment as a delete (the team API does not lock the event) could outlive the event; it grants nothing.                   | Later hardening |

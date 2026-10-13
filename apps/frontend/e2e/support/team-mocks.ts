@@ -1,4 +1,5 @@
 import type { Page } from '@playwright/test';
+import { eventSummary } from './event-mocks.ts';
 
 // Mocked team API for the Equipo screens (#214). Times are relative to the real clock,
 // because the screen computes "Vence en …" from it.
@@ -15,8 +16,8 @@ export const firstEventId = 'a1b2c3d4-1234-4567-89ab-123456789abc';
 export const secondEventId = 'b1b2c3d4-1234-4567-89ab-123456789abc';
 
 export const teamEvents = [
-  { id: firstEventId, name: 'Los más pesados - Preliminares - Noviembre 2026' },
-  { id: secondEventId, name: 'Nuestro Breaking Noviembre 2026' },
+  eventSummary(firstEventId, 'Los más pesados - Preliminares - Noviembre 2026'),
+  eventSummary(secondEventId, 'Nuestro Breaking Noviembre 2026'),
 ];
 
 export const teamMembers = () => [

@@ -1,4 +1,5 @@
 import type { Locator, Page } from '@playwright/test';
+import { archivedEvent, eventSummary } from './event-mocks.ts';
 import { teamMembers } from './team-mocks.ts';
 
 // Shared mocked admin API for specs that sweep every admin screen (contrast, targets, phone
@@ -18,9 +19,14 @@ export const adminScreens = [
   { name: 'Pases', path: `/admin/events/${eventId}/passes` },
   { name: 'Pase', path: `/admin/events/${eventId}/passes/${fullPassId}` },
   { name: 'Nuevo pase', path: `/admin/events/${eventId}/passes/new` },
+  { name: 'Datos del evento', path: `/admin/events/${eventId}/foundation` },
   // Team screens (#214): global admins only, outside any event.
   { name: 'Equipo', path: '/admin/team' },
   { name: 'Agregar administrador', path: '/admin/team/new' },
+  // The event list (#213): global admins see Crear evento and the Archivados toggle. Kept
+  // after the event screens, since sweeps use the first entry for the event selector.
+  { name: 'Eventos', path: '/admin' },
+  { name: 'Nuevo evento', path: '/admin/events/new' },
 ] as const;
 
 export type AdminScreenName = (typeof adminScreens)[number]['name'];
@@ -110,17 +116,27 @@ const passTypes = [
   },
 ];
 
+// Also Datos del evento (#213 T9), which reads the full event and its venues.
 const foundation = {
   event: {
     id: eventId,
     name: 'Encuentro del barrio',
+    slug: 'encuentro-del-barrio-con-nombre-largo-para-pantallas-angostas',
+    folioPrefix: 'EB',
     timeZone: 'America/Mexico_City',
     startsAt: '2026-11-21T15:00:00.000Z',
     endsAt: '2026-11-23T05:00:00.000Z',
     windowStatus: 'bounded',
+    salesEnabled: true,
+    archivedAt: null,
   },
-  venues: [{ id: venueId, name: 'Centro cultural' }],
+  venues: [
+    { id: venueId, name: 'Centro cultural' },
+    { id: 'e2b2c3d4-1234-4567-89ab-123456789abc', name: 'Foro al aire libre con nombre largo' },
+  ],
   activities: [],
+  // Empty, so "Eliminar evento" is enabled and its dialog can be opened (#213 T10).
+  deleteBlockers: [],
   deferredFields: [],
 };
 
@@ -158,7 +174,6 @@ export async function mockAdminApi(page: Page) {
       { user: { id: 'admin', roles: ['admin'], globalAdmin: true } },
     ],
     [(url) => url.pathname === '/admin/team', { members: teamMembers() }],
-    [(url) => url.pathname === '/admin/events', [{ id: eventId, name: 'Encuentro del barrio' }]],
     [(url) => url.pathname.endsWith('/foundation'), foundation],
     [(url) => url.pathname.endsWith('/activities'), activities],
     [(url) => url.pathname.endsWith('/pass-types'), passTypes],
@@ -173,6 +188,18 @@ export async function mockAdminApi(page: Page) {
       (url) => api(url) && matches(url),
       (route) => route.fulfill({ json }),
     );
+  // Archived events only with `?archived=true`, as the backend answers.
+  const events = [eventSummary(eventId, 'Encuentro del barrio', { folioPrefix: 'EB' })];
+  await page.route(
+    (url) => api(url) && url.pathname === '/admin/events',
+    (route) =>
+      route.fulfill({
+        json:
+          new URL(route.request().url()).searchParams.get('archived') === 'true'
+            ? [...events, archivedEvent]
+            : events,
+      }),
+  );
 }
 
 export async function useTheme(page: Page, theme: (typeof themes)[number]) {
@@ -184,6 +211,27 @@ const accessControls = (page: Page) =>
 
 // Puts each screen in a state that shows its main interactive controls.
 export async function revealControls(page: Page, name: AdminScreenName) {
+  if (name === 'Eventos') {
+    await page.getByRole('button', { name: /^Archivados/ }).click();
+    await page.getByRole('button', { name: /^Restaurar / }).waitFor();
+  }
+  // An empty submit shows the field errors, so their text is measured too.
+  if (name === 'Nuevo evento') {
+    const form = page.getByRole('form', { name: 'Nuevo evento' });
+    await form.getByRole('button', { name: 'Crear evento' }).click();
+    await form.getByText('Escribe el nombre del evento.').waitFor();
+  }
+  // The add-venue form with its field error, and an edit so both form buttons are enabled.
+  if (name === 'Datos del evento') {
+    await page
+      .getByRole('form', { name: 'Datos del evento' })
+      .getByLabel('Nombre del evento')
+      .fill('Encuentro del barrio 2026');
+    const venues = page.getByRole('region', { name: 'Sedes' });
+    await venues.getByRole('button', { name: 'Agregar sede' }).click();
+    await venues.getByRole('button', { name: 'Agregar', exact: true }).click();
+    await venues.getByText('Escribe el nombre de la sede.').waitFor();
+  }
   if (name === 'Check-in') {
     await page.getByRole('textbox', { name: 'Buscar inscripción' }).fill('Luz');
     await page.getByRole('button', { name: 'Buscar' }).click();
@@ -277,6 +325,33 @@ export const adminDialogs: {
         .getByRole('link', { name: 'Pases' })
         .click();
       return page.getByRole('alertdialog', { name: '¿Salir sin guardar?' });
+    },
+  },
+  {
+    name: 'archive event',
+    screen: 'Datos del evento',
+    open: async (page) => {
+      await page
+        .getByRole('region', { name: 'Archivar o eliminar' })
+        .getByRole('button', { name: 'Archivar evento' })
+        .click();
+      return page.getByRole('alertdialog', { name: /^¿Archivar Encuentro del barrio/ });
+    },
+  },
+  {
+    name: 'delete empty event',
+    screen: 'Datos del evento',
+    open: async (page) => {
+      await page
+        .getByRole('region', { name: 'Archivar o eliminar' })
+        .getByRole('button', { name: 'Eliminar evento' })
+        .click();
+      const dialog = page.getByRole('alertdialog', { name: /^¿Eliminar Encuentro del barrio/ });
+      // The typed address enables "Eliminar para siempre", so its contrast is measured.
+      await dialog
+        .getByLabel('Para confirmar, escribe la dirección del evento')
+        .fill(foundation.event.slug);
+      return dialog;
     },
   },
   {

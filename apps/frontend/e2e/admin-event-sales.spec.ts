@@ -1,4 +1,5 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
+import { eventSummary } from './support/event-mocks.ts';
 
 // "Venta en línea" on the event overview. Reason copy, date conversion and window validation
 // are covered by `sales-model.test.ts`; these specs check the rendered states and the PUT.
@@ -41,7 +42,7 @@ async function mockOverview(page: Page, initial: unknown, put?: (route: Route) =
         json: { user: { id: 'admin', roles: ['admin'] } },
       }),
   );
-  await json('/admin/events', [{ id: eventId, name: 'Encuentro del barrio' }]);
+  await json('/admin/events', [eventSummary(eventId, 'Encuentro del barrio')]);
   await json(`/admin/events/${eventId}/activities`, []);
   await json(`/admin/events/${eventId}/pass-types`, []);
   await json(`/admin/events/${eventId}/foundation`, {

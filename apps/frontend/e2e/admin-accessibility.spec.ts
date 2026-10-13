@@ -148,9 +148,9 @@ for (const screen of adminScreens) {
     });
     const tagged = (prefix: string) => targets.filter((target) => target.name.startsWith(prefix));
     // Guards against a vacuous pass: the sweep must see the sampled control kinds.
-    // Outside an event the side navigation links only Resumen and Equipo.
+    // Outside an event the shell links only the brand, Todos los eventos and Equipo.
     const eventScreen = screen.path.startsWith('/admin/events/');
-    expect(tagged('a ').length).toBeGreaterThanOrEqual(eventScreen ? 4 : 2);
+    expect(tagged('a ').length).toBeGreaterThanOrEqual(eventScreen ? 5 : 3);
     expect(tagged('button ').length).toBeGreaterThanOrEqual(2);
     // Every event screen has the topbar event select (the team screens sit outside any event);
     // a pass screen adds three radio segments per access row, measured through their label.

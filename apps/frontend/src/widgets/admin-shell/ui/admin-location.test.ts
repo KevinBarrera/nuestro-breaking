@@ -16,6 +16,7 @@ describe('readAdminLocation', () => {
     expect(readAdminLocation(`${base}/activities/extra`)).toEqual({});
     expect(readAdminLocation(`${base}/passes-archive`)).toEqual({});
     expect(readAdminLocation('/admin')).toEqual({});
+    expect(readAdminLocation('/admin/events/new')).toEqual({});
   });
 });
 

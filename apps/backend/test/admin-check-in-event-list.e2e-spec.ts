@@ -44,13 +44,17 @@ describe('GET /admin/events (e2e)', () => {
     const [second, first] = await client<{ id: string; name: string }[]>`
       INSERT INTO events (organization_id, name, time_zone)
       VALUES (${organizationId}, 'Zeta', 'Etc/UTC'), (${organizationId}, 'Alpha', 'Etc/UTC')
-      RETURNING id, name, slug, folio_prefix AS "folioPrefix", archived_at AS "archivedAt"`;
+      RETURNING id, name, slug, folio_prefix AS "folioPrefix", archived_at AS "archivedAt",
+        time_zone AS "timeZone", starts_at AS "startsAt", ends_at AS "endsAt",
+        sales_enabled AS "salesEnabled"`;
     const [{ id: otherOrganization }] = await client<{ id: string }[]>`
       INSERT INTO organizations (name) VALUES ('Other organizer') RETURNING id`;
     const [third] = await client<{ id: string; name: string }[]>`
       INSERT INTO events (organization_id, name, time_zone)
       VALUES (${otherOrganization}, 'Beta', 'Etc/UTC')
-      RETURNING id, name, slug, folio_prefix AS "folioPrefix", archived_at AS "archivedAt"`;
+      RETURNING id, name, slug, folio_prefix AS "folioPrefix", archived_at AS "archivedAt",
+        time_zone AS "timeZone", starts_at AS "startsAt", ends_at AS "endsAt",
+        sales_enabled AS "salesEnabled"`;
     return { first, second, third, organizationId };
   }
 

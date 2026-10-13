@@ -18,6 +18,8 @@ const nestedSections = new Set<EventSection>(['passes']);
 export type AdminLocation = { eventId?: string; section?: EventSection };
 
 export function readAdminLocation(pathname: string): AdminLocation {
+  // Nuevo evento sits under `/admin/events/` but is not an event.
+  if (matchPath(routes.adminEventNew, pathname)) return {};
   for (const [section, pattern] of Object.entries(sectionRoutes) as [EventSection, string][]) {
     const match = matchPath({ path: pattern, end: !nestedSections.has(section) }, pathname);
     if (match?.params.eventId) return { eventId: match.params.eventId, section };

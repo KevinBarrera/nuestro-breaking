@@ -1,21 +1,8 @@
 import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { type SQL, and, eq, inArray, notExists, sql } from 'drizzle-orm';
-import type { AnyPgColumn, PgTable } from 'drizzle-orm/pg-core';
+import { and, eq, inArray, notExists, sql } from 'drizzle-orm';
 import { DATABASE_CLIENT } from '@/database/database.constants';
 import type { DatabaseService } from '@/database/database.service';
-import {
-  activities,
-  eventAdminAudit,
-  eventCatalogAudit,
-  eventCheckIns,
-  eventPassTypes,
-  eventRegistrations,
-  eventVenues,
-  events,
-  registrationOperationAudit,
-  userRoles,
-  venues,
-} from '@/database/schema';
+import { eventAdminAudit, eventVenues, events, userRoles, venues } from '@/database/schema';
 import { eventArchived } from '@/events/shared/event-archived';
 import { invalidEvent } from './admin-event-errors';
 import {
@@ -24,6 +11,7 @@ import {
   eventWindowErrors,
 } from './admin-event-input';
 import { type AdminEvent, adminEventColumns, toAdminEvent } from './admin-event.read-model';
+import { deleteBlockers } from './event-delete-blockers';
 import { resolveEventOrganization } from './event-organization';
 import { isUniqueViolation } from './unique-violation';
 
@@ -39,22 +27,6 @@ const EDITABLE_FIELDS: Record<keyof UpdateEventInput, true> = {
   endsAt: true,
 };
 const EDITABLE = Object.keys(EDITABLE_FIELDS) as (keyof UpdateEventInput)[];
-
-/**
- * Every kind of row that makes an event non-empty (#213 D7), mapped to the table and column that
- * hold its `event_id`. The keys, in this order, are the `blockers` of `409 event_not_empty`.
- */
-const DELETE_BLOCKERS = {
-  activities: [activities, activities.eventId],
-  passTypes: [eventPassTypes, eventPassTypes.eventId],
-  registrations: [eventRegistrations, eventRegistrations.eventId],
-  checkIns: [eventCheckIns, eventCheckIns.eventId],
-  catalogAudit: [eventCatalogAudit, eventCatalogAudit.eventId],
-  registrationAudit: [registrationOperationAudit, registrationOperationAudit.eventId],
-} satisfies Record<string, [PgTable, AnyPgColumn]>;
-
-/** What keeps an event from being deleted, as answered in `409 event_not_empty`. */
-export type EventDeleteBlocker = keyof typeof DELETE_BLOCKERS;
 
 const SLUG_CONSTRAINT = 'events_slug_uq';
 
@@ -276,19 +248,6 @@ async function lockEvent(tx: Transaction, eventId: string) {
 function sameValue(a: string | Date | null, b: string | Date | null): boolean {
   if (a instanceof Date && b instanceof Date) return a.getTime() === b.getTime();
   return a === b;
-}
-
-/** The blockers present for the event, in the order of `DELETE_BLOCKERS`. */
-async function deleteBlockers(tx: Transaction, eventId: string): Promise<EventDeleteBlocker[]> {
-  const kinds = Object.keys(DELETE_BLOCKERS) as EventDeleteBlocker[];
-  const checks = Object.fromEntries(
-    kinds.map((kind) => {
-      const [table, column] = DELETE_BLOCKERS[kind];
-      return [kind, sql<boolean>`exists (select 1 from ${table} where ${column} = ${eventId})`];
-    }),
-  ) as Record<EventDeleteBlocker, SQL<boolean>>;
-  const [row] = await tx.select(checks).from(events).where(eq(events.id, eventId));
-  return kinds.filter((kind) => row[kind]);
 }
 
 /**

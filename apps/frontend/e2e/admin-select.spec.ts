@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { adminScreens, eventId, mockAdminApi, revealControls } from './support/admin-mocks.ts';
 import { exposedNativeSelects, selectTrigger } from './support/select.ts';
+import { eventSummary } from './support/event-mocks.ts';
 
 const otherId = 'b1b2c3d4-1234-4567-89ab-123456789abc';
 const api = (url: URL) => url.port === '3000';
@@ -12,8 +13,8 @@ async function mockTwoEvents(page: Page) {
     (route) =>
       route.fulfill({
         json: [
-          { id: eventId, name: 'Encuentro del barrio' },
-          { id: otherId, name: 'Batalla de otoño' },
+          eventSummary(eventId, 'Encuentro del barrio'),
+          eventSummary(otherId, 'Batalla de otoño'),
         ],
       }),
   );

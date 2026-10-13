@@ -1,6 +1,7 @@
 import { routes } from '@/shared/config';
 import { Link } from 'react-router';
 import { eventSectionPath, type AdminLocation, type EventSection } from './admin-location';
+import { eventListRequest } from './event-list-request';
 
 type NavItem = { label: string; section?: EventSection; upcoming?: boolean };
 
@@ -21,6 +22,8 @@ const groups: { title: string; items: NavItem[] }[] = [
       { label: 'Pases', section: 'passes' },
     ],
   },
+  // Datos del evento (#213 D2), the former "Fundamentos del evento" route.
+  { title: 'EVENTO', items: [{ label: 'Datos del evento', section: 'foundation' }] },
 ];
 
 const itemClass =
@@ -28,6 +31,7 @@ const itemClass =
 
 type AdminSideNavProps = {
   location: AdminLocation;
+  // The event list landing (`/admin`, `/admin/events/new`) marks Todos los eventos current.
   onLanding: boolean;
   // Equipo (#214) is only for global admins; `onTeam` marks it current on its screens.
   showTeam: boolean;
@@ -38,14 +42,12 @@ const linkClass = `${itemClass} font-medium text-fg hover:bg-row aria-[current=p
 
 export function AdminSideNav({ location, onLanding, showTeam, onTeam }: AdminSideNavProps) {
   function renderItem(item: NavItem) {
-    // Without an event in the URL, Resumen falls back to the event list landing.
-    const overview = item.section === 'overview';
+    // Event sections, Resumen included, need an event in the URL; the event list itself is
+    // "Todos los eventos" at the top.
     const target =
       item.section && location.eventId
         ? eventSectionPath(location.eventId, item.section)
-        : overview
-          ? routes.admin
-          : undefined;
+        : undefined;
     if (!target)
       return (
         <a
@@ -59,9 +61,12 @@ export function AdminSideNav({ location, onLanding, showTeam, onTeam }: AdminSid
           )}
         </a>
       );
-    const active = item.section === location.section || (overview && onLanding);
     return (
-      <Link to={target} aria-current={active ? 'page' : undefined} className={linkClass}>
+      <Link
+        to={target}
+        aria-current={item.section === location.section ? 'page' : undefined}
+        className={linkClass}
+      >
         {item.label}
       </Link>
     );
@@ -72,6 +77,20 @@ export function AdminSideNav({ location, onLanding, showTeam, onTeam }: AdminSid
       aria-label="Navegación administrativa"
       className="border-b border-sidenav-line bg-sidenav px-4 py-5 md:w-64 md:shrink-0 md:overflow-y-auto md:border-r md:border-b-0 md:py-6"
     >
+      {/* The way back to the event list (Crear evento, Archivados) from any screen, for every
+          admin; its state keeps the one-event redirect from bouncing them straight back. */}
+      <ul className="mb-4 flex flex-col gap-1">
+        <li>
+          <Link
+            to={routes.admin}
+            state={eventListRequest}
+            aria-current={onLanding ? 'page' : undefined}
+            className={linkClass}
+          >
+            Todos los eventos
+          </Link>
+        </li>
+      </ul>
       {groups.map((group) => (
         <div key={group.title} className="mb-4 last:mb-0">
           <p className="px-3 pb-2 text-xs font-bold tracking-[0.08em] text-muted">{group.title}</p>

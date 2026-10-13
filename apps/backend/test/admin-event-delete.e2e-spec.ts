@@ -64,6 +64,12 @@ describe('admin event delete (e2e)', () => {
       .digest('hex'),
   });
   const server = () => request(app.getHttpServer());
+  // The foundation read tells Datos del evento up front whether the event can be deleted.
+  const foundationBlockers = async (cookie: string, eventId: string) =>
+    (
+      (await server().get(`/admin/events/${eventId}/foundation`).set(headers(cookie)).expect(200))
+        .body as { deleteBlockers: string[] }
+    ).deleteBlockers;
   const remove = (cookie: string, eventId: string, body: unknown = { confirmSlug: SLUG }) =>
     server()
       .delete(`/admin/events/${eventId}`)
@@ -103,6 +109,7 @@ describe('admin event delete (e2e)', () => {
       INSERT INTO events (organization_id, name, time_zone, slug, folio_prefix)
       VALUES (${ids.org}, 'Otro', 'UTC', 'otro', 'OTR') RETURNING id`;
     const otherRole = await session('judge', 'event', otherEvent);
+    expect(await foundationBlockers(cookie, ids.event)).toEqual([]);
 
     const response = await remove(cookie, ids.event).expect(204);
 
@@ -250,6 +257,7 @@ describe('admin event delete (e2e)', () => {
       const ids = await fixture();
       await seed(ids);
       const { cookie } = await globalAdmin();
+      expect(await foundationBlockers(cookie, ids.event)).toEqual(expect.arrayContaining([kind]));
 
       const response = await remove(cookie, ids.event).expect(409);
 
@@ -271,17 +279,19 @@ describe('admin event delete (e2e)', () => {
       const ids = await fixture();
       for (const [, seed] of [...blockers].reverse()) await seed(ids);
       const { cookie } = await globalAdmin();
-
-      const response = await remove(cookie, ids.event).expect(409);
-
-      expect((response.body as { blockers: string[] }).blockers).toEqual([
+      const all = [
         'activities',
         'passTypes',
         'registrations',
         'checkIns',
         'catalogAudit',
         'registrationAudit',
-      ]);
+      ];
+      expect(await foundationBlockers(cookie, ids.event)).toEqual(all);
+
+      const response = await remove(cookie, ids.event).expect(409);
+
+      expect((response.body as { blockers: string[] }).blockers).toEqual(all);
       expect(await eventCount(ids.event)).toBe(1);
     });
   });

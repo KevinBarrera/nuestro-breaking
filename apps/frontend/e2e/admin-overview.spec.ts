@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { chooseOption, expectSelected, selectTrigger } from './support/select.ts';
+import { eventSummary } from './support/event-mocks.ts';
 
 const eventId = 'a1b2c3d4-1234-4567-89ab-123456789abc';
 const otherId = 'b1b2c3d4-1234-4567-89ab-123456789abc';
@@ -12,8 +13,8 @@ const overviewPath = `/admin/events/${eventId}`;
 const api = (url: URL) => url.port === '3000';
 
 const events = [
-  { id: eventId, name: 'Encuentro del barrio' },
-  { id: otherId, name: 'Batalla de otoño' },
+  eventSummary(eventId, 'Encuentro del barrio'),
+  eventSummary(otherId, 'Batalla de otoño'),
 ];
 
 const activity = (id: string, kind: string, name: string, status = 'active') => ({

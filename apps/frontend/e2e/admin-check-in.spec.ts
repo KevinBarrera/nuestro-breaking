@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { eventSummary } from './support/event-mocks.ts';
 
 const eventId = 'a1b2c3d4-1234-4567-89ab-123456789abc';
 const otherEvent = 'b1b2c3d4-1234-4567-89ab-123456789abc';
@@ -15,8 +16,8 @@ const participant = (checkedInAt: string | null = null) => ({
   ],
 });
 const events = [
-  { id: eventId, name: 'Encuentro del barrio' },
-  { id: otherEvent, name: 'Batalla de otoño' },
+  eventSummary(eventId, 'Encuentro del barrio'),
+  eventSummary(otherEvent, 'Batalla de otoño'),
 ];
 const uuidPattern = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
 const results = (rows = [participant()]) => ({

@@ -14,6 +14,7 @@ const ruleMessages: Record<TeamErrorCode, string> = {
   self_deactivation: 'No puedes desactivar tu propio acceso.',
   last_global_admin: 'Debe quedar al menos una persona activa con acceso a todos los eventos.',
   member_deactivated: 'Esta persona está desactivada. Reactívala primero.',
+  member_no_access: 'Esta persona no tiene acceso. Cambia su acceso primero.',
   member_active: 'Esta persona ya está activa. Recarga la lista.',
   member_not_found: 'No encontramos a esta persona en el equipo. Recarga la lista.',
   no_open_invitation: 'Esta persona ya no tiene una invitación abierta. Recarga la lista.',
@@ -45,10 +46,11 @@ export function accessInput(draft: AccessDraft): TeamAccessInput {
     : { kind: 'events', eventIds: draft.eventIds };
 }
 
+// A member without access starts with no event chosen, so the dialog asks for one.
 export function accessDraftFrom(access: TeamAccess): AccessDraft {
-  return access.kind === 'global'
-    ? { scope: 'global', eventIds: [] }
-    : { scope: 'events', eventIds: access.events.map((event) => event.id) };
+  if (access.kind === 'global') return { scope: 'global', eventIds: [] };
+  if (access.kind === 'none') return { scope: 'events', eventIds: [] };
+  return { scope: 'events', eventIds: access.events.map((event) => event.id) };
 }
 
 export type InviteDraft = { displayName: string; email: string; access: AccessDraft };

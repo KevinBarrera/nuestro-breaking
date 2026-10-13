@@ -27,6 +27,8 @@ import { PublicCatalogController } from './public-catalog/public-catalog.control
 import { PublicCatalogService } from './public-catalog/public-catalog.service';
 import { PublicRegistrationController } from './public-registration/public-registration.controller';
 import { PublicRegistrationService } from './public-registration/public-registration.service';
+import { VenueAdminController } from './venue-admin/venue-admin.controller';
+import { VenueAdminService } from './venue-admin/venue-admin.service';
 
 @Module({
   imports: [DatabaseModule, IdentityAccessModule, PublicRateLimitModule],
@@ -43,6 +45,7 @@ import { PublicRegistrationService } from './public-registration/public-registra
     EventSalesController,
     PublicCatalogController,
     PublicRegistrationController,
+    VenueAdminController,
   ],
   providers: [
     AdminEventsService,
@@ -58,6 +61,7 @@ import { PublicRegistrationService } from './public-registration/public-registra
     EventSalesService,
     PublicCatalogService,
     PublicRegistrationService,
+    VenueAdminService,
   ],
 })
 export class EventsModule {}

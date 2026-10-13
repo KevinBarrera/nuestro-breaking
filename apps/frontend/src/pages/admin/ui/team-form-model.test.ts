@@ -66,6 +66,8 @@ describe('access drafts', () => {
       scope: 'events',
       eventIds: ['a'],
     });
+    // Without access, the dialog starts with no event chosen and asks for one.
+    expect(accessDraftFrom({ kind: 'none' })).toEqual({ scope: 'events', eventIds: [] });
   });
 });
 

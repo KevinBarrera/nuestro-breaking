@@ -1,13 +1,60 @@
-import { ConflictException, Inject, Injectable } from '@nestjs/common';
-import { eq } from 'drizzle-orm';
+import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { type SQL, and, eq, inArray, notExists, sql } from 'drizzle-orm';
+import type { AnyPgColumn, PgTable } from 'drizzle-orm/pg-core';
 import { DATABASE_CLIENT } from '@/database/database.constants';
 import type { DatabaseService } from '@/database/database.service';
-import { eventAdminAudit, events } from '@/database/schema';
-import type { CreateEventInput } from './admin-event-input';
+import {
+  activities,
+  eventAdminAudit,
+  eventCatalogAudit,
+  eventCheckIns,
+  eventPassTypes,
+  eventRegistrations,
+  eventVenues,
+  events,
+  registrationOperationAudit,
+  userRoles,
+  venues,
+} from '@/database/schema';
+import { eventArchived } from '@/events/shared/event-archived';
+import { invalidEvent } from './admin-event-errors';
+import {
+  type CreateEventInput,
+  type UpdateEventInput,
+  eventWindowErrors,
+} from './admin-event-input';
 import { type AdminEvent, adminEventColumns, toAdminEvent } from './admin-event.read-model';
 import { resolveEventOrganization } from './event-organization';
+import { isUniqueViolation } from './unique-violation';
 
 export type EventActor = { userId: string; sessionId: string };
+type Transaction = Parameters<Parameters<DatabaseService['db']['transaction']>[0]>[0];
+
+// A record over every key of `UpdateEventInput`, so adding an editable field without listing it here
+// (or listing a field the input cannot carry) fails to compile.
+const EDITABLE_FIELDS: Record<keyof UpdateEventInput, true> = {
+  name: true,
+  timeZone: true,
+  startsAt: true,
+  endsAt: true,
+};
+const EDITABLE = Object.keys(EDITABLE_FIELDS) as (keyof UpdateEventInput)[];
+
+/**
+ * Every kind of row that makes an event non-empty (#213 D7), mapped to the table and column that
+ * hold its `event_id`. The keys, in this order, are the `blockers` of `409 event_not_empty`.
+ */
+const DELETE_BLOCKERS = {
+  activities: [activities, activities.eventId],
+  passTypes: [eventPassTypes, eventPassTypes.eventId],
+  registrations: [eventRegistrations, eventRegistrations.eventId],
+  checkIns: [eventCheckIns, eventCheckIns.eventId],
+  catalogAudit: [eventCatalogAudit, eventCatalogAudit.eventId],
+  registrationAudit: [registrationOperationAudit, registrationOperationAudit.eventId],
+} satisfies Record<string, [PgTable, AnyPgColumn]>;
+
+/** What keeps an event from being deleted, as answered in `409 event_not_empty`. */
+export type EventDeleteBlocker = keyof typeof DELETE_BLOCKERS;
 
 const SLUG_CONSTRAINT = 'events_slug_uq';
 
@@ -75,6 +122,198 @@ export class AdminEventsService {
       throw error;
     }
   }
+
+  /**
+   * Applies the supplied fields under a row lock. Dates are merged with the stored ones before the
+   * window check, so a single date can move as long as the pair stays valid. Archived events are
+   * refused with `409 event_archived` so their data stays as archived until restored. When nothing
+   * actually changes, the current event is returned and no audit row is written.
+   */
+  async update(eventId: string, input: UpdateEventInput, actor: EventActor): Promise<AdminEvent> {
+    return this.db.transaction(async (tx) => {
+      const current = await lockEvent(tx, eventId);
+      if (current.archivedAt) throw eventArchived();
+
+      const { name, timeZone, startsAt, endsAt } = current;
+      const next = { name, timeZone, startsAt, endsAt, ...input };
+      const windowErrors = eventWindowErrors(next.startsAt, next.endsAt);
+      if (Object.keys(windowErrors).length > 0) throw invalidEvent(windowErrors);
+
+      const changed = EDITABLE.filter((key) => !sameValue(current[key], next[key]));
+      if (changed.length === 0) return toAdminEvent(current);
+
+      const [row] = await tx
+        .update(events)
+        .set(Object.fromEntries(changed.map((key) => [key, next[key]])))
+        .where(eq(events.id, eventId))
+        .returning(adminEventColumns);
+      const before = toAdminEvent(current);
+      const after = toAdminEvent(row);
+      await this.audit(tx, after, 'updated', actor, {
+        before: Object.fromEntries(changed.map((key) => [key, before[key]])),
+        after: Object.fromEntries(changed.map((key) => [key, after[key]])),
+      });
+      return after;
+    });
+  }
+
+  /**
+   * Archives the event (#213 D6): sets `archived_at`, turns online sales off and keeps the sales
+   * window, so restoring and reopening sales starts from the same dates. The audit keeps the
+   * previous switch. Archiving an archived event is `409 event_archived`, like pass types.
+   */
+  async archive(eventId: string, actor: EventActor): Promise<AdminEvent> {
+    return this.db.transaction(async (tx) => {
+      const current = await lockEvent(tx, eventId);
+      if (current.archivedAt) throw eventArchived();
+      const [row] = await tx
+        .update(events)
+        .set({ archivedAt: sql`now()`, salesEnabled: false })
+        .where(eq(events.id, eventId))
+        .returning(adminEventColumns);
+      const event = toAdminEvent(row);
+      await this.audit(tx, event, 'archived', actor, { salesEnabled: current.salesEnabled });
+      return event;
+    });
+  }
+
+  /**
+   * Clears `archived_at` and leaves sales off, so an admin reopens them on purpose. Restoring an
+   * event that is not archived is `409 event_not_archived`.
+   */
+  async restore(eventId: string, actor: EventActor): Promise<AdminEvent> {
+    return this.db.transaction(async (tx) => {
+      const current = await lockEvent(tx, eventId);
+      if (!current.archivedAt) throw conflict('event_not_archived', 'Event is not archived');
+      const [row] = await tx
+        .update(events)
+        .set({ archivedAt: null })
+        .where(eq(events.id, eventId))
+        .returning(adminEventColumns);
+      const event = toAdminEvent(row);
+      await this.audit(tx, event, 'restored', actor, {
+        archivedAt: current.archivedAt.toISOString(),
+      });
+      return event;
+    });
+  }
+
+  /**
+   * Deletes an empty event (#213 D7). The row lock also blocks new child rows, since their foreign
+   * key checks wait for it, so the emptiness check holds until commit. `confirmSlug` must equal the
+   * slug exactly. Archived events can be deleted too. The event's venue links go, and so do venues
+   * no other event uses; event-scoped `user_roles` go as well (they have no foreign key), and a
+   * member left without any role stays in the team as `no_access` (#213 D9). The
+   * `deleted` audit row has no foreign key to the event, so it outlives it, and the slug is free.
+   */
+  async delete(eventId: string, confirmSlug: string, actor: EventActor): Promise<void> {
+    await this.db.transaction(async (tx) => {
+      const current = await lockEvent(tx, eventId);
+      if (confirmSlug !== current.slug) throw invalidEvent({ confirmSlug: 'invalid' });
+
+      const blockers = await deleteBlockers(tx, eventId);
+      if (blockers.length > 0)
+        throw new ConflictException({
+          statusCode: 409,
+          message: 'Event is not empty',
+          code: 'event_not_empty',
+          blockers,
+        });
+
+      const links = await tx
+        .delete(eventVenues)
+        .where(eq(eventVenues.eventId, eventId))
+        .returning({ venueId: eventVenues.venueId });
+      const unused = await deleteOrphanedVenues(
+        tx,
+        links.map((link) => link.venueId),
+      );
+      const roles = await tx
+        .delete(userRoles)
+        .where(and(eq(userRoles.scopeType, 'event'), eq(userRoles.scopeId, eventId)))
+        .returning({ userId: userRoles.userId, role: userRoles.role });
+      await tx.delete(events).where(eq(events.id, eventId));
+
+      await this.audit(tx, toAdminEvent(current), 'deleted', actor, {
+        folioPrefix: current.folioPrefix,
+        archivedAt: current.archivedAt?.toISOString() ?? null,
+        venues: unused.map((venue) => venue.id),
+        eventRoles: roles,
+      });
+    });
+  }
+
+  private async audit(
+    tx: Transaction,
+    event: AdminEvent,
+    action: 'updated' | 'archived' | 'restored' | 'deleted',
+    actor: EventActor,
+    details: Record<string, unknown>,
+  ) {
+    await tx.insert(eventAdminAudit).values({
+      eventId: event.id,
+      eventSlug: event.slug,
+      eventName: event.name,
+      action,
+      actorUserId: actor.userId,
+      actorSessionId: actor.sessionId,
+      details,
+    });
+  }
+}
+
+/** Reads the event with `FOR UPDATE`, or answers the admin routes' usual `404 Event not found`. */
+async function lockEvent(tx: Transaction, eventId: string) {
+  const [row] = await tx
+    .select(adminEventColumns)
+    .from(events)
+    .where(eq(events.id, eventId))
+    .for('update');
+  if (!row) throw new NotFoundException('Event not found');
+  return row;
+}
+
+function sameValue(a: string | Date | null, b: string | Date | null): boolean {
+  if (a instanceof Date && b instanceof Date) return a.getTime() === b.getTime();
+  return a === b;
+}
+
+/** The blockers present for the event, in the order of `DELETE_BLOCKERS`. */
+async function deleteBlockers(tx: Transaction, eventId: string): Promise<EventDeleteBlocker[]> {
+  const kinds = Object.keys(DELETE_BLOCKERS) as EventDeleteBlocker[];
+  const checks = Object.fromEntries(
+    kinds.map((kind) => {
+      const [table, column] = DELETE_BLOCKERS[kind];
+      return [kind, sql<boolean>`exists (select 1 from ${table} where ${column} = ${eventId})`];
+    }),
+  ) as Record<EventDeleteBlocker, SQL<boolean>>;
+  const [row] = await tx.select(checks).from(events).where(eq(events.id, eventId));
+  return kinds.filter((kind) => row[kind]);
+}
+
+/**
+ * Deletes the given venues that no event links any more (run after removing the deleted event's
+ * links) and returns their ids. Venues another event still uses stay.
+ */
+async function deleteOrphanedVenues(
+  tx: Transaction,
+  venueIds: string[],
+): Promise<{ id: string }[]> {
+  if (venueIds.length === 0) return [];
+  return tx
+    .delete(venues)
+    .where(
+      and(
+        inArray(venues.id, venueIds),
+        notExists(
+          tx
+            .select({ one: sql`1` })
+            .from(eventVenues)
+            .where(eq(eventVenues.venueId, venues.id)),
+        ),
+      ),
+    )
+    .returning({ id: venues.id });
 }
 
 function conflict(code: string, message: string, fieldErrors?: Record<string, string>) {
@@ -89,14 +328,4 @@ function conflict(code: string, message: string, fieldErrors?: Record<string, st
 /** A 409 like the team's `email_in_use`, with a field error so the form can mark the slug. */
 function slugTaken() {
   return conflict('slug_taken', 'Slug already in use', { slug: 'taken' });
-}
-
-// Drizzle wraps driver errors; the PostgreSQL error may sit on the error itself or on `cause`.
-function isUniqueViolation(error: unknown, constraint: string): boolean {
-  for (let current = error; current && typeof current === 'object';) {
-    const candidate = current as { code?: unknown; constraint_name?: unknown; cause?: unknown };
-    if (candidate.code === '23505' && candidate.constraint_name === constraint) return true;
-    current = candidate.cause;
-  }
-  return false;
 }

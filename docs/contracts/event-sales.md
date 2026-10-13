@@ -4,7 +4,7 @@ This contract describes each event's public address (slug) and its sales state f
 
 ## Current answer
 
-- Every event has a **stable public slug**, for example `los-mas-pesados-nov-2026`. Migrations and the seed set it. The admin API cannot edit it, so shared links stay stable.
+- Every event has a **stable public slug**, for example `los-mas-pesados-nov-2026`. It is chosen when a global admin creates the event ([admin event lifecycle](admin-event-lifecycle.md)); migrations and the seed set it for older events. The admin API cannot edit it, so shared links stay stable. Deleting an empty event frees its slug.
 - Sales are controlled by an **admin switch** (closed by default) plus an **optional window**: an opening date, a closing date, both, or neither.
 - The **sales state** is computed when it is read, from the switch, the window, and the current time. It is never stored.
 
@@ -58,16 +58,17 @@ Response shape for both:
 
 Dates are ISO 8601 in UTC, or `null`.
 
-| Method | Auth                                               | Body                                                                                           | Errors                                                                                             |
-| ------ | -------------------------------------------------- | ---------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| `GET`  | Admin session for the event (or global admin)      | None                                                                                           | 401 without an admin session for the event; 404 unknown event.                                     |
-| `PUT`  | Admin session, trusted `Origin` and `X-CSRF-Token` | `{ "salesEnabled": boolean, "salesOpensAt": string \| null, "salesClosesAt": string \| null }` | 400 invalid body or window; 401 no admin session; 403 bad origin or CSRF token; 404 unknown event. |
+| Method | Auth                                               | Body                                                                                           | Errors                                                                                                                   |
+| ------ | -------------------------------------------------- | ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `GET`  | Admin session for the event (or global admin)      | None                                                                                           | 401 without an admin session for the event; 404 unknown event.                                                           |
+| `PUT`  | Admin session, trusted `Origin` and `X-CSRF-Token` | `{ "salesEnabled": boolean, "salesOpensAt": string \| null, "salesClosesAt": string \| null }` | 400 invalid body or window; 401 no admin session; 403 bad origin or CSRF token; 404 unknown event; 409 `event_archived`. |
 
 `PUT` rules:
 
 - It replaces all three settings, so all three keys are required. Any other key, including `slug`, is rejected with 400.
 - Dates must be ISO 8601 date-times with an explicit offset (`Z` or `±hh:mm`). Plain dates, numbers and impossible calendar values (such as `2026-02-31` or `24:00`) are rejected; they are never rolled over into the next day or month. Code: `parseOffsetDateTime` in `src/events/sales/date-time.ts`.
 - `salesOpensAt` must be before `salesClosesAt` when both are set. The database check is the backstop.
+- It runs under a row lock. On an [archived event](admin-event-lifecycle.md#archiving-and-restoring), `salesEnabled: true` is refused with `409 { "code": "event_archived", "message": "Event is archived" }`; saving with sales off still works. A new event starts with sales off and no window.
 
 ## Admin UI
 
@@ -90,6 +91,7 @@ The event overview (`/admin/events/:eventId`) has a "Venta en línea" section. C
 ## Cross-references
 
 - [Public event catalog contract](public-event-catalog.md)
+- [Admin event lifecycle contract](admin-event-lifecycle.md)
 - [Event catalog contract](event-catalog.md)
 - [Admin authentication boundary](admin-auth-boundary.md)
 - [November 2026 online purchase plan](../product/november-2026-online-purchase-plan.md)

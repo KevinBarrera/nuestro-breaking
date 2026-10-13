@@ -213,6 +213,27 @@ describe('Mercado Pago payment webhook (e2e)', () => {
     ]);
   });
 
+  it('still confirms a late payment after the event is archived (#213 D6)', async () => {
+    const id = await pendingRegistration();
+    // The same columns `POST /admin/events/:eventId/archive` writes.
+    await client`UPDATE events SET archived_at = now(), sales_enabled = false`;
+    setPayment(id);
+
+    await notify(1001).expect(200);
+
+    const registration = await registrationRow(id);
+    expect(registration).toMatchObject({
+      status: 'confirmed',
+      confirmation_source: 'approved_payment',
+    });
+    expect(registration.folio).toMatch(/^LMP-[A-Z0-9]{4}$/);
+    expect(await paymentRows()).toHaveLength(1);
+    expect(await auditRows()).toHaveLength(1);
+    expect(await notificationRows()).toEqual([
+      { notification_id: '1001', processed: true, outcome: 'confirmed' },
+    ]);
+  });
+
   it('processes the same notification once, even when it arrives twice at the same time', async () => {
     const id = await pendingRegistration();
     setPayment(id);

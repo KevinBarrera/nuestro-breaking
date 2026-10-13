@@ -4,6 +4,7 @@ import type { TeamAccess, TeamInvitation, TeamMember } from '@/entities/admin-te
 
 export function accessSummary(access: TeamAccess): string {
   if (access.kind === 'global') return 'Todos los eventos';
+  if (access.kind === 'none') return 'Sin acceso';
   if (access.events.length === 0) return 'Sin eventos';
   return access.events.map((event) => event.name).join(', ');
 }
@@ -35,6 +36,12 @@ export type StatusView = { label: string; tone: StatusTone; hint?: string };
 export function memberStatus(member: TeamMember, now: Date): StatusView {
   if (member.status === 'active') return { label: 'Activo', tone: 'success' };
   if (member.status === 'deactivated') return { label: 'Desactivado', tone: 'neutral' };
+  if (member.status === 'no_access')
+    return {
+      label: 'Sin acceso',
+      tone: 'neutral',
+      hint: 'Usa «Cambiar acceso» para darle eventos',
+    };
   const { invitation } = member;
   if (invitation && invitationOpen(invitation, now))
     return {
@@ -58,8 +65,13 @@ export type MemberAction =
 export function memberActions(member: TeamMember, isSelf: boolean, now: Date): MemberAction[] {
   if (isSelf) return [];
   if (member.status === 'deactivated') return ['reactivate', 'change-access'];
-  const actions: MemberAction[] = ['regenerate'];
-  if (member.status === 'pending' && invitationOpen(member.invitation, now))
+  // Without access a new link would only set a password that cannot sign in (#213 D9); the
+  // backend refuses it, so access comes back first.
+  const actions: MemberAction[] = member.status === 'no_access' ? [] : ['regenerate'];
+  if (
+    (member.status === 'pending' || member.status === 'no_access') &&
+    invitationOpen(member.invitation, now)
+  )
     actions.push('cancel-invitation');
   actions.push('change-access', 'deactivate');
   return actions;

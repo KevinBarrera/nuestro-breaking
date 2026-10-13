@@ -8,7 +8,7 @@ This contract describes the delivered event catalog for issue #124: admin-manage
 - A registration holds **zero or more passes**. Each held pass stores the price paid. Competition selections are stored per held pass.
 - **Accessible activities = active `included` activities of every held pass type + active activities selected on each held pass.** Access is not special-cased by pass class; general entry grants nothing because it has no access rows.
 - **A full pass includes general entry**, so one registration never holds a `general` and a `full` pass together (#174, decision D1).
-- Catalog records are **archived and restorable, never deleted**. Writes use **optimistic concurrency** (`expectedVersion`) and are **audited in the same transaction**.
+- Catalog records are **archived and restorable, never deleted**. Events follow the same rule once they hold catalog data; only an empty event can be deleted ([admin event lifecycle](admin-event-lifecycle.md)). Writes use **optimistic concurrency** (`expectedVersion`) and are **audited in the same transaction**.
 
 ## Data model
 
@@ -142,6 +142,7 @@ LOCAL_CATALOG_SEED=I_UNDERSTAND_THIS_IS_LOCAL_ONLY \
 ## Cross-references
 
 - [Event sales contract](event-sales.md)
+- [Admin event lifecycle contract](admin-event-lifecycle.md)
 - [Public event catalog contract](public-event-catalog.md)
 - [Event/activity foundation contract](event-activity-foundation.md)
 - [Event/activity API boundary](event-activity-api-boundary.md)

@@ -27,6 +27,7 @@ describe('accessSummary', () => {
       }),
     ).toBe('Preliminares, Final');
     expect(accessSummary({ kind: 'events', events: [] })).toBe('Sin eventos');
+    expect(accessSummary({ kind: 'none' })).toBe('Sin acceso');
   });
 });
 
@@ -70,6 +71,11 @@ describe('memberStatus', () => {
       tone: 'warning',
       hint: 'Genera un enlace nuevo',
     });
+    expect(memberStatus(member({ status: 'no_access', access: { kind: 'none' } }), now)).toEqual({
+      label: 'Sin acceso',
+      tone: 'neutral',
+      hint: 'Usa «Cambiar acceso» para darle eventos',
+    });
   });
 });
 
@@ -99,6 +105,19 @@ describe('memberActions', () => {
       'reactivate',
       'change-access',
     ]);
+  });
+
+  it('offers access back, but no new link, to a member without access (#213 D9)', () => {
+    const none = member({ status: 'no_access', access: { kind: 'none' } });
+    expect(memberActions(none, false, now)).toEqual(['change-access', 'deactivate']);
+    expect(
+      memberActions(
+        { ...none, invitation: { expiresAt: '2026-10-13T12:00:00.000Z', expired: false } },
+        false,
+        now,
+      ),
+    ).toEqual(['cancel-invitation', 'change-access', 'deactivate']);
+    expect(memberActions(none, true, now)).toEqual([]);
   });
 
   it("offers no actions on the person's own row (D9)", () => {

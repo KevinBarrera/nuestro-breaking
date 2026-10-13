@@ -114,15 +114,15 @@ Global administrators manage who can use the admin panel: they invite people, sh
 
 ### Endpoints
 
-| Endpoint                                | Request                          | Success                                               | Error codes                                                                               |
-| --------------------------------------- | -------------------------------- | ----------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| `GET /admin/team`                       | none                             | `200 { members: Member[] }`                           | none                                                                                      |
-| `POST /admin/team`                      | `{ displayName, email, access }` | `201 { userId, activationUrl, expiresAt }`            | `400`, `email_in_use`                                                                     |
-| `POST /admin/team/:userId/invitation`   | none                             | `201 { userId, activationUrl, expiresAt }`            | `member_not_found`, `member_deactivated`                                                  |
-| `DELETE /admin/team/:userId/invitation` | none                             | `200 { cancelled: true }`                             | `member_not_found`, `no_open_invitation`                                                  |
-| `PUT /admin/team/:userId/access`        | `{ access, reason? }`            | `200 { changed }`                                     | `400`, `member_not_found`, `self_change`, `last_global_admin`                             |
-| `POST /admin/team/:userId/deactivate`   | `{ reason }`                     | `200 { status: "deactivated" }`                       | `400`, `member_not_found`, `self_deactivation`, `last_global_admin`, `member_deactivated` |
-| `POST /admin/team/:userId/reactivate`   | `{ reason? }`                    | `200 { status: "active" }` or `{ status: "pending" }` | `400`, `member_not_found`, `member_active`                                                |
+| Endpoint                                | Request                          | Success                                              | Error codes                                                                               |
+| --------------------------------------- | -------------------------------- | ---------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `GET /admin/team`                       | none                             | `200 { members: Member[] }`                          | none                                                                                      |
+| `POST /admin/team`                      | `{ displayName, email, access }` | `201 { userId, activationUrl, expiresAt }`           | `400`, `email_in_use`                                                                     |
+| `POST /admin/team/:userId/invitation`   | none                             | `201 { userId, activationUrl, expiresAt }`           | `member_not_found`, `member_deactivated`, `member_no_access`                              |
+| `DELETE /admin/team/:userId/invitation` | none                             | `200 { cancelled: true }`                            | `member_not_found`, `no_open_invitation`                                                  |
+| `PUT /admin/team/:userId/access`        | `{ access, reason? }`            | `200 { changed }`                                    | `400`, `member_not_found`, `self_change`, `last_global_admin`                             |
+| `POST /admin/team/:userId/deactivate`   | `{ reason }`                     | `200 { status: "deactivated" }`                      | `400`, `member_not_found`, `self_deactivation`, `last_global_admin`, `member_deactivated` |
+| `POST /admin/team/:userId/reactivate`   | `{ reason? }`                    | `200 { status }`: `active`, `pending` or `no_access` | `400`, `member_not_found`, `member_active`                                                |
 
 Request fields:
 
@@ -132,32 +132,39 @@ Request fields:
 
 ### Member statuses
 
-`Member` is `{ id, displayName, email, status, access, invitation }`. Only users with an active `admin` role are listed; judge-only accounts are not.
+`Member` is `{ id, displayName, email, status, access, invitation }`. Team members are the users who hold or held an `admin` role (revoked ones included) or received an admin invitation. A member stays listed when their last role goes, for example when the only event they administered is deleted (#213 D9). Judge-only accounts and users never invited as admins are not listed.
 
 | `status`      | Meaning                                    | Can sign in | Next actions                                       |
 | ------------- | ------------------------------------------ | ----------- | -------------------------------------------------- |
 | `active`      | Has set a password.                        | Yes         | Regenerate (recovery), change access, deactivate   |
 | `pending`     | Invited, no password yet.                  | No          | Regenerate, cancel link, change access, deactivate |
+| `no_access`   | Not deactivated, but no admin access left. | No          | Change access, cancel link, deactivate             |
 | `deactivated` | `users.active = false`; access turned off. | No          | Reactivate, change access                          |
 
-- `access` is `{ kind: "global" }` or `{ kind: "events", events: [{ id, name }] }`.
+- `access` is `{ kind: "global" }`, `{ kind: "events", events: [{ id, name }] }` or `{ kind: "none" }`. `none` means no active `admin` role grants anything: none is left, or the only ones point at events that no longer exist. A member with access `none` has status `no_access`, unless they are `deactivated`, which wins.
+- Members are sorted by status (`active`, `pending`, `no_access`, `deactivated`), then by name.
+- The admin panel shows an error instead of a partial team when a member has a `status` or `access.kind` it does not know.
 - `invitation` is the open invitation, `{ expiresAt, expired }`, or `null`. It is always `null` for a `deactivated` member, even when an open invitation row remains, because activation refuses that member's links.
 
 ### Rules
 
-| Action        | Behavior                                                                                                                                                                                                                                                                |
-| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Invite        | Creates the user without a password, its roles and a 72-hour invitation. The response is the only time the link (`<admin origin>/activar-cuenta#<token>`) is shown; only the token digest is stored. Any email that already has an account is refused, judges included. |
-| Regenerate    | Cancels the open invitation, if any, and issues a new link. Works for pending members and, as the password-recovery path, for active ones, the caller included; the current password keeps working until the new link is used.                                          |
-| Cancel        | Cancels the open invitation; the member stays pending.                                                                                                                                                                                                                  |
-| Change access | Replaces the member's admin roles: roles no longer granted are revoked (`active = false`, `revoked_at` set) and new ones are added. The same access again is a no-op (`changed: false`, not audited). Sessions stay valid and see the new scope on the next request.    |
-| Deactivate    | Sets `users.active = false`, revokes every session of the member at once and cancels any open invitation. The admin roles stay, so reactivating restores the same access.                                                                                               |
-| Reactivate    | Sets `users.active = true`. An activated member signs in with their existing password; one who never activated is `pending` again and needs a regenerated link.                                                                                                         |
+| Action        | Behavior                                                                                                                                                                                                                                                                                                                                                               |
+| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Invite        | Creates the user without a password, its roles and a 72-hour invitation. The response is the only time the link (`<admin origin>/activar-cuenta#<token>`) is shown; only the token digest is stored. Any email that already has an account is refused, judges included.                                                                                                |
+| Regenerate    | Cancels the open invitation, if any, and issues a new link. Works for pending members and, as the password-recovery path, for active ones, the caller included; the current password keeps working until the new link is used.                                                                                                                                         |
+| Cancel        | Cancels the open invitation; a pending member stays pending and a `no_access` member stays `no_access`.                                                                                                                                                                                                                                                                |
+| Change access | Replaces the member's admin roles: roles no longer granted are revoked (`active = false`, `revoked_at` set) and new ones are added. The same access again is a no-op (`changed: false`, not audited). Sessions stay valid and see the new scope on the next request. For a `no_access` member it is how access comes back; the audit records `from: { kind: "none" }`. |
+| Deactivate    | Sets `users.active = false`, revokes every session of the member at once and cancels any open invitation. The admin roles stay, so reactivating restores the same access.                                                                                                                                                                                              |
+| Reactivate    | Sets `users.active = true`. An activated member signs in with their existing password; one who never activated is `pending` again and needs a regenerated link. A member without access comes back as `no_access` and needs an access change.                                                                                                                          |
+
+Deploy the frontend with or before a backend that sends `no_access` or `access: { kind: "none" }`: an older admin bundle rejects the whole team list when it sees a status or access kind it does not know, so Equipo would show an error until the page is reloaded.
 
 Two safety rules apply to access changes and deactivation:
 
 - **No self-changes.** A global admin cannot change their own access or deactivate themself. The check compares ids, so an uppercased own id is refused too.
 - **At least one global admin remains.** A change that would leave no activated global admin (an active user with a password and an active global `admin` role) is refused. Every team change is serialized under one database lock, so two global admins deactivating each other at the same time still leave one: the second request finds its caller deactivated and gets `401`.
+
+Deleting an empty event ([admin event lifecycle](admin-event-lifecycle.md#deleting-an-empty-event)) removes the `user_roles` scoped to it. A member whose only access was that event stays in the team list as `no_access` (#213 D9): they cannot sign in, their email still cannot be invited again (`email_in_use`), and a global admin gives them access again with an access change. Regenerating a link is refused (`member_no_access`) until they have access; an open link they already hold still sets their password.
 
 ### Error codes
 
@@ -165,10 +172,11 @@ All are JSON bodies with `statusCode`, `message` and `code`, except `400`, which
 
 | Status | `code`               | When                                                          |
 | ------ | -------------------- | ------------------------------------------------------------- |
-| `404`  | `member_not_found`   | The user does not exist or has no active `admin` role.        |
+| `404`  | `member_not_found`   | The user does not exist or is not a team member.              |
 | `404`  | `no_open_invitation` | Cancel found no open invitation.                              |
 | `409`  | `email_in_use`       | Invite: the email already has an account.                     |
 | `409`  | `member_deactivated` | Regenerate or deactivate a member who is already deactivated. |
+| `409`  | `member_no_access`   | Regenerate for a member without access (`no_access`).         |
 | `409`  | `member_active`      | Reactivate a member who is not deactivated.                   |
 | `409`  | `self_change`        | The caller tried to change their own access.                  |
 | `409`  | `self_deactivation`  | The caller tried to deactivate themself.                      |

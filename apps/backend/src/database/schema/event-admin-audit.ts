@@ -13,13 +13,18 @@ import {
 import { authSessions } from './auth';
 import { users } from './users';
 
-/** Event lifecycle actions; the check constraint below allows exactly these. */
+/**
+ * Event lifecycle actions (migration 0021) and venue actions (#213 D8, migration 0022); the check
+ * constraint below allows exactly these.
+ */
 export const EVENT_ADMIN_AUDIT_ACTIONS = [
   'created',
   'updated',
   'archived',
   'restored',
   'deleted',
+  'venue_created',
+  'venue_updated',
 ] as const;
 export type EventAdminAuditAction = (typeof EVENT_ADMIN_AUDIT_ACTIONS)[number];
 
@@ -46,7 +51,7 @@ export const eventAdminAudit = pgTable(
     index('event_admin_audit_event_created_idx').on(table.eventId, table.createdAt),
     check(
       'event_admin_audit_action_ck',
-      sql`${table.action} IN ('created', 'updated', 'archived', 'restored', 'deleted')`,
+      sql`${table.action} IN ('created', 'updated', 'archived', 'restored', 'deleted', 'venue_created', 'venue_updated')`,
     ),
     foreignKey({
       columns: [table.actorUserId],

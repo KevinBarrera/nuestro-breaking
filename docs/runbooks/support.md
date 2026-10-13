@@ -91,6 +91,34 @@ For a brand-new environment with no administrator yet, use the
   comes from another global administrator (the API still accepts a link for
   yourself).
 
+## Archiving and deleting events
+
+This section also describes implemented behavior
+([#213](https://github.com/KevinBarrera/nuestro-breaking/issues/213); API in
+the [admin event lifecycle contract](../contracts/admin-event-lifecycle.md)).
+Only a **global administrator** can archive, restore or delete an event.
+
+| I need to…                                  | Do this                                                                                                                                                  |
+| ------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Retire an event that is over, or a test one | **Archive** it. Sales close, the public page answers "not found", and every registration, payment and check-in stays readable.                           |
+| Bring an archived event back                | **Restore** it. Sales stay closed; open them again on purpose.                                                                                           |
+| Remove an event created by mistake          | **Delete** it, typing its slug to confirm. This works only while the event is empty: no activities, passes, registrations, check-ins or catalog history. |
+| Delete is refused ("not empty")             | Archive it instead. The answer lists what blocks the delete. Anything with sales or history is kept for buyer and payment follow-up.                     |
+
+### Rules to keep in mind
+
+- **Archiving does not stop payments already started.** A buyer can still
+  check their payment status, and a late Mercado Pago confirmation is still
+  recorded with a folio.
+- An archived event cannot be edited, and sales cannot be turned on until it is
+  restored.
+- Deleting frees the slug for a new event. It also removes access granted only
+  for that event; a member whose only access was that event stays in
+  **Equipo** as "Sin acceso". Use **Cambiar acceso** to give them other
+  events (or all of them); inviting the same email again is refused.
+- Every create, edit, archive, restore and delete is recorded with who did it
+  and when, and the record outlives a deleted event.
+
 ## Escalation and ownership gaps
 
 Future owners must define support access approval, redaction standards, case

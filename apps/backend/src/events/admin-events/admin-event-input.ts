@@ -154,3 +154,13 @@ export function parseUpdateEventInput(body: unknown): ParseResult<UpdateEventInp
   if (Object.keys(fieldErrors).length > 0) return { ok: false, fieldErrors };
   return { ok: true, value };
 }
+
+/**
+ * Validates a delete request: `{ confirmSlug }` must be a string. The service compares it with the
+ * stored slug exactly (no trimming or case folding), answering the same `invalid` on a mismatch.
+ */
+export function parseDeleteEventInput(body: unknown): ParseResult<{ confirmSlug: string }> {
+  if (!isRecord(body) || typeof body.confirmSlug !== 'string')
+    return { ok: false, fieldErrors: { confirmSlug: 'invalid' } };
+  return { ok: true, value: { confirmSlug: body.confirmSlug } };
+}

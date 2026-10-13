@@ -261,4 +261,53 @@ describe('buildTeamMembers', () => {
     ];
     expect(buildTeamMembers(roles, [], now)[0].access).toEqual({ kind: 'global' });
   });
+
+  it('keeps members without an active admin role as no access (#213 D9)', () => {
+    const none = { scopeType: null, eventId: null, eventName: null };
+    const roles: TeamRoleRow[] = [
+      { userId: 'off', ...base, displayName: 'Dora', active: false, ...none },
+      { userId: 'stranded', ...base, displayName: 'Ana', ...none },
+      { userId: 'never', ...base, displayName: 'Beto', hasPassword: false, ...none },
+      // An event role whose event no longer exists grants nothing.
+      {
+        userId: 'gone',
+        ...base,
+        displayName: 'Carla',
+        scopeType: 'event',
+        eventId: null,
+        eventName: null,
+      },
+      {
+        userId: 'pending',
+        ...base,
+        displayName: 'Zoe',
+        hasPassword: false,
+        scopeType: 'global',
+        eventId: null,
+        eventName: null,
+      },
+    ];
+    const invitations: TeamInvitationRow[] = [
+      { userId: 'never', expiresAt: new Date('2026-10-12T12:00:00Z') },
+    ];
+    expect(
+      buildTeamMembers(roles, invitations, now).map(({ id, status, access, invitation }) => ({
+        id,
+        status,
+        access,
+        invitation,
+      })),
+    ).toEqual([
+      { id: 'pending', status: 'pending', access: { kind: 'global' }, invitation: null },
+      { id: 'stranded', status: 'no_access', access: { kind: 'none' }, invitation: null },
+      {
+        id: 'never',
+        status: 'no_access',
+        access: { kind: 'none' },
+        invitation: { expiresAt: '2026-10-12T12:00:00.000Z', expired: false },
+      },
+      { id: 'gone', status: 'no_access', access: { kind: 'none' }, invitation: null },
+      { id: 'off', status: 'deactivated', access: { kind: 'none' }, invitation: null },
+    ]);
+  });
 });

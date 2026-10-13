@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { readAdminEvent, readEventFailure, readEventSummaries, readVenue } from './readers';
+import { readAdminEvent, readEventFailure, readEventList, readVenue } from './readers';
 
 const id = 'a1b2c3d4-1234-4567-89ab-123456789abc';
 const summary = {
@@ -17,26 +17,28 @@ const event = {
   salesEnabled: false,
 };
 
-describe('readEventSummaries', () => {
-  it('reads active and archived summaries and ignores extra fields', () => {
-    const archived = { ...summary, archivedAt: '2026-10-01T10:00:00.000Z', extra: true };
-    expect(readEventSummaries([summary, archived])).toEqual([
-      summary,
-      { ...summary, archivedAt: '2026-10-01T10:00:00.000Z' },
+describe('readEventList', () => {
+  it('reads active and archived events with their dates and sales switch, ignoring extra fields', () => {
+    const archived = { ...event, archivedAt: '2026-10-01T10:00:00.000Z', extra: true };
+    expect(readEventList([event, archived])).toEqual([
+      event,
+      { ...event, archivedAt: '2026-10-01T10:00:00.000Z' },
     ]);
   });
 
   it('rejects the whole list when one entry is malformed', () => {
     for (const bad of [
-      { ...summary, id: 'sample' },
-      { ...summary, name: '  ' },
-      { ...summary, slug: undefined },
-      { ...summary, folioPrefix: 3 },
-      { ...summary, archivedAt: 'yesterday' },
-      { ...summary, archivedAt: undefined },
+      { ...event, id: 'sample' },
+      { ...event, name: '  ' },
+      { ...event, slug: undefined },
+      { ...event, folioPrefix: 3 },
+      { ...event, archivedAt: 'yesterday' },
+      { ...event, archivedAt: undefined },
+      summary,
+      { ...event, salesEnabled: undefined },
     ])
-      expect(readEventSummaries([summary, bad])).toBeNull();
-    expect(readEventSummaries({ events: [] })).toBeNull();
+      expect(readEventList([event, bad])).toBeNull();
+    expect(readEventList({ events: [] })).toBeNull();
   });
 });
 

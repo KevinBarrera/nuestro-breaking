@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { expectSelected, selectTrigger } from './support/select.ts';
+import { eventSummary } from './support/event-mocks.ts';
 
 const eventId = 'a1b2c3d4-1234-4567-89ab-123456789abc';
 const foundationPath = `/admin/events/${eventId}/foundation`;
@@ -96,7 +97,7 @@ test('shows foundation context and navigates to the event overview', async ({ pa
   await page.route(foundationEndpoint, (route) => route.fulfill({ json: foundation }));
   // The account manages this event, so the header shows the event selector first in Tab order.
   await page.route(adminEventsEndpoint, (route) =>
-    route.fulfill({ json: [{ id: eventId, name: 'Encuentro del barrio' }] }),
+    route.fulfill({ json: [eventSummary(eventId, 'Encuentro del barrio')] }),
   );
   await page.goto(foundationPath);
   const header = page.getByRole('banner', { name: 'Espacio de administración' });
@@ -123,7 +124,7 @@ test('keeps event context and the only usable destination accessible at 375px', 
   await page.route(foundationEndpoint, (route) => route.fulfill({ json: foundation }));
   // The account manages this event, so the header shows the event selector first in Tab order.
   await page.route(adminEventsEndpoint, (route) =>
-    route.fulfill({ json: [{ id: eventId, name: 'Encuentro del barrio' }] }),
+    route.fulfill({ json: [eventSummary(eventId, 'Encuentro del barrio')] }),
   );
   await page.goto(foundationPath);
   const header = page.getByRole('banner', { name: 'Espacio de administración' });

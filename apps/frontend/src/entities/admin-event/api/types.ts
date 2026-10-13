@@ -1,16 +1,15 @@
 // Admin event lifecycle API shapes (#213); see docs/contracts/admin-event-lifecycle.md.
 
-// One row of `GET /admin/events`. `archivedAt` is an ISO date-time, or null while active.
-export type AdminEventSummary = {
+// One event as the admin API returns it: each row of `GET /admin/events` and the answer of
+// create, edit, archive and restore. Dates are ISO in UTC, or null; `archivedAt` is null while
+// active. `salesEnabled` is only the switch: whether sales are open now also depends on the
+// sales window, which only the event sales API reports.
+export type AdminEvent = {
   id: string;
   name: string;
   slug: string;
   folioPrefix: string;
   archivedAt: string | null;
-};
-
-// The full event that create, edit, archive and restore answer with. Dates are ISO in UTC.
-export type AdminEvent = AdminEventSummary & {
   timeZone: string;
   startsAt: string | null;
   endsAt: string | null;

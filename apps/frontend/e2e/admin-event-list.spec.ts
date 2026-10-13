@@ -5,7 +5,9 @@ import {
   archivedEvent,
   archivedEventId,
   eventAdmin,
+  eventSummary,
   mockEventList,
+  otherEventId,
   mockSession,
   sampleEvents,
   type EventSummary,
@@ -30,6 +32,29 @@ test('a global admin sees every event with its address, folio prefix and Crear e
   // Global admins ask for archived events too; none here, so no Archivados toggle.
   expect(queries).toContain('?archived=true');
   await expect(main(page).getByRole('button', { name: /^Archivados/ })).toHaveCount(0);
+});
+
+test('event cards show the dates on the event clock, the zone and the sales switch', async ({
+  page,
+}) => {
+  await mockSession(page);
+  await mockEventList(page, () => [
+    eventSummary(activeEventId, 'Con fechas', {
+      startsAt: '2026-11-14T16:00:00.000Z',
+      endsAt: '2026-11-16T04:00:00.000Z',
+      salesEnabled: true,
+    }),
+    eventSummary(otherEventId, 'Sin fechas', { timeZone: 'Europe/Madrid' }),
+  ]);
+  await page.goto('/admin');
+  const dated = eventList(page).getByRole('link', { name: 'Con fechas', exact: true });
+  await expect(dated).toContainText('14–15 de noviembre de 2026');
+  await expect(dated).toContainText('Ciudad de México');
+  await expect(dated).toHaveAccessibleDescription(/Venta abierta$/);
+  const undated = eventList(page).getByRole('link', { name: 'Sin fechas', exact: true });
+  await expect(undated).toContainText('Fechas por definir');
+  await expect(undated).toContainText('Europe/Madrid');
+  await expect(undated).toHaveAccessibleDescription(/Venta cerrada$/);
 });
 
 test('an event admin sees their events without Crear evento or archived events', async ({
@@ -97,14 +122,7 @@ test('Archivados reveals archived events, and Restaurar brings one back with sal
       );
       await route.fulfill({
         status: 201,
-        json: {
-          ...archivedEvent,
-          archivedAt: null,
-          timeZone: 'America/Mexico_City',
-          startsAt: null,
-          endsAt: null,
-          salesEnabled: false,
-        },
+        json: { ...archivedEvent, archivedAt: null },
       });
     },
   );
@@ -131,6 +149,51 @@ test('Archivados reveals archived events, and Restaurar brings one back with sal
   ).toBeVisible();
   await expect(main(page).getByRole('button', { name: /^Archivados/ })).toHaveCount(0);
   await expect(main(page).getByRole('heading', { name: 'Eventos', level: 1 })).toBeFocused();
+});
+
+test('a failed list reload after a restore keeps the list and offers Reintentar', async ({
+  page,
+}) => {
+  await mockSession(page);
+  let events: EventSummary[] = [...sampleEvents, archivedEvent];
+  let failLists = false;
+  await mockEventList(page, () => events);
+  await page.route(
+    (url) => url.port === '3000' && url.pathname === '/admin/events',
+    (route) =>
+      failLists && route.request().method() === 'GET'
+        ? route.fulfill({ status: 500, json: { message: 'private' } })
+        : route.fallback(),
+  );
+  await page.route(
+    (url) => url.port === '3000' && url.pathname === `/admin/events/${archivedEventId}/restore`,
+    async (route) => {
+      events = events.map((event) =>
+        event.id === archivedEventId ? { ...event, archivedAt: null } : event,
+      );
+      failLists = true;
+      await route.fulfill({ status: 201, json: { ...archivedEvent, archivedAt: null } });
+    },
+  );
+  await page.goto('/admin');
+  await main(page).getByRole('button', { name: 'Archivados (1)' }).click();
+  await main(page)
+    .getByRole('button', { name: `Restaurar ${archivedEvent.name}` })
+    .click();
+  const stale = main(page)
+    .getByRole('status')
+    .filter({ hasText: 'No se pudo actualizar la lista de eventos' });
+  await expect(stale).toBeVisible();
+  await expect(main(page).getByText(`«${archivedEvent.name}» volvió`)).toBeVisible();
+  // The last list stays on screen, so the event still shows under Archivados.
+  await expect(eventList(page).getByRole('listitem')).toHaveCount(2);
+  await expect(page.getByText('private')).toHaveCount(0);
+
+  failLists = false;
+  await stale.getByRole('button', { name: 'Reintentar' }).click();
+  await expect(stale).toHaveCount(0);
+  await expect(eventList(page).getByRole('listitem')).toHaveCount(3);
+  await expect(main(page).getByRole('button', { name: /^Archivados/ })).toHaveCount(0);
 });
 
 test('a failed restore keeps the event archived and says why', async ({ page }) => {

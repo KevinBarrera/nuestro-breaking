@@ -21,6 +21,9 @@ import {
   sampleFolio,
   slugify,
   slugTakenMessage,
+  slugHint,
+  folioPrefixHint,
+  FOLIO_PREFIX_MAX,
   timeZoneOptions,
   validateEvent,
   type EventDraft,
@@ -175,7 +178,7 @@ export function AdminEventNewPage() {
                 autoCapitalize="none"
                 spellCheck={false}
                 prefix={`${window.location.host}/e/`}
-                hint="Se sugiere a partir del nombre. Solo minúsculas, números y guiones, hasta 80 caracteres. No se puede cambiar después de crear el evento."
+                hint={slugHint}
                 hintPlacement="below"
                 value={draft.slug}
                 error={errors.slug}
@@ -192,8 +195,8 @@ export function AdminEventNewPage() {
                   autoComplete="off"
                   autoCapitalize="characters"
                   spellCheck={false}
-                  maxLength={6}
-                  hint="De 2 a 6 caracteres; empieza con letra. No se puede cambiar después."
+                  maxLength={FOLIO_PREFIX_MAX}
+                  hint={folioPrefixHint}
                   hintPlacement="below"
                   value={draft.folioPrefix}
                   error={errors.folioPrefix}

@@ -47,7 +47,7 @@ The list, `POST`, `PATCH`, archive and restore all return the same event object.
 }
 ```
 
-`salesEnabled` is only the switch. Whether sales are open right now also depends on the sales window, which the [event sales API](event-sales.md) reports as `state`.
+The admin panel's list reader requires these fields, so deploy the backend with or before the frontend that reads them. `salesEnabled` is only the switch. Whether sales are open right now also depends on the sales window, which the [event sales API](event-sales.md) reports as `state`.
 
 Dates are ISO 8601 in UTC, or `null`. The foundation `event` object carries the same fields plus `windowStatus`.
 

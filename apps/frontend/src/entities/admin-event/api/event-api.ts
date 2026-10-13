@@ -1,9 +1,8 @@
 import { apiUrl } from '@/shared/api';
-import { readAdminEvent, readEventFailure, readEventSummaries, readVenue } from './readers';
+import { readAdminEvent, readEventFailure, readEventList, readVenue } from './readers';
 import type {
   AdminEvent,
   AdminEventFailure,
-  AdminEventSummary,
   AdminVenue,
   CreateEventInput,
   UpdateEventInput,
@@ -49,9 +48,9 @@ async function eventRequest(path: string, init: RequestInit = {}): Promise<unkno
 export async function listAdminEvents(
   signal: AbortSignal,
   { archived = false }: { archived?: boolean } = {},
-): Promise<AdminEventSummary[]> {
+): Promise<AdminEvent[]> {
   const path = archived ? '/admin/events?archived=true' : '/admin/events';
-  const events = readEventSummaries(await eventRequest(path, { signal }));
+  const events = readEventList(await eventRequest(path, { signal }));
   if (!events) throw new AdminEventError({ kind: 'error' });
   return events;
 }
@@ -86,7 +85,8 @@ async function mutate(path: string, method: string, body?: unknown): Promise<unk
 const eventPath = (eventId: string, suffix = '') =>
   `/admin/events/${encodeURIComponent(eventId)}${suffix}`;
 
-// A 2xx answer that cannot be read still means the write was applied.
+// A 2xx answer that cannot be read means the write may have been applied, so it is reported
+// as `unknown`, never as a failure the user could safely retry.
 function written<T>(value: T | null): T {
   if (value === null) throw new AdminEventError({ kind: 'unknown' });
   return value;

@@ -1,12 +1,9 @@
-import type {
-  AdminEventErrorCode,
-  AdminEventFailure,
-  AdminEventSummary,
-} from '@/entities/admin-event';
+import type { AdminEventErrorCode, AdminEventFailure, AdminEvent } from '@/entities/admin-event';
+import { slugTakenMessage, timeZoneOptions } from './event-form-model';
 
 // Pure logic and Spanish copy for the event list (#213).
 
-export function splitEvents(events: AdminEventSummary[]) {
+export function splitEvents(events: AdminEvent[]) {
   return {
     active: events.filter((event) => event.archivedAt === null),
     archived: events.filter((event) => event.archivedAt !== null),
@@ -16,11 +13,37 @@ export function splitEvents(events: AdminEventSummary[]) {
 // With exactly one active event there is nothing to choose, so the landing opens it. Global
 // admins always see the list: it holds "Crear evento" and the archived events, and a redirect
 // would hide both.
-export function landingRedirect(
-  active: AdminEventSummary[],
-  canManageEvents: boolean,
-): string | null {
+export function landingRedirect(active: AdminEvent[], canManageEvents: boolean): string | null {
   return !canManageEvents && active.length === 1 ? active[0].id : null;
+}
+
+// The event's days on its own clock, e.g. "14–15 de noviembre de 2026"; `formatRange`
+// collapses the shared month and year, and a one-day event shows a single date.
+export function eventDates(event: Pick<AdminEvent, 'startsAt' | 'endsAt' | 'timeZone'>): string {
+  if (!event.startsAt || !event.endsAt) return 'Fechas por definir';
+  return new Intl.DateTimeFormat('es-MX', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    timeZone: event.timeZone,
+  }).formatRange(new Date(event.startsAt), new Date(event.endsAt));
+}
+
+// The city of a zone from the Nuevo evento list, or the zone id for any other zone.
+export function eventZoneName(timeZone: string): string {
+  const option = timeZoneOptions.find((candidate) => candidate.id === timeZone);
+  return option ? option.label.replace(/ \(.*\)$/, '') : timeZone;
+}
+
+// The card chip follows the sales switch only: the list does not carry the sales window, so
+// an event with sales on but outside its window still reads "Venta abierta" here. The event
+// overview shows the exact state.
+export type SalesChip = { label: 'Venta abierta' | 'Venta cerrada'; tone: 'open' | 'closed' };
+
+export function salesChip(salesEnabled: boolean): SalesChip {
+  return salesEnabled
+    ? { label: 'Venta abierta', tone: 'open' }
+    : { label: 'Venta cerrada', tone: 'closed' };
 }
 
 export const folioPattern = (prefix: string) => `${prefix}-····`;
@@ -29,7 +52,7 @@ export const restoredNotice = (name: string) =>
   `«${name}» volvió a la lista de eventos. La venta en línea sigue cerrada: ábrela desde el resumen del evento cuando esté lista.`;
 
 const ruleMessages: Record<AdminEventErrorCode, string> = {
-  slug_taken: 'Esta dirección ya la usa otro evento. Elige otra.',
+  slug_taken: slugTakenMessage,
   organization_ambiguous:
     'No se puede crear el evento: hay más de una organización registrada. Pide ayuda a soporte.',
   event_archived: 'Este evento está archivado. Restáuralo primero.',

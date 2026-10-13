@@ -4,7 +4,6 @@ import {
   type AdminEvent,
   type AdminEventErrorCode,
   type AdminEventFailure,
-  type AdminEventSummary,
   type AdminVenue,
   type EventDeleteBlocker,
 } from './types';
@@ -21,29 +20,23 @@ const isInstantOrNull = (value: unknown): value is string | null =>
 // Event ids become route segments, so only UUIDs are accepted.
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-function readSummary(value: unknown): AdminEventSummary | null {
+export function readAdminEvent(value: unknown): AdminEvent | null {
   if (!isRecord(value)) return null;
-  const { id, name, slug, folioPrefix, archivedAt } = value;
+  const { id, name, slug, folioPrefix, archivedAt, timeZone, startsAt, endsAt, salesEnabled } =
+    value;
   if (typeof id !== 'string' || !uuid.test(id) || !isText(name)) return null;
   if (!isText(slug) || !isText(folioPrefix) || !isInstantOrNull(archivedAt)) return null;
-  return { id, name, slug, folioPrefix, archivedAt };
+  if (!isText(timeZone) || !isInstantOrNull(startsAt) || !isInstantOrNull(endsAt)) return null;
+  if (typeof salesEnabled !== 'boolean') return null;
+  return { id, name, slug, folioPrefix, archivedAt, timeZone, startsAt, endsAt, salesEnabled };
 }
 
 // The whole list is rejected when any entry is malformed, so the screen never shows a
 // partial list.
-export function readEventSummaries(value: unknown): AdminEventSummary[] | null {
+export function readEventList(value: unknown): AdminEvent[] | null {
   if (!Array.isArray(value)) return null;
-  const events = value.map(readSummary);
+  const events = value.map(readAdminEvent);
   return events.every((event) => event !== null) ? events : null;
-}
-
-export function readAdminEvent(value: unknown): AdminEvent | null {
-  const summary = readSummary(value);
-  if (!summary || !isRecord(value)) return null;
-  const { timeZone, startsAt, endsAt, salesEnabled } = value;
-  if (!isText(timeZone) || !isInstantOrNull(startsAt) || !isInstantOrNull(endsAt)) return null;
-  if (typeof salesEnabled !== 'boolean') return null;
-  return { ...summary, timeZone, startsAt, endsAt, salesEnabled };
 }
 
 export function readVenue(value: unknown): AdminVenue | null {

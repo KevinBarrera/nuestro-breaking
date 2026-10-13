@@ -14,9 +14,14 @@ export type EventSummary = {
   slug: string;
   folioPrefix: string;
   archivedAt: string | null;
+  timeZone: string;
+  startsAt: string | null;
+  endsAt: string | null;
+  salesEnabled: boolean;
 };
 
-// A `GET /admin/events` row. The slug and prefix default from the name's first letters.
+// A `GET /admin/events` row. The slug is built from the whole name; the folio prefix defaults
+// to `EV`, the zone to Mexico City, no dates and sales off.
 export const eventSummary = (
   id: string,
   name: string,
@@ -32,6 +37,10 @@ export const eventSummary = (
     .replace(/^-|-$/g, ''),
   folioPrefix: 'EV',
   archivedAt: null,
+  timeZone: 'America/Mexico_City',
+  startsAt: null,
+  endsAt: null,
+  salesEnabled: false,
   ...overrides,
 });
 

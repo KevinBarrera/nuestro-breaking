@@ -1,9 +1,9 @@
 import { Select } from '@/shared/ui';
 import { useNavigate } from 'react-router';
 import { eventSectionPath, type AdminLocation } from './admin-location';
-import type { AdminEvent } from './use-admin-events';
+import type { ShellEvent } from './use-admin-events';
 
-type EventSelectorProps = { events: AdminEvent[]; location: AdminLocation };
+type EventSelectorProps = { events: ShellEvent[]; location: AdminLocation };
 
 // Only shown inside an event the account can manage; switching keeps the current section.
 export function EventSelector({ events, location }: EventSelectorProps) {

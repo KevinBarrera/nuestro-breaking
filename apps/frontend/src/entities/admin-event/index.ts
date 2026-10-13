@@ -15,7 +15,6 @@ export type {
   AdminEvent,
   AdminEventErrorCode,
   AdminEventFailure,
-  AdminEventSummary,
   AdminVenue,
   CreateEventInput,
   EventDeleteBlocker,

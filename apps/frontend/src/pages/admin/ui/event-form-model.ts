@@ -5,10 +5,14 @@ import { hasControlCharacters } from '@/shared/lib';
 // Pure form logic and Spanish messages for Nuevo evento (#213). The rules mirror the backend
 // (`admin-event-input.ts`), so most mistakes show before a request.
 
-const NAME_MAX = 120;
-const SLUG_MAX = 80;
+export const NAME_MAX = 120;
+export const SLUG_MAX = 80;
+export const FOLIO_PREFIX_MIN = 2;
+export const FOLIO_PREFIX_MAX = 6;
 const SLUG_PATTERN = /^[a-z0-9]+(-[a-z0-9]+)*$/;
-const FOLIO_PREFIX_PATTERN = /^[A-Z][A-Z0-9]{1,5}$/;
+const FOLIO_PREFIX_PATTERN = new RegExp(
+  `^[A-Z][A-Z0-9]{${FOLIO_PREFIX_MIN - 1},${FOLIO_PREFIX_MAX - 1}}$`,
+);
 
 // A short curated list; the backend accepts any IANA zone.
 export const timeZoneOptions = [
@@ -45,7 +49,7 @@ export type EventField = keyof EventDraft;
 export type EventErrors = Partial<Record<EventField, string>>;
 
 // The address suggested from the name: lowercase, no accents, other characters become single
-// hyphens, at most 80 characters.
+// hyphens, at most `SLUG_MAX` characters.
 export function slugify(name: string): string {
   return name
     .normalize('NFD')
@@ -67,9 +71,9 @@ const messages = {
   nameLong: `Usa ${NAME_MAX} caracteres o menos.`,
   nameControl: 'Quita los caracteres especiales del nombre.',
   slugMissing: 'Escribe la dirección.',
-  slugInvalid: 'Usa solo minúsculas, números y guiones, hasta 80 caracteres.',
+  slugInvalid: `Usa solo minúsculas, números y guiones, hasta ${SLUG_MAX} caracteres.`,
   slugTaken: 'Esta dirección ya la usa otro evento. Elige otra.',
-  prefix: 'Usa de 2 a 6 letras mayúsculas o números, empezando con una letra.',
+  prefix: `Usa de ${FOLIO_PREFIX_MIN} a ${FOLIO_PREFIX_MAX} letras mayúsculas o números, empezando con una letra.`,
   timeZone: 'Elige una zona horaria de la lista.',
   startMissing: 'Escribe también la fecha de inicio.',
   endMissing: 'Escribe también la fecha de fin.',
@@ -77,7 +81,12 @@ const messages = {
   skipped: 'Esa hora no existe en la zona horaria elegida. Elige otra.',
 };
 
+// Shared with `eventFailureMessage`, so the field and the page alert never disagree.
 export const slugTakenMessage = messages.slugTaken;
+
+// Field hints on the event forms, built from the same limits as the validation.
+export const slugHint = `Se sugiere a partir del nombre. Solo minúsculas, números y guiones, hasta ${SLUG_MAX} caracteres. No se puede cambiar después de crear el evento.`;
+export const folioPrefixHint = `De ${FOLIO_PREFIX_MIN} a ${FOLIO_PREFIX_MAX} caracteres; empieza con letra. No se puede cambiar después.`;
 
 function nameError(name: string): string | undefined {
   if (hasControlCharacters(name)) return messages.nameControl;

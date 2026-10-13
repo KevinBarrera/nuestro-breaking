@@ -1,4 +1,4 @@
-import { restoreEvent, adminEventFailure, type AdminEventSummary } from '@/entities/admin-event';
+import { restoreEvent, adminEventFailure, type AdminEvent } from '@/entities/admin-event';
 import { useSessionStore } from '@/entities/session';
 import { routes } from '@/shared/config';
 import { Notice } from '@/shared/ui';
@@ -6,10 +6,13 @@ import { useId, useRef, useState } from 'react';
 import { Link, Navigate } from 'react-router';
 import { styles } from './catalog-copy';
 import {
+  eventDates,
   eventFailureMessage,
+  eventZoneName,
   folioPattern,
   landingRedirect,
   restoredNotice,
+  salesChip,
   splitEvents,
 } from './event-model';
 import { useEventList } from './use-event-list';
@@ -65,7 +68,7 @@ export function AdminPage() {
 
   const empty = state.status === 'ready' && active.length === 0;
 
-  async function restore(event: AdminEventSummary) {
+  async function restore(event: AdminEvent) {
     if (restoring) return;
     setRestoring(event.id);
     setMessage(null);
@@ -106,6 +109,17 @@ export function AdminPage() {
           {globalAdmin && !empty && <CreateEventLink />}
         </header>
         {message && <Notice tone={message.tone}>{message.text}</Notice>}
+        {state.status === 'ready' && state.refreshFailed && (
+          <div
+            role="status"
+            className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-warning-fg bg-warning p-4 text-warning-fg"
+          >
+            <p>No se pudo actualizar la lista de eventos; puede no estar al día.</p>
+            <button type="button" className={styles.secondary} onClick={reload}>
+              Reintentar
+            </button>
+          </div>
+        )}
         {state.status === 'loading' && <p role="status">Cargando eventos…</p>}
         {state.status === 'failed' &&
           (state.failure.kind === 'unauthorized' || state.failure.kind === 'forbidden' ? (
@@ -217,9 +231,11 @@ function FirstEvent({ hasArchived }: { hasArchived: boolean }) {
   );
 }
 
-function EventMeta({ event, id }: { event: AdminEventSummary; id?: string }) {
+function EventMeta({ event, id }: { event: AdminEvent; id?: string }) {
   return (
     <span id={id} className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted">
+      <span>{eventDates(event)}</span>
+      <span>{eventZoneName(event.timeZone)}</span>
       <span className="font-mono break-all">/e/{event.slug}</span>
       <span>
         Folios <span className="font-mono">{folioPattern(event.folioPrefix)}</span>
@@ -228,16 +244,17 @@ function EventMeta({ event, id }: { event: AdminEventSummary; id?: string }) {
   );
 }
 
-// The whole card opens the event's overview. Its name is the link name; the address and folio
-// prefix describe it.
-function EventCard({ event }: { event: AdminEventSummary }) {
+// The whole card opens the event's overview. Its name is the link name; the dates, zone,
+// address, folio prefix and sales chip describe it.
+function EventCard({ event }: { event: AdminEvent }) {
   const nameId = useId();
   const metaId = useId();
+  const salesId = useId();
   return (
     <Link
       to={eventPath(routes.adminEventOverview, event.id)}
       aria-labelledby={nameId}
-      aria-describedby={metaId}
+      aria-describedby={`${metaId} ${salesId}`}
       className="flex items-center gap-4 rounded-xl border border-line bg-surface px-5 py-5 text-heading hover:bg-row focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus sm:px-6"
     >
       <span className="flex min-w-0 flex-1 flex-col gap-2">
@@ -246,13 +263,31 @@ function EventCard({ event }: { event: AdminEventSummary }) {
         </span>
         <EventMeta event={event} id={metaId} />
       </span>
+      <SalesChipBadge salesEnabled={event.salesEnabled} id={salesId} />
       <ChevronIcon />
     </Link>
   );
 }
 
+const chipTone = {
+  open: 'bg-success text-success-fg',
+  closed: 'bg-chip text-fg',
+} as const;
+
+function SalesChipBadge({ salesEnabled, id }: { salesEnabled: boolean; id?: string }) {
+  const chip = salesChip(salesEnabled);
+  return (
+    <span
+      id={id}
+      className={`shrink-0 rounded-full px-3 py-1.5 text-sm font-bold whitespace-nowrap ${chipTone[chip.tone]}`}
+    >
+      {chip.label}
+    </span>
+  );
+}
+
 type ArchivedEventCardProps = {
-  event: AdminEventSummary;
+  event: AdminEvent;
   restoring: boolean;
   disabled: boolean;
   onRestore: () => void;

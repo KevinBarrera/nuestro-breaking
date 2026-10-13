@@ -13,7 +13,8 @@ type VenuesSectionProps = {
   eventId: string;
   venues: AdminVenue[];
   editable: boolean;
-  onChange: (venues: AdminVenue[]) => void;
+  // Applied to the latest venues of `eventId`, so overlapping writes all count.
+  onChange: (eventId: string, update: (venues: AdminVenue[]) => AdminVenue[]) => void;
   // A write was refused with `event_archived`.
   onArchived: () => void;
 };
@@ -39,7 +40,12 @@ export function VenuesSection({
 
   function failed(error: unknown) {
     const failure = adminEventFailure(error);
-    if (failure.kind === 'rule' && failure.code === 'event_archived') onArchived();
+    if (failure.kind === 'rule' && failure.code === 'event_archived') {
+      // The event is read-only now, so the open form closes.
+      setAdding(false);
+      setRenaming(null);
+      onArchived();
+    }
     setMessage({ tone: 'danger', text: venueFailureMessage(failure) });
   }
 
@@ -54,7 +60,7 @@ export function VenuesSection({
   async function add(name: string) {
     try {
       const venue = await createVenue(eventId, name);
-      onChange([...venues, venue]);
+      onChange(eventId, (current) => [...current, venue]);
       done(`Se agregó la sede «${venue.name}».`);
     } catch (error) {
       failed(error);
@@ -64,7 +70,9 @@ export function VenuesSection({
   async function rename(venueId: string, name: string) {
     try {
       const venue = await renameVenue(eventId, venueId, name);
-      onChange(venues.map((current) => (current.id === venue.id ? venue : current)));
+      onChange(eventId, (current) =>
+        current.map((existing) => (existing.id === venue.id ? venue : existing)),
+      );
       done(`La sede ahora se llama «${venue.name}».`);
     } catch (error) {
       failed(error);
@@ -101,7 +109,7 @@ export function VenuesSection({
         )}
       </div>
       {message && <Notice tone={message.tone}>{message.text}</Notice>}
-      {adding && (
+      {editable && adding && (
         <VenueForm
           formLabel="Agregar sede"
           submitLabel="Agregar"
@@ -119,7 +127,7 @@ export function VenuesSection({
         <ul aria-label="Sedes del evento" className="divide-y divide-row">
           {venues.map((venue) => (
             <li key={venue.id} className="py-3 first:pt-0 last:pb-0">
-              {renaming === venue.id ? (
+              {editable && renaming === venue.id ? (
                 <VenueForm
                   formLabel={`Renombrar ${venue.name}`}
                   submitLabel="Guardar nombre"

@@ -294,6 +294,104 @@ test('a venue shared with another event explains why it cannot be renamed', asyn
   await expect(renameForm.getByLabel('Nombre de la sede')).toHaveValue('Otro nombre');
 });
 
+// Holds a route's answer until `release()` is called, to overlap two writes.
+function gate() {
+  let release = () => {};
+  const opened = new Promise<void>((resolve) => (release = resolve));
+  return { opened, release };
+}
+
+test('a venue added while a save is pending stays after the save answers', async ({ page }) => {
+  await openDetails(page);
+  const save = gate();
+  await page.route(eventEndpoint, async (route) => {
+    if (route.request().method() !== 'PATCH') return route.fallback();
+    await save.opened;
+    return route.fulfill({ json: { ...event, name: 'Encuentro 2026' } });
+  });
+  await page.route(venuesEndpoint, (route) =>
+    route.fulfill({
+      status: 201,
+      json: { id: 'f1b2c3d4-1234-4567-89ab-123456789abc', name: 'Foro Principal' },
+    }),
+  );
+  await form(page).getByLabel('Nombre del evento').fill('Encuentro 2026');
+  await saveButton(page).click();
+  await expect(form(page).getByRole('button', { name: 'Guardando…' })).toBeVisible();
+
+  const section = venues(page);
+  await section.getByRole('button', { name: 'Agregar sede' }).click();
+  const addForm = section.getByRole('form', { name: 'Agregar sede' });
+  await addForm.getByLabel('Nombre de la sede').fill('Foro Principal');
+  await addForm.getByRole('button', { name: 'Agregar' }).click();
+  await expect(section.getByRole('listitem')).toHaveText([/^Centro cultural/, /^Foro Principal/]);
+
+  save.release();
+  await expect(main(page).getByText('Cambios guardados.')).toBeVisible();
+  await expect(form(page).getByLabel('Nombre del evento')).toHaveValue('Encuentro 2026');
+  await expect(section.getByRole('listitem')).toHaveText([/^Centro cultural/, /^Foro Principal/]);
+});
+
+test('switching events while a save is pending opens the other event', async ({ page }) => {
+  const otherId = 'b1b2c3d4-1234-4567-89ab-123456789abc';
+  const other = { ...event, id: otherId, name: 'Otro evento', slug: 'otro-evento' };
+  await mockSession(page);
+  await page.route(adminEventsEndpoint, (route) =>
+    route.fulfill({
+      json: [eventSummary(eventId, event.name), eventSummary(otherId, other.name)],
+    }),
+  );
+  await page.route(foundationEndpoint, (route) => route.fulfill({ json: foundation() }));
+  await page.route(
+    (url) => api(url) && url.pathname === `/admin/events/${otherId}/foundation`,
+    (route) =>
+      route.fulfill({
+        json: { event: { ...other, windowStatus: 'bounded' }, venues: [], activities: [] },
+      }),
+  );
+  const save = gate();
+  await page.route(eventEndpoint, async (route) => {
+    if (route.request().method() !== 'PATCH') return route.fallback();
+    await save.opened;
+    return route.fulfill({ json: { ...event, name: 'Encuentro 2026' } });
+  });
+  await page.goto(detailsPath);
+  await form(page).getByLabel('Nombre del evento').fill('Encuentro 2026');
+  await saveButton(page).click();
+  await expect(form(page).getByRole('button', { name: 'Guardando…' })).toBeVisible();
+
+  const header = page.getByRole('banner', { name: 'Espacio de administración' });
+  await chooseOption(selectTrigger(header, 'Evento'), 'Otro evento');
+  await expect(page).toHaveURL(new RegExp(`/admin/events/${otherId}/foundation$`));
+  await expect(form(page).getByLabel('Nombre del evento')).toHaveValue('Otro evento');
+
+  save.release();
+  // The late answer belongs to the first event, so this page keeps showing the second one.
+  await page.waitForTimeout(200);
+  await expect(form(page).getByLabel('Nombre del evento')).toHaveValue('Otro evento');
+  await expect(main(page).getByText('Cambios guardados.')).toHaveCount(0);
+  await expect(main(page).getByText('Cargando datos del evento…')).toHaveCount(0);
+});
+
+test('a venue write refused because the event was archived closes the venue form', async ({
+  page,
+}) => {
+  await openDetails(page);
+  await page.route(venuesEndpoint, (route) =>
+    route.fulfill({ status: 409, json: { code: 'event_archived', message: 'Event is archived' } }),
+  );
+  const section = venues(page);
+  await section.getByRole('button', { name: 'Agregar sede' }).click();
+  const addForm = section.getByRole('form', { name: 'Agregar sede' });
+  await addForm.getByLabel('Nombre de la sede').fill('Foro Principal');
+  await addForm.getByRole('button', { name: 'Agregar' }).click();
+  await expect(main(page)).toContainText('Este evento está archivado');
+  await expect(section.getByRole('alert')).toContainText('Restáuralo primero.');
+  await expect(addForm).toHaveCount(0);
+  await expect(section.getByRole('button')).toHaveCount(0);
+  await expect(saveButton(page)).toHaveCount(0);
+});
+
 test('an event without venues invites to add the first one', async ({ page }) => {
   await openDetails(page, foundation({}, []));
   await expect(venues(page)).toContainText('Aún no hay sedes.');

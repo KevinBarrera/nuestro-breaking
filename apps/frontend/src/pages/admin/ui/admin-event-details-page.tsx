@@ -28,13 +28,9 @@ import {
   type EventDetailsDraft,
   type EventErrors,
 } from './event-form-model';
+import { withEvent, withVenues, type DetailsState } from './event-details-state';
 import { eventFailureMessage, eventZoneName } from './event-model';
 import { VenuesSection } from './venues-section';
-
-type LoadState =
-  | { status: 'loading' }
-  | { status: 'failed'; failure: AdminEventFailure }
-  | { status: 'ready'; event: AdminEvent; venues: AdminVenue[] };
 
 function loadFailureMessage(failure: AdminEventFailure) {
   if (failure.kind === 'not_found') return 'No encontramos este evento. Revisa el enlace.';
@@ -50,25 +46,19 @@ function loadFailureMessage(failure: AdminEventFailure) {
 export function AdminEventDetailsPage() {
   const { eventId = '' } = useParams<'eventId'>();
   const canEdit = useSessionStore((state) => state.session.user?.roles.includes('admin') === true);
-  const [state, setState] = useState<{ eventId: string; load: LoadState }>({
-    eventId,
-    load: { status: 'loading' },
-  });
+  const [state, setState] = useState<DetailsState>({ eventId, load: { status: 'loading' } });
   const [revision, setRevision] = useState(0);
-  // Bumped on each save, so the form starts again from the saved event.
-  const [formKey, setFormKey] = useState(0);
   // Both belong to the event they were set for, so switching events drops them.
   const [notice, setNotice] = useState<{ eventId: string; text: string } | null>(null);
   // A write was refused with `event_archived`: someone archived the event meanwhile.
   const [archivedFor, setArchivedFor] = useState<string | null>(null);
-  const markArchived = () => setArchivedFor(eventId);
 
   useEffect(() => {
     const controller = new AbortController();
     getEventFoundation(eventId, controller.signal)
       .then(({ event, venues }) => {
         if (!controller.signal.aborted)
-          setState({ eventId, load: { status: 'ready', event, venues } });
+          setState({ eventId, load: { status: 'ready', event, venues, saves: 0 } });
       })
       .catch((error: unknown) => {
         if (!controller.signal.aborted)
@@ -77,7 +67,7 @@ export function AdminEventDetailsPage() {
     return () => controller.abort();
   }, [eventId, revision]);
 
-  const load: LoadState = state.eventId === eventId ? state.load : { status: 'loading' };
+  const load = state.eventId === eventId ? state.load : { status: 'loading' as const };
   const ready = load.status === 'ready' ? load : null;
   const archived = archivedFor === eventId || (ready !== null && ready.event.archivedAt !== null);
   const noticeText = notice?.eventId === eventId ? notice.text : null;
@@ -88,15 +78,15 @@ export function AdminEventDetailsPage() {
     setRevision((value) => value + 1);
   }
 
+  // Answers may arrive after other writes or after switching events, so they go through the
+  // latest state and are dropped for an event that is no longer shown (`event-details-state`).
   function saved(event: AdminEvent) {
-    if (!ready) return;
-    setState({ eventId, load: { ...ready, event } });
-    setFormKey((value) => value + 1);
-    setNotice({ eventId, text: savedNotice });
+    setState((previous) => withEvent(previous, event));
+    setNotice({ eventId: event.id, text: savedNotice });
   }
 
-  function venuesChanged(venues: AdminVenue[]) {
-    if (ready) setState({ eventId, load: { ...ready, venues } });
+  function venuesChanged(venueEventId: string, update: (venues: AdminVenue[]) => AdminVenue[]) {
+    setState((previous) => withVenues(previous, venueEventId, update));
   }
 
   return (
@@ -130,19 +120,20 @@ export function AdminEventDetailsPage() {
             {!archived && !canEdit && <Notice>{readOnlyNotice}</Notice>}
             {noticeText && !archived && <Notice>{noticeText}</Notice>}
             <EventDetailsForm
-              key={`${ready.event.id}-${formKey}`}
+              key={`${ready.event.id}-${ready.saves}`}
               event={ready.event}
               editable={editable}
               onSaved={saved}
-              onArchived={markArchived}
+              onArchived={() => setArchivedFor(ready.event.id)}
               onEdit={() => setNotice(null)}
             />
             <VenuesSection
+              key={ready.event.id}
               eventId={ready.event.id}
               venues={ready.venues}
               editable={editable}
               onChange={venuesChanged}
-              onArchived={markArchived}
+              onArchived={() => setArchivedFor(ready.event.id)}
             />
             {/* #213 T10: the "Archivar o eliminar" section goes here. */}
           </>

@@ -3,9 +3,10 @@ import { ThemeToggle } from '@/features/theme-toggle';
 import { routes } from '@/shared/config';
 import type { PropsWithChildren } from 'react';
 import { useEffect, useRef } from 'react';
-import { useLocation } from 'react-router';
+import { Link, useLocation } from 'react-router';
 import { readAdminLocation } from './admin-location';
 import { AdminSideNav } from './admin-side-nav';
+import { eventListRequest } from './event-list-request';
 import { EventSelector } from './event-selector';
 import { useAdminEvents } from './use-admin-events';
 
@@ -40,7 +41,15 @@ export function AdminShell({ signingOut, signOutFailed, onSignOut, children }: A
       >
         <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-header-fg">
-            <span className="text-base font-extrabold tracking-[0.08em]">LOS MÁS PESADOS</span>
+            {/* The brand also leads back to the event list, as Todos los eventos does. */}
+            <Link
+              to={routes.admin}
+              state={eventListRequest}
+              aria-label="Los más pesados, ir a todos los eventos"
+              className="inline-flex min-h-11 items-center rounded-md text-base font-extrabold tracking-[0.08em] text-header-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-header-fg"
+            >
+              LOS MÁS PESADOS
+            </Link>
             <span className="rounded border border-header-line px-2 py-0.5 text-xs font-semibold tracking-[0.06em] text-header-muted">
               ADMIN
             </span>

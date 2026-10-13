@@ -432,11 +432,21 @@ test('keeps the header and navigation usable at 375px and opens the overview', a
     .getByRole('navigation', { name: 'Navegación administrativa' })
     .getByRole('link', { name: 'Resumen' });
   await page.keyboard.press('Tab');
+  await expect(
+    header.getByRole('link', { name: 'Los más pesados, ir a todos los eventos' }),
+  ).toBeFocused();
+  await page.keyboard.press('Tab');
   await expect(selector).toBeFocused();
   await page.keyboard.press('Tab');
   await expect(header.getByRole('button', { name: 'Cambiar a tema oscuro' })).toBeFocused();
   await page.keyboard.press('Tab');
   await expect(header.getByRole('button', { name: 'Cerrar sesión' })).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(
+    page
+      .getByRole('navigation', { name: 'Navegación administrativa' })
+      .getByRole('link', { name: 'Todos los eventos' }),
+  ).toBeFocused();
   await page.keyboard.press('Tab');
   await expect(home).toBeFocused();
   const scrollWidth = await page.evaluate(

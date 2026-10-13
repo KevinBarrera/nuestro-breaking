@@ -281,12 +281,13 @@ test('shows the authenticated admin shell with only the available navigation and
   const header = page.getByRole('banner', { name: 'Espacio de administración' });
   await expect(header.getByText('LOS MÁS PESADOS')).toBeVisible();
   const nav = page.getByRole('navigation', { name: 'Navegación administrativa' });
-  await expect(nav.getByRole('link', { name: 'Resumen' })).toHaveAttribute('href', '/admin');
-  const home = nav.getByRole('link', { name: 'Resumen' });
+  const home = nav.getByRole('link', { name: 'Todos los eventos' });
+  await expect(home).toHaveAttribute('href', '/admin');
   await expect(home).toHaveAttribute('aria-current', 'page');
   await expect(home).not.toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
   await expect(header.getByRole('button', { name: 'Cerrar sesión' })).toBeVisible();
-  await expect(header.getByRole('link')).toHaveCount(0);
+  // The brand is the header's only link, back to this same list.
+  await expect(header.getByRole('link')).toHaveText(['LOS MÁS PESADOS']);
   await expect(page.getByRole('heading', { name: 'Eventos', exact: true })).toBeVisible();
 });
 
@@ -311,11 +312,15 @@ test('keeps a narrow keyboard-accessible admin header on the event picker', asyn
   await expect(selectTrigger(header, 'Evento')).toHaveCount(0);
   const home = page
     .getByRole('navigation', { name: 'Navegación administrativa' })
-    .getByRole('link', { name: 'Resumen' });
+    .getByRole('link', { name: 'Todos los eventos' });
+  const brand = header.getByRole('link', { name: 'Los más pesados, ir a todos los eventos' });
   const signOut = header.getByRole('button', { name: 'Cerrar sesión' });
   await expect(home).toHaveAttribute('aria-current', 'page');
-  await expect(header.getByRole('link')).toHaveCount(0);
+  await expect(header.getByRole('link')).toHaveCount(1);
   await expect(page.getByRole('link', { name: 'Encuentro del barrio', exact: true })).toBeVisible();
+  await page.keyboard.press('Tab');
+  await expect(brand).toBeFocused();
+  await expect(brand).toHaveCSS('outline-style', 'solid');
   await page.keyboard.press('Tab');
   await expect(header.getByRole('button', { name: 'Cambiar a tema oscuro' })).toBeFocused();
   await page.keyboard.press('Tab');
@@ -324,7 +329,7 @@ test('keeps a narrow keyboard-accessible admin header on the event picker', asyn
   await page.keyboard.press('Tab');
   await expect(home).toBeFocused();
   await expect(home).toHaveCSS('outline-style', 'solid');
-  for (const control of [home, signOut]) {
+  for (const control of [brand, home, signOut]) {
     const bounds = await control.boundingBox();
     expect(bounds).not.toBeNull();
     expect(bounds!.x).toBeGreaterThanOrEqual(0);

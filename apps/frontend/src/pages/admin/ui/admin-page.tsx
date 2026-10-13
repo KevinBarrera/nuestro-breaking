@@ -1,5 +1,6 @@
 import { restoreEvent, adminEventFailure, type AdminEvent } from '@/entities/admin-event';
 import { useSessionStore } from '@/entities/session';
+import { isEventListRequest } from '@/widgets/admin-shell';
 import { routes } from '@/shared/config';
 import { Notice } from '@/shared/ui';
 import { useEffect, useId, useRef, useState } from 'react';
@@ -52,7 +53,8 @@ type Message = { tone: 'info' | 'danger'; text: string };
 
 // The /admin landing: the events this account may operate, from GET /admin/events only.
 // Global admins also create events here and restore archived ones (#213). For everyone else,
-// exactly one event means nothing to choose, so it opens that event's overview.
+// exactly one event means nothing to choose, so it opens that event's overview, unless they
+// asked for the list from the shell ("Todos los eventos" or the brand).
 export function AdminPage() {
   const globalAdmin = useSessionStore((state) => state.session.user?.globalAdmin === true);
   const { state, reload } = useEventList(globalAdmin);
@@ -76,7 +78,10 @@ export function AdminPage() {
 
   const { active, archived } =
     state.status === 'ready' ? splitEvents(state.events) : { active: [], archived: [] };
-  const redirect = state.status === 'ready' ? landingRedirect(active, globalAdmin) : null;
+  const redirect =
+    state.status === 'ready' && !isEventListRequest(location.state)
+      ? landingRedirect(active, globalAdmin)
+      : null;
   if (redirect) return <Navigate replace to={eventPath(routes.adminEventOverview, redirect)} />;
 
   const empty = state.status === 'ready' && active.length === 0;

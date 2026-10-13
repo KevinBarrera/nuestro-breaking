@@ -37,9 +37,11 @@ test('renders the shell with grouped navigation and unavailable sections disable
   const nav = sideNav(page);
   await expect(nav.getByText('OPERACIÓN')).toBeVisible();
   await expect(nav.getByText('CATÁLOGO')).toBeVisible();
-  const overview = nav.getByRole('link', { name: 'Resumen' });
-  await expect(overview).toHaveAttribute('href', '/admin');
-  await expect(overview).toHaveAttribute('aria-current', 'page');
+  // On the event list, Todos los eventos is the one current item; Resumen needs an event.
+  const allEvents = nav.getByRole('link', { name: 'Todos los eventos' });
+  await expect(allEvents).toHaveAttribute('href', '/admin');
+  await expect(allEvents).toHaveAttribute('aria-current', 'page');
+  await expect(nav.locator('[aria-current="page"]')).toHaveCount(1);
   for (const name of ['Inscripciones', 'Listas de respaldo']) {
     const item = nav.getByRole('link', { name: new RegExp(name) });
     await expect(item).toHaveAttribute('aria-disabled', 'true');
@@ -47,7 +49,7 @@ test('renders the shell with grouped navigation and unavailable sections disable
     await expect(item).toContainText('Próximamente');
   }
   // Without an event in the URL, event-scoped sections cannot be reached yet.
-  for (const name of ['Check-in', 'Actividades', 'Pases']) {
+  for (const name of ['Resumen', 'Check-in', 'Actividades', 'Pases']) {
     await expect(nav.getByRole('link', { name })).toHaveAttribute('aria-disabled', 'true');
   }
 });

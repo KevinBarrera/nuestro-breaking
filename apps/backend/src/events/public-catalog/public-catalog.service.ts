@@ -4,13 +4,11 @@ import { DATABASE_CLIENT } from '@/database/database.constants';
 import type { DatabaseService } from '@/database/database.service';
 import { activities, eventPassTypeActivities, eventPassTypes, events } from '@/database/schema';
 import { salesState, type SalesClosedReason } from '@/events/sales';
+import { isEventSlug } from '@/events/shared/event-slug';
 import { toPublicCatalog } from './public-catalog.projection';
 import type { CatalogEventRow, PublicEventCatalog } from './public-catalog.types';
 
 type Database = DatabaseService['db'];
-
-// Same rule as the `events_slug_ck` check; anything else cannot match a row, so it is a 404.
-const SLUG = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
 /** Thrown by `requireOpen` when the event exists but sales are closed (409). */
 export class SalesClosedException extends ConflictException {
@@ -77,7 +75,8 @@ export class PublicCatalogService {
   }
 
   private async event(slug: string): Promise<CatalogEventRow> {
-    if (slug.length > 80 || !SLUG.test(slug)) throw new NotFoundException('Event not found');
+    // A malformed slug cannot match a row, so it is a 404 without a query.
+    if (!isEventSlug(slug)) throw new NotFoundException('Event not found');
     const [row] = await this.db
       .select({
         id: events.id,

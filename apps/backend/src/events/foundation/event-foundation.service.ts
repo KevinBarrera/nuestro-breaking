@@ -14,9 +14,13 @@ export class EventFoundationService {
       .select({
         id: events.id,
         name: events.name,
+        slug: events.slug,
+        folioPrefix: events.folioPrefix,
         timeZone: events.timeZone,
         startsAt: events.startsAt,
         endsAt: events.endsAt,
+        salesEnabled: events.salesEnabled,
+        archivedAt: events.archivedAt,
       })
       .from(events)
       .where(eq(events.id, eventId))
@@ -51,10 +55,14 @@ export class EventFoundationService {
       event: {
         id: event.id,
         name: event.name,
+        slug: event.slug,
+        folioPrefix: event.folioPrefix,
         timeZone: event.timeZone,
         startsAt: event.startsAt?.toISOString() ?? null,
         endsAt: event.endsAt?.toISOString() ?? null,
         windowStatus: event.startsAt === null && event.endsAt === null ? 'unbounded' : 'bounded',
+        salesEnabled: event.salesEnabled,
+        archivedAt: event.archivedAt?.toISOString() ?? null,
       },
       venues: attachedVenues,
       activities: eventActivities.map((activity) => ({

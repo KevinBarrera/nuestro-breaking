@@ -17,7 +17,7 @@ All routes sit under `/admin/events` and use the [admin authentication boundary]
 
 | Method and path                                | Who                                 | Body                                                        | Success                            |
 | ---------------------------------------------- | ----------------------------------- | ----------------------------------------------------------- | ---------------------------------- |
-| `GET /admin/events`                            | Any admin (global or event-scoped)  | None. `?archived=true` also returns archived events.        | `200` list of event summaries      |
+| `GET /admin/events`                            | Any admin (global or event-scoped)  | None. `?archived=true` also returns archived events.        | `200` list of events               |
 | `GET /admin/events/:eventId/foundation`        | Admin or judge for the event        | None                                                        | `200` event, venues and activities |
 | `POST /admin/events`                           | Global admin                        | `{ name, slug, folioPrefix, timeZone, startsAt?, endsAt? }` | `201` event                        |
 | `PATCH /admin/events/:eventId`                 | Global admin or admin for the event | Any of `{ name, timeZone, startsAt, endsAt }`               | `200` event                        |
@@ -31,19 +31,7 @@ A caller without the required role gets `401` and an audited `denied` row in `au
 
 ### Response shapes
 
-The list returns summaries ordered by name, limited to the events the caller may manage. Archived events are left out unless `?archived=true` (any other value is ignored):
-
-```json
-{
-  "id": "…",
-  "name": "Los más pesados",
-  "slug": "los-mas-pesados-2026",
-  "folioPrefix": "LMP",
-  "archivedAt": null
-}
-```
-
-`POST`, `PATCH`, archive and restore return the full event:
+The list, `POST`, `PATCH`, archive and restore all return the same event object. The list is ordered by name and limited to the events the caller may manage. Archived events are left out unless `?archived=true` (any other value is ignored). Every field is a column of the event row, so the list needs no extra queries; the admin event cards use the dates, time zone and `salesEnabled` (#213 T9):
 
 ```json
 {
@@ -58,6 +46,8 @@ The list returns summaries ordered by name, limited to the events the caller may
   "archivedAt": null
 }
 ```
+
+`salesEnabled` is only the switch. Whether sales are open right now also depends on the sales window, which the [event sales API](event-sales.md) reports as `state`.
 
 Dates are ISO 8601 in UTC, or `null`. The foundation `event` object carries the same fields plus `windowStatus`.
 

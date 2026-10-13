@@ -260,7 +260,7 @@ describe('admin event creation and read model (e2e)', () => {
     expect(await count('event_admin_audit')).toBe(0);
   });
 
-  it('lists events with slug, folio prefix and archived state, hiding archived ones by default', async () => {
+  it('lists events with slug, folio prefix, time zone, dates, sales and archived state, hiding archived ones by default', async () => {
     const organizationId = await organization();
     const [active, archived] = await client<{ id: string }[]>`
       INSERT INTO events (organization_id, name, time_zone, slug, folio_prefix)
@@ -268,6 +268,10 @@ describe('admin event creation and read model (e2e)', () => {
              (${organizationId}, 'Archived', 'Etc/UTC', 'archived', 'ARC')
       RETURNING id`;
     await client`UPDATE events SET archived_at = '2026-10-01T12:00:00Z' WHERE id = ${archived.id}`;
+    await client`
+      UPDATE events
+      SET starts_at = '2026-11-14T16:00:00Z', ends_at = '2026-11-16T04:00:00Z', sales_enabled = true
+      WHERE id = ${active.id}`;
     const { cookie } = await globalAdmin();
     const activeItem = {
       id: active.id,
@@ -275,6 +279,10 @@ describe('admin event creation and read model (e2e)', () => {
       slug: 'active',
       folioPrefix: 'ACT',
       archivedAt: null,
+      timeZone: 'Etc/UTC',
+      startsAt: '2026-11-14T16:00:00.000Z',
+      endsAt: '2026-11-16T04:00:00.000Z',
+      salesEnabled: true,
     };
     const archivedItem = {
       id: archived.id,
@@ -282,6 +290,10 @@ describe('admin event creation and read model (e2e)', () => {
       slug: 'archived',
       folioPrefix: 'ARC',
       archivedAt: '2026-10-01T12:00:00.000Z',
+      timeZone: 'Etc/UTC',
+      startsAt: null,
+      endsAt: null,
+      salesEnabled: false,
     };
     const list = (query = '') => server().get(`/admin/events${query}`).set('Cookie', cookie);
     expect((await list().expect(200)).body).toEqual([activeItem]);

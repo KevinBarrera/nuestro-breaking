@@ -4,7 +4,7 @@ This contract explains what the current repository actually guarantees for event
 
 > **Update (#124):** activities now have `status` and `version`, admins create, edit and archive them, and passes with prices and activity access are delivered. See the [event catalog contract](event-catalog.md). The #60 readback below is kept as delivered history.
 
-> **Update (#213):** admins now create, edit, archive, restore and delete empty events, and the foundation `event` also returns `slug`, `folioPrefix`, `salesEnabled` and `archivedAt`. See the [admin event lifecycle contract](admin-event-lifecycle.md).
+> **Update (#213):** admins now create, edit, archive, restore and delete empty events, add and rename an event's venues, and the foundation `event` also returns `slug`, `folioPrefix`, `salesEnabled` and `archivedAt`. See the [admin event lifecycle contract](admin-event-lifecycle.md).
 
 ## Current answer
 

@@ -101,19 +101,20 @@ API is described in the
    this also creates the organization. Choose the slug and folio prefix with
    care: they **cannot change** later, because shared links and printed folios
    use them.
-3. **Add the catalog** from the panel: **Actividades** and **Pases**.
-4. **Open sales** in the event's "Venta en línea" section when the catalog is
+3. **Add the venues** where activities happen
+   (`POST /admin/events/:eventId/venues` with `{ name }`). Each activity needs
+   a venue of its event.
+4. **Add the catalog** from the panel: **Actividades** and **Pases**.
+5. **Open sales** in the event's "Venta en línea" section when the catalog is
    ready. A new event starts with sales off.
-5. Invite the event's team from **Equipo**
+6. Invite the event's team from **Equipo**
    ([Managing the team](support.md#managing-the-team)).
 
 Current limits:
 
-- The panel screens to create and edit events (**Crear evento**, **Datos del
-  evento**) are still being built; until then, step 2 is an API call.
-- There is no way yet to add a venue from the panel or the API, and an
-  activity needs a venue of its event. A new event can get passes, but not
-  activities, until that is added.
+- The panel screens to create and edit events and their venues (**Crear
+  evento**, **Datos del evento**) are still being built; until then, steps 2
+  and 3 are API calls.
 
 To retire or remove an event, see
 [Archiving and deleting events](support.md#archiving-and-deleting-events).

@@ -1,28 +1,31 @@
 # Admin event lifecycle contract
 
-This contract describes how administrators create, edit, archive, restore and delete events through the admin API ([#213](https://github.com/KevinBarrera/nuestro-breaking/issues/213)). The backend endpoints below are implemented and covered by backend e2e tests. The admin panel screens for them arrive later in #213 (event list with "Crear evento", "Nuevo evento", "Datos del evento", archive and delete dialogs).
+This contract describes how administrators create, edit, archive, restore and delete events, and manage their venues, through the admin API ([#213](https://github.com/KevinBarrera/nuestro-breaking/issues/213)). The backend endpoints below are implemented and covered by backend e2e tests. The admin panel screens for them arrive later in #213 (event list with "Crear evento", "Nuevo evento", "Datos del evento", archive and delete dialogs).
 
 ## Current answer
 
 - A **global admin** creates an event with a name, slug, folio prefix, time zone and optional dates. Sales start **off**. The slug and folio prefix can never change afterwards.
 - A global admin, or an admin scoped to the event, **edits** the name, time zone and dates.
 - A global admin **archives** an event to retire it: sales turn off and the public site treats it as unknown, but all its data stays readable and payment follow-up keeps working. **Restoring** brings it back with sales still off.
+- A global admin, or an admin scoped to the event, **adds and renames the event's venues**, so a new event can get activities without SQL.
 - A global admin **deletes** an event only when it is **empty** (nothing scheduled, sold or audited), after typing its slug. The slug is then free again.
 - Every action is recorded in `event_admin_audit` with who did it.
 
 ## Endpoints
 
-All routes sit under `/admin/events` and use the [admin authentication boundary](admin-auth-boundary.md). Writes need a trusted `Origin` and the `X-CSRF-Token` header. Code: `apps/backend/src/events/admin-events/` (list: `src/events/check-in-event-list/`).
+All routes sit under `/admin/events` and use the [admin authentication boundary](admin-auth-boundary.md). Writes need a trusted `Origin` and the `X-CSRF-Token` header. Code: `apps/backend/src/events/admin-events/`, venues in `src/events/venue-admin/` (list: `src/events/check-in-event-list/`).
 
-| Method and path                         | Who                                 | Body                                                        | Success                            |
-| --------------------------------------- | ----------------------------------- | ----------------------------------------------------------- | ---------------------------------- |
-| `GET /admin/events`                     | Any admin (global or event-scoped)  | None. `?archived=true` also returns archived events.        | `200` list of event summaries      |
-| `GET /admin/events/:eventId/foundation` | Admin or judge for the event        | None                                                        | `200` event, venues and activities |
-| `POST /admin/events`                    | Global admin                        | `{ name, slug, folioPrefix, timeZone, startsAt?, endsAt? }` | `201` event                        |
-| `PATCH /admin/events/:eventId`          | Global admin or admin for the event | Any of `{ name, timeZone, startsAt, endsAt }`               | `200` event                        |
-| `POST /admin/events/:eventId/archive`   | Global admin                        | None                                                        | `201` event                        |
-| `POST /admin/events/:eventId/restore`   | Global admin                        | None                                                        | `201` event                        |
-| `DELETE /admin/events/:eventId`         | Global admin                        | `{ confirmSlug }`                                           | `204`, no body                     |
+| Method and path                                | Who                                 | Body                                                        | Success                            |
+| ---------------------------------------------- | ----------------------------------- | ----------------------------------------------------------- | ---------------------------------- |
+| `GET /admin/events`                            | Any admin (global or event-scoped)  | None. `?archived=true` also returns archived events.        | `200` list of event summaries      |
+| `GET /admin/events/:eventId/foundation`        | Admin or judge for the event        | None                                                        | `200` event, venues and activities |
+| `POST /admin/events`                           | Global admin                        | `{ name, slug, folioPrefix, timeZone, startsAt?, endsAt? }` | `201` event                        |
+| `PATCH /admin/events/:eventId`                 | Global admin or admin for the event | Any of `{ name, timeZone, startsAt, endsAt }`               | `200` event                        |
+| `POST /admin/events/:eventId/archive`          | Global admin                        | None                                                        | `201` event                        |
+| `POST /admin/events/:eventId/restore`          | Global admin                        | None                                                        | `201` event                        |
+| `DELETE /admin/events/:eventId`                | Global admin                        | `{ confirmSlug }`                                           | `204`, no body                     |
+| `POST /admin/events/:eventId/venues`           | Global admin or admin for the event | `{ name }`                                                  | `201` venue                        |
+| `PATCH /admin/events/:eventId/venues/:venueId` | Global admin or admin for the event | `{ name }`                                                  | `200` venue                        |
 
 A caller without the required role gets `401` and an audited `denied` row in `auth_audit`, the same as other admin routes. A missing or foreign `Origin`, or a missing CSRF token, is `403`. A path id that is not a UUID is `400`.
 
@@ -58,6 +61,17 @@ The list returns summaries ordered by name, limited to the events the caller may
 
 Dates are ISO 8601 in UTC, or `null`. The foundation `event` object carries the same fields plus `windowStatus`.
 
+## Venues
+
+An event's venues are where its activities happen ([#213](https://github.com/KevinBarrera/nuestro-breaking/issues/213) D8). A venue only has a name for now.
+
+- **List**: the `venues` array of `GET /admin/events/:eventId/foundation` (`[{ id, name }]`). There is no separate list route.
+- **Create**: `POST /admin/events/:eventId/venues` with `{ name }` creates the venue in the event's organization and links it to the event in one transaction, with the event row locked. It answers `201 { id, name }`. The new venue id is the `venueId` that `POST /admin/events/:eventId/activities` needs.
+- **Rename**: `PATCH /admin/events/:eventId/venues/:venueId` with `{ name }` answers `200 { id, name }`. A venue that is not linked to this event is `404 Venue not found`. A venue also linked to **another event** (only SQL or the seed can share one) is refused with `409 venue_shared`, so one event's admin cannot rename another event's venue. A rename that changes nothing answers `200` and writes no audit row.
+- **No delete**: venues with activities must stay. Deleting an empty event removes the venues only it uses (see [Deleting an empty event](#deleting-an-empty-event)).
+- An **archived** event refuses both writes with `409 event_archived`.
+- `name` follows the event name rule below (trimmed, not blank, at most 120 characters, no control characters). Any other key is `invalid`; an empty `PATCH` body is `{ "body": "invalid" }`. Errors are `400 { "message": "Invalid venue", "fieldErrors" }`. Code: `venue-input.ts` (pure parsing, unit tested).
+
 ## Input rules
 
 Code: `admin-event-input.ts` (pure parsing, unit tested).
@@ -77,10 +91,13 @@ Code: `admin-event-input.ts` (pure parsing, unit tested).
 | Status | Body                                                                                     | When                                                                        |
 | ------ | ---------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
 | `400`  | `{ "message": "Invalid event", "fieldErrors": { "<field>": "invalid" \| "immutable" } }` | Invalid input, or a `confirmSlug` that is missing or differs from the slug. |
+| `400`  | `{ "message": "Invalid venue", "fieldErrors": { "<field>": "invalid" } }`                | Invalid venue input.                                                        |
 | `404`  | `{ "message": "Event not found", "error": "Not Found" }`                                 | Unknown event id.                                                           |
+| `404`  | `{ "message": "Venue not found", "error": "Not Found" }`                                 | Venue rename for a venue not linked to the event.                           |
+| `409`  | `{ "code": "venue_shared", "message": "Venue is shared with another event" }`            | Venue rename for a venue another event also uses.                           |
 | `409`  | `{ "code": "slug_taken", "fieldErrors": { "slug": "taken" } }`                           | `POST` with a slug another event uses.                                      |
 | `409`  | `{ "code": "organization_ambiguous" }`                                                   | `POST` while more than one organization exists.                             |
-| `409`  | `{ "code": "event_archived", "message": "Event is archived" }`                           | `PATCH` or archive on an archived event; turning sales on for it.           |
+| `409`  | `{ "code": "event_archived", "message": "Event is archived" }`                           | `PATCH`, archive or a venue write on an archived event; turning sales on.   |
 | `409`  | `{ "code": "event_not_archived", "message": "Event is not archived" }`                   | Restore on an event that is not archived.                                   |
 | `409`  | `{ "code": "event_not_empty", "message": "Event is not empty", "blockers": ["…"] }`      | Delete on an event that is not empty (see below).                           |
 
@@ -115,7 +132,7 @@ An event is **empty** when it has none of the rows below. Each kind present is l
 
 When the event is empty, one transaction (with the event row locked, so nothing new can attach to it meanwhile):
 
-1. removes the event's `event_venues` links, and the venues no other event uses;
+1. removes the event's `event_venues` links, and the venues no other event uses (including venues created with the venue API);
 2. removes the event-scoped roles (`user_roles` with `scope_type = 'event'` and this `scope_id`), so those admins lose access to it;
 3. deletes the event and writes the `deleted` audit row.
 
@@ -123,24 +140,26 @@ Archived events can be deleted too, if they are empty. Anything else stays **arc
 
 ## Audit
 
-Table `event_admin_audit` (migration `0021`), append-only (a trigger refuses `UPDATE` and `DELETE`). Each row keeps `event_id` (no foreign key), the event's `event_slug` and `event_name` at that moment, the actor user and session, and JSON `details`. Rows survive a delete.
+Table `event_admin_audit` (migration `0021`; migration `0022` adds the venue actions), append-only (a trigger refuses `UPDATE` and `DELETE`). Each row keeps `event_id` (no foreign key), the event's `event_slug` and `event_name` at that moment, the actor user and session, and JSON `details`. Rows survive a delete.
 
-| Action     | `details`                                                                                            |
-| ---------- | ---------------------------------------------------------------------------------------------------- |
-| `created`  | The created fields: name, slug, folio prefix, time zone, dates, `salesEnabled: false`.               |
-| `updated`  | `{ before, after }` with only the changed fields.                                                    |
-| `archived` | `{ salesEnabled }`: the switch before archiving.                                                     |
-| `restored` | `{ archivedAt }`: when it had been archived.                                                         |
-| `deleted`  | `{ folioPrefix, archivedAt, venues, eventRoles }`: deleted venue ids and removed `{ userId, role }`. |
+| Action          | `details`                                                                                            |
+| --------------- | ---------------------------------------------------------------------------------------------------- |
+| `created`       | The created fields: name, slug, folio prefix, time zone, dates, `salesEnabled: false`.               |
+| `updated`       | `{ before, after }` with only the changed fields.                                                    |
+| `archived`      | `{ salesEnabled }`: the switch before archiving.                                                     |
+| `restored`      | `{ archivedAt }`: when it had been archived.                                                         |
+| `deleted`       | `{ folioPrefix, archivedAt, venues, eventRoles }`: deleted venue ids and removed `{ userId, role }`. |
+| `venue_created` | `{ venueId, after: { name } }`.                                                                      |
+| `venue_updated` | `{ venueId, before: { name }, after: { name } }`.                                                    |
 
 ## Known gaps
 
 | Gap                                                                                                                                                              | Follow-up        |
 | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
-| There is no admin API to create venues or attach them to an event. Activities need a venue of their event, so a new event cannot get activities yet without SQL. | Needs a decision |
-| The admin panel screens for create, edit, archive, restore and delete are still being built in #213.                                                             | #213 slice 3     |
+| The admin panel screens for create, edit, archive, restore, delete and venues are still being built in #213.                                                     | #213 slice 3     |
 | Sales changes are still not audited (see the [event sales contract](event-sales.md#known-gaps)).                                                                 | Later hardening  |
 | Deleting an event removes its event-scoped roles. A member whose only access was that event drops out of the team list, and their email cannot be invited again. | Needs a decision |
+| Venues cannot be deleted, or attached to a second event, from the API. Two concurrent deletes of empty events sharing one venue can leave that venue unlinked.   | Later hardening  |
 | An event-scoped role added at the same moment as a delete (the team API does not lock the event) could outlive the event; it grants nothing.                     | Later hardening  |
 
 ## Cross-references

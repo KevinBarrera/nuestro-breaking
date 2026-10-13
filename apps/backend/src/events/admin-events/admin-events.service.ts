@@ -1,5 +1,5 @@
 import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { and, eq, inArray, notExists, sql } from 'drizzle-orm';
+import { type SQL, and, eq, inArray, notExists, sql } from 'drizzle-orm';
 import type { AnyPgColumn, PgTable } from 'drizzle-orm/pg-core';
 import { DATABASE_CLIENT } from '@/database/database.constants';
 import type { DatabaseService } from '@/database/database.service';
@@ -40,9 +40,21 @@ const EDITABLE_FIELDS: Record<keyof UpdateEventInput, true> = {
 };
 const EDITABLE = Object.keys(EDITABLE_FIELDS) as (keyof UpdateEventInput)[];
 
-/** What keeps an event from being deleted (#213 D7), as answered in `409 event_not_empty`. */
-export type EventDeleteBlocker =
-  'activities' | 'passTypes' | 'registrations' | 'checkIns' | 'catalogAudit' | 'registrationAudit';
+/**
+ * Every kind of row that makes an event non-empty (#213 D7), mapped to the table and column that
+ * hold its `event_id`. The keys, in this order, are the `blockers` of `409 event_not_empty`.
+ */
+const DELETE_BLOCKERS = {
+  activities: [activities, activities.eventId],
+  passTypes: [eventPassTypes, eventPassTypes.eventId],
+  registrations: [eventRegistrations, eventRegistrations.eventId],
+  checkIns: [eventCheckIns, eventCheckIns.eventId],
+  catalogAudit: [eventCatalogAudit, eventCatalogAudit.eventId],
+  registrationAudit: [registrationOperationAudit, registrationOperationAudit.eventId],
+} satisfies Record<string, [PgTable, AnyPgColumn]>;
+
+/** What keeps an event from being deleted, as answered in `409 event_not_empty`. */
+export type EventDeleteBlocker = keyof typeof DELETE_BLOCKERS;
 
 const SLUG_CONSTRAINT = 'events_slug_uq';
 
@@ -211,25 +223,10 @@ export class AdminEventsService {
         .delete(eventVenues)
         .where(eq(eventVenues.eventId, eventId))
         .returning({ venueId: eventVenues.venueId });
-      const unused = links.length
-        ? await tx
-            .delete(venues)
-            .where(
-              and(
-                inArray(
-                  venues.id,
-                  links.map((link) => link.venueId),
-                ),
-                notExists(
-                  tx
-                    .select({ one: sql`1` })
-                    .from(eventVenues)
-                    .where(eq(eventVenues.venueId, venues.id)),
-                ),
-              ),
-            )
-            .returning({ id: venues.id })
-        : [];
+      const unused = await deleteOrphanedVenues(
+        tx,
+        links.map((link) => link.venueId),
+      );
       const roles = await tx
         .delete(userRoles)
         .where(and(eq(userRoles.scopeType, 'event'), eq(userRoles.scopeId, eventId)))
@@ -280,22 +277,42 @@ function sameValue(a: string | Date | null, b: string | Date | null): boolean {
   return a === b;
 }
 
-/** Every kind of row that makes the event non-empty, in a fixed order. */
+/** The blockers present for the event, in the order of `DELETE_BLOCKERS`. */
 async function deleteBlockers(tx: Transaction, eventId: string): Promise<EventDeleteBlocker[]> {
-  const has = (table: PgTable, column: AnyPgColumn) =>
-    sql<boolean>`exists (select 1 from ${table} where ${column} = ${eventId})`;
-  const [row] = await tx
-    .select({
-      activities: has(activities, activities.eventId),
-      passTypes: has(eventPassTypes, eventPassTypes.eventId),
-      registrations: has(eventRegistrations, eventRegistrations.eventId),
-      checkIns: has(eventCheckIns, eventCheckIns.eventId),
-      catalogAudit: has(eventCatalogAudit, eventCatalogAudit.eventId),
-      registrationAudit: has(registrationOperationAudit, registrationOperationAudit.eventId),
-    })
-    .from(events)
-    .where(eq(events.id, eventId));
-  return (Object.keys(row) as EventDeleteBlocker[]).filter((kind) => row[kind]);
+  const kinds = Object.keys(DELETE_BLOCKERS) as EventDeleteBlocker[];
+  const checks = Object.fromEntries(
+    kinds.map((kind) => {
+      const [table, column] = DELETE_BLOCKERS[kind];
+      return [kind, sql<boolean>`exists (select 1 from ${table} where ${column} = ${eventId})`];
+    }),
+  ) as Record<EventDeleteBlocker, SQL<boolean>>;
+  const [row] = await tx.select(checks).from(events).where(eq(events.id, eventId));
+  return kinds.filter((kind) => row[kind]);
+}
+
+/**
+ * Deletes the given venues that no event links any more (run after removing the deleted event's
+ * links) and returns their ids. Venues another event still uses stay.
+ */
+async function deleteOrphanedVenues(
+  tx: Transaction,
+  venueIds: string[],
+): Promise<{ id: string }[]> {
+  if (venueIds.length === 0) return [];
+  return tx
+    .delete(venues)
+    .where(
+      and(
+        inArray(venues.id, venueIds),
+        notExists(
+          tx
+            .select({ one: sql`1` })
+            .from(eventVenues)
+            .where(eq(eventVenues.venueId, venues.id)),
+        ),
+      ),
+    )
+    .returning({ id: venues.id });
 }
 
 function conflict(code: string, message: string, fieldErrors?: Record<string, string>) {

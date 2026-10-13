@@ -266,6 +266,24 @@ describe('admin event delete (e2e)', () => {
       ).toBe(1);
       expect(await auditRows()).toEqual([]);
     });
+
+    it('lists every blocker present, in a fixed order', async () => {
+      const ids = await fixture();
+      for (const [, seed] of [...blockers].reverse()) await seed(ids);
+      const { cookie } = await globalAdmin();
+
+      const response = await remove(cookie, ids.event).expect(409);
+
+      expect((response.body as { blockers: string[] }).blockers).toEqual([
+        'activities',
+        'passTypes',
+        'registrations',
+        'checkIns',
+        'catalogAudit',
+        'registrationAudit',
+      ]);
+      expect(await eventCount(ids.event)).toBe(1);
+    });
   });
 
   it('refuses a missing or wrong slug confirmation and deletes nothing', async () => {

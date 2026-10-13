@@ -1,10 +1,17 @@
 import { apiUrl } from '@/shared/api';
-import { readAdminEvent, readEventFailure, readEventList, readVenue } from './readers';
+import {
+  readAdminEvent,
+  readEventFailure,
+  readEventFoundation,
+  readEventList,
+  readVenue,
+} from './readers';
 import type {
   AdminEvent,
   AdminEventFailure,
   AdminVenue,
   CreateEventInput,
+  EventFoundation,
   UpdateEventInput,
 } from './types';
 
@@ -55,6 +62,21 @@ export async function listAdminEvents(
   return events;
 }
 
+const eventPath = (eventId: string, suffix = '') =>
+  `/admin/events/${encodeURIComponent(eventId)}${suffix}`;
+
+// The event and its venues, for Datos del evento. Judges of the event may read it too.
+export async function getEventFoundation(
+  eventId: string,
+  signal: AbortSignal,
+): Promise<EventFoundation> {
+  const foundation = readEventFoundation(
+    await eventRequest(eventPath(eventId, '/foundation'), { signal }),
+  );
+  if (!foundation) throw new AdminEventError({ kind: 'error' });
+  return foundation;
+}
+
 // Writes need the session's CSRF token, which `GET /auth/session` sends in a header.
 async function csrfToken(): Promise<string> {
   let session: Response;
@@ -81,9 +103,6 @@ async function mutate(path: string, method: string, body?: unknown): Promise<unk
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
 }
-
-const eventPath = (eventId: string, suffix = '') =>
-  `/admin/events/${encodeURIComponent(eventId)}${suffix}`;
 
 // A 2xx answer that cannot be read means the write may have been applied, so it is reported
 // as `unknown`, never as a failure the user could safely retry.

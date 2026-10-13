@@ -6,6 +6,7 @@ import {
   type AdminEventFailure,
   type AdminVenue,
   type EventDeleteBlocker,
+  type EventFoundation,
 } from './types';
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -42,6 +43,14 @@ export function readEventList(value: unknown): AdminEvent[] | null {
 export function readVenue(value: unknown): AdminVenue | null {
   if (!isRecord(value) || !isText(value.id) || typeof value.name !== 'string') return null;
   return { id: value.id, name: value.name };
+}
+
+export function readEventFoundation(value: unknown): EventFoundation | null {
+  if (!isRecord(value) || !Array.isArray(value.venues)) return null;
+  const event = readAdminEvent(value.event);
+  const venues = value.venues.map(readVenue);
+  if (!event || !venues.every((venue) => venue !== null)) return null;
+  return { event, venues };
 }
 
 // Maps a failed response to what the screens need: only known codes, field error codes and

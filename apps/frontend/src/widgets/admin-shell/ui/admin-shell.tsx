@@ -45,7 +45,7 @@ export function AdminShell({ signingOut, signOutFailed, onSignOut, children }: A
               ADMIN
             </span>
             {location.section === 'foundation' && (
-              <span className="text-sm text-header-muted">Fundamentos del evento</span>
+              <span className="text-sm text-header-muted">Datos del evento</span>
             )}
           </div>
           <div className="flex min-w-0 flex-wrap items-center gap-3">

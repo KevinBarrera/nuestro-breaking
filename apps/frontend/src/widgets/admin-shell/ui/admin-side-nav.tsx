@@ -21,6 +21,8 @@ const groups: { title: string; items: NavItem[] }[] = [
       { label: 'Pases', section: 'passes' },
     ],
   },
+  // Datos del evento (#213 D2), the former "Fundamentos del evento" route.
+  { title: 'EVENTO', items: [{ label: 'Datos del evento', section: 'foundation' }] },
 ];
 
 const itemClass =

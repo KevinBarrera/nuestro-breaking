@@ -3,6 +3,7 @@ import {
   adminEventFailure,
   createEvent,
   deleteEvent,
+  getEventFoundation,
   listAdminEvents,
   renameVenue,
   restoreEvent,
@@ -83,6 +84,27 @@ describe('listAdminEvents', () => {
       return Promise.reject(abort);
     });
     await expect(listAdminEvents(controller.signal)).rejects.toBe(abort);
+  });
+});
+
+describe('getEventFoundation', () => {
+  it('reads the event and venues of the foundation with credentials', async () => {
+    const venues = [{ id: 'v1', name: 'Centro cultural' }];
+    const fetchMock = stubFetch(() => Response.json({ event, venues, activities: [] }));
+    expect(await getEventFoundation(id, new AbortController().signal)).toEqual({ event, venues });
+    expect(call(fetchMock, 0)[0]).toMatch(new RegExp(`/admin/events/${id}/foundation$`));
+    expect(call(fetchMock, 0)[1].credentials).toBe('include');
+  });
+
+  it('maps a missing event and a malformed answer', async () => {
+    stubFetch(() => Response.json({ message: 'Event not found' }, { status: 404 }));
+    expect(await failureOf(getEventFoundation(id, new AbortController().signal))).toEqual({
+      kind: 'not_found',
+    });
+    stubFetch(() => Response.json({ event: { id }, venues: [] }));
+    expect(await failureOf(getEventFoundation(id, new AbortController().signal))).toEqual({
+      kind: 'error',
+    });
   });
 });
 

@@ -5,6 +5,7 @@ export {
   createEvent,
   createVenue,
   deleteEvent,
+  getEventFoundation,
   listAdminEvents,
   renameVenue,
   restoreEvent,
@@ -18,5 +19,6 @@ export type {
   AdminVenue,
   CreateEventInput,
   EventDeleteBlocker,
+  EventFoundation,
   UpdateEventInput,
 } from './api/types';

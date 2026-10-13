@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { readAdminEvent, readEventFailure, readEventList, readVenue } from './readers';
+import {
+  readAdminEvent,
+  readEventFailure,
+  readEventFoundation,
+  readEventList,
+  readVenue,
+} from './readers';
 
 const id = 'a1b2c3d4-1234-4567-89ab-123456789abc';
 const summary = {
@@ -57,6 +63,28 @@ describe('readAdminEvent', () => {
     expect(readAdminEvent({ ...event, timeZone: 1 })).toBeNull();
     expect(readAdminEvent({ ...event, endsAt: 'later' })).toBeNull();
     expect(readAdminEvent(summary)).toBeNull();
+  });
+});
+
+describe('readEventFoundation', () => {
+  const venues = [{ id: 'v1', name: 'Centro cultural' }];
+
+  it('reads the event and its venues, ignoring activities and extra fields', () => {
+    expect(
+      readEventFoundation({
+        event: { ...event, windowStatus: 'bounded' },
+        venues,
+        activities: [{ id: 'x' }],
+        deferredFields: [],
+      }),
+    ).toEqual({ event, venues });
+  });
+
+  it('rejects a foundation with a malformed event or venue', () => {
+    expect(readEventFoundation({ event: summary, venues })).toBeNull();
+    expect(readEventFoundation({ event, venues: [{ id: 'v1' }] })).toBeNull();
+    expect(readEventFoundation({ event, venues: null })).toBeNull();
+    expect(readEventFoundation([])).toBeNull();
   });
 });
 

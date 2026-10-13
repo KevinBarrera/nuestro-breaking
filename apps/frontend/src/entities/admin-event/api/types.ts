@@ -33,6 +33,10 @@ export type UpdateEventInput = Partial<
 
 export type AdminVenue = { id: string; name: string };
 
+// What Datos del evento reads from `GET /admin/events/:eventId/foundation`: the event and its
+// venues (the venue list; there is no separate route). Its activities are left out.
+export type EventFoundation = { event: AdminEvent; venues: AdminVenue[] };
+
 // 409 `code` values of the event and venue writes, except `event_not_empty`, which carries
 // its blockers.
 export const adminEventErrorCodes = [

@@ -96,16 +96,19 @@ function nameError(name: string): string | undefined {
   return undefined;
 }
 
-export function validateEvent(draft: EventDraft): EventErrors {
+// The fields that stay editable after creation (Datos del evento uses the same rules).
+export type EventDetailsDraft = Pick<EventDraft, 'name' | 'timeZone' | 'startsAt' | 'endsAt'>;
+
+// Name, time zone and dates. `allowedZones` is the zone list on screen; Datos del evento adds
+// the stored zone when it is not in the short list.
+export function validateEventDetails(
+  draft: EventDetailsDraft,
+  allowedZones: readonly string[] = timeZoneOptions.map((option) => option.id),
+): EventErrors {
   const errors: EventErrors = {};
   const name = nameError(draft.name);
   if (name) errors.name = name;
-  if (!draft.slug) errors.slug = messages.slugMissing;
-  else if (draft.slug.length > SLUG_MAX || !SLUG_PATTERN.test(draft.slug))
-    errors.slug = messages.slugInvalid;
-  if (!FOLIO_PREFIX_PATTERN.test(draft.folioPrefix)) errors.folioPrefix = messages.prefix;
-  if (!timeZoneOptions.some((option) => option.id === draft.timeZone))
-    errors.timeZone = messages.timeZone;
+  if (!allowedZones.includes(draft.timeZone)) errors.timeZone = messages.timeZone;
   const startsAt = draft.startsAt ? fromZonedInput(draft.startsAt, draft.timeZone) : null;
   const endsAt = draft.endsAt ? fromZonedInput(draft.endsAt, draft.timeZone) : null;
   if (draft.startsAt && !startsAt) errors.startsAt = messages.skipped;
@@ -114,6 +117,15 @@ export function validateEvent(draft: EventDraft): EventErrors {
   if (draft.endsAt && !draft.startsAt) errors.startsAt = messages.startMissing;
   if (startsAt && endsAt && Date.parse(startsAt) >= Date.parse(endsAt))
     errors.endsAt = messages.order;
+  return errors;
+}
+
+export function validateEvent(draft: EventDraft): EventErrors {
+  const errors = validateEventDetails(draft);
+  if (!draft.slug) errors.slug = messages.slugMissing;
+  else if (draft.slug.length > SLUG_MAX || !SLUG_PATTERN.test(draft.slug))
+    errors.slug = messages.slugInvalid;
+  if (!FOLIO_PREFIX_PATTERN.test(draft.folioPrefix)) errors.folioPrefix = messages.prefix;
   return errors;
 }
 

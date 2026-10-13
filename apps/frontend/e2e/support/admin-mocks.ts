@@ -19,6 +19,7 @@ export const adminScreens = [
   { name: 'Pases', path: `/admin/events/${eventId}/passes` },
   { name: 'Pase', path: `/admin/events/${eventId}/passes/${fullPassId}` },
   { name: 'Nuevo pase', path: `/admin/events/${eventId}/passes/new` },
+  { name: 'Datos del evento', path: `/admin/events/${eventId}/foundation` },
   // Team screens (#214): global admins only, outside any event.
   { name: 'Equipo', path: '/admin/team' },
   { name: 'Agregar administrador', path: '/admin/team/new' },
@@ -115,16 +116,24 @@ const passTypes = [
   },
 ];
 
+// Also Datos del evento (#213 T9), which reads the full event and its venues.
 const foundation = {
   event: {
     id: eventId,
     name: 'Encuentro del barrio',
+    slug: 'encuentro-del-barrio-con-nombre-largo-para-pantallas-angostas',
+    folioPrefix: 'EB',
     timeZone: 'America/Mexico_City',
     startsAt: '2026-11-21T15:00:00.000Z',
     endsAt: '2026-11-23T05:00:00.000Z',
     windowStatus: 'bounded',
+    salesEnabled: true,
+    archivedAt: null,
   },
-  venues: [{ id: venueId, name: 'Centro cultural' }],
+  venues: [
+    { id: venueId, name: 'Centro cultural' },
+    { id: 'e2b2c3d4-1234-4567-89ab-123456789abc', name: 'Foro al aire libre con nombre largo' },
+  ],
   activities: [],
   deferredFields: [],
 };
@@ -209,6 +218,17 @@ export async function revealControls(page: Page, name: AdminScreenName) {
     const form = page.getByRole('form', { name: 'Nuevo evento' });
     await form.getByRole('button', { name: 'Crear evento' }).click();
     await form.getByText('Escribe el nombre del evento.').waitFor();
+  }
+  // The add-venue form with its field error, and an edit so both form buttons are enabled.
+  if (name === 'Datos del evento') {
+    await page
+      .getByRole('form', { name: 'Datos del evento' })
+      .getByLabel('Nombre del evento')
+      .fill('Encuentro del barrio 2026');
+    const venues = page.getByRole('region', { name: 'Sedes' });
+    await venues.getByRole('button', { name: 'Agregar sede' }).click();
+    await venues.getByRole('button', { name: 'Agregar', exact: true }).click();
+    await venues.getByText('Escribe el nombre de la sede.').waitFor();
   }
   if (name === 'Check-in') {
     await page.getByRole('textbox', { name: 'Buscar inscripción' }).fill('Luz');

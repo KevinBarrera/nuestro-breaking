@@ -68,7 +68,10 @@ export function memberActions(member: TeamMember, isSelf: boolean, now: Date): M
   // Without access a new link would only set a password that cannot sign in (#213 D9); the
   // backend refuses it, so access comes back first.
   const actions: MemberAction[] = member.status === 'no_access' ? [] : ['regenerate'];
-  if (member.status !== 'active' && invitationOpen(member.invitation, now))
+  if (
+    (member.status === 'pending' || member.status === 'no_access') &&
+    invitationOpen(member.invitation, now)
+  )
     actions.push('cancel-invitation');
   actions.push('change-access', 'deactivate');
   return actions;

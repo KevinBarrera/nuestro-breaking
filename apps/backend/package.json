@@ -21,7 +21,9 @@
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "db:generate": "drizzle-kit generate --config drizzle.config.ts",
     "db:migrate": "drizzle-kit migrate --config drizzle.config.ts",
+    "db:migrate:prod": "node dist/scripts/migrate-database.js",
     "admin:bootstrap": "node -r ts-node/register -r ./scripts/register-tsconfig-paths.cjs scripts/bootstrap-admin.ts",
+    "admin:bootstrap:prod": "node dist/scripts/bootstrap-admin.js",
     "admin:provision": "node -r ts-node/register -r ./scripts/register-tsconfig-paths.cjs scripts/provision-local-admin.ts",
     "catalog:seed:november": "node -r ts-node/register -r ./scripts/register-tsconfig-paths.cjs scripts/seed-november-catalog.ts"
   },

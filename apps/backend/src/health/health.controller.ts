@@ -5,6 +5,9 @@ import type { DatabaseService } from '@/database/database.service';
 
 type Database = DatabaseService['db'];
 
+/** A ping slower than this counts as down, so a stuck connection cannot hang the probe. */
+export const HEALTH_PING_TIMEOUT_MS = 3_000;
+
 export interface HealthResponse {
   status: 'ok';
 }
@@ -22,7 +25,7 @@ export class HealthController {
   @Get()
   async check(): Promise<HealthResponse> {
     try {
-      await this.db.execute(sql`select 1`);
+      await withTimeout(this.db.execute(sql`select 1`), HEALTH_PING_TIMEOUT_MS);
     } catch (error) {
       this.logger.warn(
         `Database ping failed: ${error instanceof Error ? error.message : String(error)}`,
@@ -31,4 +34,15 @@ export class HealthController {
     }
     return { status: 'ok' };
   }
+}
+
+function withTimeout<T>(operation: Promise<T>, timeoutMs: number): Promise<T> {
+  let timer: NodeJS.Timeout | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(
+      () => reject(new Error(`Database ping timed out after ${timeoutMs} ms`)),
+      timeoutMs,
+    );
+  });
+  return Promise.race([operation, timeout]).finally(() => clearTimeout(timer));
 }

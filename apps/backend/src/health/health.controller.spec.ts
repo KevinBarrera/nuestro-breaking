@@ -1,6 +1,6 @@
 import { HttpException, HttpStatus } from '@nestjs/common';
 import type { DatabaseService } from '@/database/database.service';
-import { HealthController } from './health.controller';
+import { HEALTH_PING_TIMEOUT_MS, HealthController } from './health.controller';
 
 type Database = DatabaseService['db'];
 
@@ -27,5 +27,25 @@ describe('HealthController', () => {
     expect(error).toBeInstanceOf(HttpException);
     expect((error as HttpException).getStatus()).toBe(HttpStatus.SERVICE_UNAVAILABLE);
     expect((error as HttpException).getResponse()).toEqual({ status: 'unavailable' });
+  });
+
+  it('answers 503 when the database ping does not answer in time', async () => {
+    jest.useFakeTimers();
+    try {
+      const hanging = controllerWith(() => new Promise(() => undefined));
+      const result = hanging.check().then(
+        () => undefined,
+        (caught: unknown) => caught,
+      );
+
+      await jest.advanceTimersByTimeAsync(HEALTH_PING_TIMEOUT_MS);
+      const error = await result;
+
+      expect(error).toBeInstanceOf(HttpException);
+      expect((error as HttpException).getStatus()).toBe(HttpStatus.SERVICE_UNAVAILABLE);
+      expect((error as HttpException).getResponse()).toEqual({ status: 'unavailable' });
+    } finally {
+      jest.useRealTimers();
+    }
   });
 });

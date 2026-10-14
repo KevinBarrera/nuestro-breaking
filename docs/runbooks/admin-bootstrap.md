@@ -62,8 +62,18 @@ ADMIN_BOOTSTRAP_NAME='First Admin' \
 pnpm --filter @nuestro-breaking/backend admin:bootstrap
 ```
 
-The command runs through `ts-node`, so it needs the backend's development
-dependencies installed where it runs.
+The `admin:bootstrap` script runs through `ts-node`, so it needs the backend's
+development dependencies. The production image has none; there, run the
+compiled command with plain `node` from `apps/backend` instead:
+
+```bash
+ADMIN_BOOTSTRAP_EMAIL='first.admin@example.com' \
+ADMIN_BOOTSTRAP_NAME='First Admin' \
+node dist/scripts/bootstrap-admin.js
+```
+
+`pnpm --filter @nuestro-breaking/backend admin:bootstrap:prod` runs the same
+compiled file after `pnpm --filter @nuestro-breaking/backend build`.
 
 On success it prints the activation link
 (`https://<admin origin>/activar-cuenta#<token>`), its expiry time in

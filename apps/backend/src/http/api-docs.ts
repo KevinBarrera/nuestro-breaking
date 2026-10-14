@@ -4,7 +4,7 @@ import type { Environment } from './http-config';
 
 /** Swagger is a development aid; production does not publish the API map. */
 export function isApiDocsEnabled(env: Environment): boolean {
-  return env.NODE_ENV !== 'production';
+  return env.NODE_ENV?.trim().toLowerCase() !== 'production';
 }
 
 /** Serves Swagger at `api/doc`, except in production. */

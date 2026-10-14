@@ -8,7 +8,10 @@ describe('isApiDocsEnabled', () => {
     },
   );
 
-  it('hides the API docs in production', () => {
-    expect(isApiDocsEnabled({ NODE_ENV: 'production' })).toBe(false);
-  });
+  it.each(['production', 'Production', ' production ', 'PRODUCTION'])(
+    'hides the API docs in production (%p)',
+    (NODE_ENV) => {
+      expect(isApiDocsEnabled({ NODE_ENV })).toBe(false);
+    },
+  );
 });

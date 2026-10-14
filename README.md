@@ -131,6 +131,8 @@ pnpm --filter @nuestro-breaking/backend db:migrate
 
 Initial migration artifacts are committed under `apps/backend/drizzle`.
 
+Hosted environments have no development dependencies, so `drizzle-kit` is not available there. After `pnpm --filter @nuestro-breaking/backend build`, the compiled command applies the same migrations with plain `node` (`node dist/scripts/migrate-database.js` from `apps/backend`, or `pnpm --filter @nuestro-breaking/backend db:migrate:prod`). It shares the migration journal with `drizzle-kit migrate`, takes a lock so overlapping deploys apply each migration once, and on failure prints one line with the PostgreSQL or connection error code and its cause, then exits non-zero.
+
 ## Frontend
 
 Run the React frontend in development mode:

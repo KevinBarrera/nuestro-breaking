@@ -16,14 +16,14 @@ Test runner: backend Jest unit (`pnpm --filter @nuestro-breaking/backend test`) 
 
 ## Tasks
 
-| ID  | Specs  | Route  | Status  | Evidence |
-| --- | ------ | ------ | ------- | -------- |
-| T1  | S1, S2 | writer | pending |          |
-| T2  | S3, S4 | writer | pending |          |
-| T3  | S5     | writer | pending |          |
-| T4  | S6     | writer | pending |          |
-| T5  | S7     | writer | pending |          |
-| T6  | all    | user   | pending |          |
+| ID  | Specs  | Route  | Status  | Evidence                   |
+| --- | ------ | ------ | ------- | -------------------------- |
+| T1  | S1, S2 | writer | done    | `df2f3f3`, review approved |
+| T2  | S3, S4 | writer | pending |                            |
+| T3  | S5     | writer | pending |                            |
+| T4  | S6     | writer | pending |                            |
+| T5  | S7     | writer | pending |                            |
+| T6  | all    | user   | pending |                            |
 
 - T1 — Proxy-aware client IP (`TRUST_PROXY_HOPS`, Express `trust proxy` hop count, default 0 for local) and `GET /health` with a database ping, excluded from rate limiting. Swagger off when `NODE_ENV=production`.
 - T2 — A compiled migration command (`drizzle-orm` migrator over `apps/backend/drizzle`) and a compiled `admin:bootstrap`, both runnable with plain `node` from `dist`.
@@ -38,3 +38,5 @@ Risk: T1 (rate limiting and client identity on public endpoints), T2 (migrations
 
 - L1 (user, 2026-10-14): "sí, si tengo cuentas en ambas" — starts #238 with the user's Railway and Cloudflare accounts.
 - 2026-10-14: mapping. `HOST` defaults to `127.0.0.1` (`main.ts:21`, set `HOST=0.0.0.0` on Railway); no `trust proxy`; no health endpoint; Swagger always on at `api/doc`; migrations only via `drizzle-kit`; `admin:bootstrap` via `ts-node`; frontend API URL absolute and build-time; no Dockerfile or hosting config. Railway Config as Code (`railway.json`) is deprecated and stops being read on 2026-12-01; new services cannot use it, so Railway settings live in the dashboard and the runbook. Cloudflare Workers custom domains and the ADR's proxy in front of the backend both require the domain's nameservers on Cloudflare, so the organizer's domain must move its nameservers to Cloudflare (existing records imported and checked first).
+- 2026-10-14: T1 implemented by the writer in `df2f3f3`. `TRUST_PROXY_HOPS` (0–5, default 0) sets Express `trust proxy` in `configureHttp`, shared by `main.ts` and the e2e apps; the throttler's default tracker already keys on `req.ip`. `GET /health` (`src/health/`) pings with `select 1`, answers 503 `{ status: 'unavailable' }` and only logs the cause. Swagger moved to `src/http/api-docs.ts`, off when `NODE_ENV=production`. Evidence: RED (unit: `readTrustProxyHops` not a function, `api-docs` and `health` modules missing; e2e: hops 1 and 2 got 429 instead of separate buckets, `/health` 404) then GREEN; backend unit 519/519, e2e 407/407 (40 suites); lint, `tsc --noEmit`, Prettier clean. The forged-entry and hops=0 tests passed before the change, so they are regression guards; the hops 1 and 2 tests are the RED proof.
+- 2026-10-14: T1 native review (lens reliability, lineage `review-0dc2cd3fb2d0e08b`) approved and acknowledged, after `gentle-ai sync --agent pi` (user-approved) cleared `managed_assets_outdated`. The stop hook's accumulated-branch candidate (base `c9c9441`) was not used; the user chose to review only `df2f3f3`. Suggestions, folded into T2: `NODE_ENV` exact match in `api-docs.ts:7`; no timeout on the `/health` ping (`health.controller.ts:25`).

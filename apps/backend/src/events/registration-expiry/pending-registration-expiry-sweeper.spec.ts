@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import {
   PendingRegistrationExpirySweeper,
   readExpirySweepInterval,
@@ -72,5 +73,34 @@ describe('PendingRegistrationExpirySweeper', () => {
     await jest.advanceTimersByTimeAsync(1_000);
     expect(spy).toHaveBeenCalledTimes(3);
     await sweeper.onModuleDestroy();
+  });
+});
+
+describe('PendingRegistrationExpirySweeper.sweep', () => {
+  it('keeps sweeping the other events when one event fails, and logs what it voided', async () => {
+    const due = [{ eventId: 'event-a' }, { eventId: 'event-b' }];
+    const db = {
+      selectDistinct: () => ({
+        from: () => ({ where: () => ({ limit: () => Promise.resolve(due) }) }),
+      }),
+    };
+    const sweeper = new PendingRegistrationExpirySweeper(db as never, 0);
+    const sweepEvent = jest
+      .spyOn(sweeper as unknown as { sweepEvent: (id: string) => Promise<number> }, 'sweepEvent')
+      .mockImplementation((eventId) =>
+        eventId === 'event-a' ? Promise.reject(new Error('lock timeout')) : Promise.resolve(2),
+      );
+    const logs = jest.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
+    const errors = jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+
+    await expect(sweeper.sweep()).resolves.toBe(2);
+
+    expect(sweepEvent).toHaveBeenCalledTimes(2);
+    expect(errors).toHaveBeenCalledWith(
+      'Pending registration expiry failed for one event (Error); it is retried on the next tick.',
+    );
+    expect(logs).toHaveBeenCalledWith('Voided 2 expired pending registrations.');
+    logs.mockRestore();
+    errors.mockRestore();
   });
 });

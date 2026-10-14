@@ -202,17 +202,26 @@ describe('public checkout (e2e)', () => {
     expect(fact).toEqual({ actor_kind: 'system' });
   });
 
-  it('answers 409 and records no checkout when the registration is voided during the provider call', async () => {
-    const ids = await fixture();
-    const id = await registration(ids.event, [{ passTypeId: ids.full, priceCents: 150050 }]);
-    duringPreference = () =>
-      client`UPDATE event_registrations SET status = 'voided' WHERE id = ${id}`;
+  it.each([
+    ['voided', `status = 'voided'`],
+    [
+      'confirmed',
+      `status = 'confirmed', confirmation_source = 'approved_payment', confirmed_at = now(), folio = 'LMP-0002'`,
+    ],
+  ])(
+    'answers 409 and records no checkout when the registration is %s during the provider call',
+    async (_, change) => {
+      const ids = await fixture();
+      const id = await registration(ids.event, [{ passTypeId: ids.full, priceCents: 150050 }]);
+      duringPreference = () =>
+        client.unsafe(`UPDATE event_registrations SET ${change} WHERE id = $1`, [id]);
 
-    const response = await checkout(id).expect(409);
+      const response = await checkout(id).expect(409);
 
-    expect(response.body).toMatchObject({ code: 'registration_not_payable' });
-    expect(await checkoutRows()).toEqual([]);
-  });
+      expect(response.body).toMatchObject({ code: 'registration_not_payable' });
+      expect(await checkoutRows()).toEqual([]);
+    },
+  );
 
   it('creates a fresh preference on every call', async () => {
     const ids = await fixture();

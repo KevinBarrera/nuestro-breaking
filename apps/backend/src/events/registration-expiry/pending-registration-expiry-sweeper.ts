@@ -98,15 +98,27 @@ export class PendingRegistrationExpirySweeper implements OnApplicationBootstrap,
       .limit(EVENTS_PER_SWEEP);
     let voided = 0;
     for (const { eventId } of events) {
-      voided += await this.db.transaction(async (tx) => {
-        await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${eventId}))`);
-        return expireDueRegistrations(
-          tx,
-          { eventId },
-          { limit: REGISTRATIONS_PER_EVENT, skipLocked: true },
+      // One failing event must not keep the others from being swept.
+      try {
+        voided += await this.sweepEvent(eventId);
+      } catch (error) {
+        this.logger.error(
+          `Pending registration expiry failed for one event (${error instanceof Error ? error.name : 'unknown'}); it is retried on the next tick.`,
         );
-      });
+      }
     }
+    if (voided > 0) this.logger.log(`Voided ${voided} expired pending registrations.`);
     return voided;
+  }
+
+  private sweepEvent(eventId: string): Promise<number> {
+    return this.db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${eventId}))`);
+      return expireDueRegistrations(
+        tx,
+        { eventId },
+        { limit: REGISTRATIONS_PER_EVENT, skipLocked: true },
+      );
+    });
   }
 }

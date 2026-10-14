@@ -54,6 +54,10 @@ The codes are decided in `apps/backend/src/payments/webhook/payment-decision.ts`
 
 Judges and administrators of other events get 401. Like other admin reads, the `GET` needs no CSRF token.
 
+## Admin UI
+
+**Pagos por revisar** (`/admin/events/:eventId/payments-review`) sits in the event's side navigation under OPERACIÓN. It shows one card per payment, newest first: the reason as a plain Spanish title, what happened, what coordination should do (highlighted), and the person, folio ("Sin folio" when there is none), registration status, amount, Mercado Pago payment id and arrival time (in the browser's time zone). With nothing to review it says "No hay pagos por revisar." A failed read shows safe copy only. The screen changes nothing. Code: `apps/frontend/src/pages/admin/ui/admin-payments-review-page.tsx` and `payments-review-model.ts`; the API client is `apps/frontend/src/entities/flagged-payments`.
+
 ## Data sources
 
 Read only; no migration. The list joins `payment_webhook_notifications` (latest processed `outcome` per `provider_payment_id`) → `registration_payments` → `registration_checkouts` → `event_registrations` → `participants`, filtered by the event.

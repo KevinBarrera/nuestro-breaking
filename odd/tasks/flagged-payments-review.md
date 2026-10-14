@@ -16,10 +16,10 @@ Test runner: backend Jest unit and PostgreSQL e2e (`pnpm --filter @nuestro-break
 
 ## Tasks
 
-| ID  | Specs                  | Route  | Status  | Evidence |
-| --- | ---------------------- | ------ | ------- | -------- |
-| T1  | S1, S2, S3, S4, S6, S7 | inline | done    | see Log  |
-| T2  | S5, S6, S7             | inline | pending |          |
+| ID  | Specs                  | Route  | Status | Evidence |
+| --- | ---------------------- | ------ | ------ | -------- |
+| T1  | S1, S2, S3, S4, S6, S7 | inline | done   | see Log  |
+| T2  | S5, S6, S7             | inline | done   | see Log  |
 
 - T1 — Backend: `GET /admin/events/:eventId/flagged-payments` in `src/payments/review/`, guarded by `authorizeEventAdmin`; PostgreSQL e2e; contract doc.
 - T2 — Frontend: entity API slice, page, side navigation entry, route, Playwright (page, empty state, sweeps); support runbook points to the screen.
@@ -31,3 +31,5 @@ Routes: inline (sequential units; no Writer trigger). Risk: T1 item 2 (new admin
 - L1 (user, 2026-10-13): "sí, arranquemos con #230"
 - 2026-10-13: mapping. `payment_webhook_notifications` holds only notification id, payment id, times and outcome; amount and registration come from `registration_payments` → `registration_checkouts` → `event_registrations` (+ `participants.full_name`). All four flagged outcomes record the payment (`payment-decision.ts:64`). Template endpoint: `event-sales.controller.ts` (`authorizeEventAdmin`, admins only; GETs skip CSRF). Template e2e: `test/admin-event-sales.e2e-spec.ts`. `PaymentsModule` needs `IdentityAccessModule`. No migration needed.
 - 2026-10-13: T1 done (`f669dd1` + fix commit). `GET /admin/events/:eventId/flagged-payments` in `src/payments/review/`, `authorizeEventAdmin`, `IdentityAccessModule` added to `PaymentsModule`; contract `docs/contracts/flagged-payments.md`. RED (route 404, 4 failed) then GREEN; backend unit 500/500, e2e 398/398; lint, `tsc`, Prettier clean. Verifier: S1–S4, S6 (contract), S7 (backend) met, no blockers. Fixed advisory 1 (a later `payment_unreadable`/`payment_not_found` hid a flagged payment) with a RED test first. Accepted: A2 (`now()` is the transaction start, so two racing writers for one payment could order `processed_at` backwards; the window is tiny and the writers are outside #230), A3 (no `reconciliation:` id in the e2e; the query ignores notification ids), A4 (ties undefined, not realistic). The hook's base-diff candidate since #168 (235 commits) was declined per the review-consent rule.
+- 2026-10-13: T1 review (lenses risk + reliability, lineage `review-ab00903f5deea630`) approved and acknowledged. Suggestions only: tie order (accepted as A4) and no test for a non-UUID event id (400 from `ParseUUIDPipe`, same as other admin routes).
+- 2026-10-13: T2 done. `entities/flagged-payments` (client + runtime reader), page `admin-payments-review-page.tsx` with `payments-review-model.ts` (Spanish title, detail and action per reason; status labels; arrival time in the browser zone), route `/admin/events/:eventId/payments-review`, side navigation entry under OPERACIÓN. Playwright `admin-payments-review.spec.ts` (list reached from the side navigation, empty state, safe failure copy, 375px) and the screen joins the shared accessibility, phone-width and native-select sweeps (`adminScreens`, placed after Datos del evento because other specs address entries by index). Docs: support runbook points to the screen instead of the SQL, contract Admin UI section, frontend architecture. Evidence: RED (Vitest modules missing; Playwright 4 failed) then GREEN; first `verify:pr` failed 4 sweep specs that use `adminScreens[2]`/`[3]` (fixed by the placement); final `verify:pr` exit 0: Vitest 369/369, Playwright 389/389.

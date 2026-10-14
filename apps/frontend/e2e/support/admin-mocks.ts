@@ -20,6 +20,7 @@ export const adminScreens = [
   { name: 'Pase', path: `/admin/events/${eventId}/passes/${fullPassId}` },
   { name: 'Nuevo pase', path: `/admin/events/${eventId}/passes/new` },
   { name: 'Datos del evento', path: `/admin/events/${eventId}/foundation` },
+  { name: 'Pagos por revisar', path: `/admin/events/${eventId}/payments-review` },
   // Team screens (#214): global admins only, outside any event.
   { name: 'Equipo', path: '/admin/team' },
   { name: 'Agregar administrador', path: '/admin/team/new' },
@@ -167,6 +168,27 @@ const registration = {
   activities: [{ id: battleId, name: 'Batalla de crews', kind: 'battle', checkedInAt: null }],
 };
 
+// One flagged payment per reason with the longest copy, so sweeps measure every card.
+const flaggedPayments = {
+  payments: [
+    'approved_after_expiry_duplicate',
+    'approved_after_expiry_event_ended',
+    'approved_after_confirmation',
+    'approved_after_void',
+  ].map((reason, index) => ({
+    providerPaymentId: `98765432${index}`,
+    reason,
+    receivedAt: '2026-11-02T18:04:00.000Z',
+    amountCents: 150000,
+    registration: {
+      id: `c${index}b2c3d4-1234-4567-89ab-123456789abc`,
+      folio: index % 2 ? 'EB-0042' : null,
+      participantName: 'Persona con un nombre muy largo para pantallas angostas',
+      status: index === 2 ? 'confirmed' : 'voided',
+    },
+  })),
+};
+
 export async function mockAdminApi(page: Page) {
   const routes: [(url: URL) => boolean, unknown][] = [
     [
@@ -178,6 +200,7 @@ export async function mockAdminApi(page: Page) {
     [(url) => url.pathname.endsWith('/activities'), activities],
     [(url) => url.pathname.endsWith('/pass-types'), passTypes],
     [(url) => url.pathname.endsWith('/sales'), sales],
+    [(url) => url.pathname.endsWith('/flagged-payments'), flaggedPayments],
     [
       (url) => url.pathname.endsWith('/participants'),
       { total: 1, limit: 20, offset: 0, results: [registration] },
@@ -243,6 +266,12 @@ export async function revealControls(page: Page, name: AdminScreenName) {
     await page.getByRole('link', { name: 'Editar Pase completo' }).waitFor();
     await page.getByRole('button', { name: /^Restaurar Pase archivado/ }).waitFor();
   }
+  if (name === 'Pagos por revisar')
+    await page
+      .getByRole('list', { name: 'Pagos por revisar' })
+      .getByRole('listitem')
+      .first()
+      .waitFor();
   if (name === 'Pase' || name === 'Nuevo pase') await accessControls(page).first().waitFor();
   if (name === 'Actividades') await page.getByRole('button', { name: /^Todas/ }).waitFor();
   if (name === 'Equipo')

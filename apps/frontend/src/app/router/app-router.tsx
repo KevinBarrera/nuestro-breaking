@@ -77,6 +77,7 @@ const appRoutes: RouteObject[] = [
       { path: routes.adminEventOverview, ...adminPage('AdminEventOverviewPage') },
       { path: routes.adminEventFoundation, ...adminPage('AdminEventDetailsPage') },
       { path: routes.adminEventCheckIn, ...adminPage('AdminCheckInPage') },
+      { path: routes.adminEventPaymentsReview, ...adminPage('AdminPaymentsReviewPage') },
       { path: routes.adminEventActivities, ...adminPage('AdminEventActivitiesPage') },
       {
         // The passes layout loads the catalog once for the list, create and detail screens.

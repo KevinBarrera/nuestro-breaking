@@ -65,6 +65,12 @@ Online payments ([#177](https://github.com/KevinBarrera/nuestro-breaking/issues/
 | `PUBLIC_APP_URL`                | `https://tickets.example`                    | Buyer-facing frontend origin, with no path. Checkout Pro returns the buyer to `/e/<slug>/pago` there. |
 | `MERCADO_PAGO_NOTIFICATION_URL` | `https://api.tickets.example/<webhook-path>` | Public URL Mercado Pago sends payment notifications to. Must be `https` in `production` mode.         |
 
+One optional setting controls how long an online buyer has to pay ([#181](https://github.com/KevinBarrera/nuestro-breaking/issues/181)):
+
+| Variable                | Example placeholder | Meaning                                                                                                                                                                                    |
+| ----------------------- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `PENDING_PAYMENT_HOURS` | `72`                | Hours an offline payment (OXXO, SPEI) stays payable after each checkout, from 1 to 720. Default `72`, the minimum Mercado Pago recommends. The pending registration expires one day later. |
+
 The webhook endpoint is `POST /public/payments/mercado-pago/webhook`; Mercado Pago must reach it over public HTTPS, so local sandbox testing needs a tunnel. Follow the [Mercado Pago sandbox runbook](docs/runbooks/mercado-pago-sandbox.md) for a complete test purchase.
 
 The webhook secret belongs to the account that owns the access token: in sandbox that is the test seller, not the account that created the application.

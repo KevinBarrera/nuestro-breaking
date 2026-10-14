@@ -6,8 +6,13 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { and, asc, eq } from 'drizzle-orm';
+import { and, asc, eq, isNotNull } from 'drizzle-orm';
 import { DATABASE_CLIENT } from '@/database/database.constants';
+import {
+  PENDING_PAYMENT_WINDOW,
+  paymentDeadlines,
+  type PendingPaymentWindow,
+} from '@/events/shared/pending-payment-window';
 import type { DatabaseService } from '@/database/database.service';
 import {
   eventPassTypes,
@@ -44,13 +49,15 @@ export class PublicCheckoutService {
   constructor(
     @Inject(DATABASE_CLIENT) private readonly db: Database,
     @Inject(MERCADO_PAGO_CONFIG) private readonly config: MercadoPagoConfig,
+    @Inject(PENDING_PAYMENT_WINDOW) private readonly paymentWindow: PendingPaymentWindow,
     private readonly mercadoPago: MercadoPagoClient,
   ) {}
 
   /**
    * Creates a new Checkout Pro preference for a `pending_payment` registration of this event and
    * records it (#177 D8). Each call makes a fresh preference, so a retry after a rejected card
-   * gets one too. Nothing is written when the provider call fails.
+   * gets one too. Each preference opens a new offline payment window, and the registration's
+   * expiry, when it has one, moves to one day after it (#181 S1). Nothing is written when the provider call fails.
    */
   async createCheckout(
     eventId: string,
@@ -80,6 +87,7 @@ export class PublicCheckoutService {
     const amountCents = passes.reduce((total, pass) => total + pass.priceCents, 0);
     if (amountCents <= 0) throw new ConflictException(NOT_PAYABLE);
 
+    const { paymentDueAt, expiresAt } = paymentDeadlines(this.paymentWindow, new Date());
     const preference = await this.createPreference(
       buildPreferenceRequest({
         registrationId,
@@ -87,14 +95,28 @@ export class PublicCheckoutService {
         passes,
         publicAppUrl: this.config.publicAppUrl,
         notificationUrl: this.config.notificationUrl,
+        paymentDueAt,
       }),
     );
-    await this.db.insert(registrationCheckouts).values({
-      registrationId,
-      mode: this.config.mode,
-      preferenceId: preference.preferenceId,
-      amountCents,
-      currency: 'MXN',
+    await this.db.transaction(async (tx) => {
+      await tx.insert(registrationCheckouts).values({
+        registrationId,
+        mode: this.config.mode,
+        preferenceId: preference.preferenceId,
+        amountCents,
+        currency: 'MXN',
+      });
+      await tx
+        .update(eventRegistrations)
+        .set({ expiresAt, updatedAt: new Date() })
+        .where(
+          and(
+            eq(eventRegistrations.id, registrationId),
+            eq(eventRegistrations.status, 'pending_payment'),
+            // Admin manual registrations have no expiry and keep none (#181 S2).
+            isNotNull(eventRegistrations.expiresAt),
+          ),
+        );
     });
     return { checkoutUrl: preference.checkoutUrl };
   }

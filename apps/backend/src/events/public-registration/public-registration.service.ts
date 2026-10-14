@@ -1,5 +1,5 @@
 import { ConflictException, Inject, Injectable } from '@nestjs/common';
-import { and, asc, eq, inArray, ne, or, sql, type SQL } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNotNull, ne, or, sql, type SQL } from 'drizzle-orm';
 import type { AnyPgColumn } from 'drizzle-orm/pg-core';
 import { DATABASE_CLIENT } from '@/database/database.constants';
 import type { DatabaseService } from '@/database/database.service';
@@ -18,6 +18,11 @@ import {
 } from '@/events/participant-profile/participant-normalization';
 import { registrationAuditActorColumns } from '@/events/registration-audit/registration-audit-actor';
 import { areSelectableActivities } from '@/events/registration-entitlements/selectable-activities';
+import {
+  PENDING_PAYMENT_WINDOW,
+  paymentDeadlines,
+  type PendingPaymentWindow,
+} from '@/events/shared/pending-payment-window';
 import { passRuleViolation, type RuleViolation } from './public-registration-rules';
 import type {
   PublicRegistrationBuyer,
@@ -69,7 +74,10 @@ const profile = (buyer: PublicRegistrationBuyer) => ({
 
 @Injectable()
 export class PublicRegistrationService {
-  constructor(@Inject(DATABASE_CLIENT) private readonly db: Database) {}
+  constructor(
+    @Inject(DATABASE_CLIENT) private readonly db: Database,
+    @Inject(PENDING_PAYMENT_WINDOW) private readonly paymentWindow: PendingPaymentWindow,
+  ) {}
 
   /**
    * Creates (or reuses, D5) the buyer's `pending_payment` registration with its passes and
@@ -98,6 +106,8 @@ export class PublicRegistrationService {
           });
 
       const reusable = await this.reusablePending(tx, eventId, request.buyer);
+      // Creating or reusing an online registration restarts its payment window (#181 S3).
+      const { expiresAt } = paymentDeadlines(this.paymentWindow, new Date());
       let registration: { id: string; participantId: string };
       let previous: HeldPass[] = [];
       if (reusable) {
@@ -112,6 +122,17 @@ export class PublicRegistrationService {
           .update(eventRegistrations)
           .set({ updatedAt: new Date() })
           .where(eq(eventRegistrations.id, registration.id));
+        // An admin manual registration matched here keeps its null expiry: it stays payable in
+        // cash and never expires on its own (#181 S2).
+        await tx
+          .update(eventRegistrations)
+          .set({ expiresAt })
+          .where(
+            and(
+              eq(eventRegistrations.id, registration.id),
+              isNotNull(eventRegistrations.expiresAt),
+            ),
+          );
       } else {
         const [participant] = await tx
           .insert(participants)
@@ -119,7 +140,7 @@ export class PublicRegistrationService {
           .returning({ id: participants.id });
         const [created] = await tx
           .insert(eventRegistrations)
-          .values({ eventId, participantId: participant.id })
+          .values({ eventId, participantId: participant.id, expiresAt })
           .returning({ id: eventRegistrations.id });
         registration = { id: created.id, participantId: participant.id };
       }

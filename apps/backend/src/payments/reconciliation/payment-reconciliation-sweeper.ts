@@ -30,7 +30,7 @@ const LOOKBACK = sql`interval '30 days'`;
  * sweep's interval (`PENDING_EXPIRY_SWEEP_INTERVAL_MS`, `0` turns both off) with the same
  * guarantees: no overlap, an unref'd timer, and shutdown waits for the sweep in flight. The provider
  * calls happen outside any database lock. A transient failure (network, timeout, 429, 5xx, a
- * credential refusal while reading) leaves the registration unreconciled, so a later sweep tries
+ * credential refusal while searching or reading) leaves the registration unreconciled, so a later sweep tries
  * again; a permanent search refusal (another 4xx) counts as searched.
  */
 @Injectable()
@@ -123,15 +123,19 @@ export class PaymentReconciliationSweeper implements OnApplicationBootstrap, OnM
   }
 
   /**
-   * A 4xx other than 429 will never succeed (a retry would only keep this registration ahead of
-   * newer ones), so it counts as searched with no payments, with a warning for operators.
+   * A 4xx other than 401, 403 and 429 will never succeed (a retry would only keep this registration
+   * ahead of newer ones), so it counts as searched with no payments, with a warning for operators.
+   * 401 and 403 mean the access token is misconfigured, rotated or revoked: the very outage this
+   * sweep recovers from, so they are retried until the credentials are fixed.
    */
   private async searchPayments(registrationId: string) {
     try {
       return await this.mercadoPago.searchPayments(registrationId);
     } catch (error) {
       const status = error instanceof MercadoPagoClientError ? error.status : undefined;
-      if (status === undefined || status < 400 || status >= 500 || status === 429) throw error;
+      const transient = [401, 403, 429];
+      if (status === undefined || status < 400 || status >= 500 || transient.includes(status))
+        throw error;
       this.logger.warn(
         `Mercado Pago refused the payment search for registration ${registrationId} with ${status}; it is not searched again.`,
       );

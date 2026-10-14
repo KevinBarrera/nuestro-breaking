@@ -543,6 +543,25 @@ describe('Mercado Pago payment webhook (e2e)', () => {
       expect(await reconciledAt(id)).not.toBeNull();
     });
 
+    it.each([401, 403])(
+      'keeps retrying while Mercado Pago refuses the credentials with %s',
+      async (status) => {
+        const id = await pendingRegistration();
+        await client`UPDATE event_registrations SET expires_at = now() - interval '1 minute'
+          WHERE id = ${id}`;
+        searchError = new MercadoPagoClientError('refused', status);
+
+        expect(await reconcile()).toBe(0);
+        expect(await reconciledAt(id)).toBeNull();
+
+        // Once the credentials are fixed, the missed approval is still applied.
+        searchError = undefined;
+        setPayment(id);
+        expect(await reconcile()).toBe(1);
+        expect((await registrationRow(id)).status).toBe('confirmed');
+      },
+    );
+
     it('leaves registrations alone that have not expired, have no expiry or expired long ago', async () => {
       const current = await pendingRegistration();
       await client`UPDATE event_registrations SET expires_at = now() + interval '1 hour'

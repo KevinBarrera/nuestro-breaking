@@ -56,4 +56,6 @@ export class MercadoPagoClientError extends Error {
 export abstract class MercadoPagoClient {
   abstract createPreference(input: PreferenceRequest): Promise<CreatedPreference>;
   abstract getPayment(paymentId: string): Promise<ProviderPayment>;
+  /** Payments whose `external_reference` is this registration id, newest first (#181 S6). */
+  abstract searchPayments(externalReference: string): Promise<ProviderPayment[]>;
 }

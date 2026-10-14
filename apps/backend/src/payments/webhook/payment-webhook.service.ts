@@ -120,6 +120,39 @@ export class PaymentWebhookService {
     return outcome;
   }
 
+  /**
+   * Applies a payment found by searching an expired registration's payments (#181 S6), exactly as
+   * a notification would: under the same per-payment lock, re-read by id, through the same
+   * decision. Its outcome is logged in `payment_webhook_notifications` under the claim id
+   * `reconciliation:<payment id>`, so the support runbook's queries see it too. A failed read
+   * throws and writes nothing, so the next sweep tries again.
+   */
+  async reconcile(paymentId: string): Promise<string> {
+    const claimId = `reconciliation:${paymentId}`;
+    const { outcome, confirmedRegistrationId } = await this.db.transaction(async (tx) => {
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`mp-payment:${paymentId}`}))`);
+      const read = await this.readPayment(paymentId);
+      const result: Applied =
+        typeof read === 'string' ? { outcome: read } : await this.apply(tx, read);
+      await tx
+        .insert(paymentWebhookNotifications)
+        .values({
+          notificationId: claimId,
+          providerPaymentId: paymentId,
+          processedAt: sql`now()`,
+          outcome: result.outcome,
+        })
+        .onConflictDoUpdate({
+          target: paymentWebhookNotifications.notificationId,
+          set: { processedAt: sql`now()`, outcome: result.outcome },
+        });
+      return result;
+    });
+    this.logger.log(`Mercado Pago payment ${paymentId} reconciliation: ${outcome}`);
+    if (confirmedRegistrationId) this.sendConfirmationEmail(confirmedRegistrationId);
+    return outcome;
+  }
+
   /** Fire and forget: the outbox row is committed, so the sweep retries whatever fails here. */
   private sendConfirmationEmail(registrationId: string) {
     this.confirmationEmails.dispatchRegistration(registrationId).catch((error: unknown) => {

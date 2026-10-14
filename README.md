@@ -67,10 +67,10 @@ Online payments ([#177](https://github.com/KevinBarrera/nuestro-breaking/issues/
 
 Two optional settings control how long an online buyer has to pay ([#181](https://github.com/KevinBarrera/nuestro-breaking/issues/181)):
 
-| Variable                           | Example placeholder | Meaning                                                                                                                                                                                    |
-| ---------------------------------- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `PENDING_EXPIRY_SWEEP_INTERVAL_MS` | `300000`            | How often, in milliseconds, expired online pending registrations are voided: `0` (off) or 1000 to 86400000. Default `300000` (5 min). A purchase or checkout also voids what is due.       |
-| `PENDING_PAYMENT_HOURS`            | `72`                | Hours an offline payment (OXXO, SPEI) stays payable after each checkout, from 1 to 720. Default `72`, the minimum Mercado Pago recommends. The pending registration expires one day later. |
+| Variable                           | Example placeholder | Meaning                                                                                                                                                                                                                            |
+| ---------------------------------- | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PENDING_EXPIRY_SWEEP_INTERVAL_MS` | `300000`            | How often, in milliseconds, expired online pending registrations are voided and their Mercado Pago payments searched once: `0` (off) or 1000 to 86400000. Default `300000` (5 min). A purchase or checkout also voids what is due. |
+| `PENDING_PAYMENT_HOURS`            | `72`                | Hours an offline payment (OXXO, SPEI) stays payable after each checkout, from 1 to 720. Default `72`, the minimum Mercado Pago recommends. The pending registration expires one day later.                                         |
 
 The webhook endpoint is `POST /public/payments/mercado-pago/webhook`; Mercado Pago must reach it over public HTTPS, so local sandbox testing needs a tunnel. Follow the [Mercado Pago sandbox runbook](docs/runbooks/mercado-pago-sandbox.md) for a complete test purchase.
 

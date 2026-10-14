@@ -15,6 +15,7 @@ import { MercadoPagoClient, MercadoPagoClientError, type ProviderPayment } from 
 import { PAYMENT_NOT_FOUND_GRACE_SECONDS } from '@/payments/webhook/payment-webhook.service';
 import { confirmRegistration } from '@/events/registration-confirmation/confirm-registration';
 import { PendingRegistrationExpirySweeper } from '@/events/registration-expiry';
+import { PaymentReconciliationSweeper } from '@/payments/reconciliation/payment-reconciliation-sweeper';
 import { PostgresHarness } from './support/postgres-harness';
 
 jest.setTimeout(120_000);
@@ -37,8 +38,17 @@ describe('Mercado Pago payment webhook (e2e)', () => {
   // When set, replaces the read entirely; `reads` still records every call.
   let readOverride: ((call: number) => Promise<ProviderPayment>) | undefined;
   const reads: string[] = [];
+  const searches: string[] = [];
+  let searchError: Error | undefined;
   const stub: MercadoPagoClient = {
     createPreference: () => Promise.reject(new Error('not used')),
+    searchPayments: (externalReference: string) => {
+      searches.push(externalReference);
+      if (searchError) return Promise.reject(searchError);
+      return Promise.resolve(
+        [...payments.values()].filter((payment) => payment.externalReference === externalReference),
+      );
+    },
     getPayment: (paymentId: string) => {
       reads.push(paymentId);
       if (readOverride) return readOverride(reads.length);
@@ -76,6 +86,8 @@ describe('Mercado Pago payment webhook (e2e)', () => {
   beforeEach(async () => {
     payments.clear();
     reads.length = 0;
+    searches.length = 0;
+    searchError = undefined;
     failingReads = 0;
     readError = undefined;
     readOverride = undefined;
@@ -442,6 +454,131 @@ describe('Mercado Pago payment webhook (e2e)', () => {
       expect(await notificationRows()).toEqual([
         { notification_id: '1001', processed: true, outcome: 'approved_after_void' },
       ]);
+    });
+  });
+
+  describe('reconciliation after expiry (#181 S6)', () => {
+    const reconcile = () => app.get(PaymentReconciliationSweeper).sweep();
+    const reconciledAt = async (id: string) =>
+      (
+        await client<{ at: string | null }[]>`
+          SELECT payments_reconciled_at AS at FROM event_registrations WHERE id = ${id}`
+      )[0].at;
+
+    it('applies an approval Mercado Pago never notified, once, through the late approval rule', async () => {
+      const id = await pendingRegistration();
+      await client`UPDATE event_registrations SET expires_at = now() - interval '1 minute'
+        WHERE id = ${id}`;
+      await app.get(PendingRegistrationExpirySweeper).sweep();
+      setPayment(id);
+
+      expect(await reconcile()).toBe(1);
+
+      expect((await registrationRow(id)).status).toBe('confirmed');
+      expect(searches).toEqual([id]);
+      expect(reads).toEqual([PAYMENT_ID]);
+      expect(await notificationRows()).toEqual([
+        {
+          notification_id: `reconciliation:${PAYMENT_ID}`,
+          processed: true,
+          outcome: 'confirmed_after_expiry',
+        },
+      ]);
+      expect(await reconciledAt(id)).not.toBeNull();
+
+      // Reconciled once: a later sweep asks Mercado Pago nothing more.
+      expect(await reconcile()).toBe(0);
+      expect(searches).toHaveLength(1);
+    });
+
+    it('confirms a registration that expired but was not voided yet like any approval', async () => {
+      const id = await pendingRegistration();
+      await client`UPDATE event_registrations SET expires_at = now() - interval '1 minute'
+        WHERE id = ${id}`;
+      setPayment(id);
+
+      await reconcile();
+
+      expect((await registrationRow(id)).status).toBe('confirmed');
+      expect((await notificationRows())[0].outcome).toBe('confirmed');
+    });
+
+    it('marks a registration without payments as reconciled', async () => {
+      const id = await pendingRegistration();
+      await client`UPDATE event_registrations SET expires_at = now() - interval '1 minute'
+        WHERE id = ${id}`;
+
+      expect(await reconcile()).toBe(1);
+
+      expect(reads).toEqual([]);
+      expect(await notificationRows()).toEqual([]);
+      expect(await reconciledAt(id)).not.toBeNull();
+    });
+
+    it('retries on the next sweep when the search fails', async () => {
+      const id = await pendingRegistration();
+      await client`UPDATE event_registrations SET expires_at = now() - interval '1 minute'
+        WHERE id = ${id}`;
+      searchError = new Error('provider down');
+
+      expect(await reconcile()).toBe(0);
+      expect(await reconciledAt(id)).toBeNull();
+
+      searchError = undefined;
+      expect(await reconcile()).toBe(1);
+      expect(await reconciledAt(id)).not.toBeNull();
+    });
+
+    it('gives up on a registration Mercado Pago refuses to search for good', async () => {
+      const id = await pendingRegistration();
+      await client`UPDATE event_registrations SET expires_at = now() - interval '1 minute'
+        WHERE id = ${id}`;
+      searchError = new MercadoPagoClientError(
+        'Mercado Pago payment search failed with status 400.',
+        400,
+      );
+
+      expect(await reconcile()).toBe(1);
+
+      expect(await reconciledAt(id)).not.toBeNull();
+    });
+
+    it.each([401, 403])(
+      'keeps retrying while Mercado Pago refuses the credentials with %s',
+      async (status) => {
+        const id = await pendingRegistration();
+        await client`UPDATE event_registrations SET expires_at = now() - interval '1 minute'
+          WHERE id = ${id}`;
+        searchError = new MercadoPagoClientError('refused', status);
+
+        expect(await reconcile()).toBe(0);
+        expect(await reconciledAt(id)).toBeNull();
+
+        // Once the credentials are fixed, the missed approval is still applied.
+        searchError = undefined;
+        setPayment(id);
+        expect(await reconcile()).toBe(1);
+        expect((await registrationRow(id)).status).toBe('confirmed');
+      },
+    );
+
+    it('leaves registrations alone that have not expired, have no expiry or expired long ago', async () => {
+      const current = await pendingRegistration();
+      await client`UPDATE event_registrations SET expires_at = now() + interval '1 hour'
+        WHERE id = ${current}`;
+      // Same event, each with a checkout: one expired 31 days ago, one without an expiry (manual).
+      for (const expiresAt of [new Date(Date.now() - 31 * 24 * 60 * 60 * 1000).toISOString(), null])
+        await client`
+          WITH person AS (INSERT INTO participants (full_name) VALUES ('Other') RETURNING id),
+          registration AS (
+            INSERT INTO event_registrations (event_id, participant_id, expires_at)
+            SELECT event_id, (SELECT id FROM person), ${expiresAt}
+            FROM event_registrations WHERE id = ${current} RETURNING id)
+          INSERT INTO registration_checkouts (registration_id, mode, preference_id, amount_cents, currency)
+          SELECT id, ${mode()}, 'pref-' || id, ${PRICE_CENTS}, 'MXN' FROM registration`;
+
+      expect(await reconcile()).toBe(0);
+      expect(searches).toEqual([]);
     });
   });
 

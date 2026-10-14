@@ -26,6 +26,7 @@ describe('public payment status (e2e)', () => {
   let app: INestApplication<App>;
   const stub: MercadoPagoClient = {
     createPreference: () => Promise.reject(new Error('not used')),
+    searchPayments: () => Promise.resolve([]),
     getPayment: () => Promise.reject(new Error('not used')),
   };
 

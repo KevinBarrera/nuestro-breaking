@@ -99,6 +99,47 @@ export class FetchMercadoPagoClient extends MercadoPagoClient {
     }
     return payment;
   }
+
+  /**
+   * Searches the payments made for one registration (#181 S6), so a payment whose notifications
+   * never arrived can still be applied. At most 30, newest first: a registration has few attempts.
+   */
+  async searchPayments(externalReference: string): Promise<ProviderPayment[]> {
+    const query = new URLSearchParams({
+      external_reference: externalReference,
+      sort: 'date_created',
+      criteria: 'desc',
+      limit: '30',
+    });
+    let response: Response;
+    try {
+      response = await this.fetchFn(`${PAYMENTS_URL}/search?${query.toString()}`, {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${this.config.accessToken}` },
+        signal: AbortSignal.timeout(this.timeoutMs),
+      });
+    } catch {
+      throw new MercadoPagoClientError('Mercado Pago payment search failed before a response.');
+    }
+    if (!response.ok) {
+      throw new MercadoPagoClientError(
+        `Mercado Pago payment search failed with status ${response.status}.`,
+        response.status,
+      );
+    }
+    const body: unknown = await response.json().catch(() => null);
+    const results = (body as { results?: unknown } | null)?.results;
+    if (!Array.isArray(results)) {
+      throw new MercadoPagoClientError('Mercado Pago payment search response was malformed.');
+    }
+    // A result it cannot read is skipped, so one odd payment never blocks the others for good.
+    return results
+      .map(readPayment)
+      .filter(
+        (payment): payment is ProviderPayment =>
+          payment !== null && payment.externalReference === externalReference,
+      );
+  }
 }
 
 function readPayment(body: unknown): ProviderPayment | null {

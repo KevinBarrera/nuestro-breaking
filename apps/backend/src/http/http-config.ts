@@ -16,6 +16,7 @@ export interface PublicRateLimitConfig {
 
 const DEFAULT_ADMIN_ORIGIN = 'http://localhost:5173';
 const DEFAULT_PUBLIC_RATE_LIMIT: PublicRateLimitConfig = { limit: 60, ttl: 60_000 };
+const MAX_TRUST_PROXY_HOPS = 5;
 
 /** Reads CORS origins from the environment; throws on any public origin that is not exact. */
 export function readCorsOrigins(env: Environment): CorsOrigins {
@@ -47,6 +48,22 @@ export function readPublicRateLimit(env: Environment): PublicRateLimitConfig {
     limit: readPositiveInteger(env, 'PUBLIC_RATE_LIMIT_LIMIT', DEFAULT_PUBLIC_RATE_LIMIT.limit),
     ttl: readPositiveInteger(env, 'PUBLIC_RATE_LIMIT_TTL_MS', DEFAULT_PUBLIC_RATE_LIMIT.ttl),
   };
+}
+
+/**
+ * Reverse proxies in front of the API (0 to 5; unset or blank is 0, no proxy). Express then reads
+ * the client from that many entries from the right of `X-Forwarded-For`, so entries a client
+ * prepends are ignored. Invalid values throw.
+ */
+export function readTrustProxyHops(env: Environment): number {
+  const raw = env.TRUST_PROXY_HOPS?.trim();
+  if (!raw) return 0;
+  if (!/^\d$/.test(raw) || Number(raw) > MAX_TRUST_PROXY_HOPS) {
+    throw new Error(
+      `TRUST_PROXY_HOPS must be an integer from 0 to ${MAX_TRUST_PROXY_HOPS} (got "${raw}").`,
+    );
+  }
+  return Number(raw);
 }
 
 function isExactOrigin(value: string): boolean {

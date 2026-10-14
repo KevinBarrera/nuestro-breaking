@@ -12,7 +12,7 @@ export const PublicRateLimitModule = ThrottlerModule.forRootAsync({
 
 /**
  * Limits requests per client IP and route; over the limit the API answers 429 with `Retry-After`.
- * Apply it only to public controllers. Behind a reverse proxy, `req.ip` is the proxy address
- * unless Express `trust proxy` is configured (see the public catalog contract).
+ * Apply it only to public controllers. The client IP is `req.ip`; behind reverse proxies it is
+ * the real client only when `TRUST_PROXY_HOPS` matches them (see the public catalog contract).
  */
 export const PublicRateLimit = () => UseGuards(ThrottlerGuard);

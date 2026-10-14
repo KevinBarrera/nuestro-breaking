@@ -112,17 +112,25 @@ Public controllers use `@PublicRateLimit()` (`apps/backend/src/http/public-rate-
 - Over the limit the API answers `429` with `{ "statusCode": 429, "message": "ThrottlerException: Too Many Requests" }` and a `Retry-After` header in seconds. Responses also carry `X-RateLimit-Limit`, `X-RateLimit-Remaining` and `X-RateLimit-Reset`.
 - Counters live in process memory: they reset on restart and are not shared between API instances.
 
-### Deployment note: reverse proxy
+### Client address behind reverse proxies
 
-The limit keys on Express `req.ip`. Behind a reverse proxy or load balancer, `req.ip` is the proxy address unless Express `trust proxy` is configured, so every buyer would share one counter. The repository has no deployment or proxy configuration yet, so the API does not set `trust proxy`. When the API is deployed behind a proxy, configure `trust proxy` for that proxy (for example the number of hops) before relying on the limit, and make sure the proxy overwrites `X-Forwarded-For` rather than passing a client value through.
+The limit keys on Express `req.ip`. Behind reverse proxies, `req.ip` is the last proxy's address unless Express `trust proxy` is set, so every buyer would share one counter. `TRUST_PROXY_HOPS` sets it to a hop count:
+
+| Variable           | Default | Meaning                                                                     |
+| ------------------ | ------- | --------------------------------------------------------------------------- |
+| `TRUST_PROXY_HOPS` | `0`     | Reverse proxies in front of the API, `0` to `5`. `0` sets no `trust proxy`. |
+
+- Each proxy appends the address it received the request from to `X-Forwarded-For`. With `N` hops, `req.ip` is the `N`th entry from the right: the client the outermost proxy saw. Entries a client prepends stay to the left and are ignored.
+- Deployment values: `1` behind Railway's edge proxy alone, `2` with the Cloudflare proxy in front of Railway.
+- The value must match the real proxy chain. Too low and buyers share a proxy's counter; too high and a client can choose its own address by sending `X-Forwarded-For`.
+- Any other value stops the API at startup. Blank uses the default.
 
 ## Known gaps
 
-| Gap                                                               | Follow-up  |
-| ----------------------------------------------------------------- | ---------- |
-| `trust proxy` is not configured; see the deployment note above.   | Deployment |
-| Rate-limit counters are per process, not shared across instances. | Later      |
-| No HTTP caching headers.                                          | Later      |
+| Gap                                                               | Follow-up |
+| ----------------------------------------------------------------- | --------- |
+| Rate-limit counters are per process, not shared across instances. | Later     |
+| No HTTP caching headers.                                          | Later     |
 
 ## Cross-references
 

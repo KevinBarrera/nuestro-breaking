@@ -133,6 +133,16 @@ Initial migration artifacts are committed under `apps/backend/drizzle`.
 
 Hosted environments have no development dependencies, so `drizzle-kit` is not available there. After `pnpm --filter @nuestro-breaking/backend build`, the compiled command applies the same migrations with plain `node` (`node dist/scripts/migrate-database.js` from `apps/backend`, or `pnpm --filter @nuestro-breaking/backend db:migrate:prod`). It shares the migration journal with `drizzle-kit migrate`, takes a lock so overlapping deploys apply each migration once, and on failure prints one line with the PostgreSQL or connection error code and its cause, then exits non-zero.
 
+## Backend Docker image
+
+Hosted environments run the backend from `apps/backend/Dockerfile` (Node 24.18.1 on Debian slim, production dependencies only, runs as the `node` user). Build it from the repository root:
+
+```bash
+docker build -f apps/backend/Dockerfile -t nuestro-breaking-backend .
+```
+
+The image starts the API with `node dist/src/main.js` and listens on `0.0.0.0:3000` (override with `PORT`). It sets `NODE_ENV=production`, so the API docs are off and the email and payment variables are required at startup. Run `node dist/scripts/migrate-database.js` before each deploy and `node dist/scripts/bootstrap-admin.js` once per environment. `.dockerignore` is an allowlist: only the workspace manifests and `apps/backend` reach the build, never `.env` files or tests.
+
 ## Frontend
 
 Run the React frontend in development mode:

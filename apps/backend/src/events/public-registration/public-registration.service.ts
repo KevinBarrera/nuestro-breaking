@@ -8,6 +8,7 @@ import {
   eventRegistrationPasses,
   eventRegistrations,
   participants,
+  registrationLegalAcceptances,
   registrationOperationAudit,
 } from '@/database/schema';
 import type { PassClass, RequiredPassClass } from '@/events/pass-type-admin/pass-type-admin.types';
@@ -74,7 +75,8 @@ export class PublicRegistrationService {
   /**
    * Creates (or reuses, D5) the buyer's `pending_payment` registration with its passes and
    * selections, in one transaction with its `online_registration` audit fact. The caller has
-   * already checked that sales are open. Legal acceptance (#180) will be stored here too.
+   * already checked that sales are open. The buyer's legal acceptances (#180) are appended in the
+   * same transaction, also when a pending registration is reused.
    */
   async register(
     eventId: string,
@@ -139,6 +141,14 @@ export class PublicRegistrationService {
           .returning({ id: eventRegistrations.id });
         registration = { id: created.id, participantId: participant.id };
       }
+
+      await tx.insert(registrationLegalAcceptances).values(
+        request.legalAcceptances.map(({ document, version }) => ({
+          registrationId: registration.id,
+          documentKey: document,
+          documentVersion: version,
+        })),
+      );
 
       const passes: PublicRegistrationPass[] = [];
       const registrationPassIds: string[] = [];

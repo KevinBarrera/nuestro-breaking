@@ -1,3 +1,4 @@
+import { LEGAL_DOCUMENT_VERSIONS } from '@/events/legal-documents';
 import { parsePublicRegistrationRequest } from './public-registration-request';
 
 const TODAY = '2026-10-08';
@@ -12,11 +13,21 @@ const buyer = (overrides: Record<string, unknown> = {}) => ({
   phone: '55 1234 5678',
   ...overrides,
 });
+const accepted = (overrides: Record<string, unknown> = {}) => ({
+  ...LEGAL_DOCUMENT_VERSIONS,
+  ...overrides,
+});
 const body = (overrides: Record<string, unknown> = {}) => ({
   buyer: buyer(),
   passes: [{ passTypeId: PASS }],
+  legalAcceptances: accepted(),
   ...overrides,
 });
+const ACCEPTANCES = [
+  { document: 'rules', version: LEGAL_DOCUMENT_VERSIONS.rules },
+  { document: 'privacy', version: LEGAL_DOCUMENT_VERSIONS.privacy },
+  { document: 'cancellation', version: LEGAL_DOCUMENT_VERSIONS.cancellation },
+];
 const errorsOf = (input: unknown) => {
   const result = parsePublicRegistrationRequest(input, TODAY);
   if (result.ok) throw new Error('expected validation errors');
@@ -52,6 +63,7 @@ describe('parsePublicRegistrationRequest', () => {
           birthDate: null,
         },
         passes: [{ passTypeId: PASS, selectedActivityIds: [] }],
+        legalAcceptances: ACCEPTANCES,
       },
     });
   });
@@ -96,11 +108,40 @@ describe('parsePublicRegistrationRequest', () => {
       'buyer.email': 'required',
       'buyer.phone': 'required',
       passes: 'required',
+      legalAcceptances: 'required',
     });
-    expect(errorsOf({})).toEqual({ buyer: 'required', passes: 'required' });
+    expect(errorsOf({})).toEqual({
+      buyer: 'required',
+      passes: 'required',
+      legalAcceptances: 'required',
+    });
     expect(errorsOf(body({ buyer: buyer({ firstName: '  ', email: '' }) }))).toEqual({
       'buyer.firstName': 'required',
       'buyer.email': 'required',
+    });
+  });
+
+  it('needs the current version of each of the three legal documents', () => {
+    expect(errorsOf(body({ legalAcceptances: {} }))).toEqual({
+      'legalAcceptances.rules': 'required',
+      'legalAcceptances.privacy': 'required',
+      'legalAcceptances.cancellation': 'required',
+    });
+    expect(
+      errorsOf(body({ legalAcceptances: accepted({ privacy: null, cancellation: '' }) })),
+    ).toEqual({
+      'legalAcceptances.privacy': 'required',
+      'legalAcceptances.cancellation': 'required',
+    });
+    expect(
+      errorsOf(body({ legalAcceptances: accepted({ rules: 'borrador-2026-01-01', privacy: 3 }) })),
+    ).toEqual({
+      'legalAcceptances.rules': 'outdated',
+      'legalAcceptances.privacy': 'invalid',
+    });
+    expect(errorsOf(body({ legalAcceptances: [] }))).toEqual({ legalAcceptances: 'invalid' });
+    expect(errorsOf(body({ legalAcceptances: accepted({ terms: 'v1' }) }))).toEqual({
+      'legalAcceptances.terms': 'unknown_field',
     });
   });
 

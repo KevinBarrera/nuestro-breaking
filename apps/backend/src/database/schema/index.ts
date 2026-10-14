@@ -15,3 +15,4 @@ export * from './payments';
 export * from './notifications';
 export * from './admin-team';
 export * from './event-admin-audit';
+export * from './legal-acceptances';

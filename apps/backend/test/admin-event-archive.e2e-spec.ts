@@ -10,6 +10,7 @@ import { DATABASE_CLIENT } from '@/database/database.constants';
 import * as schema from '@/database/schema';
 import { DatabaseService } from '@/database/database.service';
 import type { AdminEvent } from '@/events/admin-events/admin-event.read-model';
+import { LEGAL_DOCUMENT_VERSIONS } from '@/events/legal-documents';
 import { readTrustedOrigin } from '@/http';
 import { MercadoPagoClient } from '@/payments';
 import { PostgresHarness } from './support/postgres-harness';
@@ -162,6 +163,7 @@ describe('admin event archive and restore (e2e)', () => {
           birthDate: '2000-02-29',
         },
         passes: [{ passTypeId }],
+        legalAcceptances: LEGAL_DOCUMENT_VERSIONS,
       });
   const publicCheckout = (registrationId: string, slug = SLUG) =>
     server().post(`/public/events/${slug}/registrations/${registrationId}/checkout`);

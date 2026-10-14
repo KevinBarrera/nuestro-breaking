@@ -1,8 +1,16 @@
+import type { LegalAcceptance } from '@/events/legal-documents';
 import type { PassClass } from '@/events/pass-type-admin/pass-type-admin.types';
 
 /** Stable field error codes; the purchase screens (#176) map them to Spanish messages. */
 export type FieldErrorCode =
-  'required' | 'invalid' | 'too_long' | 'too_many' | 'duplicate' | 'in_future' | 'unknown_field';
+  | 'required'
+  | 'invalid'
+  | 'too_long'
+  | 'too_many'
+  | 'duplicate'
+  | 'in_future'
+  | 'outdated'
+  | 'unknown_field';
 
 /** Normalized buyer: email lowercased, phone trimmed as entered, Instagram without `@`. */
 export type PublicRegistrationBuyer = {
@@ -23,6 +31,8 @@ export type RequestedPass = { passTypeId: string; selectedActivityIds: string[] 
 export type PublicRegistrationRequest = {
   buyer: PublicRegistrationBuyer;
   passes: RequestedPass[];
+  // One per legal document, at its current version (#180).
+  legalAcceptances: LegalAcceptance[];
 };
 
 /** Stable codes of catalog and duplicate rule violations (409). */

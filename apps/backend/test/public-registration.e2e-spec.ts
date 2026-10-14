@@ -8,6 +8,7 @@ import { AppModule } from '@/app.module';
 import { DATABASE_CLIENT } from '@/database/database.constants';
 import * as schema from '@/database/schema';
 import { DatabaseService } from '@/database/database.service';
+import { LEGAL_DOCUMENT_VERSIONS } from '@/events/legal-documents';
 import type { PublicRegistrationResult } from '@/events/public-registration';
 import { PendingRegistrationExpirySweeper } from '@/events/registration-expiry';
 import { PostgresHarness } from './support/postgres-harness';
@@ -125,10 +126,22 @@ describe('public registration (e2e)', () => {
     birthDate: '2000-02-29',
     ...overrides,
   });
-  const register = (body: unknown, slug = SLUG) =>
+  // Every request accepts the current legal documents unless the test says otherwise (#180).
+  const register = (body: object, slug = SLUG) =>
     request(app.getHttpServer())
       .post(`/public/events/${slug}/registrations`)
-      .send(body as object);
+      .send({ legalAcceptances: { ...LEGAL_DOCUMENT_VERSIONS }, ...body });
+  const acceptances = async () =>
+    client<
+      {
+        registration_id: string;
+        document_key: string;
+        document_version: string;
+        accepted_at: string;
+      }[]
+    >`
+      SELECT registration_id, document_key, document_version, accepted_at
+      FROM registration_legal_acceptances ORDER BY accepted_at, document_key`;
   const counts = async () => {
     const [row] = await client<{ registrations: number; passes: number; audits: number }[]>`
       SELECT (SELECT count(*)::int FROM event_registrations) AS registrations,
@@ -326,6 +339,101 @@ describe('public registration (e2e)', () => {
     const [{ participants }] = await client<{ participants: number }[]>`
       SELECT count(*)::int AS participants FROM participants`;
     expect(participants).toBe(0);
+  });
+
+  describe('legal acceptance (#180)', () => {
+    it('stores the key, version and time of each of the three documents with the registration', async () => {
+      const ids = await fixture();
+      const before = new Date();
+
+      const { registrationId } = (
+        await register({ buyer: buyer(), passes: [{ passTypeId: ids.general }] }).expect(201)
+      ).body as PublicRegistrationResult;
+
+      const rows = await acceptances();
+      expect(
+        rows.map((row) => ({
+          registration_id: row.registration_id,
+          document_key: row.document_key,
+          document_version: row.document_version,
+        })),
+      ).toEqual([
+        {
+          registration_id: registrationId,
+          document_key: 'cancellation',
+          document_version: LEGAL_DOCUMENT_VERSIONS.cancellation,
+        },
+        {
+          registration_id: registrationId,
+          document_key: 'privacy',
+          document_version: LEGAL_DOCUMENT_VERSIONS.privacy,
+        },
+        {
+          registration_id: registrationId,
+          document_key: 'rules',
+          document_version: LEGAL_DOCUMENT_VERSIONS.rules,
+        },
+      ]);
+      for (const row of rows) {
+        const acceptedAt = new Date(row.accepted_at).getTime();
+        expect(acceptedAt).toBeGreaterThanOrEqual(before.getTime() - 1000);
+        expect(acceptedAt).toBeLessThanOrEqual(Date.now() + 1000);
+      }
+    });
+
+    it('rejects a registration without all three current acceptances and stores nothing', async () => {
+      const ids = await fixture();
+      const passes = [{ passTypeId: ids.general }];
+
+      const missing = await register({ buyer: buyer(), passes, legalAcceptances: undefined });
+      expect(missing.status).toBe(400);
+      expect(missing.body).toEqual({
+        statusCode: 400,
+        message: 'Invalid registration',
+        fieldErrors: { legalAcceptances: 'required' },
+      });
+      const partial = await register({
+        buyer: buyer(),
+        passes,
+        legalAcceptances: { rules: LEGAL_DOCUMENT_VERSIONS.rules, privacy: 'borrador-2020-01-01' },
+      }).expect(400);
+      expect((partial.body as { fieldErrors: unknown }).fieldErrors).toEqual({
+        'legalAcceptances.privacy': 'outdated',
+        'legalAcceptances.cancellation': 'required',
+      });
+
+      expect(await counts()).toEqual({ registrations: 0, passes: 0, audits: 0 });
+      expect(await acceptances()).toEqual([]);
+    });
+
+    it('keeps past acceptances when a version changes and the buyer registers again', async () => {
+      const ids = await fixture();
+      const { registrationId } = (
+        await register({ buyer: buyer(), passes: [{ passTypeId: ids.general }] }).expect(201)
+      ).body as PublicRegistrationResult;
+      const first = await acceptances();
+
+      const previous = LEGAL_DOCUMENT_VERSIONS.rules;
+      LEGAL_DOCUMENT_VERSIONS.rules = 'final-2026-11-01';
+      try {
+        await register({
+          buyer: buyer(),
+          passes: [{ passTypeId: ids.full }],
+          legalAcceptances: { ...LEGAL_DOCUMENT_VERSIONS, rules: previous },
+        }).expect(400);
+        await register({ buyer: buyer(), passes: [{ passTypeId: ids.full }] }).expect(201);
+      } finally {
+        LEGAL_DOCUMENT_VERSIONS.rules = previous;
+      }
+
+      const rows = await acceptances();
+      expect(rows).toHaveLength(6);
+      expect(rows.slice(0, 3)).toEqual(first);
+      expect(rows.every((row) => row.registration_id === registrationId)).toBe(true);
+      expect(
+        rows.filter((row) => row.document_key === 'rules').map((row) => row.document_version),
+      ).toEqual([previous, 'final-2026-11-01']);
+    });
   });
 
   it('answers 409 while sales are closed and 404 for an unknown slug', async () => {

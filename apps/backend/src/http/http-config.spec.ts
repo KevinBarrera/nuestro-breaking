@@ -1,4 +1,4 @@
-import { readCorsOrigins, readPublicRateLimit } from './http-config';
+import { readCorsOrigins, readPublicRateLimit, readTrustProxyHops } from './http-config';
 
 describe('readCorsOrigins', () => {
   it('defaults the admin origin to the local frontend and adds no public origins', () => {
@@ -66,5 +66,25 @@ describe('readPublicRateLimit', () => {
     expect(() => readPublicRateLimit({ PUBLIC_RATE_LIMIT_TTL_MS: '0' })).toThrow(
       /PUBLIC_RATE_LIMIT_TTL_MS/,
     );
+  });
+});
+
+describe('readTrustProxyHops', () => {
+  it('defaults to 0, trusting no proxy', () => {
+    expect(readTrustProxyHops({})).toBe(0);
+    expect(readTrustProxyHops({ TRUST_PROXY_HOPS: '  ' })).toBe(0);
+  });
+
+  it.each([
+    ['0', 0],
+    ['1', 1],
+    [' 2 ', 2],
+    ['5', 5],
+  ])('reads %p as %p hops', (value, hops) => {
+    expect(readTrustProxyHops({ TRUST_PROXY_HOPS: value })).toBe(hops);
+  });
+
+  it.each(['6', '-1', '1.5', 'true', 'abc', '1e0', '01x'])('fails fast on %p', (value) => {
+    expect(() => readTrustProxyHops({ TRUST_PROXY_HOPS: value })).toThrow(/TRUST_PROXY_HOPS/);
   });
 });

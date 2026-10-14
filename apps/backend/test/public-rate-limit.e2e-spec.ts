@@ -31,19 +31,29 @@ describe('public rate limit and CORS (e2e)', () => {
     client = await harness.start();
   });
   // A fresh app per test gives each test fresh in-memory throttler counters.
-  beforeEach(async () => {
+  const boot = async (env: Record<string, string> = {}) => {
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
       .overrideProvider(DatabaseService)
       .useValue({ db: {} })
       .overrideProvider(DATABASE_CLIENT)
       .useValue(drizzle({ client, schema }))
       .compile();
-    app = moduleRef.createNestApplication();
-    configureHttp(app, {
+    const booted = moduleRef.createNestApplication<INestApplication<App>>();
+    configureHttp(booted, {
       AUTH_TRUSTED_ORIGIN: ADMIN_ORIGIN,
       PUBLIC_ALLOWED_ORIGINS: PUBLIC_ORIGIN,
+      ...env,
     });
-    await app.init();
+    await booted.init();
+    return booted;
+  };
+  /** Replaces the default app with one booted from `env`; `afterEach` closes it. */
+  const reboot = async (env: Record<string, string>) => {
+    await app.close();
+    app = await boot(env);
+  };
+  beforeEach(async () => {
+    app = await boot();
   });
   afterEach(async () => app?.close());
   afterAll(async () => {
@@ -55,6 +65,13 @@ describe('public rate limit and CORS (e2e)', () => {
   const get = (path: string, origin?: string) => {
     const call = request(app.getHttpServer()).get(path);
     return origin ? call.set('Origin', origin) : call;
+  };
+  const fromClient = (forwardedFor: string) =>
+    request(app.getHttpServer()).get(CATALOG).set('X-Forwarded-For', forwardedFor);
+  const exhaustLimit = async (forwardedFor: string) => {
+    for (let i = 0; i < LIMIT; i += 1) {
+      await fromClient(forwardedFor).expect(404);
+    }
   };
 
   it('answers 429 with Retry-After once a client exceeds the public limit', async () => {
@@ -120,5 +137,38 @@ describe('public rate limit and CORS (e2e)', () => {
     // A public origin never gains access to admin routes.
     const fromPublic = await get(ADMIN_ROUTE, PUBLIC_ORIGIN);
     expect(fromPublic.headers['access-control-allow-origin']).toBe(ADMIN_ORIGIN);
+  });
+
+  describe('client address behind proxies (TRUST_PROXY_HOPS)', () => {
+    it('without trusted hops, every forwarded client shares the proxy address counter', async () => {
+      await exhaustLimit('203.0.113.10');
+
+      await fromClient('198.51.100.20').expect(429);
+    });
+
+    it('with one trusted hop, each forwarded client gets its own counter', async () => {
+      await reboot({ TRUST_PROXY_HOPS: '1' });
+      await exhaustLimit('203.0.113.10');
+
+      await fromClient('203.0.113.10').expect(429);
+      await fromClient('198.51.100.20').expect(404);
+    });
+
+    it('ignores a forged left-most entry when one hop is trusted', async () => {
+      await reboot({ TRUST_PROXY_HOPS: '1' });
+      await exhaustLimit('203.0.113.10');
+
+      // The client prepends a fake address; the proxy still appends the real one on the right.
+      await fromClient('198.51.100.99, 203.0.113.10').expect(429);
+    });
+
+    it('with two trusted hops, reads the client the outer proxy saw', async () => {
+      await reboot({ TRUST_PROXY_HOPS: '2' });
+      // client (forged prefix) -> Cloudflare (appends the client) -> Railway edge (appends Cloudflare)
+      await exhaustLimit('198.51.100.99, 203.0.113.10, 172.64.0.1');
+
+      await fromClient('198.51.100.98, 203.0.113.10, 172.64.0.2').expect(429);
+      await fromClient('203.0.113.11, 172.64.0.1').expect(404);
+    });
   });
 });

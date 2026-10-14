@@ -27,6 +27,11 @@ import { PublicCatalogController } from './public-catalog/public-catalog.control
 import { PublicCatalogService } from './public-catalog/public-catalog.service';
 import { PublicRegistrationController } from './public-registration/public-registration.controller';
 import { PublicRegistrationService } from './public-registration/public-registration.service';
+import {
+  EXPIRY_SWEEP_INTERVAL_MS,
+  PendingRegistrationExpirySweeper,
+  readExpirySweepInterval,
+} from './registration-expiry';
 import { PENDING_PAYMENT_WINDOW, readPendingPaymentWindow } from './shared/pending-payment-window';
 import { VenueAdminController } from './venue-admin/venue-admin.controller';
 import { VenueAdminService } from './venue-admin/venue-admin.service';
@@ -64,6 +69,8 @@ import { VenueAdminService } from './venue-admin/venue-admin.service';
     PublicRegistrationService,
     VenueAdminService,
     { provide: PENDING_PAYMENT_WINDOW, useFactory: () => readPendingPaymentWindow(process.env) },
+    { provide: EXPIRY_SWEEP_INTERVAL_MS, useFactory: () => readExpirySweepInterval(process.env) },
+    PendingRegistrationExpirySweeper,
   ],
 })
 export class EventsModule {}

@@ -17,6 +17,7 @@ import {
   phoneMatchKey,
 } from '@/events/participant-profile/participant-normalization';
 import { registrationAuditActorColumns } from '@/events/registration-audit/registration-audit-actor';
+import { expireDueRegistrations } from '@/events/registration-expiry';
 import { areSelectableActivities } from '@/events/registration-entitlements/selectable-activities';
 import {
   PENDING_PAYMENT_WINDOW,
@@ -105,6 +106,9 @@ export class PublicRegistrationService {
             message: 'Invalid activity selection',
           });
 
+      // Expired online registrations of this event are voided first, so they never count as
+      // duplicates and a retry after expiry starts a new registration (#181 S2, S3).
+      await expireDueRegistrations(tx, { eventId });
       const reusable = await this.reusablePending(tx, eventId, request.buyer);
       // Creating or reusing an online registration restarts its payment window (#181 S3).
       const { expiresAt } = paymentDeadlines(this.paymentWindow, new Date());

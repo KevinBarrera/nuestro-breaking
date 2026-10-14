@@ -26,9 +26,12 @@ describe('public checkout (e2e)', () => {
   const sent: PreferenceRequest[] = [];
   let failNext = false;
   let preferenceCount = 0;
+  // Runs while the provider call is in flight, to simulate what happens meanwhile.
+  let duringPreference: (() => Promise<unknown>) | null = null;
   const stub: MercadoPagoClient = {
-    createPreference: (input: PreferenceRequest) => {
+    createPreference: async (input: PreferenceRequest) => {
       sent.push(input);
+      if (duringPreference) await duringPreference();
       if (failNext) return Promise.reject(new Error('provider down'));
       preferenceCount += 1;
       return Promise.resolve({
@@ -56,6 +59,7 @@ describe('public checkout (e2e)', () => {
   beforeEach(async () => {
     sent.length = 0;
     failNext = false;
+    duringPreference = null;
     preferenceCount = 0;
     await harness.reset();
   });
@@ -180,6 +184,34 @@ describe('public checkout (e2e)', () => {
     expect(sent[0].date_of_expiration).toMatch(/\+00:00$/);
     const [row] = await client`SELECT expires_at FROM event_registrations WHERE id = ${id}`;
     expect(row.expires_at).toBeNull();
+  });
+
+  it('voids an expired registration and answers 409 without calling the provider', async () => {
+    const ids = await fixture();
+    const id = await registration(ids.event, [{ passTypeId: ids.full, priceCents: 150050 }]);
+    await client`UPDATE event_registrations SET expires_at = now() - interval '1 minute' WHERE id = ${id}`;
+
+    const response = await checkout(id).expect(409);
+
+    expect(response.body).toMatchObject({ code: 'registration_not_payable' });
+    expect(sent).toHaveLength(0);
+    const [row] = await client`SELECT status FROM event_registrations WHERE id = ${id}`;
+    expect(row.status).toBe('voided');
+    const [fact] = await client`SELECT actor_kind FROM registration_operation_audit
+      WHERE registration_id = ${id} AND operation_type = 'registration_expiry'`;
+    expect(fact).toEqual({ actor_kind: 'system' });
+  });
+
+  it('answers 409 and records no checkout when the registration is voided during the provider call', async () => {
+    const ids = await fixture();
+    const id = await registration(ids.event, [{ passTypeId: ids.full, priceCents: 150050 }]);
+    duringPreference = () =>
+      client`UPDATE event_registrations SET status = 'voided' WHERE id = ${id}`;
+
+    const response = await checkout(id).expect(409);
+
+    expect(response.body).toMatchObject({ code: 'registration_not_payable' });
+    expect(await checkoutRows()).toEqual([]);
   });
 
   it('creates a fresh preference on every call', async () => {

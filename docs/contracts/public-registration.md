@@ -131,13 +131,15 @@ Under the same per-event advisory lock as admin manual registration, the buyer i
 | ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Any `confirmed` registration   | `409 { "statusCode": 409, "code": "registration_unavailable", "message": "This registration cannot be completed online. Please contact the organizer." }`. Nothing about the existing record is revealed. |
 | A `pending_payment` one        | Reused: the row is locked `FOR UPDATE`, its participant profile is updated with the new buyer data, and its passes and selections are replaced by the request. Same `registrationId`, `201`.              |
-| Only `voided` ones, or nothing | A new participant and registration are created.                                                                                                                                                           |
+| Only `voided` ones, or nothing | A new participant and registration are created. Expired online pending registrations of the event are voided first, so they count as `voided` here.                                                       |
 
 When several pending registrations match (one by email, another by phone), the email match is reused first, then the oldest. Admin manual registrations count as matches too. Activity links an admin stored on a reused registration (`event_activity_registrations`) are left unchanged.
 
 ## Payment window (#181)
 
 An online pending registration expires if it is never paid. Its `expires_at` is set to `PENDING_PAYMENT_HOURS` (default 72) plus one day after it is created or reused. Each checkout (`POST .../checkout`) opens a new payment window: the Mercado Pago preference carries `date_of_expiration` = now + `PENDING_PAYMENT_HOURS` (sent with a `+00:00` offset), and `expires_at` moves to one day after it. Mercado Pago refunds a payment made after `date_of_expiration`, so the extra day leaves time for a voucher paid at the last minute to be credited and notified. Admin manual registrations have no `expires_at` and never expire on their own, even when an online buyer reuses one or starts a checkout for it. Online pending registrations created before migration 0023 got `updated_at` + 96 hours.
+
+Once `expires_at` passes, the registration is voided with a `registration_expiry` audit fact (system actor, see the [audit policy](admin-registration-audit-policy.md)). This happens at the first of: a purchase for the same event (inside the per-event lock, before duplicates are checked), a checkout for that registration (which then answers `409 registration_not_payable`), or the periodic sweep every `PENDING_EXPIRY_SWEEP_INTERVAL_MS` (default 300000, `0` turns it off; e2e keeps it off). The sweep takes the same per-event lock and skips rows a payment notification is holding. A registration confirmed before it is voided stays confirmed. If the registration is voided while the checkout is waiting for Mercado Pago, the checkout answers `409 registration_not_payable` and records nothing; the unused preference is left at Mercado Pago.
 
 ## Audit
 

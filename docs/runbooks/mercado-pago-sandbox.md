@@ -42,14 +42,15 @@ The backend reads these from the repository-root `.env` at startup. Only the
 names appear here; see the README section "Mercado Pago credentials" for what
 each one means.
 
-| Variable                        | Value for a sandbox run                                         |
-| ------------------------------- | --------------------------------------------------------------- |
-| `MERCADO_PAGO_MODE`             | `sandbox`                                                       |
-| `MERCADO_PAGO_ACCESS_TOKEN`     | The test **Access Token** of your application                   |
-| `MERCADO_PAGO_WEBHOOK_SECRET`   | The **test seller's** webhook secret (see step 4)               |
-| `PUBLIC_APP_URL`                | Your local frontend origin, for example `http://localhost:5173` |
-| `MERCADO_PAGO_NOTIFICATION_URL` | `<tunnel-url>/public/payments/mercado-pago/webhook`             |
-| `PENDING_PAYMENT_HOURS`         | Optional. Leave unset for the default `72`                      |
+| Variable                           | Value for a sandbox run                                         |
+| ---------------------------------- | --------------------------------------------------------------- |
+| `MERCADO_PAGO_MODE`                | `sandbox`                                                       |
+| `MERCADO_PAGO_ACCESS_TOKEN`        | The test **Access Token** of your application                   |
+| `MERCADO_PAGO_WEBHOOK_SECRET`      | The **test seller's** webhook secret (see step 4)               |
+| `PUBLIC_APP_URL`                   | Your local frontend origin, for example `http://localhost:5173` |
+| `MERCADO_PAGO_NOTIFICATION_URL`    | `<tunnel-url>/public/payments/mercado-pago/webhook`             |
+| `PENDING_PAYMENT_HOURS`            | Optional. Leave unset for the default `72`                      |
+| `PENDING_EXPIRY_SWEEP_INTERVAL_MS` | Optional. Leave unset for the default `300000` (5 min)          |
 
 - The test Access Token starts with `APP_USR-`. That is normal: Mercado Pago's
   Checkout Pro test credentials use the same prefix as live ones.

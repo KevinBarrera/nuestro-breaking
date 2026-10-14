@@ -268,8 +268,8 @@ export async function revealControls(page: Page, name: AdminScreenName) {
   }
   if (name === 'Pagos por revisar')
     await page
-      .getByRole('list', { name: 'Pagos por revisar' })
-      .getByRole('listitem')
+      .getByRole('table', { name: 'Pagos por revisar' })
+      .getByRole('cell')
       .first()
       .waitFor();
   if (name === 'Pase' || name === 'Nuevo pase') await accessControls(page).first().waitFor();

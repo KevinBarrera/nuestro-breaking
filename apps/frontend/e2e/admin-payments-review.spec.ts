@@ -51,41 +51,58 @@ async function mockReview(page: Page, answer: { status?: number; json: unknown }
   );
 }
 
-const list = (page: Page) => page.getByRole('list', { name: 'Pagos por revisar' });
+const table = (page: Page) => page.getByRole('table', { name: 'Pagos por revisar' });
+const bodyRows = (page: Page) => table(page).locator('tbody').getByRole('row');
+const guide = (page: Page) => page.getByRole('region', { name: 'Qué hacer en cada caso' });
 
-test('lists each flagged payment with its reason and what to do', async ({ page }) => {
+test('lists flagged payments in a table with what to do per reason', async ({ page }) => {
   await mockReview(page, { json: flagged });
   await page.goto(`/admin/events/${eventId}`);
   await page.getByRole('navigation').getByRole('link', { name: 'Pagos por revisar' }).click();
   await expect(page).toHaveURL(reviewPath);
   await expect(page.getByRole('heading', { level: 1, name: 'Pagos por revisar' })).toBeVisible();
 
-  const items = list(page).getByRole('listitem');
-  await expect(items).toHaveCount(2);
-  const first = items.nth(0);
-  await expect(first.getByRole('heading', { name: 'Pagó dos veces' })).toBeVisible();
-  await expect(first).toContainText(
-    'Revisa la otra inscripción y reembolsa uno de los pagos en Mercado Pago.',
-  );
+  await expect(table(page).getByRole('columnheader')).toHaveText([
+    'Recibido',
+    'Caso',
+    'Persona',
+    'Inscripción',
+    'Monto',
+    'Pago en Mercado Pago',
+  ]);
+  await expect(bodyRows(page)).toHaveCount(2);
+  const first = bodyRows(page).nth(0);
+  await expect(first.getByRole('rowheader')).toHaveText('Pagó dos veces');
   await expect(first).toContainText('Ana López con un nombre largo para pantallas angostas');
   await expect(first).toContainText('Sin folio');
   await expect(first).toContainText('Anulada');
   await expect(first).toContainText('$1,500.00');
   await expect(first).toContainText('987654321');
-  const second = items.nth(1);
-  await expect(
-    second.getByRole('heading', { name: 'Pago de más en una inscripción confirmada' }),
-  ).toBeVisible();
+  const second = bodyRows(page).nth(1);
+  await expect(second.getByRole('rowheader')).toHaveText(
+    'Pago de más en una inscripción confirmada',
+  );
   await expect(second).toContainText('EB-0042');
   await expect(second).toContainText('Confirmada');
   await expect(second).toContainText('$990.00');
+
+  // The action is written once per reason present, not once per row.
+  const cases = guide(page).getByRole('listitem');
+  await expect(cases).toHaveCount(2);
+  await expect(cases.nth(0)).toContainText('Pagó dos veces (1)');
+  await expect(cases.nth(0)).toContainText(
+    'Revisa la otra inscripción y reembolsa uno de los pagos en Mercado Pago.',
+  );
+  await expect(cases.nth(1)).toContainText('Pago de más en una inscripción confirmada (1)');
+  await expect(cases.nth(1)).toContainText('Reembolsa este pago en Mercado Pago.');
 });
 
 test('says so when there is nothing to review', async ({ page }) => {
   await mockReview(page, { json: { payments: [] } });
   await page.goto(reviewPath);
   await expect(page.getByText('No hay pagos por revisar.')).toBeVisible();
-  await expect(list(page)).toHaveCount(0);
+  await expect(table(page)).toHaveCount(0);
+  await expect(guide(page)).toHaveCount(0);
 });
 
 test('shows safe copy when the list cannot be read', async ({ page }) => {
@@ -95,10 +112,10 @@ test('shows safe copy when the list cannot be read', async ({ page }) => {
   await expect(page.getByText('internal detail')).toHaveCount(0);
 });
 
-test('fits a 375px viewport', async ({ page }) => {
+test('fits a 375px viewport, scrolling the table inside its own box', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 800 });
   await mockReview(page, { json: flagged });
   await page.goto(reviewPath);
-  await expect(list(page).getByRole('listitem')).toHaveCount(2);
+  await expect(bodyRows(page)).toHaveCount(2);
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
 });

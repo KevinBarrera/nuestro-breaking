@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { formatReceivedAt, reasonCopy, registrationStatusLabel } from './payments-review-model';
+import {
+  formatReceivedAt,
+  reasonCopy,
+  reasonSummary,
+  registrationStatusLabel,
+} from './payments-review-model';
 
 describe('payments review copy', () => {
   it('explains each flagged reason and what coordination should do', () => {
@@ -27,5 +32,22 @@ describe('payments review copy', () => {
     expect(formatReceivedAt('2026-11-02T18:04:00.000Z', 'America/Mexico_City')).toBe(
       '2 nov 2026, 12:04',
     );
+  });
+
+  it('summarizes the reasons present, in a fixed order, with their counts', () => {
+    const rows = (
+      [
+        'approved_after_void',
+        'approved_after_expiry_duplicate',
+        'approved_after_void',
+        'approved_after_expiry_duplicate',
+        'approved_after_expiry_duplicate',
+      ] as const
+    ).map((reason) => ({ reason }));
+    expect(reasonSummary(rows)).toEqual([
+      { reason: 'approved_after_expiry_duplicate', count: 3 },
+      { reason: 'approved_after_void', count: 2 },
+    ]);
+    expect(reasonSummary([])).toEqual([]);
   });
 });

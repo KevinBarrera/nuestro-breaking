@@ -56,7 +56,7 @@ Judges and administrators of other events get 401. Like other admin reads, the `
 
 ## Admin UI
 
-**Pagos por revisar** (`/admin/events/:eventId/payments-review`) sits in the event's side navigation under OPERACIÓN. It shows one card per payment, newest first: the reason as a plain Spanish title, what happened, what coordination should do (highlighted), and the person, folio ("Sin folio" when there is none), registration status, amount, Mercado Pago payment id and arrival time (in the browser's time zone). With nothing to review it says "No hay pagos por revisar." A failed read shows safe copy only. The screen changes nothing. Code: `apps/frontend/src/pages/admin/ui/admin-payments-review-page.tsx` and `payments-review-model.ts`; the API client is `apps/frontend/src/entities/flagged-payments`.
+**Pagos por revisar** (`/admin/events/:eventId/payments-review`) sits in the event's side navigation under OPERACIÓN. A table lists one row per payment, newest first: arrival time (in the browser's time zone), the case (a plain Spanish title per reason), the person with the folio ("Sin folio" when there is none), registration status, amount and Mercado Pago payment id. Above it, "Qué hacer en cada caso" explains each reason present once, with its count, and what coordination should do, so the screen still reads well with many payments. On narrow screens the table scrolls inside its own box. With nothing to review it says "No hay pagos por revisar." A failed read shows safe copy only. The screen changes nothing. Code: `apps/frontend/src/pages/admin/ui/admin-payments-review-page.tsx` and `payments-review-model.ts`; the API client is `apps/frontend/src/entities/flagged-payments`.
 
 ## Data sources
 

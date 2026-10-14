@@ -145,9 +145,9 @@ outcome is logged with a notification id starting with `reconciliation:`.
 
 Flagged payments need coordination's decision; nothing is refunded
 automatically. An administrator of the event sees them in the admin panel under
-**Pagos por revisar** (`/admin/events/:eventId/payments-review`, #230): one card
-per Mercado Pago payment with the reason in plain Spanish, what to do, the
-person, the folio, the amount and the Mercado Pago payment id. Besides the two
+**Pagos por revisar** (`/admin/events/:eventId/payments-review`, #230): a table
+with one row per Mercado Pago payment (case, person, folio, amount and Mercado
+Pago payment id), below a guide that says what to do for each case. Besides the two
 expiry flags above, it lists `approved_after_confirmation` (paid again for a
 registration already confirmed) and `approved_after_void` (paid for a
 registration voided for another reason). A payment leaves the list once a later

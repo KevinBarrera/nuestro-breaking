@@ -1,4 +1,4 @@
-import type { FlaggedPaymentReason } from '@/entities/flagged-payments';
+import { flaggedPaymentReasons, type FlaggedPaymentReason } from '@/entities/flagged-payments';
 
 type ReasonCopy = { title: string; detail: string; action: string };
 
@@ -28,6 +28,18 @@ export const reasonCopy: Record<FlaggedPaymentReason, ReasonCopy> = {
       'Decide con coordinación si la persona se inscribe de nuevo o reembolsa el pago en Mercado Pago.',
   },
 };
+
+// The reasons present in the list, in a fixed order, so each action is written once (#230 L2).
+export function reasonSummary(
+  payments: readonly { reason: FlaggedPaymentReason }[],
+): { reason: FlaggedPaymentReason; count: number }[] {
+  return flaggedPaymentReasons
+    .map((reason) => ({
+      reason,
+      count: payments.filter((payment) => payment.reason === reason).length,
+    }))
+    .filter(({ count }) => count > 0);
+}
 
 const statusLabels: Record<string, string> = {
   pending_payment: 'Pendiente de pago',

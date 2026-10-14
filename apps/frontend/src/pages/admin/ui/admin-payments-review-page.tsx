@@ -8,7 +8,12 @@ import {
 import { useEffect, useId, useState } from 'react';
 import { useParams } from 'react-router';
 import { styles } from './catalog-copy';
-import { formatReceivedAt, reasonCopy, registrationStatusLabel } from './payments-review-model';
+import {
+  formatReceivedAt,
+  reasonCopy,
+  reasonSummary,
+  registrationStatusLabel,
+} from './payments-review-model';
 import { useEventName } from './use-event-name';
 
 type LoadState =
@@ -32,7 +37,7 @@ export function AdminPaymentsReviewPage() {
 function PaymentsReview({ eventId }: { eventId: string }) {
   const [state, setState] = useState<LoadState>({ status: 'loading' });
   const { name: eventName } = useEventName(eventId);
-  const listId = useId();
+  const titleId = useId();
 
   useEffect(() => {
     const controller = new AbortController();
@@ -51,7 +56,7 @@ function PaymentsReview({ eventId }: { eventId: string }) {
     <main className="px-4 py-8 text-fg sm:px-8 lg:py-12">
       <div className="mx-auto max-w-5xl space-y-6">
         <header className="space-y-2">
-          <h1 id={listId} className="text-3xl font-extrabold tracking-tight text-heading">
+          <h1 id={titleId} className="text-3xl font-extrabold tracking-tight text-heading">
             Pagos por revisar
           </h1>
           {eventName && <p className="text-muted">{eventName}</p>}
@@ -73,46 +78,93 @@ function PaymentsReview({ eventId }: { eventId: string }) {
           (state.payments.length === 0 ? (
             <p className={`${styles.card} text-sm text-muted`}>No hay pagos por revisar.</p>
           ) : (
-            <ul aria-labelledby={listId} className="space-y-4">
-              {state.payments.map((payment) => (
-                <PaymentCard key={payment.providerPaymentId} payment={payment} />
-              ))}
-            </ul>
+            <>
+              <ReasonGuide payments={state.payments} />
+              <PaymentTable payments={state.payments} titleId={titleId} />
+            </>
           ))}
       </div>
     </main>
   );
 }
 
-function PaymentCard({ payment }: { payment: FlaggedPayment }) {
+// Each action is written once per reason present, so the table stays one line per payment.
+function ReasonGuide({ payments }: { payments: FlaggedPayment[] }) {
   const titleId = useId();
-  const copy = reasonCopy[payment.reason];
-  const { registration } = payment;
-  const facts: [string, string][] = [
-    ['Persona', registration.participantName],
-    ['Folio', registration.folio ?? 'Sin folio'],
-    ['Inscripción', registrationStatusLabel(registration.status)],
-    ['Monto', formatMxn(payment.amountCents)],
-    ['Pago en Mercado Pago', payment.providerPaymentId],
-    ['Recibido', formatReceivedAt(payment.receivedAt)],
-  ];
   return (
-    <li aria-labelledby={titleId} className={`${styles.card} space-y-3`}>
+    <section aria-labelledby={titleId} className={`${styles.card} space-y-3`}>
       <h2 id={titleId} className="text-lg font-bold text-heading">
-        {copy.title}
+        Qué hacer en cada caso
       </h2>
-      <p className="text-sm text-muted">{copy.detail}</p>
-      <p className="rounded-lg border border-warning-fg bg-warning px-4 py-3 text-sm font-semibold text-warning-fg">
-        {copy.action}
-      </p>
-      <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
-        {facts.map(([label, value]) => (
-          <div key={label} className="min-w-0">
-            <dt className="text-muted">{label}</dt>
-            <dd className="font-medium break-words">{value}</dd>
-          </div>
-        ))}
-      </dl>
-    </li>
+      <ul className="space-y-3 text-sm">
+        {reasonSummary(payments).map(({ reason, count }) => {
+          const copy = reasonCopy[reason];
+          return (
+            <li key={reason} className="space-y-1">
+              <p className="font-bold text-heading">
+                {copy.title} ({count})
+              </p>
+              <p className="text-muted">{copy.detail}</p>
+              <p className="font-semibold text-warning-fg">{copy.action}</p>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
+
+const headerCell = 'px-3 py-2.5 font-bold first:pl-5 last:pr-5';
+const cell = 'px-3 py-3 align-top first:pl-5 last:pr-5';
+
+function PaymentTable({ payments, titleId }: { payments: FlaggedPayment[]; titleId: string }) {
+  return (
+    <div className="overflow-x-auto rounded-xl border border-line bg-surface">
+      <table aria-labelledby={titleId} className="w-full min-w-[52rem] text-sm">
+        <thead>
+          <tr className="border-b border-line text-left text-xs tracking-[0.06em] text-muted uppercase">
+            <th scope="col" className={headerCell}>
+              Recibido
+            </th>
+            <th scope="col" className={headerCell}>
+              Caso
+            </th>
+            <th scope="col" className={headerCell}>
+              Persona
+            </th>
+            <th scope="col" className={headerCell}>
+              Inscripción
+            </th>
+            <th scope="col" className={`${headerCell} text-right`}>
+              Monto
+            </th>
+            <th scope="col" className={headerCell}>
+              Pago en Mercado Pago
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {payments.map((payment) => (
+            <tr key={payment.providerPaymentId} className="border-b border-row last:border-b-0">
+              <td className={`${cell} whitespace-nowrap text-muted`}>
+                {formatReceivedAt(payment.receivedAt)}
+              </td>
+              <th scope="row" className={`${cell} text-left font-semibold text-heading`}>
+                {reasonCopy[payment.reason].title}
+              </th>
+              <td className={cell}>
+                <p className="font-medium break-words">{payment.registration.participantName}</p>
+                <p className="text-muted">{payment.registration.folio ?? 'Sin folio'}</p>
+              </td>
+              <td className={cell}>{registrationStatusLabel(payment.registration.status)}</td>
+              <td className={`${cell} text-right font-mono font-medium whitespace-nowrap`}>
+                {formatMxn(payment.amountCents)}
+              </td>
+              <td className={`${cell} font-mono break-all`}>{payment.providerPaymentId}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }

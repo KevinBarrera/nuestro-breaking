@@ -33,8 +33,6 @@ export class PublicRegistrationController {
         fieldErrors: parsed.fieldErrors,
       });
     const { eventId } = await this.catalogs.requireOpen(slug, now);
-    // #180 adds legal acceptance (terms and privacy notice) to this request and stores it with
-    // the registration in the same transaction.
     return this.registrations.register(eventId, parsed.value);
   }
 }

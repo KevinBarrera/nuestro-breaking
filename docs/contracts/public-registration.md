@@ -6,7 +6,8 @@ This contract describes how a buyer without an account creates a `pending_paymen
 
 - `POST /public/events/:slug/registrations` needs **no login, session, cookie or CSRF token**. It is rate limited and uses the public CORS rules of the [public event catalog](public-event-catalog.md#cors).
 - Sales must be **open** at request time.
-- One request creates (or reuses, see [Duplicates](#duplicates)) **one** `pending_payment` registration with its passes, price snapshots and competition selections, plus one audit fact, in **one database transaction**. Nothing is written when any check fails.
+- The buyer must accept the current version of the three [legal documents](#legal-acceptance-180).
+- One request creates (or reuses, see [Duplicates](#duplicates)) **one** `pending_payment` registration with its passes, price snapshots, competition selections and legal acceptances, plus one audit fact, in **one database transaction**. Nothing is written when any check fails.
 - The registration is not paid yet. It never becomes `confirmed` here; only a verified payment (#177) or an admin cash confirmation does.
 
 ## Endpoint
@@ -33,26 +34,35 @@ Code: `apps/backend/src/events/public-registration/`. The pure validator is `par
     "level": "Intermedio",
     "birthDate": "2000-02-29"
   },
-  "passes": [{ "passTypeId": "6f1c…", "selectedActivityIds": ["a93e…"] }, { "passTypeId": "7d20…" }]
+  "passes": [
+    { "passTypeId": "6f1c…", "selectedActivityIds": ["a93e…"] },
+    { "passTypeId": "7d20…" }
+  ],
+  "legalAcceptances": {
+    "rules": "borrador-2026-10-13",
+    "privacy": "borrador-2026-10-13",
+    "cancellation": "borrador-2026-10-13"
+  }
 }
 ```
 
 Buyer fields follow #58. Unknown keys are rejected at every level.
 
-| Field                 | Required | Rule                                                                                        |
-| --------------------- | -------- | ------------------------------------------------------------------------------------------- |
-| `firstName`           | Yes      | Trimmed, at most 100 characters.                                                            |
-| `firstLastName`       | Yes      | Trimmed, at most 100 characters.                                                            |
-| `secondLastName`      | No       | Trimmed, at most 100 characters.                                                            |
-| `stageName`           | No       | The AKA. Trimmed, at most 100 characters.                                                   |
-| `email`               | Yes      | At most 254 characters, `name@domain.tld` shape. Stored trimmed and lowercased.             |
-| `phone`               | Yes      | At most 30 characters, 10 to 15 digits once spaces and symbols are removed. Stored trimmed. |
-| `city`                | No       | Trimmed, at most 100 characters.                                                            |
-| `instagram`           | No       | At most 64 characters. Stored without leading `@`, lowercased; it cannot contain spaces.    |
-| `level`               | No       | Free text, at most 50 characters.                                                           |
-| `birthDate`           | No       | `YYYY-MM-DD`, a real calendar date, from `1900-01-01` up to today (UTC).                    |
-| `passes`              | Yes      | 1 to 10 items. Each `passTypeId` is a UUID and appears once.                                |
-| `selectedActivityIds` | No       | Per pass: at most 20 unique activity UUIDs. Omitted or `null` means no selection.           |
+| Field                 | Required | Rule                                                                                               |
+| --------------------- | -------- | -------------------------------------------------------------------------------------------------- |
+| `firstName`           | Yes      | Trimmed, at most 100 characters.                                                                   |
+| `firstLastName`       | Yes      | Trimmed, at most 100 characters.                                                                   |
+| `secondLastName`      | No       | Trimmed, at most 100 characters.                                                                   |
+| `stageName`           | No       | The AKA. Trimmed, at most 100 characters.                                                          |
+| `email`               | Yes      | At most 254 characters, `name@domain.tld` shape. Stored trimmed and lowercased.                    |
+| `phone`               | Yes      | At most 30 characters, 10 to 15 digits once spaces and symbols are removed. Stored trimmed.        |
+| `city`                | No       | Trimmed, at most 100 characters.                                                                   |
+| `instagram`           | No       | At most 64 characters. Stored without leading `@`, lowercased; it cannot contain spaces.           |
+| `level`               | No       | Free text, at most 50 characters.                                                                  |
+| `birthDate`           | No       | `YYYY-MM-DD`, a real calendar date, from `1900-01-01` up to today (UTC).                           |
+| `passes`              | Yes      | 1 to 10 items. Each `passTypeId` is a UUID and appears once.                                       |
+| `selectedActivityIds` | No       | Per pass: at most 20 unique activity UUIDs. Omitted or `null` means no selection.                  |
+| `legalAcceptances`    | Yes      | The accepted version of `rules`, `privacy` and `cancellation`; see [below](#legal-acceptance-180). |
 
 Optional text sent as `null` or blank is treated as absent. The full display name is built from the name parts (`Ana López García`).
 
@@ -89,16 +99,17 @@ Passes keep the request order. `priceCents` is the price snapshot stored on the 
 }
 ```
 
-Every problem is reported at once, keyed by field path (`buyer.<field>`, `passes`, `passes[<i>].passTypeId`, `passes[<i>].selectedActivityIds[<j>]`, or `body` when the body is not an object). The UI maps the codes to Spanish messages:
+Every problem is reported at once, keyed by field path (`buyer.<field>`, `passes`, `passes[<i>].passTypeId`, `passes[<i>].selectedActivityIds[<j>]`, `legalAcceptances`, `legalAcceptances.<document>`, or `body` when the body is not an object). The UI maps the codes to Spanish messages:
 
 | Code            | Meaning                                                                |
 | --------------- | ---------------------------------------------------------------------- |
-| `required`      | Missing, `null` or blank; `passes` is empty.                           |
+| `required`      | Missing, `null` or blank; `passes` is empty; a document not accepted.  |
 | `invalid`       | Wrong type or format (email, phone digits, Instagram, date, UUID).     |
 | `too_long`      | Text longer than the limit above.                                      |
 | `too_many`      | More than 10 passes, or more than 20 selections on one pass.           |
 | `duplicate`     | The same pass type or activity appears twice.                          |
 | `in_future`     | `birthDate` is after today.                                            |
+| `outdated`      | A legal document was accepted at a version that is no longer current.  |
 | `unknown_field` | A key that the contract does not define (for example `buyer.country`). |
 
 The body is validated before the event is looked up, so a malformed body is a 400 even for an unknown slug.
@@ -154,7 +165,12 @@ No names, email, phone, Instagram, birth date or request body are stored in the 
 
 ## Legal acceptance (#180)
 
-Legal acceptance (terms and privacy notice) is not stored yet (D6). #180 adds it to this request and stores it with the registration inside the same transaction; the hook point is marked in `public-registration.controller.ts`.
+Before paying, the buyer accepts three documents, published as pages of the purchase flow that show their version: `rules` (Reglamento oficial), `privacy` (Aviso de privacidad) and `cancellation` (Política de cancelación; the MVP has no refunds). The current versions live in `apps/backend/src/events/legal-documents/legal-documents.ts` and, with the texts, in `apps/frontend/src/shared/config/legal-documents.ts`; a new text changes the version in both. Until the organizer delivers the final texts (before launch, #182), every version is the placeholder `borrador-2026-10-13`.
+
+- `legalAcceptances` must name the **current** version of all three documents. A missing one is `required`; any other version is `outdated` (the buyer read an older text and must reload). Nothing is written in either case.
+- Each successful request appends one row per document to `registration_legal_acceptances` (migration 0026) in the same transaction: `registration_id`, `document_key`, `document_version` and `accepted_at`.
+- The table is append-only. A reused pending registration gets three new rows and keeps the earlier ones, so changing a version never alters past acceptances.
+- The audit fact does not repeat the acceptances.
 
 ## Cross-references
 

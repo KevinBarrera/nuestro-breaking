@@ -3,6 +3,11 @@ import {
   normalizeInstagram,
   normalizePhone,
 } from '@/events/participant-profile/participant-normalization';
+import {
+  LEGAL_DOCUMENT_KEYS,
+  LEGAL_DOCUMENT_VERSIONS,
+  type LegalAcceptance,
+} from '@/events/legal-documents';
 import type {
   FieldErrorCode,
   PublicRegistrationBuyer,
@@ -34,7 +39,8 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
 
-const BODY_KEYS = new Set(['buyer', 'passes']);
+const BODY_KEYS = new Set(['buyer', 'passes', 'legalAcceptances']);
+const LEGAL_KEYS = new Set<string>(LEGAL_DOCUMENT_KEYS);
 const BUYER_KEYS = new Set([
   'firstName',
   'firstLastName',
@@ -66,7 +72,8 @@ function isCalendarDate(value: string): boolean {
 /**
  * Validates and normalizes the public registration body (#174). Pure: `today` (`YYYY-MM-DD`) is
  * the latest accepted birth date. Every problem is reported by field path with a stable code, so
- * the purchase screens (#176) can show Spanish messages next to each field.
+ * the purchase screens (#176) can show Spanish messages next to each field. The buyer must accept
+ * the current version of the three legal documents (#180).
  */
 export function parsePublicRegistrationRequest(body: unknown, today: string): ParseResult {
   if (!isRecord(body)) return { ok: false, fieldErrors: { body: 'invalid' } };
@@ -194,6 +201,24 @@ export function parsePublicRegistrationRequest(body: unknown, today: string): Pa
     });
   }
 
+  // The version of each document the buyer accepted (#180): a version other than the current one
+  // means the buyer read an older text, so they must reload and accept it again.
+  const legalAcceptances: LegalAcceptance[] = [];
+  const acceptances = body.legalAcceptances;
+  if (acceptances === undefined || acceptances === null) fail('legalAcceptances', 'required');
+  else if (!isRecord(acceptances)) fail('legalAcceptances', 'invalid');
+  else {
+    unknownKeys(acceptances, LEGAL_KEYS, 'legalAcceptances.');
+    for (const document of LEGAL_DOCUMENT_KEYS) {
+      const path = `legalAcceptances.${document}`;
+      const version = acceptances[document];
+      if (version === undefined || version === null || version === '') fail(path, 'required');
+      else if (typeof version !== 'string') fail(path, 'invalid');
+      else if (version !== LEGAL_DOCUMENT_VERSIONS[document]) fail(path, 'outdated');
+      else legalAcceptances.push({ document, version });
+    }
+  }
+
   if (Object.keys(errors).length > 0 || !buyer) return { ok: false, fieldErrors: errors };
-  return { ok: true, value: { buyer, passes } };
+  return { ok: true, value: { buyer, passes, legalAcceptances } };
 }

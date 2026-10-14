@@ -1,6 +1,5 @@
 import { ConflictException, Inject, Injectable } from '@nestjs/common';
-import { and, asc, eq, inArray, isNotNull, ne, or, sql, type SQL } from 'drizzle-orm';
-import type { AnyPgColumn } from 'drizzle-orm/pg-core';
+import { and, asc, eq, inArray, isNotNull, ne, or, sql } from 'drizzle-orm';
 import { DATABASE_CLIENT } from '@/database/database.constants';
 import type { DatabaseService } from '@/database/database.service';
 import {
@@ -16,6 +15,7 @@ import {
   buildFullName,
   phoneMatchKey,
 } from '@/events/participant-profile/participant-normalization';
+import { phoneMatchKeySql } from '@/events/participant-profile/participant-match-sql';
 import { registrationAuditActorColumns } from '@/events/registration-audit/registration-audit-actor';
 import { expireDueRegistrations } from '@/events/registration-expiry';
 import { areSelectableActivities } from '@/events/registration-entitlements/selectable-activities';
@@ -49,15 +49,6 @@ const REGISTRATION_UNAVAILABLE = {
   code: 'registration_unavailable',
   message: 'This registration cannot be completed online. Please contact the organizer.',
 } as const;
-
-// SQL twin of `phoneMatchKey` for stored phones, which are kept as entered.
-function phoneMatchKeySql(column: AnyPgColumn): SQL {
-  const digits = sql`regexp_replace(coalesce(${column}, ''), '[^0-9]', '', 'g')`;
-  return sql`(CASE
-    WHEN ${digits} ~ '^521[0-9]{10}$' THEN substr(${digits}, 4)
-    WHEN ${digits} ~ '^52[0-9]{10}$' THEN substr(${digits}, 3)
-    ELSE ${digits} END)`;
-}
 
 const profile = (buyer: PublicRegistrationBuyer) => ({
   fullName: buildFullName(buyer.firstName, buyer.firstLastName, buyer.secondLastName),

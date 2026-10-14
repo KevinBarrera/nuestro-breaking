@@ -77,6 +77,8 @@ describe('PendingRegistrationExpirySweeper', () => {
 });
 
 describe('PendingRegistrationExpirySweeper.sweep', () => {
+  afterEach(() => jest.restoreAllMocks());
+
   it('keeps sweeping the other events when one event fails, and logs what it voided', async () => {
     const due = [{ eventId: 'event-a' }, { eventId: 'event-b' }];
     const db = {
@@ -97,10 +99,8 @@ describe('PendingRegistrationExpirySweeper.sweep', () => {
 
     expect(sweepEvent).toHaveBeenCalledTimes(2);
     expect(errors).toHaveBeenCalledWith(
-      'Pending registration expiry failed for one event (Error); it is retried on the next tick.',
+      'Pending registration expiry failed for event event-a (Error); it is retried on the next tick.',
     );
     expect(logs).toHaveBeenCalledWith('Voided 2 expired pending registrations.');
-    logs.mockRestore();
-    errors.mockRestore();
   });
 });

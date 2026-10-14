@@ -13,6 +13,11 @@ import {
 } from '@/database/schema';
 import { registrationAuditActorColumns } from '@/events/registration-audit/registration-audit-actor';
 import {
+  expireDueRegistrations,
+  lateApprovalContext,
+  type LateApprovalContext,
+} from '@/events/registration-expiry';
+import {
   confirmRegistration,
   type RegistrationTransaction,
 } from '@/events/registration-confirmation/confirm-registration';
@@ -203,6 +208,23 @@ export class PaymentWebhookService {
           .orderBy(desc(registrationCheckouts.createdAt), desc(registrationCheckouts.id))
           .limit(1)
       : [];
+    let expiry: LateApprovalContext | null = null;
+    if (
+      registration &&
+      checkout &&
+      registration.status === 'voided' &&
+      payment.status === 'approved'
+    ) {
+      // Same per-event lock as purchases: no new registration for this person can appear between
+      // the late approval check and the confirmation (#181 S4). Expired registrations of the event
+      // are voided first, so an expired one of the same person does not count as another.
+      // The event lock is taken while holding this voided row. A purchase that selected this row
+      // as its duplicate match just before a checkout voided it can wait on the row while holding
+      // the event lock; PostgreSQL then aborts one of the two, and Mercado Pago retries a 500.
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${registration.eventId}))`);
+      await expireDueRegistrations(tx, { eventId: registration.eventId });
+      expiry = await lateApprovalContext(tx, registration);
+    }
     const decision = decidePayment({
       payment,
       registration:
@@ -211,6 +233,7 @@ export class PaymentWebhookService {
               status: registration.status,
               expectedAmountCents: await this.expectedAmountCents(tx, registration.id),
               confirmedByThisPayment: await this.confirmedBy(tx, registration.id, payment.id),
+              expiry,
             }
           : null,
     });
@@ -232,7 +255,7 @@ export class PaymentWebhookService {
         });
     }
     if (!decision.confirm) return { outcome: decision.outcome };
-    await this.confirm(tx, registration, checkout.id, payment);
+    await this.confirm(tx, registration, checkout.id, payment, registration.status === 'voided');
     return { outcome: decision.outcome, confirmedRegistrationId: registration.id };
   }
 
@@ -266,20 +289,24 @@ export class PaymentWebhookService {
   /**
    * Confirms with `approved_payment`, appends the `payment_approval` fact and queues the buyer's
    * confirmation email, all in the same transaction. Cash confirmations never pass through here.
+   * `late` confirms a registration voided by expiry (#181 S4) and marks the fact `lateApproval`.
    */
   private async confirm(
     tx: RegistrationTransaction,
     registration: { id: string; eventId: string },
     checkoutId: string,
     payment: ProviderPayment,
+    late: boolean,
   ) {
+    const fromStatus = late ? 'voided' : 'pending_payment';
     const confirmed = await confirmRegistration(tx, {
       eventId: registration.eventId,
       registrationId: registration.id,
       source: 'approved_payment',
+      fromStatus,
     });
-    // The registration row is locked and was pending, so this only fails on a broken invariant.
-    if (!confirmed) throw new Error('Locked pending registration could not be confirmed');
+    // The registration row is locked in `fromStatus`, so this only fails on a broken invariant.
+    if (!confirmed) throw new Error('Locked registration could not be confirmed');
     const links = await tx
       .select({ id: eventActivityRegistrations.activityId })
       .from(eventActivityRegistrations)
@@ -294,7 +321,7 @@ export class PaymentWebhookService {
       amountCents: payment.transactionAmountCents,
       reference: payment.id,
       beforeState: {
-        status: 'pending_payment',
+        status: fromStatus,
         confirmationSource: null,
         confirmedAt: null,
         folio: null,
@@ -305,7 +332,7 @@ export class PaymentWebhookService {
         confirmedAt: confirmed.confirmedAt?.toISOString(),
         folio: confirmed.folio,
       },
-      facts: { providerPaymentId: payment.id, checkoutId },
+      facts: { providerPaymentId: payment.id, checkoutId, ...(late ? { lateApproval: true } : {}) },
     });
     await enqueueConfirmationEmail(tx, registration.id);
   }

@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { and, asc, eq, isNotNull } from 'drizzle-orm';
 import { DATABASE_CLIENT } from '@/database/database.constants';
+import { expireDueRegistrations } from '@/events/registration-expiry';
 import {
   PENDING_PAYMENT_WINDOW,
   paymentDeadlines,
@@ -64,6 +65,8 @@ export class PublicCheckoutService {
     slug: string,
     registrationId: string,
   ): Promise<{ checkoutUrl: string }> {
+    // An expired registration is voided here, so it answers as not payable (#181 S2).
+    await this.db.transaction((tx) => expireDueRegistrations(tx, { eventId, registrationId }));
     const [registration] = await this.db
       .select({ status: eventRegistrations.status })
       .from(eventRegistrations)
@@ -99,6 +102,14 @@ export class PublicCheckoutService {
       }),
     );
     await this.db.transaction(async (tx) => {
+      // The registration may have expired or been paid during the provider call; only a still
+      // pending one gets the payment link (the preference is left unused at Mercado Pago).
+      const [current] = await tx
+        .select({ status: eventRegistrations.status })
+        .from(eventRegistrations)
+        .where(eq(eventRegistrations.id, registrationId))
+        .for('update');
+      if (current?.status !== 'pending_payment') throw new ConflictException(NOT_PAYABLE);
       await tx.insert(registrationCheckouts).values({
         registrationId,
         mode: this.config.mode,
@@ -112,7 +123,6 @@ export class PublicCheckoutService {
         .where(
           and(
             eq(eventRegistrations.id, registrationId),
-            eq(eventRegistrations.status, 'pending_payment'),
             // Admin manual registrations have no expiry and keep none (#181 S2).
             isNotNull(eventRegistrations.expiresAt),
           ),

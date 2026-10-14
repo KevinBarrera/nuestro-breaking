@@ -11,7 +11,7 @@ The project needs a staging and a production environment, and it runs on a non-p
 The system has three parts to host:
 
 - **Frontend:** the Vite build is static files.
-- **Backend:** NestJS is a long-running Node process. It also runs background work, such as the confirmation email sweeper, which polls the database every minute (`EMAIL_DISPATCH_INTERVAL_MS`, default 60000).
+- **Backend:** NestJS is a long-running Node process. It also runs background work, such as the confirmation email sweeper, which polls the database every minute (`EMAIL_DISPATCH_INTERVAL_MS`, default 60000), and the pending registration expiry sweep (`PENDING_EXPIRY_SWEEP_INTERVAL_MS`, default 300000).
 - **Database:** PostgreSQL. Several services take row locks (`FOR UPDATE`, `SKIP LOCKED`), so SQLite-based stores such as Cloudflare D1 do not fit.
 
 The admin session also limits where these parts can live:

@@ -169,6 +169,13 @@
       "when": 1791935350337,
       "tag": "0023_pending_payment_expiry",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1791935410337,
+      "tag": "0024_registration_expiry_audit",
+      "breakpoints": true
     }
   ]
 }

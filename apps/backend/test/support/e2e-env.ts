@@ -12,11 +12,12 @@ const FAKE_ENV: Record<string, string> = {
 };
 
 // Always overwritten, even when the shell exports real values: e2e must never deliver real email,
-// and the periodic sweep stays off so specs drive dispatch themselves.
+// and the periodic sweeps stay off so specs drive dispatch and expiry themselves.
 const FORCED_ENV: Record<string, string> = {
   BREVO_API_KEY: 'xkeysib-fake-key',
   EMAIL_SANDBOX: 'true',
   EMAIL_DISPATCH_INTERVAL_MS: '0',
+  PENDING_EXPIRY_SWEEP_INTERVAL_MS: '0',
 };
 
 for (const [name, value] of Object.entries(FAKE_ENV)) {

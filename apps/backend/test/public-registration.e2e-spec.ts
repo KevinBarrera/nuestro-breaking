@@ -9,6 +9,7 @@ import { DATABASE_CLIENT } from '@/database/database.constants';
 import * as schema from '@/database/schema';
 import { DatabaseService } from '@/database/database.service';
 import type { PublicRegistrationResult } from '@/events/public-registration';
+import { PendingRegistrationExpirySweeper } from '@/events/registration-expiry';
 import { PostgresHarness } from './support/postgres-harness';
 
 jest.setTimeout(120_000);
@@ -481,6 +482,106 @@ describe('public registration (e2e)', () => {
     expect((reused.body as PublicRegistrationResult).registrationId).toBe(manual);
     const [row] = await client`SELECT expires_at FROM event_registrations WHERE id = ${manual}`;
     expect(row.expires_at).toBeNull();
+  });
+
+  describe('expiry (#181)', () => {
+    const expire = (id: string) =>
+      client`UPDATE event_registrations SET expires_at = now() - interval '1 minute' WHERE id = ${id}`;
+    const statusOf = async (id: string) =>
+      (
+        await client<{ status: string }[]>`SELECT status FROM event_registrations WHERE id = ${id}`
+      )[0].status;
+    const expiryFacts = () =>
+      client`SELECT registration_id, actor_kind, actor_user_id, session_id, before_state,
+          after_state, facts
+        FROM registration_operation_audit WHERE operation_type = 'registration_expiry'`;
+
+    it('voids an expired pending registration on the next purchase and creates a new one', async () => {
+      const ids = await fixture();
+      const first = (
+        await register({ buyer: buyer(), passes: [{ passTypeId: ids.full }] }).expect(201)
+      ).body as PublicRegistrationResult;
+      await expire(first.registrationId);
+
+      const second = (
+        await register({ buyer: buyer(), passes: [{ passTypeId: ids.full }] }).expect(201)
+      ).body as PublicRegistrationResult;
+
+      expect(second.registrationId).not.toBe(first.registrationId);
+      expect(await statusOf(first.registrationId)).toBe('voided');
+      expect(await statusOf(second.registrationId)).toBe('pending_payment');
+      const facts = await expiryFacts();
+      expect(facts).toEqual([
+        {
+          registration_id: first.registrationId,
+          actor_kind: 'system',
+          actor_user_id: null,
+          session_id: null,
+          before_state: { status: 'pending_payment', expiresAt: expect.any(String) as string },
+          after_state: { status: 'voided' },
+          facts: { reason: 'payment_window_expired' },
+        },
+      ]);
+      expect(JSON.stringify(facts)).not.toMatch(PERSONAL);
+    });
+
+    it('voids every expired registration of the event before matching, however many there are', async () => {
+      const ids = await fixture();
+      const mine = (
+        await register({ buyer: buyer(), passes: [{ passTypeId: ids.full }] }).expect(201)
+      ).body as PublicRegistrationResult;
+      // 120 older expired registrations of other buyers come first in expiry order.
+      await client`
+        WITH people AS (
+          INSERT INTO participants (full_name) SELECT 'Other ' || n FROM generate_series(1, 120) AS n
+          RETURNING id)
+        INSERT INTO event_registrations (event_id, participant_id, expires_at)
+        SELECT ${ids.event}, id, now() - interval '2 days' FROM people`;
+      await expire(mine.registrationId);
+
+      const retry = (
+        await register({ buyer: buyer(), passes: [{ passTypeId: ids.full }] }).expect(201)
+      ).body as PublicRegistrationResult;
+
+      expect(retry.registrationId).not.toBe(mine.registrationId);
+      expect(await statusOf(mine.registrationId)).toBe('voided');
+    });
+
+    it('sweeps only expired online pending registrations', async () => {
+      const ids = await fixture();
+      const expired = (
+        await register({ buyer: buyer(), passes: [{ passTypeId: ids.full }] }).expect(201)
+      ).body as PublicRegistrationResult;
+      const current = (
+        await register({
+          buyer: buyer({ email: 'otra@example.com', phone: '5587654321' }),
+          passes: [{ passTypeId: ids.full }],
+        }).expect(201)
+      ).body as PublicRegistrationResult;
+      const manual = await existing(ids.event, 'pending_payment', {
+        email: 'manual@example.com',
+        phone: null,
+      });
+      const confirmed = await existing(ids.event, 'confirmed', {
+        email: 'pagado@example.com',
+        phone: null,
+      });
+      await expire(confirmed);
+      // Expired last: a purchase in the same event would void it before the sweep does.
+      await expire(expired.registrationId);
+
+      expect(await app.get(PendingRegistrationExpirySweeper).sweep()).toBe(1);
+
+      expect(await statusOf(expired.registrationId)).toBe('voided');
+      expect(await statusOf(current.registrationId)).toBe('pending_payment');
+      expect(await statusOf(manual)).toBe('pending_payment');
+      expect(await statusOf(confirmed)).toBe('confirmed');
+      expect((await expiryFacts()).map((fact) => fact.registration_id as string)).toEqual([
+        expired.registrationId,
+      ]);
+      // A second sweep finds nothing left to expire.
+      expect(await app.get(PendingRegistrationExpirySweeper).sweep()).toBe(0);
+    });
   });
 
   it('creates a new registration when the only match is voided', async () => {

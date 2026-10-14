@@ -5,6 +5,7 @@ import type {
   RegistrationRequest,
   RegistrationRuleCode,
 } from '@/entities/public-event';
+import { legalDocuments } from '@/shared/config';
 import {
   buyerFields,
   buyerMaxLength,
@@ -16,7 +17,8 @@ import {
 } from './buyer-form';
 import { normalizeSelection, type PurchaseSelection } from './purchase-selection';
 
-// The POST body: chosen passes in catalog order, each with its picked competitions when any.
+// The POST body: chosen passes in catalog order, each with its picked competitions when any, and
+// the version of each legal document page (#180); "Pagar" is enabled only once all are accepted.
 export function buildRegistrationRequest(
   passes: PublicPass[],
   selection: PurchaseSelection,
@@ -29,6 +31,9 @@ export function buildRegistrationRequest(
       const picked = normalized.selectedActivityIds[passTypeId];
       return picked ? { passTypeId, selectedActivityIds: picked } : { passTypeId };
     }),
+    legalAcceptances: Object.fromEntries(
+      legalDocuments.map(({ key, version }) => [key, version]),
+    ) as RegistrationRequest['legalAcceptances'],
   };
 }
 
@@ -46,6 +51,8 @@ export type ServerErrors = {
   buyer: BuyerErrors;
   // One message for any problem under `passes`, and one for anything else (`body`, unknown keys).
   passes: string | null;
+  // A legal document changed (or was not accepted) since the page loaded (#180).
+  legal: string | null;
   other: string | null;
 };
 
@@ -54,13 +61,16 @@ const isBuyerField = (value: string): value is BuyerField =>
 
 /** Maps a 400 `fieldErrors` record (path → code) to the messages the screens show. */
 export function serverErrors(fieldErrors: Record<string, string>): ServerErrors {
-  const errors: ServerErrors = { buyer: {}, passes: null, other: null };
+  const errors: ServerErrors = { buyer: {}, passes: null, legal: null, other: null };
   for (const [path, code] of Object.entries(fieldErrors)) {
     const field = path.startsWith('buyer.') ? path.slice('buyer.'.length) : null;
     if (field && isBuyerField(field) && code !== 'unknown_field')
       errors.buyer[field] = buyerMessage(field, code);
     else if (path === 'passes' || path.startsWith('passes['))
       errors.passes = 'Algo cambió en tus pases. Vuelve a elegirlos e intenta de nuevo.';
+    else if (path === 'legalAcceptances' || path.startsWith('legalAcceptances.'))
+      errors.legal =
+        'Actualizamos los documentos legales. Recarga la página, revísalos y acéptalos de nuevo para pagar.';
     else errors.other = 'No pudimos procesar tu compra. Revisa tus datos e intenta de nuevo.';
   }
   return errors;

@@ -63,6 +63,7 @@ export function payFailure(failure: PublicEventFailure): PayFailure {
         .map((field) => `${buyerFieldLabels[field]}: ${errors.buyer[field]}`);
       if (details.length > 0) return { message: 'Revisa estos datos:', details, fix: 'buyer' };
       if (errors.passes) return only(errors.passes, 'passes');
+      if (errors.legal) return only(errors.legal);
       return only(errors.other ?? failureMessage(failure), 'buyer');
     }
     case 'rule':

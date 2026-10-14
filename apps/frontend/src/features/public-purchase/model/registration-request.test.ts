@@ -1,3 +1,4 @@
+import { legalDocuments } from '@/shared/config';
 import { describe, expect, it } from 'vitest';
 import { emptyBuyerForm } from './buyer-form';
 import { buildRegistrationRequest, failureMessage, serverErrors } from './registration-request';
@@ -32,7 +33,23 @@ describe('buildRegistrationRequest', () => {
         { passTypeId: 'breaking', selectedActivityIds: ['bboy'] },
         { passTypeId: 'open-styles' },
       ],
+      legalAcceptances: {
+        rules: 'borrador-2026-10-13',
+        privacy: 'borrador-2026-10-13',
+        cancellation: 'borrador-2026-10-13',
+      },
     });
+  });
+
+  it('accepts the version each legal document page shows', () => {
+    const { legalAcceptances } = buildRegistrationRequest(
+      catalogPasses,
+      { passTypeIds: ['breaking'], selectedActivityIds: {} },
+      buyer,
+    );
+    expect(legalAcceptances).toEqual(
+      Object.fromEntries(legalDocuments.map(({ key, version }) => [key, version])),
+    );
   });
 });
 
@@ -55,6 +72,7 @@ describe('serverErrors', () => {
         level: 'Revisa este dato.',
       },
       passes: null,
+      legal: null,
       other: null,
     });
   });
@@ -70,6 +88,22 @@ describe('serverErrors', () => {
     expect(errors.other).toBe(
       'No pudimos procesar tu compra. Revisa tus datos e intenta de nuevo.',
     );
+  });
+});
+
+describe('serverErrors for legal documents', () => {
+  it('asks to reload when a legal document changed or was not accepted', () => {
+    const errors = serverErrors({
+      'legalAcceptances.rules': 'outdated',
+      'legalAcceptances.privacy': 'required',
+    });
+    expect(errors).toEqual({
+      buyer: {},
+      passes: null,
+      legal:
+        'Actualizamos los documentos legales. Recarga la página, revísalos y acéptalos de nuevo para pagar.',
+      other: null,
+    });
   });
 });
 

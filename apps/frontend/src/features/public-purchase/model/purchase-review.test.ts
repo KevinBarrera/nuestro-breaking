@@ -85,6 +85,17 @@ describe('payFailure', () => {
     });
   });
 
+  it('asks to reload, with no screen to fix, when a legal document changed', () => {
+    expect(
+      payFailure({ kind: 'invalid', fieldErrors: { 'legalAcceptances.rules': 'outdated' } }),
+    ).toEqual({
+      message:
+        'Actualizamos los documentos legales. Recarga la página, revísalos y acéptalos de nuevo para pagar.',
+      details: [],
+      fix: null,
+    });
+  });
+
   it('points each rule to the screen that fixes it', () => {
     expect(payFailure({ kind: 'rule', code: 'selection_unavailable' }).fix).toBe('competitions');
     for (const code of [

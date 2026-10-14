@@ -50,8 +50,15 @@ test.describe('public home', () => {
     await expect(
       page.getByText('Pagas de forma segura en Mercado Pago. Precios en pesos mexicanos.'),
     ).toBeVisible();
-    for (const name of ['Reglamento', 'Aviso de privacidad', 'Política de cancelación'])
-      await expect(page.getByRole('contentinfo').getByRole('link', { name })).toBeVisible();
+    for (const [name, path] of [
+      ['Reglamento oficial', '/legal/reglamento'],
+      ['Aviso de privacidad', '/legal/privacidad'],
+      ['Política de cancelación', '/legal/cancelacion'],
+    ])
+      await expect(page.getByRole('contentinfo').getByRole('link', { name })).toHaveAttribute(
+        'href',
+        path,
+      );
 
     expect(requests.length).toBeGreaterThan(0);
     for (const request of requests) {

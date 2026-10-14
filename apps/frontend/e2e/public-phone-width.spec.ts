@@ -37,6 +37,7 @@ const screens = [
   { name: 'Competencias', path: `/e/${slug}/competencias`, heading: 'Elige tus competencias' },
   { name: 'Datos', path: `/e/${slug}/datos`, heading: 'Tus datos' },
   { name: 'Revisar', path: `/e/${slug}/revisar`, heading: 'Revisa y paga' },
+  { name: 'Reglamento', path: '/legal/reglamento', heading: 'Reglamento oficial' },
   ...(
     [
       ['confirming', 'Pago', 'Estamos confirmando tu pago'],

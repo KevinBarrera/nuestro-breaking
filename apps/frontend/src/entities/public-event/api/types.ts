@@ -1,3 +1,4 @@
+import type { LegalDocumentKey } from '@/shared/config';
 // Shapes of the public, credential-less endpoints: `GET /public/events/:slug/catalog`
 // (`docs/contracts/public-event-catalog.md`) and `POST /public/events/:slug/registrations`
 // (`docs/contracts/public-registration.md`), and the Checkout Pro start
@@ -81,6 +82,8 @@ export type RegistrationBuyer = {
 export type RegistrationRequest = {
   buyer: RegistrationBuyer;
   passes: { passTypeId: string; selectedActivityIds?: string[] }[];
+  // The version of each legal document the buyer accepted (#180).
+  legalAcceptances: Record<LegalDocumentKey, string>;
 };
 
 export type RegistrationPass = {

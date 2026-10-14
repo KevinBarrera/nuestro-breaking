@@ -5,3 +5,5 @@ export {
   PendingRegistrationExpirySweeper,
   readExpirySweepInterval,
 } from './pending-registration-expiry-sweeper';
+export { lateApprovalContext } from './late-approval';
+export type { LateApprovalContext } from './late-approval';

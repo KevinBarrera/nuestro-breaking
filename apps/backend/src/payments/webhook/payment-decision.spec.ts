@@ -41,6 +41,48 @@ describe('decidePayment', () => {
     });
   });
 
+  describe('after the payment window expired (#181 S4)', () => {
+    const expired = (expiry: { eventEnded: boolean; otherActiveRegistration: boolean }) =>
+      decide({ registration: { ...PENDING, status: 'voided', expiry } });
+
+    it('confirms when the event has not ended and the person has no other registration', () => {
+      expect(expired({ eventEnded: false, otherActiveRegistration: false })).toEqual({
+        outcome: 'confirmed_after_expiry',
+        confirm: true,
+        recordPayment: true,
+      });
+    });
+
+    it('leaves it for manual review when the event already ended', () => {
+      expect(expired({ eventEnded: true, otherActiveRegistration: false })).toEqual({
+        outcome: 'approved_after_expiry_event_ended',
+        confirm: false,
+        recordPayment: true,
+      });
+    });
+
+    it('leaves it for manual review when the person has another registration', () => {
+      expect(expired({ eventEnded: false, otherActiveRegistration: true })).toEqual({
+        outcome: 'approved_after_expiry_duplicate',
+        confirm: false,
+        recordPayment: true,
+      });
+    });
+
+    it('never confirms an expired registration on a payment that is not approved in full', () => {
+      expect(
+        decide({
+          payment: { ...APPROVED, status: 'pending' },
+          registration: {
+            ...PENDING,
+            status: 'voided',
+            expiry: { eventEnded: false, otherActiveRegistration: false },
+          },
+        }),
+      ).toMatchObject({ confirm: false });
+    });
+  });
+
   it.each(['pending', 'in_process', 'authorized'])(
     'keeps the registration pending on %s',
     (status) => {

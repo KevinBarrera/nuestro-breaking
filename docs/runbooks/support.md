@@ -119,6 +119,42 @@ Only a **global administrator** can archive, restore or delete an event.
 - Every create, edit, archive, restore and delete is recorded with who did it
   and when, and the record outlives a deleted event.
 
+## Expired online registrations and late payments
+
+This section describes implemented behavior
+([#181](https://github.com/KevinBarrera/nuestro-breaking/issues/181); rules in
+the [public registration contract](../contracts/public-registration.md#payment-window-181)).
+
+An online buyer has `PENDING_PAYMENT_HOURS` (default 72) to pay after each
+checkout; the pending registration expires one day later and the system voids
+it. Admin manual (cash) registrations never expire. If Mercado Pago later
+approves a payment for an expired registration:
+
+| Case                                                             | What the system does                                                                                |
+| ---------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| The event has not ended and the person has no other registration | Confirms it with a folio and sends the confirmation email. The audit marks it as a late approval.   |
+| The person already has another pending or confirmed registration | Stores the payment, keeps the registration voided and flags it `approved_after_expiry_duplicate`.   |
+| The event already ended                                          | Stores the payment, keeps the registration voided and flags it `approved_after_expiry_event_ended`. |
+
+Flagged payments need coordination's decision; nothing is refunded
+automatically. A technical operator lists them with:
+
+```sql
+-- One row per payment: Mercado Pago may notify the same payment several times.
+SELECT DISTINCT ON (p.provider_payment_id) n.received_at, n.outcome,
+  p.provider_payment_id, c.registration_id, p.amount_cents
+FROM payment_webhook_notifications n
+JOIN registration_payments p ON p.provider_payment_id = n.provider_payment_id
+JOIN registration_checkouts c ON c.id = p.checkout_id
+WHERE n.outcome LIKE 'approved_after_expiry_%'
+ORDER BY p.provider_payment_id, n.received_at DESC;
+```
+
+A duplicate usually means the buyer paid twice (an old OXXO voucher and a new
+purchase): refund one payment in Mercado Pago. Registering a person in cash
+after their online registration expired is not possible yet, because the
+expired registration still counts as a duplicate; that belongs to #104.
+
 ## Escalation and ownership gaps
 
 Future owners must define support access approval, redaction standards, case

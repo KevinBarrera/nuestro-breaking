@@ -22,14 +22,21 @@ export const FOLIO_ATTEMPTS = 5;
 /**
  * Moves a `pending_payment` registration of the event to `confirmed`, inside the caller's
  * transaction, and assigns its folio. Every confirmation path uses it: cash confirmation now and an
- * approved online payment (#177). Returns null when the registration is not pending in this event.
+ * approved online payment (#177), including a late one after expiry (#181). Returns null when the
+ * registration is not in `fromStatus` (default `pending_payment`) in this event.
  *
  * Each attempt runs under a savepoint, so a folio collision on the system-wide unique constraint
  * rolls back only that attempt and the next one draws a new code.
  */
 export async function confirmRegistration(
   tx: RegistrationTransaction,
-  input: { eventId: string; registrationId: string; source: ConfirmationSource },
+  input: {
+    eventId: string;
+    registrationId: string;
+    source: ConfirmationSource;
+    /** `voided` only for a late online approval after expiry (#181 S4). */
+    fromStatus?: 'pending_payment' | 'voided';
+  },
   nextFolio: (prefix: string) => string = generateFolio,
 ): Promise<ConfirmedRegistration | null> {
   const [event] = await tx
@@ -54,7 +61,7 @@ export async function confirmRegistration(
             and(
               eq(eventRegistrations.id, input.registrationId),
               eq(eventRegistrations.eventId, input.eventId),
-              eq(eventRegistrations.status, 'pending_payment'),
+              eq(eventRegistrations.status, input.fromStatus ?? 'pending_payment'),
             ),
           )
           .returning({

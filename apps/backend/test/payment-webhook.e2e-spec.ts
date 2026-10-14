@@ -14,6 +14,7 @@ import { ConfirmationEmailDispatcher } from '@/notifications';
 import { MercadoPagoClient, MercadoPagoClientError, type ProviderPayment } from '@/payments';
 import { PAYMENT_NOT_FOUND_GRACE_SECONDS } from '@/payments/webhook/payment-webhook.service';
 import { confirmRegistration } from '@/events/registration-confirmation/confirm-registration';
+import { PendingRegistrationExpirySweeper } from '@/events/registration-expiry';
 import { PostgresHarness } from './support/postgres-harness';
 
 jest.setTimeout(120_000);
@@ -276,6 +277,172 @@ describe('Mercado Pago payment webhook (e2e)', () => {
       'confirmed',
       'payment_pending',
     ]);
+  });
+
+  describe('late approval after expiry (#181 S4)', () => {
+    // An online registration whose payment window ended, voided by the expiry sweep.
+    async function expiredRegistration() {
+      const id = await pendingRegistration();
+      await client`UPDATE participants SET email = 'ana@example.com'
+        WHERE id = (SELECT participant_id FROM event_registrations WHERE id = ${id})`;
+      await client`UPDATE event_registrations SET expires_at = now() - interval '1 minute'
+        WHERE id = ${id}`;
+      await app.get(PendingRegistrationExpirySweeper).sweep();
+      expect((await registrationRow(id)).status).toBe('voided');
+      return id;
+    }
+    const lateAudit = (id: string) =>
+      client`SELECT before_state, after_state, facts FROM registration_operation_audit
+        WHERE registration_id = ${id} AND operation_type = 'payment_approval'`;
+
+    it('confirms it when the event has not ended and the person has no other registration', async () => {
+      const id = await expiredRegistration();
+      setPayment(id);
+
+      await notify(1001).expect(200);
+
+      const registration = await registrationRow(id);
+      expect(registration).toMatchObject({
+        status: 'confirmed',
+        confirmation_source: 'approved_payment',
+      });
+      expect(registration.folio).toMatch(/^LMP-[A-Z0-9]{4}$/);
+      const [audit] = await lateAudit(id);
+      expect(audit).toMatchObject({
+        before_state: { status: 'voided' },
+        after_state: { status: 'confirmed', confirmationSource: 'approved_payment' },
+        facts: { providerPaymentId: PAYMENT_ID, lateApproval: true },
+      });
+      expect(await confirmationEmailRows()).toEqual([
+        expect.objectContaining({ registration_id: id }),
+      ]);
+      expect(await notificationRows()).toEqual([
+        { notification_id: '1001', processed: true, outcome: 'confirmed_after_expiry' },
+      ]);
+    });
+
+    it('stores the payment and flags it for review when the person has another registration', async () => {
+      const id = await expiredRegistration();
+      const [{ event_id: eventId }] = await client<{ event_id: string }[]>`
+        SELECT event_id FROM event_registrations WHERE id = ${id}`;
+      await client`
+        WITH person AS (INSERT INTO participants (full_name, email)
+          VALUES ('Ana again', ' ANA@example.com ') RETURNING id)
+        INSERT INTO event_registrations (event_id, participant_id) SELECT ${eventId}, id FROM person`;
+      setPayment(id);
+
+      await notify(1001).expect(200);
+
+      expect((await registrationRow(id)).status).toBe('voided');
+      expect(await paymentRows()).toHaveLength(1);
+      expect(await lateAudit(id)).toEqual([]);
+      expect(await notificationRows()).toEqual([
+        { notification_id: '1001', processed: true, outcome: 'approved_after_expiry_duplicate' },
+      ]);
+      // Mercado Pago often notifies the same payment again; the runbook lists it once.
+      await notify(1002).expect(200);
+      expect(
+        await client`
+          SELECT DISTINCT ON (p.provider_payment_id) n.outcome, p.provider_payment_id,
+            c.registration_id, p.amount_cents
+          FROM payment_webhook_notifications n
+          JOIN registration_payments p ON p.provider_payment_id = n.provider_payment_id
+          JOIN registration_checkouts c ON c.id = p.checkout_id
+          WHERE n.outcome LIKE 'approved_after_expiry_%'
+          ORDER BY p.provider_payment_id, n.received_at DESC`,
+      ).toEqual([
+        {
+          outcome: 'approved_after_expiry_duplicate',
+          provider_payment_id: PAYMENT_ID,
+          registration_id: id,
+          amount_cents: PRICE_CENTS,
+        },
+      ]);
+    });
+
+    it('matches the same person by phone too', async () => {
+      const id = await expiredRegistration();
+      await client`UPDATE participants SET email = NULL, phone = '55 1234 5678'
+        WHERE id = (SELECT participant_id FROM event_registrations WHERE id = ${id})`;
+      const [{ event_id: eventId }] = await client<{ event_id: string }[]>`
+        SELECT event_id FROM event_registrations WHERE id = ${id}`;
+      await client`
+        WITH person AS (INSERT INTO participants (full_name, phone)
+          VALUES ('Ana again', '+52 55 1234 5678') RETURNING id)
+        INSERT INTO event_registrations (event_id, participant_id) SELECT ${eventId}, id FROM person`;
+      setPayment(id);
+
+      await notify(1001).expect(200);
+
+      expect((await registrationRow(id)).status).toBe('voided');
+      expect(await notificationRows()).toEqual([
+        { notification_id: '1001', processed: true, outcome: 'approved_after_expiry_duplicate' },
+      ]);
+    });
+
+    it('does not count an expired registration of the same person as another one', async () => {
+      const id = await expiredRegistration();
+      const [{ event_id: eventId }] = await client<{ event_id: string }[]>`
+        SELECT event_id FROM event_registrations WHERE id = ${id}`;
+      const [{ id: other }] = await client<{ id: string }[]>`
+        WITH person AS (INSERT INTO participants (full_name, email)
+          VALUES ('Ana again', 'ana@example.com') RETURNING id)
+        INSERT INTO event_registrations (event_id, participant_id, expires_at)
+        SELECT ${eventId}, id, now() - interval '1 minute' FROM person RETURNING id`;
+      setPayment(id);
+
+      await notify(1001).expect(200);
+
+      expect((await registrationRow(id)).status).toBe('confirmed');
+      expect((await registrationRow(other)).status).toBe('voided');
+      expect(await notificationRows()).toEqual([
+        { notification_id: '1001', processed: true, outcome: 'confirmed_after_expiry' },
+      ]);
+    });
+
+    it('never matches two people who both left email and phone blank', async () => {
+      const id = await expiredRegistration();
+      await client`UPDATE participants SET email = NULL, phone = NULL
+        WHERE id = (SELECT participant_id FROM event_registrations WHERE id = ${id})`;
+      const [{ event_id: eventId }] = await client<{ event_id: string }[]>`
+        SELECT event_id FROM event_registrations WHERE id = ${id}`;
+      await client`
+        WITH person AS (INSERT INTO participants (full_name) VALUES ('Someone else') RETURNING id)
+        INSERT INTO event_registrations (event_id, participant_id) SELECT ${eventId}, id FROM person`;
+      setPayment(id);
+
+      await notify(1001).expect(200);
+
+      expect((await registrationRow(id)).status).toBe('confirmed');
+    });
+
+    it('stores the payment and flags it for review when the event already ended', async () => {
+      const id = await expiredRegistration();
+      await client`UPDATE events SET starts_at = now() - interval '3 days',
+        ends_at = now() - interval '1 day'`;
+      setPayment(id);
+
+      await notify(1001).expect(200);
+
+      expect((await registrationRow(id)).status).toBe('voided');
+      expect(await paymentRows()).toHaveLength(1);
+      expect(await notificationRows()).toEqual([
+        { notification_id: '1001', processed: true, outcome: 'approved_after_expiry_event_ended' },
+      ]);
+    });
+
+    it('still only flags an approval on a registration voided for another reason', async () => {
+      const id = await pendingRegistration();
+      await client`UPDATE event_registrations SET status = 'voided' WHERE id = ${id}`;
+      setPayment(id);
+
+      await notify(1001).expect(200);
+
+      expect((await registrationRow(id)).status).toBe('voided');
+      expect(await notificationRows()).toEqual([
+        { notification_id: '1001', processed: true, outcome: 'approved_after_void' },
+      ]);
+    });
   });
 
   it('keeps the registration pending for a rejected payment', async () => {

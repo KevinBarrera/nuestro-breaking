@@ -103,7 +103,7 @@ export class PendingRegistrationExpirySweeper implements OnApplicationBootstrap,
         voided += await this.sweepEvent(eventId);
       } catch (error) {
         this.logger.error(
-          `Pending registration expiry failed for one event (${error instanceof Error ? error.name : 'unknown'}); it is retried on the next tick.`,
+          `Pending registration expiry failed for event ${eventId} (${error instanceof Error ? error.name : 'unknown'}); it is retried on the next tick.`,
         );
       }
     }

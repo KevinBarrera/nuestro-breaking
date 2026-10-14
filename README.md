@@ -151,6 +151,19 @@ Run the React frontend in development mode:
 pnpm dev:frontend
 ```
 
+### Cloudflare hosting
+
+Hosted environments serve the Vite build as Cloudflare Workers static assets (`apps/frontend/wrangler.jsonc`): production deploys the `los-mas-pesados-web` Worker with `npx wrangler@4.144.0 deploy --env=""`, and staging deploys `los-mas-pesados-web-staging` with `--env=staging`. Unknown paths return `index.html`, so the React router handles deep links and page reloads.
+
+Vite inlines these build variables, so set them in each Worker's Workers Builds settings (build variables, not runtime variables):
+
+| Variable                 | Required | Meaning                                                                                       |
+| ------------------------ | -------- | --------------------------------------------------------------------------------------------- |
+| `VITE_API_BASE_URL`      | Yes      | Backend origin, HTTPS with no path or trailing slash (for example `https://api.example.com`). |
+| `VITE_PUBLIC_EVENT_SLUG` | No       | Event sold at `/`. Unset means no event is on sale at the root address.                       |
+
+Cloudflare builds set `WORKERS_CI=1`; with it, `vite build` fails when `VITE_API_BASE_URL` is missing or is not a bare HTTPS origin, instead of shipping a site that calls `http://localhost:3000`. Local and CI builds are unchanged.
+
 Optional frontend variables (read by Vite from `apps/frontend/.env` or the shell at dev and build time):
 
 | Variable                 | Default                 | Meaning                                                                                                                            |

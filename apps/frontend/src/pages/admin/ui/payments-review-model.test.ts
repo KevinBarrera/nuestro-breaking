@@ -11,7 +11,7 @@ describe('payments review copy', () => {
     expect(reasonCopy.approved_after_expiry_duplicate).toEqual({
       title: 'Pagó dos veces',
       action:
-        'Reembolsa este pago en Mercado Pago (el número de la tabla); la persona conserva su otra inscripción.',
+        'En Mercado Pago, reembolsa el pago que aparece en la tabla, no el de su otra inscripción, que se conserva.',
       detail:
         'El pago llegó cuando la inscripción ya había vencido y la persona ya tiene otra inscripción en el evento.',
     });

@@ -12,7 +12,7 @@ export const reasonCopy: Record<FlaggedPaymentReason, ReasonCopy> = {
     // Refund the flagged payment only: refunding the other one would leave a confirmed
     // registration whose money was returned, and a confirmation is never undone.
     action:
-      'Reembolsa este pago en Mercado Pago (el número de la tabla); la persona conserva su otra inscripción.',
+      'En Mercado Pago, reembolsa el pago que aparece en la tabla, no el de su otra inscripción, que se conserva.',
   },
   approved_after_expiry_event_ended: {
     title: 'Pagó después del evento',

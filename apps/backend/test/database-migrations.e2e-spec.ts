@@ -4,7 +4,7 @@ import { drizzle } from 'drizzle-orm/postgres-js';
 import { migrate } from 'drizzle-orm/postgres-js/migrator';
 import postgres from 'postgres';
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
-import { applyMigrations } from '@/database/migrations';
+import { applyMigrations, describeMigrationError } from '@/database/migrations';
 
 jest.setTimeout(120_000);
 
@@ -92,5 +92,40 @@ describe('applyMigrations (e2e)', () => {
       0,
       journal.entries.length,
     ]);
+  });
+
+  it('explains a failed migration with its PostgreSQL cause and releases the lock', async () => {
+    const url = await freshDatabase('conflict_target');
+    const client = postgres(url, { max: 1 });
+    try {
+      await client`CREATE TABLE users (id integer)`;
+
+      const error = await applyMigrations(url, migrationsFolder).then(
+        () => undefined,
+        (caught: unknown) => caught,
+      );
+
+      expect(describeMigrationError(error)).toBe('[42P07] relation "users" already exists');
+      const [{ locks }] = await client<{ locks: number }[]>`
+        SELECT count(*)::int AS locks FROM pg_locks WHERE locktype = 'advisory'
+      `;
+      expect(locks).toBe(0);
+    } finally {
+      await client.end({ timeout: 5 });
+    }
+  });
+
+  it('explains an unreachable database with the connection error', async () => {
+    const error = await applyMigrations(
+      'postgresql://nobody:secret-password@127.0.0.1:1/missing',
+      migrationsFolder,
+    ).then(
+      () => undefined,
+      (caught: unknown) => caught,
+    );
+
+    const description = describeMigrationError(error);
+    expect(description).toMatch(/^\[ECONNREFUSED\] connect ECONNREFUSED 127\.0\.0\.1:1$/);
+    expect(description).not.toContain('secret-password');
   });
 });

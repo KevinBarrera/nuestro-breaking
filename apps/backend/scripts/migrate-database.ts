@@ -1,5 +1,9 @@
 import { getDatabaseUrl } from '@/database/environment';
-import { applyMigrations, findMigrationsFolder } from '@/database/migrations';
+import {
+  applyMigrations,
+  describeMigrationError,
+  findMigrationsFolder,
+} from '@/database/migrations';
 
 // Deploy-time migration command (#238): runs with plain `node` from `dist`, no devDependencies.
 // See docs/runbooks/deploy.md.
@@ -16,10 +20,6 @@ async function main(): Promise<void> {
 }
 
 void main().catch((error: unknown) => {
-  // Report the PostgreSQL error code and message only: never the connection URL or the error object.
-  const code =
-    typeof error === 'object' && error && 'code' in error ? ` [${String(error.code)}]` : '';
-  const message = error instanceof Error ? error.message : 'unknown error';
-  process.stderr.write(`Database migration failed${code}: ${message}\n`);
+  process.stderr.write(`Database migration failed: ${describeMigrationError(error)}\n`);
   process.exitCode = 1;
 });

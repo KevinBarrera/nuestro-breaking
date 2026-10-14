@@ -7,12 +7,15 @@ import {
   readPendingPaymentWindow,
 } from '@/events/shared/pending-payment-window';
 import { PublicRateLimitModule } from '@/http';
+import { IdentityAccessModule } from '@/identity-access/identity-access.module';
 import { NotificationsModule } from '@/notifications';
 import { PublicCheckoutController } from './checkout/public-checkout.controller';
 import { PublicCheckoutService } from './checkout/public-checkout.service';
 import { FetchMercadoPagoClient } from './fetch-mercado-pago-client';
 import { MercadoPagoClient } from './mercado-pago-client';
 import { PaymentReconciliationSweeper } from './reconciliation/payment-reconciliation-sweeper';
+import { FlaggedPaymentsController } from './review/flagged-payments.controller';
+import { FlaggedPaymentsService } from './review/flagged-payments.service';
 import { PaymentWebhookController } from './webhook/payment-webhook.controller';
 import { PaymentWebhookService } from './webhook/payment-webhook.service';
 import { PublicPaymentStatusController } from './status/public-payment-status.controller';
@@ -25,13 +28,18 @@ import {
 
 /**
  * Mercado Pago Checkout Pro, its verified payment webhook (#177) and the public payment result
- * (#178). The config is read once when the app boots (D9): a missing or invalid value stops the
+ * (#178), and the admin list of payments flagged for manual review (#230). The config is read once when the app boots (D9): a missing or invalid value stops the
  * boot. `process.env` already holds the repository-root `.env` by then,
  * loaded by `@/database/environment` when the module graph is imported.
  */
 @Module({
-  imports: [DatabaseModule, NotificationsModule, PublicRateLimitModule],
-  controllers: [PublicCheckoutController, PaymentWebhookController, PublicPaymentStatusController],
+  imports: [DatabaseModule, IdentityAccessModule, NotificationsModule, PublicRateLimitModule],
+  controllers: [
+    PublicCheckoutController,
+    PaymentWebhookController,
+    PublicPaymentStatusController,
+    FlaggedPaymentsController,
+  ],
   providers: [
     { provide: MERCADO_PAGO_CONFIG, useFactory: () => readMercadoPagoConfig(process.env) },
     { provide: PENDING_PAYMENT_WINDOW, useFactory: () => readPendingPaymentWindow(process.env) },
@@ -47,6 +55,7 @@ import {
     PublicCheckoutService,
     PaymentWebhookService,
     PublicPaymentStatusService,
+    FlaggedPaymentsService,
   ],
 })
 export class PaymentsModule {}

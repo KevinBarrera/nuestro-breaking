@@ -155,7 +155,10 @@ Mercado Pago notification changes its outcome, for example after a refund. See
 the [flagged payments contract](../contracts/flagged-payments.md).
 
 A duplicate usually means the buyer paid twice (an old OXXO voucher and a new
-purchase): refund one payment in Mercado Pago. Registering a person in cash
+purchase): refund the flagged payment (the id on the screen) in Mercado Pago,
+not the other one. Refunding the payment that confirmed the other registration
+would leave it confirmed with its money returned, because a confirmation is
+never undone. Registering a person in cash
 after their online registration expired is not possible yet, because the
 expired registration still counts as a duplicate; that belongs to #104.
 

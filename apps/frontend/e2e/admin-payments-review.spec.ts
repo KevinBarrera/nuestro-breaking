@@ -91,7 +91,7 @@ test('lists flagged payments in a table with what to do per reason', async ({ pa
   await expect(cases).toHaveCount(2);
   await expect(cases.nth(0)).toContainText('Pagó dos veces (1)');
   await expect(cases.nth(0)).toContainText(
-    'Revisa la otra inscripción y reembolsa uno de los pagos en Mercado Pago.',
+    'Reembolsa este pago en Mercado Pago (el número de la tabla); la persona conserva su otra inscripción.',
   );
   await expect(cases.nth(1)).toContainText('Pago de más en una inscripción confirmada (1)');
   await expect(cases.nth(1)).toContainText('Reembolsa este pago en Mercado Pago.');

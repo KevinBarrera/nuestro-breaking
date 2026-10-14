@@ -9,7 +9,10 @@ export const reasonCopy: Record<FlaggedPaymentReason, ReasonCopy> = {
     title: 'Pagó dos veces',
     detail:
       'El pago llegó cuando la inscripción ya había vencido y la persona ya tiene otra inscripción en el evento.',
-    action: 'Revisa la otra inscripción y reembolsa uno de los pagos en Mercado Pago.',
+    // Refund the flagged payment only: refunding the other one would leave a confirmed
+    // registration whose money was returned, and a confirmation is never undone.
+    action:
+      'Reembolsa este pago en Mercado Pago (el número de la tabla); la persona conserva su otra inscripción.',
   },
   approved_after_expiry_event_ended: {
     title: 'Pagó después del evento',

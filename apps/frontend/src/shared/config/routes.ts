@@ -9,6 +9,7 @@ export const routes = {
   publicReview: '/e/:slug/revisar',
   // Mercado Pago's return address for every outcome (#177 D8): `?registration=<id>`.
   publicPayment: '/e/:slug/pago',
+  // The legal document pages (#180) take their paths from `legalDocuments` (`legal-documents.ts`).
   admin: '/admin',
   // Nuevo evento (#213), global admins only. A static segment, so it wins over `:eventId`.
   adminEventNew: '/admin/events/new',

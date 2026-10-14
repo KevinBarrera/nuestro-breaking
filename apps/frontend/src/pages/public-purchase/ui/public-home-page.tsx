@@ -1,14 +1,12 @@
 import { formatMxn } from '@/entities/event-catalog';
 import { emptySelection, passGroups, passOptions } from '@/features/public-purchase';
+import { legalDocuments } from '@/shared/config';
 import { PublicFrame } from '@/widgets/public-layout';
 import { Link } from 'react-router';
 import { closedSalesMessage, eventDateRange } from './event-dates';
 import { usePurchase } from './purchase-context';
 import { stepPath } from './purchase-steps';
 import { SecurePaymentNote } from './secure-payment-note';
-
-// D5: the legal documents are placeholders until #180.
-const legalLinks = ['Reglamento', 'Aviso de privacidad', 'Política de cancelación'];
 
 // Screen 1 (Inicio): the event, how to buy, and the passes on sale with catalog prices.
 export function PublicHomePage() {
@@ -82,14 +80,14 @@ export function PublicHomePage() {
           aria-label="Documentos legales"
           className="mx-auto flex w-full max-w-3xl flex-wrap gap-x-5 text-sm"
         >
-          {legalLinks.map((label) => (
-            <a
-              key={label}
-              href="#"
+          {legalDocuments.map((document) => (
+            <Link
+              key={document.key}
+              to={document.path}
               className="inline-flex min-h-11 items-center text-link underline-offset-2 hover:text-link-hover hover:underline focus-visible:outline-2 focus-visible:outline-focus"
             >
-              {label}
-            </a>
+              {document.title}
+            </Link>
           ))}
         </nav>
       </footer>

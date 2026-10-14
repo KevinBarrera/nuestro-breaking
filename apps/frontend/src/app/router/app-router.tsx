@@ -1,3 +1,4 @@
+import { LegalDocumentPage } from '@/pages/legal-document';
 import { NotFoundPage } from '@/pages/not-found';
 import {
   PublicBuyerPage,
@@ -8,7 +9,7 @@ import {
   PublicPurchaseLayout,
   PublicReviewPage,
 } from '@/pages/public-purchase';
-import { routes } from '@/shared/config';
+import { legalDocuments, routes } from '@/shared/config';
 import {
   createBrowserRouter,
   generatePath,
@@ -55,6 +56,11 @@ const appRoutes: RouteObject[] = [
   },
   // Mercado Pago's return (#177), outside the purchase layout so it needs no catalog.
   { path: routes.publicPayment, element: <PublicPaymentReturnPage /> },
+  // The legal documents the buyer accepts before paying (#180), static and outside the layout.
+  ...legalDocuments.map((document) => ({
+    path: document.path,
+    element: <LegalDocumentPage document={document} />,
+  })),
   // Admin account activation (#214), public: the invitee has no session yet.
   {
     path: routes.activateAccount,

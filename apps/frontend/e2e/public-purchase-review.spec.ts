@@ -114,6 +114,18 @@ test.describe('public review and pay', () => {
       ),
     ).toBeVisible();
 
+    // Each checkbox links its document page, opened in another tab so the purchase stays here.
+    const documents = page.getByRole('group', { name: 'Documentos y políticas' });
+    for (const [name, path] of [
+      ['Reglamento oficial', '/legal/reglamento'],
+      ['Aviso de privacidad', '/legal/privacidad'],
+      ['Política de cancelación', '/legal/cancelacion'],
+    ] as const) {
+      const link = documents.getByRole('link', { name: `${name} (se abre en otra pestaña)` });
+      await expect(link).toHaveAttribute('href', path);
+      await expect(link).toHaveAttribute('target', '_blank');
+    }
+
     // Pay stays disabled, with the reason, until the three documents are accepted.
     await expect(payButton(page)).toHaveText('Pagar $2,800.00 con Mercado Pago');
     for (const name of legal) {
@@ -152,6 +164,11 @@ test.describe('public review and pay', () => {
         { passTypeId: 'breaking', selectedActivityIds: ['breaking-0', 'breaking-2'] },
         { passTypeId: 'open-styles' },
       ],
+      legalAcceptances: {
+        rules: 'borrador-2026-10-13',
+        privacy: 'borrador-2026-10-13',
+        cancellation: 'borrador-2026-10-13',
+      },
     });
     for (const sent of [request, checkout.requests[0]]) {
       const headers = await sent.allHeaders();

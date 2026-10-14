@@ -19,6 +19,7 @@ import {
   type PayFailure,
   type PayFix,
 } from '@/features/public-purchase';
+import { legalDocuments, type LegalDocumentKey } from '@/shared/config';
 import { buttonClass, CheckboxField, Notice } from '@/shared/ui';
 import { continueButtonClass, PublicFrame, StepBar, StepProgress } from '@/widgets/public-layout';
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
@@ -30,26 +31,31 @@ import { purchaseStepCount, stepNumber, stepPath, stepRedirect } from './purchas
 const overlapNotice =
   'Algunas competencias o workshops pueden coincidir en horario. Puedes elegir libremente a cuáles asistir; intentaremos evitar cruces entre competencias, pero no podemos garantizarlos. Open Styles no coincidirá con competencias de pase completo, aunque podría coincidir parcialmente con workshops.';
 
-// D5: the documents are placeholders until #180, and acceptance is not sent to the backend yet.
-const documentLink = (label: string) => (
-  <a
-    href="#"
-    className="font-semibold text-link underline underline-offset-2 hover:text-link-hover"
-  >
-    {label}
-  </a>
-);
+// Each document page (#180) opens in another tab, so the purchase and its checkboxes stay here.
+// The versions those pages show are the ones `buildRegistrationRequest` sends as accepted.
+const documentLink = (key: LegalDocumentKey) => {
+  const document = legalDocuments.find((item) => item.key === key)!;
+  return (
+    <a
+      href={document.path}
+      target="_blank"
+      rel="noopener"
+      className="font-semibold text-link underline underline-offset-2 hover:text-link-hover"
+    >
+      {document.title}
+      <span className="sr-only"> (se abre en otra pestaña)</span>
+    </a>
+  );
+};
 
-const legalDocuments = [
-  { id: 'rules', label: <>Leí y acepto el {documentLink('Reglamento oficial')}.</> },
+const legalChecks = [
+  { id: 'rules', label: <>Leí y acepto el {documentLink('rules')}.</> },
   {
     id: 'privacy',
-    label: <>Leí el {documentLink('Aviso de privacidad')} y acepto el uso de mis datos.</>,
+    label: <>Leí el {documentLink('privacy')} y acepto el uso de mis datos.</>,
   },
-  { id: 'cancellation', label: <>Leí y acepto la {documentLink('Política de cancelación')}.</> },
-] as const;
-
-type LegalId = (typeof legalDocuments)[number]['id'];
+  { id: 'cancellation', label: <>Leí y acepto la {documentLink('cancellation')}.</> },
+] as const satisfies readonly { id: LegalDocumentKey; label: ReactNode }[];
 
 const fixLabels: Record<PayFix, string> = {
   home: 'Volver al inicio',
@@ -72,7 +78,7 @@ const linkClass =
 // registration, so paying again never creates a second one.
 export function PublicReviewPage() {
   const { slug, catalog, selection, buyer } = usePurchase();
-  const [accepted, setAccepted] = useState<Record<LegalId, boolean>>({
+  const [accepted, setAccepted] = useState<Record<LegalDocumentKey, boolean>>({
     rules: false,
     privacy: false,
     cancellation: false,
@@ -110,7 +116,7 @@ export function PublicReviewPage() {
   const lines = reviewLines(catalog.passes, selection);
   const { totalCents } = purchaseTotals(catalog.passes, selection);
   const person = reviewBuyer(buyer);
-  const allAccepted = legalDocuments.every(({ id }) => accepted[id]);
+  const allAccepted = legalChecks.every(({ id }) => accepted[id]);
   const backTo = stepPath(slug, 'buyer');
 
   const pay = async () => {
@@ -205,7 +211,7 @@ export function PublicReviewPage() {
           <legend className="px-1 text-lg font-extrabold text-heading">
             Documentos y políticas
           </legend>
-          {legalDocuments.map(({ id, label }) => (
+          {legalChecks.map(({ id, label }) => (
             <CheckboxField
               key={id}
               name={id}

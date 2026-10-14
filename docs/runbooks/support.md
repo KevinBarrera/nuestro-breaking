@@ -136,6 +136,13 @@ approves a payment for an expired registration:
 | The person already has another pending or confirmed registration | Stores the payment, keeps the registration voided and flags it `approved_after_expiry_duplicate`.   |
 | The event already ended                                          | Stores the payment, keeps the registration voided and flags it `approved_after_expiry_event_ended`. |
 
+On the expiry sweep's interval (`PENDING_EXPIRY_SWEEP_INTERVAL_MS`, default
+5 minutes), the backend also searches the
+Mercado Pago payments of each online registration that expired in the last 30
+days, once per registration. A payment whose notifications never arrived (for
+example during a credential outage) is then applied by the same rules; its
+outcome is logged with a notification id starting with `reconciliation:`.
+
 Flagged payments need coordination's decision; nothing is refunded
 automatically. A technical operator lists them with:
 

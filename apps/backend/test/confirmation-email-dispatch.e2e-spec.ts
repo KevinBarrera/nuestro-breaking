@@ -51,6 +51,7 @@ describe('Confirmation email dispatch (e2e)', () => {
   };
   const mercadoPago: MercadoPagoClient = {
     createPreference: () => Promise.reject(new Error('not used')),
+    searchPayments: () => Promise.resolve([]),
     getPayment: (paymentId: string) => {
       const payment = payments.get(paymentId);
       return payment ? Promise.resolve({ ...payment }) : Promise.reject(new Error('not found'));

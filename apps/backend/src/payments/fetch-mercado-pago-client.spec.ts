@@ -306,3 +306,89 @@ describe('FetchMercadoPagoClient.getPayment', () => {
     expect(`${error.message} ${error.stack ?? ''}`).not.toContain(TOKEN);
   });
 });
+
+describe('FetchMercadoPagoClient.searchPayments', () => {
+  const payment = (id: number, reference: string | null, status = 'approved') => ({
+    id,
+    status,
+    transaction_amount: 1500.5,
+    currency_id: 'MXN',
+    external_reference: reference,
+    payer: { email: 'should-not-leak@example.test' },
+  });
+
+  it('searches by external reference, newest first, with the bearer token and a timeout', async () => {
+    const { client, fetchFn } = clientWith(
+      jsonResponse(200, { paging: { total: 0, limit: 30, offset: 0 }, results: [] }),
+    );
+
+    await client.searchPayments('registration 1');
+
+    const [url, init] = fetchFn.mock.calls[0];
+    expect(url).toBe(
+      'https://api.mercadopago.com/v1/payments/search?external_reference=registration+1&sort=date_created&criteria=desc&limit=30',
+    );
+    expect(init).toMatchObject({
+      method: 'GET',
+      headers: { Authorization: `Bearer ${CONFIG.accessToken}` },
+    });
+    expect(init?.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it('returns only payments of that reference, with the fields the webhook needs', async () => {
+    const { client } = clientWith(
+      jsonResponse(200, {
+        paging: { total: 3, limit: 30, offset: 0 },
+        results: [
+          payment(111, 'registration-1'),
+          payment(222, 'registration-2'),
+          payment(333, 'registration-1', 'rejected'),
+        ],
+      }),
+    );
+
+    await expect(client.searchPayments('registration-1')).resolves.toEqual([
+      {
+        id: '111',
+        status: 'approved',
+        transactionAmountCents: 150050,
+        currencyId: 'MXN',
+        externalReference: 'registration-1',
+      },
+      {
+        id: '333',
+        status: 'rejected',
+        transactionAmountCents: 150050,
+        currencyId: 'MXN',
+        externalReference: 'registration-1',
+      },
+    ]);
+  });
+
+  it('reports a non-2xx answer with its status, and a malformed answer, without the body', async () => {
+    const failed = await failureOf(
+      clientWith(jsonResponse(500, { message: 'oops' })).client.searchPayments('registration-1'),
+    );
+    expect(failed).toMatchObject({
+      message: 'Mercado Pago payment search failed with status 500.',
+      status: 500,
+    });
+
+    const malformed = await failureOf(
+      clientWith(jsonResponse(200, { paging: {} })).client.searchPayments('r'),
+    );
+    expect(malformed.message).toBe('Mercado Pago payment search response was malformed.');
+  });
+
+  it('skips a result it cannot read instead of failing the whole search', async () => {
+    const { client } = clientWith(
+      jsonResponse(200, {
+        results: [{ id: 'x' }, payment(111, 'registration-1')],
+      }),
+    );
+
+    await expect(client.searchPayments('registration-1')).resolves.toEqual([
+      expect.objectContaining({ id: '111' }),
+    ]);
+  });
+});

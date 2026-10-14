@@ -31,6 +31,7 @@ describe('admin event archive and restore (e2e)', () => {
       providerCalls.push('createPreference');
       return Promise.reject(new Error('not used'));
     },
+    searchPayments: () => Promise.resolve([]),
     getPayment: () => Promise.reject(new Error('not used')),
   };
 

@@ -39,6 +39,7 @@ describe('public checkout (e2e)', () => {
         checkoutUrl: CHECKOUT_URL,
       });
     },
+    searchPayments: () => Promise.resolve([]),
     getPayment: () => Promise.reject(new Error('not used')),
   };
 

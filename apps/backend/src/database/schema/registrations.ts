@@ -28,6 +28,8 @@ export const eventRegistrations = pgTable(
     // When an unpaid online registration expires (#181). Null for admin manual registrations,
     // which never expire on their own. Kept as history once the registration leaves pending.
     expiresAt: timestamp('expires_at', { withTimezone: true }),
+    // When the expired registration's Mercado Pago payments were searched once (#181 S6).
+    paymentsReconciledAt: timestamp('payments_reconciled_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
   },

@@ -69,6 +69,19 @@ describe('decidePayment', () => {
       });
     });
 
+    it('records an amount mismatch on an expired registration without confirming', () => {
+      expect(
+        decide({
+          payment: { ...APPROVED, transactionAmountCents: 100 },
+          registration: {
+            ...PENDING,
+            status: 'voided',
+            expiry: { eventEnded: false, otherActiveRegistration: false },
+          },
+        }),
+      ).toEqual({ outcome: 'amount_mismatch', confirm: false, recordPayment: true });
+    });
+
     it('never confirms an expired registration on a payment that is not approved in full', () => {
       expect(
         decide({

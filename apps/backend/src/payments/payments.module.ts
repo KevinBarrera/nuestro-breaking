@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { DatabaseModule } from '@/database/database.module';
 import { PublicCatalogService } from '@/events/public-catalog';
+import { EXPIRY_SWEEP_INTERVAL_MS, readExpirySweepInterval } from '@/events/registration-expiry';
 import {
   PENDING_PAYMENT_WINDOW,
   readPendingPaymentWindow,
@@ -11,6 +12,7 @@ import { PublicCheckoutController } from './checkout/public-checkout.controller'
 import { PublicCheckoutService } from './checkout/public-checkout.service';
 import { FetchMercadoPagoClient } from './fetch-mercado-pago-client';
 import { MercadoPagoClient } from './mercado-pago-client';
+import { PaymentReconciliationSweeper } from './reconciliation/payment-reconciliation-sweeper';
 import { PaymentWebhookController } from './webhook/payment-webhook.controller';
 import { PaymentWebhookService } from './webhook/payment-webhook.service';
 import { PublicPaymentStatusController } from './status/public-payment-status.controller';
@@ -33,6 +35,8 @@ import {
   providers: [
     { provide: MERCADO_PAGO_CONFIG, useFactory: () => readMercadoPagoConfig(process.env) },
     { provide: PENDING_PAYMENT_WINDOW, useFactory: () => readPendingPaymentWindow(process.env) },
+    { provide: EXPIRY_SWEEP_INTERVAL_MS, useFactory: () => readExpirySweepInterval(process.env) },
+    PaymentReconciliationSweeper,
     {
       provide: MercadoPagoClient,
       useFactory: (config: MercadoPagoConfig) => new FetchMercadoPagoClient(config),

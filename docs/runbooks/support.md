@@ -144,21 +144,21 @@ example during a credential outage) is then applied by the same rules; its
 outcome is logged with a notification id starting with `reconciliation:`.
 
 Flagged payments need coordination's decision; nothing is refunded
-automatically. A technical operator lists them with:
-
-```sql
--- One row per payment: Mercado Pago may notify the same payment several times.
-SELECT DISTINCT ON (p.provider_payment_id) n.received_at, n.outcome,
-  p.provider_payment_id, c.registration_id, p.amount_cents
-FROM payment_webhook_notifications n
-JOIN registration_payments p ON p.provider_payment_id = n.provider_payment_id
-JOIN registration_checkouts c ON c.id = p.checkout_id
-WHERE n.outcome LIKE 'approved_after_expiry_%'
-ORDER BY p.provider_payment_id, n.received_at DESC;
-```
+automatically. An administrator of the event sees them in the admin panel under
+**Pagos por revisar** (`/admin/events/:eventId/payments-review`, #230): a table
+with one row per Mercado Pago payment (case, person, folio, amount and Mercado
+Pago payment id), below a guide that says what to do for each case. Besides the two
+expiry flags above, it lists `approved_after_confirmation` (paid again for a
+registration already confirmed) and `approved_after_void` (paid for a
+registration voided for another reason). A payment leaves the list once a later
+Mercado Pago notification changes its outcome, for example after a refund. See
+the [flagged payments contract](../contracts/flagged-payments.md).
 
 A duplicate usually means the buyer paid twice (an old OXXO voucher and a new
-purchase): refund one payment in Mercado Pago. Registering a person in cash
+purchase): refund the flagged payment (the id on the screen) in Mercado Pago,
+not the other one. Refunding the payment that confirmed the other registration
+would leave it confirmed with its money returned, because a confirmation is
+never undone. Registering a person in cash
 after their online registration expired is not possible yet, because the
 expired registration still counts as a duplicate; that belongs to #104.
 

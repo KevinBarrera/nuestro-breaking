@@ -13,6 +13,10 @@ describe('readAdminLocation', () => {
   it('matches the other sections exactly', () => {
     expect(readAdminLocation(base)).toEqual({ eventId, section: 'overview' });
     expect(readAdminLocation(`${base}/activities`)).toEqual({ eventId, section: 'activities' });
+    expect(readAdminLocation(`${base}/payments-review`)).toEqual({
+      eventId,
+      section: 'payments-review',
+    });
     expect(readAdminLocation(`${base}/activities/extra`)).toEqual({});
     expect(readAdminLocation(`${base}/passes-archive`)).toEqual({});
     expect(readAdminLocation('/admin')).toEqual({});

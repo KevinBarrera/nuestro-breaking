@@ -1,5 +1,5 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { and, desc, eq, inArray, isNotNull } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNotNull, notInArray } from 'drizzle-orm';
 import { DATABASE_CLIENT } from '@/database/database.constants';
 import { type DatabaseService } from '@/database/database.service';
 import {
@@ -14,6 +14,7 @@ import {
   FLAGGED_PAYMENT_REASONS,
   type FlaggedPaymentReason,
   type FlaggedPayments,
+  UNREAD_PAYMENT_OUTCOMES,
 } from './flagged-payments.types';
 
 @Injectable()
@@ -23,7 +24,8 @@ export class FlaggedPaymentsService {
   /**
    * Lists the event's payments whose latest processed outcome is flagged, newest payment first.
    * A payment notified several times is one row; a payment whose latest outcome is no longer
-   * flagged (for example refunded in Mercado Pago) drops off the list.
+   * flagged (for example refunded in Mercado Pago) drops off the list. A later failed read of the
+   * payment does not count as an outcome.
    */
   async list(eventId: string): Promise<FlaggedPayments> {
     const [event] = await this.db
@@ -39,7 +41,13 @@ export class FlaggedPaymentsService {
         outcome: notifications.outcome,
       })
       .from(notifications)
-      .where(and(isNotNull(notifications.processedAt), isNotNull(notifications.outcome)))
+      .where(
+        and(
+          isNotNull(notifications.processedAt),
+          isNotNull(notifications.outcome),
+          notInArray(notifications.outcome, [...UNREAD_PAYMENT_OUTCOMES]),
+        ),
+      )
       .orderBy(
         notifications.providerPaymentId,
         desc(notifications.processedAt),

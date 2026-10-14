@@ -6,7 +6,7 @@ Test runner: backend Jest unit and PostgreSQL e2e (`pnpm --filter @nuestro-break
 
 ## Specs
 
-- S1 — Issue scope: "an event-scoped admin read endpoint that lists flagged payments of one event, one row per Mercado Pago payment (latest outcome), newest first: when it arrived, the reason, the amount, the Mercado Pago payment id, and the registration (folio when it has one, participant name, status). Same session, CSRF and event-scope rules as the other admin routes." Flagged reasons: `approved_after_expiry_duplicate`, `approved_after_expiry_event_ended`, `approved_after_confirmation`, `approved_after_void`. Assumption: "latest outcome" is the payment's latest processed outcome of any kind, so a payment that is later refunded or confirmed in Mercado Pago drops off the list.
+- S1 — Issue scope: "an event-scoped admin read endpoint that lists flagged payments of one event, one row per Mercado Pago payment (latest outcome), newest first: when it arrived, the reason, the amount, the Mercado Pago payment id, and the registration (folio when it has one, participant name, status). Same session, CSRF and event-scope rules as the other admin routes." Flagged reasons: `approved_after_expiry_duplicate`, `approved_after_expiry_event_ended`, `approved_after_confirmation`, `approved_after_void`. Assumption: "latest outcome" is the payment's latest processed outcome of any kind, so a payment that is later refunded or confirmed in Mercado Pago drops off the list. A failed provider read (`payment_not_found`, `payment_unreadable`) is not an outcome and never hides a flagged payment (verifier advisory 1).
 - S2 — Issue acceptance: "An admin of the event sees every flagged payment of that event once, with reason, amount, payment id and registration; admins of other events and unauthenticated users cannot."
 - S3 — Issue acceptance: "Payments that confirmed a registration normally never appear."
 - S4 — Issue acceptance: "No payer data from Mercado Pago is shown or stored (only what the registration already holds)."
@@ -18,7 +18,7 @@ Test runner: backend Jest unit and PostgreSQL e2e (`pnpm --filter @nuestro-break
 
 | ID  | Specs                  | Route  | Status  | Evidence |
 | --- | ---------------------- | ------ | ------- | -------- |
-| T1  | S1, S2, S3, S4, S6, S7 | inline | pending |          |
+| T1  | S1, S2, S3, S4, S6, S7 | inline | done    | see Log  |
 | T2  | S5, S6, S7             | inline | pending |          |
 
 - T1 — Backend: `GET /admin/events/:eventId/flagged-payments` in `src/payments/review/`, guarded by `authorizeEventAdmin`; PostgreSQL e2e; contract doc.
@@ -30,3 +30,4 @@ Routes: inline (sequential units; no Writer trigger). Risk: T1 item 2 (new admin
 
 - L1 (user, 2026-10-13): "sí, arranquemos con #230"
 - 2026-10-13: mapping. `payment_webhook_notifications` holds only notification id, payment id, times and outcome; amount and registration come from `registration_payments` → `registration_checkouts` → `event_registrations` (+ `participants.full_name`). All four flagged outcomes record the payment (`payment-decision.ts:64`). Template endpoint: `event-sales.controller.ts` (`authorizeEventAdmin`, admins only; GETs skip CSRF). Template e2e: `test/admin-event-sales.e2e-spec.ts`. `PaymentsModule` needs `IdentityAccessModule`. No migration needed.
+- 2026-10-13: T1 done (`f669dd1` + fix commit). `GET /admin/events/:eventId/flagged-payments` in `src/payments/review/`, `authorizeEventAdmin`, `IdentityAccessModule` added to `PaymentsModule`; contract `docs/contracts/flagged-payments.md`. RED (route 404, 4 failed) then GREEN; backend unit 500/500, e2e 398/398; lint, `tsc`, Prettier clean. Verifier: S1–S4, S6 (contract), S7 (backend) met, no blockers. Fixed advisory 1 (a later `payment_unreadable`/`payment_not_found` hid a flagged payment) with a RED test first. Accepted: A2 (`now()` is the transaction start, so two racing writers for one payment could order `processed_at` backwards; the window is tiny and the writers are outside #230), A3 (no `reconciliation:` id in the e2e; the query ignores notification ids), A4 (ties undefined, not realistic). The hook's base-diff candidate since #168 (235 commits) was declined per the review-consent rule.

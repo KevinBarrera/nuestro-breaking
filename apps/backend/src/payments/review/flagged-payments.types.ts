@@ -9,6 +9,12 @@ export const FLAGGED_PAYMENT_REASONS = [
   'approved_after_void',
 ] as const;
 
+/**
+ * Outcomes written when Mercado Pago refused to return the payment. They say nothing about the
+ * payment itself, so they never replace an earlier outcome.
+ */
+export const UNREAD_PAYMENT_OUTCOMES = ['payment_not_found', 'payment_unreadable'] as const;
+
 export type FlaggedPaymentReason = (typeof FLAGGED_PAYMENT_REASONS)[number];
 
 /** One Mercado Pago payment whose latest outcome is flagged. No payer data from Mercado Pago. */

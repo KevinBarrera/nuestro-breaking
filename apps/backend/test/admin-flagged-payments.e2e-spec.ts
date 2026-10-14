@@ -200,6 +200,26 @@ describe('admin flagged payments (e2e)', () => {
     expect(response.body).toEqual({ payments: [] });
   });
 
+  it('keeps a flagged payment listed when a later read of it fails', async () => {
+    const { event } = await fixture();
+    const voided = await registration(event, 'Lectura fallida', 'voided');
+    const ended = await registration(event, 'No encontrado', 'voided');
+    await payment(voided.checkout, '4001', 20, ['approved_after_void', 'payment_unreadable']);
+    await payment(ended.checkout, '4002', 10, [
+      'approved_after_expiry_event_ended',
+      'payment_not_found',
+    ]);
+    const cookie = await session('admin', event);
+
+    const response = await read(event).set('Cookie', cookie).expect(200);
+
+    const { payments } = response.body as FlaggedPayments;
+    expect(payments.map(({ providerPaymentId, reason }) => [providerPaymentId, reason])).toEqual([
+      ['4002', 'approved_after_expiry_event_ended'],
+      ['4001', 'approved_after_void'],
+    ]);
+  });
+
   it('lets a global administrator read any event', async () => {
     const { event } = await fixture();
     const voided = await registration(event, 'Global', 'voided');

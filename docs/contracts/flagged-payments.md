@@ -5,7 +5,7 @@ This contract describes the admin list of Mercado Pago payments that the system 
 ## Current answer
 
 - The Mercado Pago payment webhook (#177) and the payment reconciliation sweep (#181) store every Mercado Pago payment they read. When an approved payment cannot confirm its registration, its notification `outcome` flags it for manual review.
-- The list shows **one row per Mercado Pago payment**: the payment's **latest processed outcome**, across all its notifications. A payment appears only while that latest outcome is flagged. If a later notification gives it another outcome (for example `payment_refunded` after coordination refunds it in Mercado Pago), it drops off the list.
+- The list shows **one row per Mercado Pago payment**: the payment's **latest processed outcome**, across all its notifications. A payment appears only while that latest outcome is flagged. If a later notification gives it another outcome (for example `payment_refunded` after coordination refunds it in Mercado Pago), it drops off the list. A later failed read of the payment (`payment_not_found`, `payment_unreadable`) is not an outcome of the payment, so it never hides a flagged one.
 - Payments that confirmed a registration normally (`confirmed`, `confirmed_after_expiry`, `already_confirmed`) and payments that were never approved never appear.
 - No payer data from Mercado Pago is stored or shown. The row only carries what the registration already holds.
 

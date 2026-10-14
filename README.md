@@ -133,6 +133,16 @@ Initial migration artifacts are committed under `apps/backend/drizzle`.
 
 Hosted environments have no development dependencies, so `drizzle-kit` is not available there. After `pnpm --filter @nuestro-breaking/backend build`, the compiled command applies the same migrations with plain `node` (`node dist/scripts/migrate-database.js` from `apps/backend`, or `pnpm --filter @nuestro-breaking/backend db:migrate:prod`). It shares the migration journal with `drizzle-kit migrate`, takes a lock so overlapping deploys apply each migration once, and on failure prints one line with the PostgreSQL or connection error code and its cause, then exits non-zero.
 
+## Backend Docker image
+
+Hosted environments run the backend from `apps/backend/Dockerfile` (Node 24.18.1 on Debian slim, production dependencies only, runs as the `node` user). Build it from the repository root:
+
+```bash
+docker build -f apps/backend/Dockerfile -t nuestro-breaking-backend .
+```
+
+The image starts the API with `node dist/src/main.js` and listens on `0.0.0.0:3000` (override with `PORT`). It sets `NODE_ENV=production`, so the API docs are off and the email and payment variables are required at startup. Run `node dist/scripts/migrate-database.js` before each deploy and `node dist/scripts/bootstrap-admin.js` once per environment. `.dockerignore` is an allowlist: only the workspace manifests and `apps/backend` reach the build, never `.env` files or tests.
+
 ## Frontend
 
 Run the React frontend in development mode:
@@ -140,6 +150,19 @@ Run the React frontend in development mode:
 ```bash
 pnpm dev:frontend
 ```
+
+### Cloudflare hosting
+
+Hosted environments serve the Vite build as Cloudflare Workers static assets (`apps/frontend/wrangler.jsonc`): production deploys the `los-mas-pesados-web` Worker with `npx wrangler@4.144.0 deploy --env=""`, and staging deploys `los-mas-pesados-web-staging` with `--env=staging`. Unknown paths return `index.html`, so the React router handles deep links and page reloads.
+
+Vite inlines these build variables, so set them in each Worker's Workers Builds settings (build variables, not runtime variables):
+
+| Variable                 | Required | Meaning                                                                                       |
+| ------------------------ | -------- | --------------------------------------------------------------------------------------------- |
+| `VITE_API_BASE_URL`      | Yes      | Backend origin, HTTPS with no path or trailing slash (for example `https://api.example.com`). |
+| `VITE_PUBLIC_EVENT_SLUG` | No       | Event sold at `/`. Unset means no event is on sale at the root address.                       |
+
+Cloudflare builds set `WORKERS_CI=1`; with it, `vite build` fails when `VITE_API_BASE_URL` is missing or is not a bare HTTPS origin, instead of shipping a site that calls `http://localhost:3000`. Local and CI builds are unchanged.
 
 Optional frontend variables (read by Vite from `apps/frontend/.env` or the shell at dev and build time):
 

@@ -121,7 +121,7 @@ The limit keys on Express `req.ip`. Behind reverse proxies, `req.ip` is the last
 | `TRUST_PROXY_HOPS` | `0`     | Reverse proxies in front of the API, `0` to `5`. `0` sets no `trust proxy`. |
 
 - Each proxy appends the address it received the request from to `X-Forwarded-For`. With `N` hops, `req.ip` is the `N`th entry from the right: the client the outermost proxy saw. Entries a client prepends stay to the left and are ignored.
-- Deployment values: `1` behind Railway's edge proxy alone, `2` with the Cloudflare proxy in front of Railway.
+- Deployment values: `1` behind Railway's edge proxy alone, `2` with the Cloudflare proxy in front of Railway. Railway does not document how its edge handles `X-Forwarded-For`, so confirm the value on each deployment with the [client IP check](../runbooks/deploy.md#client-ip-check).
 - The value must match the real proxy chain. Too low and buyers share a proxy's counter; too high and a client can choose its own address by sending `X-Forwarded-For`.
 - Any other value stops the API at startup. Blank uses the default.
 

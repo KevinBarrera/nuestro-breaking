@@ -4,6 +4,8 @@
 
 Accepted on 2026-10-11. The product owner chose the platforms. Prices were checked on that date.
 
+Amended on 2026-10-14 (#238): concrete hostnames under the organizer's domain, the frontend on Workers static assets, Railway settings in the dashboard, and the nameserver move. See [Amendment 2026-10-14](#amendment-2026-10-14). The setup steps are in the [deploy runbook](../runbooks/deploy.md).
+
 ## Context
 
 The project needs a staging and a production environment, and it runs on a non-profit budget. Staging must have the same shape as production, so that a free tier for staging does not hide what production will cost.
@@ -36,12 +38,12 @@ TLS has two legs, and both certificates are free and renew automatically:
 
 Universal SSL covers the apex domain and first-level subdomains only. A deeper name such as `api.staging.[domain]` gets no valid certificate unless a paid add-on is bought. Every hostname therefore stays at the first level:
 
-| Environment | Frontend           | Backend                |
-| ----------- | ------------------ | ---------------------- |
-| Production  | `[domain]`         | `api.[domain]`         |
-| Staging     | `staging.[domain]` | `staging-api.[domain]` |
+| Environment | Frontend                       | Backend                            |
+| ----------- | ------------------------------ | ---------------------------------- |
+| Production  | `boletos.losmaspesados.com.mx` | `api.losmaspesados.com.mx`         |
+| Staging     | `staging.losmaspesados.com.mx` | `staging-api.losmaspesados.com.mx` |
 
-Both environments stay under the same registrable domain, which the admin session cookie requires.
+Both environments stay under the same registrable domain, which the admin session cookie requires. The admin panel is served by the same frontend, under `/admin`.
 
 Cloudflare's SSL/TLS encryption mode is **Full**, as Railway recommends:
 
@@ -100,6 +102,16 @@ The hard limit applies to the whole workspace, not to one project. If staging an
 - Hosted environments need a supported way to create the first administrator, because `admin:provision` refuses to run outside a local database (#214). `admin:bootstrap` covers this; see the [admin bootstrap runbook](../runbooks/admin-bootstrap.md).
 - Socket.IO ([ADR 0004](0004-realtime-transport.md)) keeps working on Railway, because the backend is a normal Node process.
 
+## Amendment 2026-10-14
+
+Decided while preparing the first deploy (#238):
+
+- **Hostnames.** The organizer's domain `losmaspesados.com.mx` hosts the system on subdomains; this system does not use the apex. Production uses `boletos.` for the frontend and `api.` for the backend; staging uses `staging.` and `staging-api.` (table above). All of them are first-level names, so Universal SSL covers them.
+- **Nameservers move to Cloudflare.** Workers custom domains and the Cloudflare proxy in front of the backend both require the domain to use Cloudflare's nameservers. The existing records, mail records above all, are imported and checked before the switch.
+- **Frontend on Workers static assets, not Pages.** `apps/frontend/wrangler.jsonc` defines one Worker per environment with no Worker script and single-page-application fallback, built and deployed by Workers Builds. It stays on the free plan, because requests for static assets are free.
+- **Railway settings live in the dashboard.** Railway's Config as Code (`railway.json`) is deprecated, so the service settings (Dockerfile path, pre-deploy migration command, healthcheck path, watch paths) are recorded in the deploy runbook instead of the repository.
+- **The backend image** is `apps/backend/Dockerfile`, built from the repository root. Migrations run as Railway's pre-deploy command with `node dist/scripts/migrate-database.js`, and the first administrator is created with `node dist/scripts/bootstrap-admin.js`; neither needs development dependencies.
+
 ## Sources
 
 - Railway plans: https://docs.railway.com/pricing/plans
@@ -109,3 +121,8 @@ The hard limit applies to the whole workspace, not to one project. If staging an
 - Railway SSL troubleshooting with Cloudflare: https://docs.railway.com/networking/troubleshooting/ssl
 - Cloudflare Containers pricing: https://developers.cloudflare.com/containers/pricing/
 - Neon pricing: https://neon.com/pricing
+- Railway pre-deploy command: https://docs.railway.com/deployments/pre-deploy-command
+- Railway healthchecks: https://docs.railway.com/deployments/healthchecks
+- Railway public networking request headers: https://docs.railway.com/networking/public-networking/specs-and-limits
+- Cloudflare Workers static assets, single-page applications: https://developers.cloudflare.com/workers/static-assets/routing/single-page-application/
+- Cloudflare Workers Builds configuration: https://developers.cloudflare.com/workers/ci-cd/builds/configuration/

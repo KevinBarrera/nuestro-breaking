@@ -12,6 +12,7 @@ import {
   Res,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
+import { parseOffsetDateTime } from '@/events/sales/date-time';
 import { SessionAccessService } from '@/identity-access/session-access.service';
 import { PassTypeAdminService } from './pass-type-admin.service';
 import type {
@@ -56,6 +57,13 @@ function requiredClass(value: unknown): RequiredPassClass | null {
     throw new BadRequestException('Invalid required pass class');
   return value as RequiredPassClass;
 }
+// An offset ISO date-time, or null to follow the event's sales window (#240).
+function closeTime(value: unknown): Date | null {
+  if (value === null) return null;
+  const date = typeof value === 'string' ? parseOffsetDateTime(value) : null;
+  if (!date) throw new BadRequestException('Invalid online sales close time');
+  return date;
+}
 function version(value: unknown): number {
   if (!Number.isSafeInteger(value) || (value as number) <= 0 || (value as number) > MAX_INT)
     throw new BadRequestException('Invalid expected version');
@@ -83,6 +91,7 @@ const fields = {
   passClass,
   priceCents: price,
   requiresPassClass: requiredClass,
+  onlineSalesClosesAt: closeTime,
 };
 
 @Controller('admin/events')
@@ -119,6 +128,10 @@ export class PassTypeAdminController {
         input.requiresPassClass === undefined
           ? null
           : fields.requiresPassClass(input.requiresPassClass),
+      onlineSalesClosesAt:
+        input.onlineSalesClosesAt === undefined
+          ? null
+          : fields.onlineSalesClosesAt(input.onlineSalesClosesAt),
       activities: input.activities === undefined ? [] : accessList(input.activities),
     };
     return this.catalog.create(eventId, draft, actor);

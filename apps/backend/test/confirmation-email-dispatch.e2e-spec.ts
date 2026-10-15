@@ -101,7 +101,7 @@ describe('Confirmation email dispatch (e2e)', () => {
   const mode = () => process.env.MERCADO_PAGO_MODE ?? 'sandbox';
 
   /** A pending online registration with a full pass (two competitions) and an add-on (none). */
-  async function pendingRegistration(email: string | null = EMAIL) {
+  async function pendingRegistration(email: string | null = EMAIL, chargeCents = 0) {
     const [{ id: org }] = await client<
       { id: string }[]
     >`INSERT INTO organizations (name) VALUES ('Org') RETURNING id`;
@@ -137,16 +137,17 @@ describe('Confirmation email dispatch (e2e)', () => {
         VALUES (${eventId}, ${fullPass}, ${activity.id})`;
     await client`INSERT INTO event_registration_passes (event_id, event_registration_id, pass_type_id, price_cents)
       VALUES (${eventId}, ${id}, ${addOn.id}, ${ADD_ON_CENTS})`;
-    await client`INSERT INTO registration_checkouts (registration_id, mode, preference_id, amount_cents, currency)
-      VALUES (${id}, ${mode()}, 'pref-fake-1', ${FULL_CENTS + ADD_ON_CENTS}, 'MXN')`;
+    await client`INSERT INTO registration_checkouts (registration_id, mode, preference_id, amount_cents,
+        service_charge_cents, currency)
+      VALUES (${id}, ${mode()}, 'pref-fake-1', ${FULL_CENTS + ADD_ON_CENTS + chargeCents}, ${chargeCents}, 'MXN')`;
     return id;
   }
 
-  function setPayment(registrationId: string, status = 'approved') {
+  function setPayment(registrationId: string, status = 'approved', chargeCents = 0) {
     payments.set(PAYMENT_ID, {
       id: PAYMENT_ID,
       status,
-      transactionAmountCents: FULL_CENTS + ADD_ON_CENTS,
+      transactionAmountCents: FULL_CENTS + ADD_ON_CENTS + chargeCents,
       currencyId: 'MXN',
       externalReference: registrationId,
     });
@@ -271,6 +272,20 @@ describe('Confirmation email dispatch (e2e)', () => {
         sent: true,
       }),
     ]);
+  });
+
+  it('adds a payment summary with the service charge for an online purchase (#239)', async () => {
+    const id = await pendingRegistration(EMAIL, 10190);
+    setPayment(id, 'approved', 10190);
+
+    await notify(1001);
+
+    expect((await registrationRow(id)).status).toBe('confirmed');
+    expect(sent).toHaveLength(1);
+    expect(sent[0].text).toContain(
+      'Resumen de pago:\nPases: $2,300.50\nCargo por servicio: $101.90\nTotal pagado: $2,402.40 MXN',
+    );
+    expect(sent[0].text).not.toContain(PAYMENT_ID);
   });
 
   it('sends once across concurrent, retried and different notifications of the same payment', async () => {

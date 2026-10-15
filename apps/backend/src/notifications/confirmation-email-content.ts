@@ -16,6 +16,11 @@ export interface ConfirmationEmailInput {
   eventStartsAt: Date | null;
   folio: string;
   passes: ConfirmationEmailPass[];
+  /**
+   * What an online buyer paid (#239): the passes and the service charge of the approved payment's
+   * checkout. Null for cash and manual registrations, which show no amounts.
+   */
+  payment: { passesCents: number; serviceChargeCents: number } | null;
 }
 
 export interface ConfirmationEmailContent {
@@ -25,8 +30,9 @@ export interface ConfirmationEmailContent {
 }
 
 /**
- * Renders the Spanish confirmation email (#179 D4). It never shows amounts, payment ids, the
- * payment method or the buyer's address. Every interpolated value is escaped in the HTML body,
+ * Renders the Spanish confirmation email (#179 D4). Amounts appear only in the payment summary of an
+ * online purchase with a service charge (#239); it never shows payment ids, the payment method or
+ * the buyer's address. Every interpolated value is escaped in the HTML body,
  * because names come from buyers and admins. The HTML uses inline styles and no external assets.
  */
 export function buildConfirmationEmail(input: ConfirmationEmailInput): ConfirmationEmailContent {
@@ -38,6 +44,20 @@ export function buildConfirmationEmail(input: ConfirmationEmailInput): Confirmat
 }
 
 const ENTRANCE_LINE = 'Muestra este folio en la entrada del evento para recibir tu acceso.';
+
+const MXN = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' });
+
+/** Payment summary rows, or none when nothing was charged on top of the passes. */
+function paymentRows(input: ConfirmationEmailInput): [string, string][] {
+  const payment = input.payment;
+  if (!payment || payment.serviceChargeCents <= 0) return [];
+  const total = payment.passesCents + payment.serviceChargeCents;
+  return [
+    ['Pases', MXN.format(payment.passesCents / 100)],
+    ['Cargo por servicio', MXN.format(payment.serviceChargeCents / 100)],
+    ['Total pagado', `${MXN.format(total / 100)} MXN`],
+  ];
+}
 
 function textBody(input: ConfirmationEmailInput, name: string, date: string | null): string {
   const lines = [
@@ -52,6 +72,9 @@ function textBody(input: ConfirmationEmailInput, name: string, date: string | nu
     lines.push(`- ${pass.name}`);
     if (pass.competitions.length > 0) lines.push(`  Competencias: ${pass.competitions.join(', ')}`);
   }
+  const rows = paymentRows(input);
+  if (rows.length > 0)
+    lines.push('', 'Resumen de pago:', ...rows.map(([label, amount]) => `${label}: ${amount}`));
   lines.push('', `¡Nos vemos en ${input.eventName}!`);
   return lines.join('\n');
 }
@@ -67,6 +90,19 @@ function htmlBody(input: ConfirmationEmailInput, name: string, date: string | nu
       return `<li style="margin:0 0 8px;"><strong>${escapeHtml(pass.name)}</strong>${competitions}</li>`;
     })
     .join('');
+  const rows = paymentRows(input);
+  const summary =
+    rows.length > 0
+      ? [
+          '<p style="margin:0 0 8px;font-weight:bold;">Resumen de pago</p>',
+          '<table role="presentation" style="width:100%;margin:0 0 16px;border-collapse:collapse;">',
+          ...rows.map(
+            ([label, amount], index) =>
+              `<tr${index === rows.length - 1 ? ' style="font-weight:bold;border-top:1px solid #dddddd;"' : ''}><td style="padding:4px 0;">${escapeHtml(label)}</td><td style="padding:4px 0;text-align:right;">${escapeHtml(amount)}</td></tr>`,
+          ),
+          '</table>',
+        ].join('\n')
+      : '';
   const dateLine = date
     ? `<p style="margin:0 0 16px;"><strong>Fecha:</strong> ${escapeHtml(date)}</p>`
     : '';
@@ -85,6 +121,7 @@ function htmlBody(input: ConfirmationEmailInput, name: string, date: string | nu
     '</div>',
     '<p style="margin:0 0 8px;font-weight:bold;">Tus pases</p>',
     `<ul style="margin:0 0 16px;padding-left:20px;">${passes}</ul>`,
+    summary,
     `<p style="margin:0;">¡Nos vemos en ${event}!</p>`,
     '</div>',
     '</body></html>',

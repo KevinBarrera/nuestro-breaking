@@ -72,6 +72,14 @@ Two optional settings control how long an online buyer has to pay ([#181](https:
 | `PENDING_EXPIRY_SWEEP_INTERVAL_MS` | `300000`            | How often, in milliseconds, expired online pending registrations are voided and their Mercado Pago payments searched once: `0` (off) or 1000 to 86400000. Default `300000` (5 min). A purchase or checkout also voids what is due. |
 | `PENDING_PAYMENT_HOURS`            | `72`                | Hours an offline payment (OXXO, SPEI) stays payable after each checkout, from 1 to 720. Default `72`, the minimum Mercado Pago recommends. The pending registration expires one day later.                                         |
 
+Online buyers pay the Mercado Pago fee as a separate "Cargo por servicio" ([#239](https://github.com/KevinBarrera/nuestro-breaking/issues/239)). Cash and manual registrations do not. The charge grosses the pass total up so the organizer keeps the full price: `total = (price + fixed × (1 + VAT)) / (1 − rate × (1 + VAT))`, rounded up to the cent. These three are required; copy the rates from the organizer's Mercado Pago costs page:
+
+| Variable                            | Example placeholder | Meaning                                                                            |
+| ----------------------------------- | ------------------- | ---------------------------------------------------------------------------------- |
+| `ONLINE_SERVICE_CHARGE_PERCENT`     | `3.49`              | Mercado Pago's percentage fee before VAT, 0 to 49.99, at most two decimals.        |
+| `ONLINE_SERVICE_CHARGE_FIXED_MXN`   | `4.00`              | Mercado Pago's fixed fee per payment in MXN before VAT, 0 to 1000.                 |
+| `ONLINE_SERVICE_CHARGE_VAT_PERCENT` | `16`                | VAT Mercado Pago charges on its fee, 0 to 100. Set `0` on all three for no charge. |
+
 The webhook endpoint is `POST /public/payments/mercado-pago/webhook`; Mercado Pago must reach it over public HTTPS, so local sandbox testing needs a tunnel. Follow the [Mercado Pago sandbox runbook](docs/runbooks/mercado-pago-sandbox.md) for a complete test purchase.
 
 The webhook secret belongs to the account that owns the access token: in sandbox that is the test seller, not the account that created the application.

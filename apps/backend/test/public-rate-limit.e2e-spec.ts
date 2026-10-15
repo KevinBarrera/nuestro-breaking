@@ -171,4 +171,75 @@ describe('public rate limit and CORS (e2e)', () => {
       await fromClient('203.0.113.11, 172.64.0.1').expect(404);
     });
   });
+
+  describe('client address source (CLIENT_IP_SOURCE)', () => {
+    const SECRET = 'cloudflare-origin-secret-0123456789';
+    // The throttler reads its config from process.env when the app boots.
+    const rebootWithSource = async (env: Record<string, string>) => {
+      Object.assign(process.env, env);
+      await reboot({ TRUST_PROXY_HOPS: '1' });
+    };
+    afterEach(() => {
+      delete process.env.CLIENT_IP_SOURCE;
+      delete process.env.CLOUDFLARE_ORIGIN_SECRET;
+    });
+    const withHeaders = (headers: Record<string, string>) => {
+      const call = request(app.getHttpServer()).get(CATALOG);
+      for (const [name, value] of Object.entries(headers)) call.set(name, value);
+      return call;
+    };
+    const exhaustWith = async (headers: Record<string, string>) => {
+      for (let i = 0; i < LIMIT; i += 1) {
+        await withHeaders(headers).expect(404);
+      }
+    };
+
+    it('with x-real-ip, a forged X-Forwarded-For cannot pick a new counter', async () => {
+      await rebootWithSource({ CLIENT_IP_SOURCE: 'x-real-ip' });
+      await exhaustWith({ 'X-Real-IP': '203.0.113.10', 'X-Forwarded-For': '198.51.100.1' });
+
+      await withHeaders({ 'X-Real-IP': '203.0.113.10', 'X-Forwarded-For': '198.51.100.2' }).expect(
+        429,
+      );
+      await withHeaders({ 'X-Real-IP': '203.0.113.11', 'X-Forwarded-For': '198.51.100.1' }).expect(
+        404,
+      );
+    });
+
+    it('with cloudflare and the origin secret, counts CF-Connecting-IP', async () => {
+      await rebootWithSource({ CLIENT_IP_SOURCE: 'cloudflare', CLOUDFLARE_ORIGIN_SECRET: SECRET });
+      const viaCloudflare = (client: string, edge: string) => ({
+        'X-Origin-Secret': SECRET,
+        'CF-Connecting-IP': client,
+        'X-Real-IP': edge,
+      });
+      await exhaustWith(viaCloudflare('203.0.113.10', '172.64.0.1'));
+
+      await withHeaders(viaCloudflare('203.0.113.10', '172.64.0.2')).expect(429);
+      await withHeaders(viaCloudflare('203.0.113.11', '172.64.0.1')).expect(404);
+    });
+
+    it('with cloudflare, a request without the secret cannot choose its address', async () => {
+      await rebootWithSource({ CLIENT_IP_SOURCE: 'cloudflare', CLOUDFLARE_ORIGIN_SECRET: SECRET });
+      // Bypassing Cloudflare: forged CF-Connecting-IP, Railway's X-Real-IP is the real client.
+      await exhaustWith({ 'CF-Connecting-IP': '198.51.100.1', 'X-Real-IP': '203.0.113.10' });
+
+      await withHeaders({ 'CF-Connecting-IP': '198.51.100.2', 'X-Real-IP': '203.0.113.10' }).expect(
+        429,
+      );
+      await withHeaders({
+        'X-Origin-Secret': 'wrong-secret-wrong-secret-wrong-secret',
+        'CF-Connecting-IP': '198.51.100.3',
+        'X-Real-IP': '203.0.113.10',
+      }).expect(429);
+    });
+
+    it('refuses to boot with an unknown source', async () => {
+      process.env.CLIENT_IP_SOURCE = 'forwarded';
+
+      await expect(reboot({})).rejects.toThrow(
+        'CLIENT_IP_SOURCE must be "request", "x-real-ip" or "cloudflare" (got "forwarded").',
+      );
+    });
+  });
 });

@@ -114,16 +114,20 @@ Public controllers use `@PublicRateLimit()` (`apps/backend/src/http/public-rate-
 
 ### Client address behind reverse proxies
 
-The limit keys on Express `req.ip`. Behind reverse proxies, `req.ip` is the last proxy's address unless Express `trust proxy` is set, so every buyer would share one counter. `TRUST_PROXY_HOPS` sets it to a hop count:
+The limit counts requests per client address. `CLIENT_IP_SOURCE` picks where that address comes from:
 
-| Variable           | Default | Meaning                                                                     |
-| ------------------ | ------- | --------------------------------------------------------------------------- |
-| `TRUST_PROXY_HOPS` | `0`     | Reverse proxies in front of the API, `0` to `5`. `0` sets no `trust proxy`. |
+| Variable                   | Default   | Meaning                                                                                                               |
+| -------------------------- | --------- | --------------------------------------------------------------------------------------------------------------------- |
+| `CLIENT_IP_SOURCE`         | `request` | `request`, `x-real-ip` or `cloudflare` (below).                                                                       |
+| `CLOUDFLARE_ORIGIN_SECRET` | none      | Required with `cloudflare`, at least 32 characters. The value a Cloudflare Transform Rule sends as `X-Origin-Secret`. |
+| `TRUST_PROXY_HOPS`         | `0`       | With `request` only: reverse proxies in front of the API, `0` to `5`. `0` sets no Express `trust proxy`.              |
 
-- Each proxy appends the address it received the request from to `X-Forwarded-For`. With `N` hops, `req.ip` is the `N`th entry from the right: the client the outermost proxy saw. Entries a client prepends stay to the left and are ignored.
-- Deployment values: `1` behind Railway's edge proxy alone, `2` with the Cloudflare proxy in front of Railway. Railway does not document how its edge handles `X-Forwarded-For`, so confirm the value on each deployment with the [client IP check](../runbooks/deploy.md#client-ip-check).
-- The value must match the real proxy chain. Too low and buyers share a proxy's counter; too high and a client can choose its own address by sending `X-Forwarded-For`.
-- Any other value stops the API at startup. Blank uses the default.
+- **`request`** (local and tests): Express `req.ip`. Each proxy appends the address it received the request from to `X-Forwarded-For`; with `N` trusted hops, `req.ip` is the `N`th entry from the right and entries a client prepends are ignored. This holds only when every proxy appends. Too low and buyers share a proxy's counter; too high and a client can choose its own address.
+- **`x-real-ip`** (Railway alone): the `X-Real-IP` header Railway's edge sets. Railway's edge passes a client-sent `X-Forwarded-For` through, so with `request` and one hop a client could pick a new counter on every request (staging check on 2026-10-15).
+- **`cloudflare`** (Cloudflare proxy in front of Railway): `CF-Connecting-IP`, but only when the request carries `X-Origin-Secret` equal to `CLOUDFLARE_ORIGIN_SECRET`, compared in constant time. A Cloudflare request header Transform Rule adds that header. A request without it reached Railway without going through Cloudflare, so its `CF-Connecting-IP` is ignored and Railway's `X-Real-IP` is used.
+- In every mode, a missing or malformed header falls back to the next source (`CF-Connecting-IP`, then `X-Real-IP`, then `req.ip`).
+- Any other value, or `cloudflare` without a long enough secret, stops the API at startup. Error messages never include the secret. Blank values use the defaults.
+- Confirm the setting on each deployment with the [client IP check](../runbooks/deploy.md#client-ip-check).
 
 ## Known gaps
 

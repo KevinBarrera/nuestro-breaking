@@ -15,6 +15,8 @@ export const breaking: PublicPass = {
   passClass: 'full',
   priceCents: 200000,
   requiresPassClass: null,
+  onlineSalesClosesAt: null,
+  onSale: true,
   selectableActivities: [activity('bboy', 'Bboy'), activity('bgirl', 'Bgirl')],
   includedActivities: [],
 };
@@ -32,6 +34,8 @@ export const general: PublicPass = {
   passClass: 'general',
   priceCents: 100000,
   requiresPassClass: null,
+  onlineSalesClosesAt: null,
+  onSale: true,
   selectableActivities: [],
   includedActivities: [],
 };
@@ -42,6 +46,8 @@ export const openStyles: PublicPass = {
   passClass: 'add_on',
   priceCents: 80000,
   requiresPassClass: 'full',
+  onlineSalesClosesAt: null,
+  onSale: true,
   selectableActivities: [],
   includedActivities: [activity('open-1v1', 'Competencia 1vs1')],
 };

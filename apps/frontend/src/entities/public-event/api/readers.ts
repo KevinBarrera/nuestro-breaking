@@ -56,6 +56,8 @@ function isPublicPass(value: unknown): value is PublicPass {
     oneOf(publicPassClasses, row.passClass) &&
     cents(row.priceCents) &&
     (row.requiresPassClass === null || oneOf(publicPassClasses, row.requiresPassClass)) &&
+    instantOrNull(row.onlineSalesClosesAt) &&
+    typeof row.onSale === 'boolean' &&
     listOf(row.selectableActivities, isPublicActivity) &&
     listOf(row.includedActivities, isPublicActivity)
   );

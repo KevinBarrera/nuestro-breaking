@@ -32,6 +32,8 @@ const catalog = {
       passClass: 'add_on',
       priceCents: 80000,
       requiresPassClass: 'full',
+      onlineSalesClosesAt: '2026-11-17T15:00:00.000Z',
+      onSale: true,
       selectableActivities: [],
       includedActivities: [activity],
     },
@@ -94,6 +96,10 @@ describe('isPublicCatalog', () => {
         passes: [{ ...pass, selectableActivities: [{ ...activity, endsAt: null }] }],
       }),
     ).toBe(false);
+    expect(isPublicCatalog({ ...catalog, passes: [{ ...pass, onSale: undefined }] })).toBe(false);
+    expect(isPublicCatalog({ ...catalog, passes: [{ ...pass, onlineSalesClosesAt: 'x' }] })).toBe(
+      false,
+    );
     expect(isPublicCatalog({ ...catalog, passes: null })).toBe(false);
     expect(isPublicCatalog(null)).toBe(false);
   });
@@ -170,6 +176,10 @@ describe('readFailure', () => {
     expect(readFailure(409, { code: 'general_with_full' })).toEqual({
       kind: 'rule',
       code: 'general_with_full',
+    });
+    expect(readFailure(409, { code: 'pass_type_sales_closed' })).toEqual({
+      kind: 'rule',
+      code: 'pass_type_sales_closed',
     });
     expect(readFailure(409, { code: 'registration_unavailable' })).toEqual({
       kind: 'unavailable',

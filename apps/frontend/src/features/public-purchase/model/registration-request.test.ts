@@ -2,7 +2,7 @@ import { legalDocuments } from '@/shared/config';
 import { describe, expect, it } from 'vitest';
 import { emptyBuyerForm } from './buyer-form';
 import { buildRegistrationRequest, failureMessage, serverErrors } from './registration-request';
-import { catalogPasses } from './test-fixtures';
+import { breaking, catalogPasses, openStyles } from './test-fixtures';
 
 const buyer = {
   ...emptyBuyerForm,
@@ -107,6 +107,21 @@ describe('serverErrors for legal documents', () => {
   });
 });
 
+describe("a pass that closes on the buyer's clock (#240)", () => {
+  it('is still sent, so the server answers why it cannot be bought', () => {
+    const lapsed = { ...breaking, onlineSalesClosesAt: '2000-01-01T00:00:00.000Z' };
+    const request = buildRegistrationRequest(
+      [lapsed, openStyles],
+      { passTypeIds: [lapsed.id, openStyles.id], selectedActivityIds: { [lapsed.id]: ['bboy'] } },
+      buyer,
+    );
+    expect(request.passes).toEqual([
+      { passTypeId: lapsed.id, selectedActivityIds: ['bboy'] },
+      { passTypeId: openStyles.id },
+    ]);
+  });
+});
+
 describe('failureMessage', () => {
   it('explains every failure in Spanish', () => {
     expect(failureMessage({ kind: 'sales-closed', reason: 'ended' })).toBe(
@@ -114,6 +129,9 @@ describe('failureMessage', () => {
     );
     expect(failureMessage({ kind: 'rule', code: 'general_with_full' })).toBe(
       'La entrada general ya está incluida en los pases completos. Quítala para continuar.',
+    );
+    expect(failureMessage({ kind: 'rule', code: 'pass_type_sales_closed' })).toBe(
+      'La venta en línea de uno de tus pases ya cerró. Vuelve a elegir tus pases.',
     );
     expect(failureMessage({ kind: 'unavailable' })).toBe(
       'No podemos completar esta inscripción en línea. Comunícate con la organización.',

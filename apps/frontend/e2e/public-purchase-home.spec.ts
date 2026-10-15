@@ -7,6 +7,7 @@ import {
   draftKey,
   eventName,
   mockPublicCatalog,
+  openCatalog,
   slug,
 } from './support/public-mocks.ts';
 
@@ -143,6 +144,27 @@ test.describe('public passes', () => {
     await expect(pass(page, 'Open Styles')).not.toBeChecked();
     await expect(pass(page, 'Open Styles')).toBeDisabled();
     await expect(bar.getByRole('button', { name: 'Continuar' })).toBeDisabled();
+  });
+
+  test('shows a pass whose online sales closed as not available (#240)', async ({ page }) => {
+    await mockPublicCatalog(
+      page,
+      catalogReply({
+        ...openCatalog,
+        passes: openCatalog.passes.map((entry) =>
+          entry.id === 'general'
+            ? { ...entry, onSale: false, onlineSalesClosesAt: '2026-11-17T15:00:00.000Z' }
+            : entry,
+        ),
+      }),
+    );
+    await page.goto(passes);
+    await expect(pass(page, 'Entrada general')).toBeDisabled();
+    await expect(pass(page, 'Entrada general')).toHaveAccessibleDescription(
+      /Venta en línea cerrada/,
+    );
+    await pass(page, 'Pase completo Breaking').check();
+    await expect(bottomBar(page).getByText('1 pase')).toBeVisible();
   });
 
   test('keeps the chosen passes after a reload', async ({ page }) => {

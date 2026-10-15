@@ -8,6 +8,8 @@ const pass = (id: string, competitions: number): PublicPass => ({
   passClass: competitions > 0 ? 'full' : 'general',
   priceCents: 100000,
   requiresPassClass: null,
+  onlineSalesClosesAt: null,
+  onSale: true,
   selectableActivities: Array.from({ length: competitions }, (_, index) => ({
     id: `${id}-${index}`,
     name: `${id} ${index}`,

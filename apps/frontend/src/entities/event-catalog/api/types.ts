@@ -38,6 +38,8 @@ export type CatalogPassType = {
   passClass: PassClass;
   priceCents: number;
   requiresPassClass: RequiredPassClass | null;
+  // When online sales of this pass close (#240); null follows the event's sales window.
+  onlineSalesClosesAt: string | null;
   status: CatalogStatus;
   version: number;
   activities: PassTypeActivity[];
@@ -48,6 +50,7 @@ export type PassTypeInput = {
   passClass: PassClass;
   priceCents: number;
   requiresPassClass: RequiredPassClass | null;
+  onlineSalesClosesAt: string | null;
 };
 
 // Creating a pass may also set its access in the same POST; later changes use the PUT.

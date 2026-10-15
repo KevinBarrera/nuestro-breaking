@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { mockEventTimeZone } from './support/event-mocks.ts';
 
 // Pass screens have their own routes: a list, a create screen and a detail screen per pass.
 const eventId = 'a1b2c3d4-1234-4567-89ab-123456789abc';
@@ -17,6 +18,7 @@ const fullPass = {
   passClass: 'full',
   priceCents: 150000,
   requiresPassClass: null,
+  onlineSalesClosesAt: null,
   status: 'active',
   version: 2,
   activities: [{ activityId: battleId, access: 'selectable' }],
@@ -42,6 +44,7 @@ const createdPass = {
 };
 
 async function mockCatalog(page: Page, rows: () => unknown[]) {
+  await mockEventTimeZone(page, eventId);
   await page.route(
     (url) => api(url) && url.pathname === '/auth/session',
     (route) =>

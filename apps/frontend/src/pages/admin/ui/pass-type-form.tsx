@@ -1,5 +1,6 @@
 import {
   centsToInput,
+  fromZonedInput,
   parseMxnToCents,
   passClasses,
   requiredPassClasses,
@@ -7,15 +8,19 @@ import {
   type PassClass,
   type PassTypeInput,
   type RequiredPassClass,
+  toZonedInput,
 } from '@/entities/event-catalog';
 import { ConfirmDialog, Select } from '@/shared/ui';
 import { type FormEvent, type ReactNode, useEffect, useId, useState } from 'react';
 import { passClassLabels, styles } from './catalog-copy';
+import { DateField } from './date-field';
 import { passFieldRows } from './pass-changes';
 
 type PassTypeFormProps = {
   title: string;
   passType?: CatalogPassType;
+  // The event's IANA time zone: the online close time is entered on the event's clock (#240).
+  timeZone: string;
   busy: boolean;
   // A valid submit that changes something; the screen reviews it before saving.
   onSubmit: (input: PassTypeInput) => void;
@@ -41,6 +46,7 @@ const requiredOptions = [
 export function PassTypeForm({
   title,
   passType,
+  timeZone,
   busy,
   onSubmit,
   onCancel,
@@ -57,7 +63,13 @@ export function PassTypeForm({
   const [requires, setRequires] = useState<RequiredPassClass | ''>(
     passType?.requiresPassClass ?? '',
   );
+  const [closes, setCloses] = useState(
+    passType?.onlineSalesClosesAt ? toZonedInput(passType.onlineSalesClosesAt, timeZone) : '',
+  );
   const [error, setError] = useState<string | null>(null);
+  const [closesError, setClosesError] = useState<string | undefined>();
+  // Empty follows the event's sales window; a value the event's clock skips (DST) reads as invalid.
+  const onlineSalesClosesAt = closes === '' ? null : fromZonedInput(closes, timeZone);
   // Only add-ons may require another pass class; the backend rejects it on other classes.
   const requiresPassClass = passClass === 'add_on' && requires ? requires : null;
   // Compared with the pass as it is now, so a confirmed save (applied in place) reads as clean.
@@ -65,8 +77,9 @@ export function PassTypeForm({
     ? name.trim() !== passType.name ||
       passClass !== passType.passClass ||
       parseMxnToCents(price) !== passType.priceCents ||
-      requiresPassClass !== passType.requiresPassClass
-    : name !== '' || passClass !== 'full' || price !== '' || requires !== '';
+      requiresPassClass !== passType.requiresPassClass ||
+      onlineSalesClosesAt !== passType.onlineSalesClosesAt
+    : name !== '' || passClass !== 'full' || price !== '' || requires !== '' || closes !== '';
 
   useEffect(() => {
     onDirtyChange?.(dirty);
@@ -87,10 +100,22 @@ export function PassTypeForm({
       );
       return;
     }
-    const input = { name: name.trim(), passClass, priceCents, requiresPassClass };
+    if (closes !== '' && onlineSalesClosesAt === null) {
+      setError(null);
+      setClosesError('Escribe una fecha y hora válidas para el cierre, o quítalo.');
+      return;
+    }
+    setClosesError(undefined);
+    const input = {
+      name: name.trim(),
+      passClass,
+      priceCents,
+      requiresPassClass,
+      onlineSalesClosesAt,
+    };
     // "Guardar cambios" stays enabled and explains itself: a disabled button is skipped by the
     // keyboard and would not tell anyone why nothing can be saved.
-    if (passType && passFieldRows(passType, input).length === 0) {
+    if (passType && passFieldRows(passType, input, timeZone).length === 0) {
       setError('No hay cambios para guardar.');
       return;
     }
@@ -165,6 +190,20 @@ export function PassTypeForm({
             <p className="mt-1 text-sm text-muted">Solo aplica a pases adicionales.</p>
           </div>
         )}
+        <div>
+          <DateField
+            label="Cierre de venta en línea"
+            clearLabel="Quitar el cierre de venta en línea"
+            value={closes}
+            error={closesError}
+            disabled={busy}
+            onChange={setCloses}
+          />
+          <p className="mt-1 text-sm text-muted">
+            Hora del evento ({timeZone}). Vacío: el pase se vende mientras la venta en línea del
+            evento esté abierta. En taquilla se sigue vendiendo.
+          </p>
+        </div>
       </div>
     </>
   );

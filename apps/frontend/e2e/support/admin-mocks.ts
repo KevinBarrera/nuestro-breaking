@@ -85,6 +85,7 @@ const passTypes = [
     passClass: 'full',
     priceCents: 150000,
     requiresPassClass: null,
+    onlineSalesClosesAt: null,
     status: 'active',
     version: 1,
     activities: [
@@ -99,6 +100,7 @@ const passTypes = [
     passClass: 'general',
     priceCents: 30000,
     requiresPassClass: null,
+    onlineSalesClosesAt: null,
     status: 'active',
     version: 1,
     activities: [],
@@ -111,6 +113,7 @@ const passTypes = [
     passClass: 'general',
     priceCents: 20000,
     requiresPassClass: null,
+    onlineSalesClosesAt: null,
     status: 'archived',
     version: 3,
     activities: [{ activityId: workshopId, access: 'included' }],

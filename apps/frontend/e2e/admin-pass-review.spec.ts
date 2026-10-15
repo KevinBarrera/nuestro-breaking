@@ -1,4 +1,5 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
+import { mockEventTimeZone } from './support/event-mocks.ts';
 import { accessControl, chooseAccess, expectAccess } from './support/access.ts';
 import { chooseOption, selectTrigger } from './support/select.ts';
 
@@ -33,6 +34,7 @@ const fullPass = {
   passClass: 'full',
   priceCents: 150000,
   requiresPassClass: null,
+  onlineSalesClosesAt: null,
   status: 'active',
   version: 2,
   activities: [{ activityId: battleId, access: 'selectable' }],
@@ -48,6 +50,7 @@ async function mockCatalog(
     route.fulfill({ status: 500, json: {} }),
 ) {
   const writes: Writes = [];
+  await mockEventTimeZone(page, eventId);
   await page.route(
     (url) => api(url) && url.pathname === '/auth/session',
     (route) =>
@@ -143,6 +146,7 @@ test('a field edit is reviewed before → after and "Volver a editar" keeps the 
         passClass: 'add_on',
         priceCents: 175050,
         requiresPassClass: 'full',
+        onlineSalesClosesAt: null,
       },
     },
   ]);
@@ -437,4 +441,56 @@ test('a save notice stays on its screen and does not come back after leaving it'
   await page.getByRole('link', { name: 'Editar Pase VIP', exact: true }).click();
   await expect(form(page).getByLabel('Nombre')).toHaveValue('Pase VIP');
   await expect(page.getByRole('status')).toHaveCount(0);
+});
+
+test('sets and clears the online sales close time on the event clock, reviewed first (#240)', async ({
+  page,
+}) => {
+  let current: Record<string, unknown> = fullPass;
+  const writes = await mockCatalog(
+    page,
+    () => [current],
+    (route) => {
+      const body = route.request().postDataJSON() as Record<string, unknown>;
+      current = { ...current, onlineSalesClosesAt: body.onlineSalesClosesAt, version: 3 };
+      return route.fulfill({ json: current });
+    },
+  );
+  await page.goto(detailPath);
+  const closes = form(page).getByLabel('Cierre de venta en línea', { exact: true });
+  await expect(form(page)).toContainText('Hora del evento (America/Mexico_City)');
+  await closes.fill('2026-11-17T09:00');
+  await form(page).getByRole('button', { name: 'Guardar cambios' }).click();
+  await expectReviewRows(page, [
+    ['Cierre de venta en línea', 'Sigue la venta del evento', '17 nov 2026, 09:00'],
+  ]);
+  await review(page).getByRole('button', { name: 'Guardar cambios' }).click();
+  await expect(page.getByRole('status')).toContainText('Pase actualizado');
+  await expect(closes).toHaveValue('2026-11-17T09:00');
+
+  await form(page).getByRole('button', { name: 'Quitar el cierre de venta en línea' }).click();
+  await expect(closes).toHaveValue('');
+  await form(page).getByRole('button', { name: 'Guardar cambios' }).click();
+  await expectReviewRows(page, [
+    ['Cierre de venta en línea', '17 nov 2026, 09:00', 'Sigue la venta del evento'],
+  ]);
+  await review(page).getByRole('button', { name: 'Guardar cambios' }).click();
+  await expect(review(page)).toHaveCount(0);
+
+  expect(writes.map((write) => write.body.onlineSalesClosesAt)).toEqual([
+    '2026-11-17T15:00:00.000Z',
+    null,
+  ]);
+});
+
+test("the pass list shows a pass's online sales close time on the event clock (#240)", async ({
+  page,
+}) => {
+  await mockCatalog(page, () => [{ ...fullPass, onlineSalesClosesAt: '2026-11-20T16:00:00.000Z' }]);
+  await page.goto(passesPath);
+  await expect(
+    page
+      .getByRole('listitem')
+      .filter({ has: page.getByRole('heading', { name: 'Pase completo' }) }),
+  ).toContainText('Venta en línea hasta el 20 nov 2026, 10:00');
 });

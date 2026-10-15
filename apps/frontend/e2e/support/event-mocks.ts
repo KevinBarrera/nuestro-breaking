@@ -93,3 +93,16 @@ export async function mockEventList(page: Page, events: () => EventSummary[]) {
   );
   return queries;
 }
+
+// The event foundation read with only what the pass screens need: the event's time zone, for the
+// pass's online sales close time (#240).
+export async function mockEventTimeZone(
+  page: Page,
+  eventId: string,
+  timeZone = 'America/Mexico_City',
+) {
+  await page.route(
+    (url) => api(url) && url.pathname === `/admin/events/${eventId}/foundation`,
+    (route) => route.fulfill({ json: { event: { id: eventId, timeZone }, venues: [] } }),
+  );
+}

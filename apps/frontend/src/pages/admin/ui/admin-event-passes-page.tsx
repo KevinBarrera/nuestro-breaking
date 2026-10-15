@@ -4,6 +4,7 @@ import {
   createPassType,
   listActivities,
   listPassTypes,
+  readCatalogEventContext,
   replacePassTypeActivities,
   restorePassType,
   updatePassType,
@@ -48,11 +49,12 @@ export function AdminEventPassesPage() {
 function EventPasses({ eventId }: { eventId: string }) {
   const load = useCallback(
     async (signal: AbortSignal) => {
-      const [passTypes, activities] = await Promise.all([
+      const [passTypes, activities, event] = await Promise.all([
         listPassTypes(eventId, signal),
         listActivities(eventId, signal),
+        readCatalogEventContext(eventId, signal),
       ]);
-      return { passTypes, activities };
+      return { passTypes, activities, timeZone: event.timeZone };
     },
     [eventId],
   );
@@ -214,6 +216,7 @@ function EventPasses({ eventId }: { eventId: string }) {
 
   const context: PassesContext = {
     eventId,
+    timeZone: state.data.timeZone,
     passTypes: state.data.passTypes,
     activities: state.data.activities,
     loadedPassTypes: state.loaded.passTypes,

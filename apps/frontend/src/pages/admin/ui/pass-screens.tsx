@@ -62,7 +62,7 @@ export function PassesHeader({ eventId, canCreate = false, headingRef }: PassesH
 // "Restaurar" that asks first. A confirmed restore moves the pass to the main list, and focus
 // goes to its card link (the "Restaurar" that opened the dialog is gone), or to the heading.
 export function PassListScreen() {
-  const { eventId, passTypes, activities, busy, notices, restore } = usePassesContext();
+  const { eventId, timeZone, passTypes, activities, busy, notices, restore } = usePassesContext();
   const [restoring, setRestoring] = useState<CatalogPassType | null>(null);
   const [focusPass, setFocusPass] = useState<{ id: string } | null>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
@@ -99,6 +99,7 @@ export function PassListScreen() {
         <PassTypeList
           passTypes={active}
           activities={activityById}
+          timeZone={timeZone}
           detailPath={(passTypeId) => passDetailPath(eventId, passTypeId)}
           emptyText={
             archived.length > 0 ? 'No hay pases activos.' : 'Aún no hay pases para este evento.'
@@ -140,7 +141,7 @@ const reviewOrder = (groups: AccessGroup[], activities: CatalogActivity[]) => [
 // A new pass sets its access in the same step: the form sends it with the single POST, after
 // "Revisar cambios" lists every field and each activity it gives access to.
 export function PassCreateScreen() {
-  const { eventId, activities, busy, notices, create } = usePassesContext();
+  const { eventId, timeZone, activities, busy, notices, create } = usePassesContext();
   const navigate = useNavigate();
   const [choices, setChoices] = useState<AccessChoices>({});
   const [fieldsDirty, setFieldsDirty] = useState(false);
@@ -153,7 +154,7 @@ export function PassCreateScreen() {
     setReview({
       input: { ...fields, activities: access },
       rows: [
-        ...passFieldRows(undefined, fields),
+        ...passFieldRows(undefined, fields, timeZone),
         ...passAccessRows(reviewOrder(groups, activities), [], access),
       ],
     });
@@ -177,6 +178,7 @@ export function PassCreateScreen() {
       <PassTypeForm
         title="Nuevo pase"
         heading="Datos del pase"
+        timeZone={timeZone}
         busy={busy}
         onSubmit={openReview}
         onCancel={() => void navigate(passListPath(eventId))}
@@ -274,9 +276,14 @@ export function PassDetailScreen() {
             key={`${selected.id}:${loadedVersion ?? selected.version}`}
             title="Editar pase"
             passType={selected}
+            timeZone={context.timeZone}
             busy={busy}
             onSubmit={(input) =>
-              setReview({ kind: 'fields', input, rows: passFieldRows(selected, input) })
+              setReview({
+                kind: 'fields',
+                input,
+                rows: passFieldRows(selected, input, context.timeZone),
+              })
             }
             onCancel={() => void navigate(passListPath(eventId))}
             onArchive={() => context.archive(selected)}

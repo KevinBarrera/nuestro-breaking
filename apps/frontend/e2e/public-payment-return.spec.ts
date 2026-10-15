@@ -52,7 +52,7 @@ test.describe('public payment return', () => {
     await expect(main).toContainText('Tu folio');
     await expect(main).toContainText('LMP-0427');
     await expect(main).toContainText('Competencias: Breaking Bboy, Breaking 3v3');
-    await expect(main).toContainText('$2,800.00 MXN');
+    await expect(main).toContainText('$2,922.98 MXN');
     await expect(main).toContainText('Enviamos esta confirmación a a***@ejemplo.com.');
     await expect(page.getByRole('link', { name: 'Volver al inicio' })).toHaveAttribute(
       'href',

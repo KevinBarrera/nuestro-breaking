@@ -4,6 +4,7 @@ export { toPublicCatalog } from './public-catalog.projection';
 export type {
   PublicActivity,
   PublicEventCatalog,
+  PublicEventCatalogResponse,
   PublicPassClass,
   PublicPassType,
 } from './public-catalog.types';

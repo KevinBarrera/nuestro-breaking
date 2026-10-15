@@ -117,6 +117,8 @@ describe('public event catalog (e2e)', () => {
         endsAt: '2026-11-22T04:00:00.000Z',
       },
       sales: { state: 'open', reason: null, opensAt, closesAt: null },
+      // The e2e environment's placeholder rates (#239): 3.49% + $4.00 before 16% VAT.
+      serviceCharge: { rateBasisPoints: 349, fixedCents: 400, vatBasisPoints: 1600 },
       passes: [
         {
           id: ids.full,

@@ -58,15 +58,21 @@ const event = {
   endsAt: '2026-11-23T04:00:00.000Z',
 };
 
+// Placeholder Mercado Pago rates (#239): 3.49% + $4.00 before 16% VAT, so $2,800.00 of passes
+// carries a $122.98 service charge.
+const serviceCharge = { rateBasisPoints: 349, fixedCents: 400, vatBasisPoints: 1600 };
+
 export const openCatalog = {
   event,
   sales: { state: 'open', reason: null, opensAt: null, closesAt: null },
+  serviceCharge,
   passes,
 };
 
 export const closedCatalog = (reason: 'disabled' | 'not_yet_open' | 'ended', opensAt?: string) => ({
   event,
   sales: { state: 'closed', reason, opensAt: opensAt ?? null, closesAt: null },
+  serviceCharge,
   passes: [],
 });
 
@@ -233,7 +239,8 @@ export const paymentStatusBody = (status: PaymentStatusValue) => ({
     { name: 'Pase completo Breaking', competitions: ['Breaking Bboy', 'Breaking 3v3'] },
     { name: 'Open Styles', competitions: [] },
   ],
-  totalCents: 280000,
+  serviceChargeCents: 12298,
+  totalCents: 292298,
 });
 
 type PaymentStatusReply = { status: number; json?: unknown } | 'network-error';

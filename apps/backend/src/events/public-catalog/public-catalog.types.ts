@@ -1,4 +1,5 @@
 import type { SalesSettings, SalesState } from '@/events/sales';
+import type { ServiceCharge } from '@/events/shared/service-charge';
 
 /** An activity a buyer can pick (selectable) or gets with a pass (included). */
 export type PublicActivity = {
@@ -33,6 +34,12 @@ export type PublicEventCatalog = {
   sales: SalesState & { opensAt: string | null; closesAt: string | null };
   passes: PublicPassType[];
 };
+
+/**
+ * The catalog response: the catalog plus the online service charge rates (#239), so the review
+ * screen shows the same charge the checkout will add.
+ */
+export type PublicEventCatalogResponse = PublicEventCatalog & { serviceCharge: ServiceCharge };
 
 /** Database rows the projection reads; only active pass types and activities are loaded. */
 export type CatalogEventRow = {

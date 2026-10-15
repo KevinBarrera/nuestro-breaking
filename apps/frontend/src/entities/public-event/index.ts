@@ -6,6 +6,7 @@ export {
   PublicEventError,
   publicEventFailure,
 } from './api/public-event-api';
+export { serviceChargeCents } from './api/service-charge';
 export {
   paymentStatusValues,
   publicPassClasses,
@@ -25,6 +26,7 @@ export type {
   PublicPassClass,
   PublicSales,
   PublicSalesClosedReason,
+  PublicServiceCharge,
   Registration,
   RegistrationBuyer,
   RegistrationPass,

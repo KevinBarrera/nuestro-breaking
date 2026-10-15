@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { mockEventTimeZone } from './support/event-mocks.ts';
 import { accessControl, chooseAccess, expectAccess } from './support/access.ts';
 
 const eventId = 'a1b2c3d4-1234-4567-89ab-123456789abc';
@@ -46,6 +47,7 @@ const pass = (id: string, name: string, version: number, links: Access[], overri
   passClass: 'full',
   priceCents: 150000,
   requiresPassClass: null,
+  onlineSalesClosesAt: null,
   status: 'active',
   version,
   activities: links,
@@ -63,6 +65,7 @@ const oldPass = pass(oldPassId, 'Pase viejo', 4, [{ activityId: crewsId, access:
 });
 
 async function mockCatalog(page: Page, rows: () => unknown[]) {
+  await mockEventTimeZone(page, eventId);
   let passReads = 0;
   await page.route(
     (url) => api(url) && url.pathname === `/admin/events/${eventId}/activities`,
@@ -338,6 +341,7 @@ test('saving access keeps unsaved pass edits and the next save sends the new ver
       passClass: 'full',
       priceCents: 150000,
       requiresPassClass: null,
+      onlineSalesClosesAt: null,
     },
   ]);
 });
@@ -378,6 +382,7 @@ test('a reload still in flight when access is saved cannot restore the older ver
   let release = () => {};
   const held = new Promise<void>((resolve) => (release = resolve));
   let staleServed: Promise<unknown> = Promise.resolve();
+  await mockEventTimeZone(page, eventId);
   await page.route(
     (url) => api(url) && url.pathname === `/admin/events/${eventId}/activities`,
     (route) => route.fulfill({ json: activities }),
@@ -436,6 +441,7 @@ test('an access save during a retried reload re-reads instead of leaving the ref
   let release = () => {};
   const held = new Promise<void>((resolve) => (release = resolve));
   let heldServed: Promise<unknown> = Promise.resolve();
+  await mockEventTimeZone(page, eventId);
   await page.route(
     (url) => api(url) && url.pathname === `/admin/events/${eventId}/activities`,
     (route) => route.fulfill({ json: activities }),
@@ -549,6 +555,7 @@ test('a new pass sets its access in the same single POST', async ({ page }) => {
       passClass: 'full',
       priceCents: 90000,
       requiresPassClass: null,
+      onlineSalesClosesAt: null,
       activities: [
         { activityId: crewsId, access: 'included' },
         { activityId: footworkId, access: 'selectable' },

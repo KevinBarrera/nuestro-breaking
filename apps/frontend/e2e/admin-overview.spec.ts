@@ -37,6 +37,7 @@ const activities = [
 
 const passType = (overrides: Record<string, unknown>) => ({
   requiresPassClass: null,
+  onlineSalesClosesAt: null,
   status: 'active',
   version: 1,
   activities: [],
@@ -67,6 +68,7 @@ const passTypes = [
     passClass: 'add_on',
     priceCents: 25000,
     requiresPassClass: 'full',
+    onlineSalesClosesAt: null,
     activities: [{ activityId: battleId, access: 'selectable' }],
   }),
   passType({

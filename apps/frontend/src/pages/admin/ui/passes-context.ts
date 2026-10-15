@@ -14,6 +14,8 @@ import { useOutletContext } from 'react-router';
 // between the screens (for example, the archive notice shown on the list).
 export type PassesContext = {
   eventId: string;
+  // The event's IANA time zone, for the pass's online close time (#240).
+  timeZone: string;
   passTypes: CatalogPassType[];
   activities: CatalogActivity[];
   // The last server read; its versions key the pass form (see `PassDetailScreen`).

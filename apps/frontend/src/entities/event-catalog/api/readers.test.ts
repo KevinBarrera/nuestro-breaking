@@ -28,6 +28,7 @@ const passType = {
   passClass: 'add_on',
   priceCents: 25000,
   requiresPassClass: 'full',
+  onlineSalesClosesAt: '2026-11-17T15:00:00.000Z',
   status: 'active',
   version: 2,
   activities: [{ activityId: activity.id, access: 'selectable' }],
@@ -85,7 +86,14 @@ describe('isCatalogPassType', () => {
     expect(isCatalogPassType(passType, eventId)).toBe(true);
     expect(
       isCatalogPassType(
-        { ...passType, passClass: 'full', priceCents: 0, requiresPassClass: null, activities: [] },
+        {
+          ...passType,
+          passClass: 'full',
+          priceCents: 0,
+          requiresPassClass: null,
+          onlineSalesClosesAt: null,
+          activities: [],
+        },
         eventId,
       ),
     ).toBe(true);
@@ -103,6 +111,8 @@ describe('isCatalogPassType', () => {
     ['a price sent as text', { priceCents: '25000' }],
     ['a required add-on class', { requiresPassClass: 'add_on' }],
     ['a missing required class', { requiresPassClass: undefined }],
+    ['a missing online sales close time', { onlineSalesClosesAt: undefined }],
+    ['an online sales close time that is not a date', { onlineSalesClosesAt: 'soon' }],
     ['an unknown status', { status: 'draft' }],
     ['a missing version', { version: undefined }],
     ['activities that are not a list', { activities: {} }],

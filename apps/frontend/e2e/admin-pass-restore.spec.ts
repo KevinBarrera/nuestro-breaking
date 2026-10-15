@@ -1,4 +1,5 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
+import { mockEventTimeZone } from './support/event-mocks.ts';
 
 // Archived passes leave the main list for an "Archivados" section, where "Restaurar" asks in a
 // confirmation dialog before calling the restore endpoint.
@@ -18,6 +19,7 @@ const fullPass = {
   passClass: 'full',
   priceCents: 150000,
   requiresPassClass: null,
+  onlineSalesClosesAt: null,
   status: 'active',
   version: 2,
   activities: [{ activityId: battleId, access: 'selectable' }],
@@ -37,6 +39,7 @@ const oldPass = {
 // `restore` answers the POST; the pass list always returns `rows()`, so a successful restore
 // can update what the next read returns.
 async function mockCatalog(page: Page, rows: () => unknown[], restore?: (route: Route) => unknown) {
+  await mockEventTimeZone(page, eventId);
   await page.route(
     (url) => api(url) && url.pathname === '/auth/session',
     (route) =>

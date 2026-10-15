@@ -106,7 +106,7 @@ Each audit row is written in the same transaction as its mutation; an audit fail
 
 ## Admin UI
 
-Pages `/admin/events/:eventId/activities` and `/admin/events/:eventId/pass-types` (`apps/frontend/src/pages/admin/ui/admin-event-activities-page.tsx`, `admin-event-pass-types-page.tsx`, API client in `apps/frontend/src/entities/event-catalog/`). Prices are entered in pesos and sent as integer cents; activity times are entered in the event time zone. Registration entitlements have no UI yet.
+Pages `/admin/events/:eventId/activities` and `/admin/events/:eventId/pass-types` (`apps/frontend/src/pages/admin/ui/admin-event-activities-page.tsx`, `admin-event-pass-types-page.tsx`, API client in `apps/frontend/src/entities/event-catalog/`). Prices are entered in pesos and sent as integer cents; activity times and a pass's optional online sales close time (#240, "Cierre de venta en línea", cleared with "Quitar") are entered in the event time zone, and the pass list shows that close time. Registration entitlements have no UI yet.
 
 ## Local seed
 

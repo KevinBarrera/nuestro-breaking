@@ -70,6 +70,7 @@ const fullPass = {
   passClass: 'full',
   priceCents: 150000,
   requiresPassClass: null,
+  onlineSalesClosesAt: null,
   status: 'active',
   version: 2,
   activities: [
@@ -85,6 +86,7 @@ const openStyles = {
   passClass: 'add_on',
   priceCents: 25000,
   requiresPassClass: 'full',
+  onlineSalesClosesAt: null,
   status: 'active',
   version: 1,
   activities: [],
@@ -347,6 +349,7 @@ test('archives an activity only after confirmation', async ({ page }) => {
 });
 
 async function mockPassTypes(page: Page, rows: () => unknown[]) {
+  await mockFoundation(page);
   await page.route(
     (url) => api(url) && url.pathname === activitiesPath,
     (route) => route.fulfill({ json: [activity(), workshop] }),
@@ -479,6 +482,7 @@ test('creates an add-on pass type that requires a pass class', async ({ page }) 
     passClass: 'add_on',
     priceCents: 25000,
     requiresPassClass: 'full',
+    onlineSalesClosesAt: null,
     activities: [],
   });
 });
@@ -690,6 +694,7 @@ test('edits a pass type with its expected version', async ({ page }) => {
     passClass: 'full',
     priceCents: 175050,
     requiresPassClass: null,
+    onlineSalesClosesAt: null,
   });
   await expect(page.getByRole('form', { name: 'Editar pase' })).toContainText('v3');
   await backToPasses(page);
@@ -703,6 +708,7 @@ test('edits a pass type with its expected version', async ({ page }) => {
 test('a reload while a pass is open refreshes its values with the new version', async ({
   page,
 }) => {
+  await mockFoundation(page);
   await page.route(
     (url) => api(url) && url.pathname === activitiesPath,
     (route) => route.fulfill({ json: [activity(), workshop] }),
@@ -781,6 +787,7 @@ test('a reload while a pass is open refreshes its values with the new version', 
     passClass: 'full',
     priceCents: 160000,
     requiresPassClass: null,
+    onlineSalesClosesAt: null,
   });
 });
 

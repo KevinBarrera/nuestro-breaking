@@ -21,6 +21,7 @@ const passType = (overrides: Partial<CatalogPassType>): CatalogPassType => ({
   passClass: 'full',
   priceCents: 100000,
   requiresPassClass: null,
+  onlineSalesClosesAt: null,
   status: 'active',
   version: 1,
   activities: [],

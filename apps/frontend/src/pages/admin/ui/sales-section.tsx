@@ -6,8 +6,9 @@ import {
   type EventSales,
   type SalesFailure,
 } from '@/entities/event-sales';
-import { useCallback, useEffect, useId, useRef, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useId, useState, type FormEvent } from 'react';
 import { styles } from './catalog-copy';
+import { DateField } from './date-field';
 import {
   publicPath,
   salesFormFrom,
@@ -193,57 +194,6 @@ function SalesSettings({ eventId, loaded }: { eventId: string; loaded: Loaded })
         </button>
       </form>
     </>
-  );
-}
-
-type DateFieldProps = {
-  label: string;
-  clearLabel: string;
-  value: string;
-  error: string | undefined;
-  disabled: boolean;
-  onChange: (value: string) => void;
-};
-
-function DateField({ label, clearLabel, value, error, disabled, onChange }: DateFieldProps) {
-  const id = useId();
-  const input = useRef<HTMLInputElement>(null);
-  useEffect(() => {
-    if (error) input.current?.focus();
-  }, [error]);
-  return (
-    <div className="min-w-0">
-      <label htmlFor={id} className={styles.label}>
-        {label}
-      </label>
-      <div className="flex items-start gap-2">
-        <input
-          ref={input}
-          id={id}
-          className={`${styles.field} min-w-0 font-mono`}
-          type="datetime-local"
-          value={value}
-          disabled={disabled}
-          aria-invalid={error ? true : undefined}
-          aria-describedby={error ? `${id}-error` : undefined}
-          onChange={(event) => onChange(event.target.value)}
-        />
-        <button
-          type="button"
-          className={`${styles.secondary} mt-1 shrink-0`}
-          aria-label={clearLabel}
-          disabled={disabled || value === ''}
-          onClick={() => onChange('')}
-        >
-          Quitar
-        </button>
-      </div>
-      {error && (
-        <p id={`${id}-error`} className="mt-1 text-sm text-danger-fg">
-          {error}
-        </p>
-      )}
-    </div>
   );
 }
 

@@ -1,4 +1,5 @@
 import {
+  formatEventTime,
   formatMxn,
   type CatalogActivity,
   type CatalogPassType,
@@ -10,20 +11,24 @@ import { accessLabels, passClassLabels } from './catalog-copy';
 
 const empty = '—';
 const noAccess = 'Sin acceso';
+const followsEvent = 'Sigue la venta del evento';
 
 // Rows for "Revisar cambios" on a pass: each changed field in the words the organizer reads on
-// the pass screens (class label, price in pesos, required class). A new pass has no `before`,
-// so its fields are listed against "—"; it starts with no required class, so "Ninguno" is only
-// listed when an add-on actually requires one.
+// the pass screens (class label, price in pesos, required class, online close time on the event's
+// clock). A new pass has no `before`, so its fields are listed against "—"; it starts with no
+// required class and no close time, so those are only listed when they are set.
 export function passFieldRows(
   before: CatalogPassType | undefined,
   after: PassTypeInput,
+  timeZone: string,
 ): ChangeRow[] {
   const classLabel = (value: unknown) =>
     value === undefined ? empty : passClassLabels[value as PassTypeInput['passClass']];
   const price = (value: unknown) => (value === undefined ? empty : formatMxn(value as number));
   const required = (value: unknown) =>
     value ? passClassLabels[value as PassTypeInput['passClass']] : 'Ninguno';
+  const closes = (value: unknown) =>
+    value ? formatEventTime(value as string, timeZone) : followsEvent;
 
   return changedRows([
     { key: 'name', label: 'Nombre', before: before?.name, after: after.name },
@@ -47,6 +52,13 @@ export function passFieldRows(
       before: before ? before.requiresPassClass : null,
       after: after.requiresPassClass,
       format: required,
+    },
+    {
+      key: 'onlineSalesClosesAt',
+      label: 'Cierre de venta en línea',
+      before: before ? before.onlineSalesClosesAt : null,
+      after: after.onlineSalesClosesAt,
+      format: closes,
     },
   ]);
 }

@@ -70,6 +70,7 @@ export function isCatalogPassType(value: unknown, eventId: string): value is Cat
     Number.isSafeInteger(row.priceCents) &&
     (row.priceCents as number) >= 0 &&
     (row.requiresPassClass === null || oneOf(requiredPassClasses, row.requiresPassClass)) &&
+    (row.onlineSalesClosesAt === null || instant(row.onlineSalesClosesAt)) &&
     oneOf(catalogStatuses, row.status) &&
     version(row.version) &&
     Array.isArray(row.activities) &&

@@ -1,4 +1,9 @@
-import { formatMxn, type CatalogActivity, type CatalogPassType } from '@/entities/event-catalog';
+import {
+  formatEventTime,
+  formatMxn,
+  type CatalogActivity,
+  type CatalogPassType,
+} from '@/entities/event-catalog';
 import { Link } from 'react-router';
 import { passClassLabels, passStatusLabels, styles } from './catalog-copy';
 import { describeAccess } from './overview-model';
@@ -7,6 +12,8 @@ type PassTypeListProps = {
   // Active passes only; archived ones go to `ArchivedPassList`.
   passTypes: CatalogPassType[];
   activities: Map<string, CatalogActivity>;
+  // The event's IANA time zone, to show a pass's online close time (#240).
+  timeZone: string;
   detailPath: (passTypeId: string) => string;
   // Shown when there is no active pass.
   emptyText: string;
@@ -41,7 +48,13 @@ function CardTop({ passType }: { passType: CatalogPassType }) {
 
 // Active pass cards; the whole card is one link to the pass's own screen, laid over the card
 // content and named "Editar <pass name>".
-export function PassTypeList({ passTypes, activities, detailPath, emptyText }: PassTypeListProps) {
+export function PassTypeList({
+  passTypes,
+  activities,
+  timeZone,
+  detailPath,
+  emptyText,
+}: PassTypeListProps) {
   if (passTypes.length === 0) return <p className="text-muted">{emptyText}</p>;
 
   return (
@@ -50,6 +63,11 @@ export function PassTypeList({ passTypes, activities, detailPath, emptyText }: P
         <li key={passType.id} className={`${cardClass} hover:border-heading`}>
           <CardTop passType={passType} />
           <p className="mt-1 flex-1 text-sm text-muted">{describeAccess(passType, activities)}</p>
+          {passType.onlineSalesClosesAt && (
+            <p className="mt-1 text-sm text-muted">
+              Venta en línea hasta el {formatEventTime(passType.onlineSalesClosesAt, timeZone)}
+            </p>
+          )}
           {/* The list screen looks this link up to focus it after a restore. */}
           <Link
             to={detailPath(passType.id)}

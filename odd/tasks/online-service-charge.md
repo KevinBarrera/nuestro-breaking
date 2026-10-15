@@ -18,13 +18,13 @@ Test runner: backend Jest unit (`pnpm --filter @nuestro-breaking/backend test`) 
 
 ## Tasks
 
-| ID  | Specs      | Route  | Status  | Evidence  |
-| --- | ---------- | ------ | ------- | --------- |
-| T1  | S1, S2, S7 | inline | done    | `9059890` |
-| T2  | S4, S6     | inline | done    | `33c7508` |
-| T3  | S3, S7     | inline | done    | `88b8d64` |
-| T4  | S5         | inline | pending |           |
-| T5  | S8, docs   | inline | pending |           |
+| ID  | Specs      | Route  | Status                      | Evidence  |
+| --- | ---------- | ------ | --------------------------- | --------- |
+| T1  | S1, S2, S7 | inline | done                        | `9059890` |
+| T2  | S4, S6     | inline | done                        | `33c7508` |
+| T3  | S3, S7     | inline | done                        | `88b8d64` |
+| T4  | S5         | inline | done                        | `4dc8cd0` |
+| T5  | S8, docs   | inline | partial: docs done, S8 open | `eb8c20d` |
 
 - T1 — Backend charge config reader (env, fail fast when missing) and an integer-math gross-up calculator with unit tests; `.env.example` and env docs.
 - T2 — Checkout adds the charge as its own Mercado Pago item and stores it on `registration_checkouts` (migration `0027`); webhook, reconciliation and payment status use the charged total; manual path untouched.
@@ -43,4 +43,7 @@ Test runner: backend Jest unit (`pnpm --filter @nuestro-breaking/backend test`) 
 - 2026-10-15: Review assessment of `a7d7575..7f22a03`: high (payments schema, webhook), review due. Consent granted per the standing rule; lenses risk and reliability. Approved and acknowledged (lineage `review-d2ced962c8b2a83f`), with no findings from the risk lens. Non-blocking reliability advisories: (1) the webhook expects the latest checkout's charge, so if the rates change between two checkouts and the buyer pays the older voucher, the payment is flagged `amount_mismatch` for manual review; (2) the payment status total uses the latest checkout's charge, which can differ from what was paid in that same case; (3) the rollout order of the new required variables. (3) was added to `docs/runbooks/deploy.md`. (1) and (2) are left as follow-ups because rates rarely change inside a 72-hour window, and flagged payments already have a manual path.
 - 2026-10-15 (user): "sigue con T3, abriremos las PRs al último cuando cubramos el desarrollo de todo el issue" — the PRs are opened only after T5.
 - 2026-10-15: T3 on `feat/239-02-service-charge-frontend` (`88b8d64`). `GET /public/events/:slug/catalog` adds `serviceCharge` (`rateBasisPoints`, `fixedCents`, `vatBasisPoints`; the controller adds it, so `PublicCatalogService` is unchanged); `EventsModule` also provides `SERVICE_CHARGE`. The frontend mirrors the calculator (`entities/public-event/api/service-charge.ts`, same test vectors as the backend), validates the rates and `serviceChargeCents` in the readers, and the review screen shows "Cargo por servicio" / "Comisión de Mercado Pago" above the total; the pay button and total include it. The result screen's "Pagado" already shows the backend total with the charge. RED observed for the catalog e2e, the calculator and the readers. Checks: format clean; frontend lint, build, unit 389/389, e2e 395/395 (one assertion fixed for the sub-label); backend lint, unit 584/584, catalog e2e 6/6.
-- Next: review assessment of T3, then T4 (email) on `feat/239-03`.
+- 2026-10-15: T3 assessment: medium, `under_budget`; it stays pending in the slice.
+- 2026-10-15: T4 on `feat/239-03-service-charge-email` (`4dc8cd0`). The confirmation email adds "Resumen de pago" (Pases, Cargo por servicio, Total pagado … MXN) only when the approved payment's checkout has a charge above 0; cash and manual emails still show no amounts. The dispatcher reads the charge from the checkout behind the latest approved payment. RED observed for the content spec. Checks: backend lint, unit 586/586, email e2e 17/17. Contract `confirmation-email.md` updated.
+- 2026-10-15: T5 docs (`eb8c20d`): the purchase plan records the fee decision. S8 stays open: the draft cancellation text (`legal-texts.ts`, version `borrador-2026-10-13`) says "Las compras en línea de este evento no tienen reembolso." and does not mention the charge; legal texts come from the organizer, and a text change bumps the version in both apps.
+- Next: review assessment of T3 and T4, then the user's answer on S8, then the PRs.

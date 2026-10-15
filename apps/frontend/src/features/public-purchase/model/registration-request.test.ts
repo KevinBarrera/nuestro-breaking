@@ -115,6 +115,9 @@ describe('failureMessage', () => {
     expect(failureMessage({ kind: 'rule', code: 'general_with_full' })).toBe(
       'La entrada general ya está incluida en los pases completos. Quítala para continuar.',
     );
+    expect(failureMessage({ kind: 'rule', code: 'pass_type_sales_closed' })).toBe(
+      'La venta en línea de uno de tus pases ya cerró. Vuelve a elegir tus pases.',
+    );
     expect(failureMessage({ kind: 'unavailable' })).toBe(
       'No podemos completar esta inscripción en línea. Comunícate con la organización.',
     );

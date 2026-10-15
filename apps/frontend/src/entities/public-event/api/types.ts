@@ -16,6 +16,7 @@ export const paymentStatusValues = [
 ] as const;
 export const registrationRuleCodes = [
   'pass_type_unavailable',
+  'pass_type_sales_closed',
   'general_with_full',
   'required_pass_missing',
   'selection_unavailable',
@@ -40,6 +41,10 @@ export type PublicPass = {
   passClass: PublicPassClass;
   priceCents: number;
   requiresPassClass: PublicPassClass | null;
+  // When online sales of this pass close (#240), or null to follow the event's window. `onSale`
+  // is the server's answer when the catalog was read; a closed pass stays listed.
+  onlineSalesClosesAt: string | null;
+  onSale: boolean;
   selectableActivities: PublicActivity[];
   includedActivities: PublicActivity[];
 };

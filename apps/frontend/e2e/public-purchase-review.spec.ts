@@ -312,6 +312,12 @@ test.describe('public review and pay', () => {
       fix: { name: 'Cambiar mis competencias', href: step('competencias') },
     },
     {
+      kind: '409 pass sales closed',
+      reply: { status: 409, json: { statusCode: 409, code: 'pass_type_sales_closed' } },
+      message: 'La venta en línea de uno de tus pases ya cerró. Vuelve a elegir tus pases.',
+      fix: { name: 'Cambiar mis pases', href: step('pases') },
+    },
+    {
       kind: '409 unavailable',
       reply: { status: 409, json: { statusCode: 409, code: 'registration_unavailable' } },
       message: 'No podemos completar esta inscripción en línea. Comunícate con la organización.',

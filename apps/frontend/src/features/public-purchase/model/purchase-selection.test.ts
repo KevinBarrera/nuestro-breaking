@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { breaking, catalogPasses, general, openStyles } from './test-fixtures';
+import { breaking, catalogPasses, general, openStyles, popping } from './test-fixtures';
 import {
   competitionGroups,
   competitionsStepApplies,
@@ -78,6 +78,38 @@ describe('normalizeSelection', () => {
     expect(
       normalizeSelection(catalogPasses, { passTypeIds: ['open-styles'], selectedActivityIds: {} }),
     ).toEqual(emptySelection);
+  });
+});
+
+describe('online sales close per pass (#240)', () => {
+  const closed = { ...general, onSale: false, onlineSalesClosesAt: '2026-10-01T00:00:00.000Z' };
+  // Loaded while on sale, but its close time has passed on the buyer's clock since then.
+  const lapsed = { ...breaking, onlineSalesClosesAt: '2000-01-01T00:00:00.000Z' };
+  const later = { ...popping, onlineSalesClosesAt: '2100-01-01T00:00:00.000Z' };
+  const passes = [lapsed, later, closed, openStyles];
+
+  it('shows a closed pass as not available and never chooses it', () => {
+    for (const pass of [closed, lapsed])
+      expect(passOptions(passes, emptySelection).find((entry) => entry.pass === pass)).toEqual({
+        pass,
+        selected: false,
+        disabled: true,
+        hint: 'Venta en línea cerrada',
+      });
+    expect(togglePass(passes, emptySelection, closed.id)).toEqual(emptySelection);
+    expect(togglePass(passes, emptySelection, later.id).passTypeIds).toEqual([later.id]);
+  });
+
+  it('drops a chosen pass once it closes, with the add-on that needed it', () => {
+    const chosen = {
+      passTypeIds: [lapsed.id, openStyles.id],
+      selectedActivityIds: { [lapsed.id]: ['bboy'] },
+    };
+    expect(normalizeSelection(passes, chosen)).toEqual(emptySelection);
+    expect(passOptions(passes, chosen).find((entry) => entry.pass === lapsed)?.selected).toBe(
+      false,
+    );
+    expect(purchaseTotals(passes, chosen).totalCents).toBe(0);
   });
 });
 

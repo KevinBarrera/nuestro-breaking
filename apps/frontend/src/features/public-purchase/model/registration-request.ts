@@ -84,6 +84,8 @@ const salesClosedMessages: Record<PublicSalesClosedReason, string> = {
 
 const ruleMessages: Record<RegistrationRuleCode, string> = {
   pass_type_unavailable: 'Uno de tus pases ya no está disponible. Vuelve a elegir tus pases.',
+  pass_type_sales_closed:
+    'La venta en línea de uno de tus pases ya cerró. Vuelve a elegir tus pases.',
   general_with_full:
     'La entrada general ya está incluida en los pases completos. Quítala para continuar.',
   required_pass_missing:

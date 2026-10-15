@@ -22,7 +22,7 @@ Test runner: backend Jest unit (`pnpm --filter @nuestro-breaking/backend test`) 
 | --- | -------------- | ------ | ------- | -------------------- |
 | T1  | S1, S5, S7     | inline | done    | `48b578b`, `a431500` |
 | T2  | S2, S3, S4, S6 | inline | done    | `c04e52a`            |
-| T3  | S1, S5, S7     | inline | pending |                      |
+| T3  | S1, S5, S7     | inline | done    | `f19f452`            |
 | T4  | S3, S4, S7     | inline | pending |                      |
 
 - T1 — Migration `0028` adds nullable `online_sales_closes_at` to `event_pass_types`; the admin pass-type API reads, creates, updates and clears it (offset ISO or null), and the audit snapshot carries it; `docs/contracts/event-catalog.md`.
@@ -38,3 +38,4 @@ Route evidence: no Writer trigger (units are sequential and share contracts), so
 - L2 — Map: the public pass rule check is `passRuleViolation` (`public-registration-rules.ts`), used only by `PublicRegistrationService.register`; manual registration and entitlements have their own checks. Migrations are hand-written (`0027_checkout_service_charge` is the latest on `dev`). Frontend time-zone helpers: `entities/event-catalog/model/zoned-time.ts`.
 - L3 — T1/T2: RED observed (admin e2e 5 failed; unit 2 failed), then GREEN: backend unit 588/588, full backend e2e 429/429 after counting migration `0028` in the replay check (`a431500`). Review assessment: medium, `under_budget`.
 - L4 — T3: the pass screens now read the event foundation for the time zone, so the admin Playwright mocks gained `mockEventTimeZone` (`e2e/support/event-mocks.ts`). `DateField` moved out of `sales-section.tsx` and now wraps "Quitar" under the input at phone width.
+- L5 — T4: a pass is closed on the public screens when `onSale` is false or, on the buyer's clock, its `onlineSalesClosesAt` has passed since the page loaded. `chosenPasses` ignores closed passes, and options, totals and competitions derive from the normalized selection. Vitest RED observed (5 failed), then GREEN 394/394; `verify:pr` 399 passed. The new Playwright cases were written after the code.

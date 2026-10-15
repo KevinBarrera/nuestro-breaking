@@ -28,14 +28,21 @@ const requirementCopy: Record<PublicPassClass, string> = {
   add_on: 'un pase adicional',
 };
 
+// A pass is on sale online while the catalog said so and, on the buyer's clock, its own close
+// time (#240) has not been reached since the page loaded. The server checks it again on submit.
+const onSale = (pass: PublicPass) =>
+  pass.onSale && (!pass.onlineSalesClosesAt || Date.now() < Date.parse(pass.onlineSalesClosesAt));
+
+// Chosen passes still on sale: a pass that closes after it was chosen no longer counts.
 const chosenPasses = (passes: PublicPass[], selection: PurchaseSelection) =>
-  passes.filter((pass) => selection.passTypeIds.includes(pass.id));
+  passes.filter((pass) => selection.passTypeIds.includes(pass.id) && onSale(pass));
 
 const holdsClass = (chosen: PublicPass[], passClass: PublicPassClass) =>
   chosen.some((pass) => pass.passClass === passClass);
 
 // Why a pass cannot be chosen right now, or null when it can.
 function blockedReason(pass: PublicPass, chosen: PublicPass[]): string | null {
+  if (!onSale(pass)) return 'Venta en línea cerrada';
   if (pass.passClass === 'general' && holdsClass(chosen, 'full'))
     return 'Ya incluida en tus pases completos';
   if (pass.requiresPassClass && !holdsClass(chosen, pass.requiresPassClass))
@@ -44,7 +51,7 @@ function blockedReason(pass: PublicPass, chosen: PublicPass[]): string | null {
 }
 
 /**
- * Keeps only what the catalog and the rules allow, in catalog order: unknown passes go, general
+ * Keeps only what the catalog and the rules allow, in catalog order: unknown and closed passes go, general
  * entry goes when a full pass is chosen, an add-on goes when its required class is missing, and
  * picked competitions must be selectable for their chosen pass. Used after every change and when
  * a saved draft is restored against a fresh catalog.
@@ -124,9 +131,9 @@ function describePass(pass: PublicPass, chosen: PublicPass[]): string | null {
 
 // One entry per catalog pass for the Pases screen, with the reason it is blocked or a short hint.
 export function passOptions(passes: PublicPass[], selection: PurchaseSelection): PassOption[] {
-  const chosen = chosenPasses(passes, selection);
+  const chosen = chosenPasses(passes, normalizeSelection(passes, selection));
   return passes.map((pass) => {
-    const selected = selection.passTypeIds.includes(pass.id);
+    const selected = chosen.includes(pass);
     const blocked = selected ? null : blockedReason(pass, chosen);
     return {
       pass,
@@ -142,7 +149,7 @@ export function competitionGroups(
   passes: PublicPass[],
   selection: PurchaseSelection,
 ): CompetitionGroup[] {
-  return chosenPasses(passes, selection)
+  return chosenPasses(passes, normalizeSelection(passes, selection))
     .filter((pass) => pass.selectableActivities.length + pass.includedActivities.length > 0)
     .map((pass) => {
       const picked = selection.selectedActivityIds[pass.id] ?? [];
@@ -162,11 +169,13 @@ export function competitionsStepApplies(
   passes: PublicPass[],
   selection: PurchaseSelection,
 ): boolean {
-  return chosenPasses(passes, selection).some((pass) => pass.selectableActivities.length > 0);
+  return chosenPasses(passes, normalizeSelection(passes, selection)).some(
+    (pass) => pass.selectableActivities.length > 0,
+  );
 }
 
 export function purchaseTotals(passes: PublicPass[], selection: PurchaseSelection) {
-  const chosen = chosenPasses(passes, selection);
+  const chosen = chosenPasses(passes, normalizeSelection(passes, selection));
   return {
     passCount: chosen.length,
     totalCents: chosen.reduce((sum, pass) => sum + pass.priceCents, 0),

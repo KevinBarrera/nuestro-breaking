@@ -134,6 +134,19 @@ describe('registration payments schema (e2e)', () => {
       );
   });
 
+  it('defaults the service charge to 0 and keeps it inside the checkout amount (#239)', async () => {
+    const registrationId = await pendingRegistration();
+    const [{ id: checkoutId }] = await checkout(registrationId);
+    const [row] = await client<{ service_charge_cents: number }[]>`
+      SELECT service_charge_cents FROM registration_checkouts WHERE id = ${checkoutId}`;
+    expect(row.service_charge_cents).toBe(0);
+
+    for (const charge of [-1, 50000, 50001])
+      await expect(
+        client`UPDATE registration_checkouts SET service_charge_cents = ${charge} WHERE id = ${checkoutId}`,
+      ).rejects.toMatchObject(violation('23514', 'registration_checkouts_service_charge_cents_ck'));
+  });
+
   it("rejects a payment with an unknown status, currency or amount and accepts Mercado Pago's statuses", async () => {
     const [{ id: checkoutId }] = await checkout(await pendingRegistration());
     await expect(payment(checkoutId, { status: 'paid' })).rejects.toMatchObject(

@@ -1,5 +1,5 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { and, asc, eq } from 'drizzle-orm';
+import { and, asc, desc, eq } from 'drizzle-orm';
 import { DATABASE_CLIENT } from '@/database/database.constants';
 import type { DatabaseService } from '@/database/database.service';
 import {
@@ -56,6 +56,13 @@ export class PublicPaymentStatusService {
     );
 
     const passes = await readRegistrationPasses(this.db, eventId, registrationId);
+    const [latestCheckout] = await this.db
+      .select({ serviceChargeCents: registrationCheckouts.serviceChargeCents })
+      .from(registrationCheckouts)
+      .where(eq(registrationCheckouts.registrationId, registrationId))
+      .orderBy(desc(registrationCheckouts.createdAt), desc(registrationCheckouts.id))
+      .limit(1);
+    const serviceChargeCents = latestCheckout?.serviceChargeCents ?? 0;
 
     return {
       status,
@@ -63,7 +70,8 @@ export class PublicPaymentStatusService {
       maskedEmail: maskEmail(registration.email),
       folio: status === 'confirmed' ? registration.folio : null,
       passes: passes.map(({ name, competitions }) => ({ name, competitions })),
-      totalCents: passes.reduce((total, pass) => total + pass.priceCents, 0),
+      serviceChargeCents,
+      totalCents: passes.reduce((total, pass) => total + pass.priceCents, serviceChargeCents),
     };
   }
 }

@@ -18,6 +18,10 @@ const FORCED_ENV: Record<string, string> = {
   EMAIL_SANDBOX: 'true',
   EMAIL_DISPATCH_INTERVAL_MS: '0',
   PENDING_EXPIRY_SWEEP_INTERVAL_MS: '0',
+  // Placeholder Mercado Pago rates, forced so totals in assertions do not depend on a local .env.
+  ONLINE_SERVICE_CHARGE_PERCENT: '3.49',
+  ONLINE_SERVICE_CHARGE_FIXED_MXN: '4.00',
+  ONLINE_SERVICE_CHARGE_VAT_PERCENT: '16',
 };
 
 for (const [name, value] of Object.entries(FAKE_ENV)) {

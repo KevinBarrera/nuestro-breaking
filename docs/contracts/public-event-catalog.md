@@ -81,7 +81,7 @@ When `sales.state` is `closed`, the response still has `event` and `sales` (so t
 
 ### One pass closed (#240)
 
-While the event is open, a pass past its own `onlineSalesClosesAt` comes with `onSale: false`. The passes screen shows it disabled with "Venta en línea cerrada". It also treats a pass as closed once that time passes on the buyer's clock after the page loaded, and drops it (with an add-on that needed it) from a chosen selection. The server still decides: a late submit gets `409 pass_type_sales_closed`, and the review screen says "La venta en línea de uno de tus pases ya cerró. Vuelve a elegir tus pases." with a link to the passes step.
+While the event is open, a pass past its own `onlineSalesClosesAt` comes with `onSale: false`. The passes screen shows it disabled with "Venta en línea cerrada" and drops it (with an add-on that needed it) from a saved selection. Once that time passes on the buyer's clock after the page loaded, the pass can no longer be chosen. A pass that was already chosen is still submitted, so the server decides: a late submit gets `409 pass_type_sales_closed`, and the review screen says "La venta en línea de uno de tus pases ya cerró. Vuelve a elegir tus pases." with a link to the passes step.
 
 ## Reusable sales check (#174)
 

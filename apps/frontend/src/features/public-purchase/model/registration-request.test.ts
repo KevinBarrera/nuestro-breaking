@@ -2,7 +2,7 @@ import { legalDocuments } from '@/shared/config';
 import { describe, expect, it } from 'vitest';
 import { emptyBuyerForm } from './buyer-form';
 import { buildRegistrationRequest, failureMessage, serverErrors } from './registration-request';
-import { catalogPasses } from './test-fixtures';
+import { breaking, catalogPasses, openStyles } from './test-fixtures';
 
 const buyer = {
   ...emptyBuyerForm,
@@ -104,6 +104,21 @@ describe('serverErrors for legal documents', () => {
         'Actualizamos los documentos legales. Recarga la página, revísalos y acéptalos de nuevo para pagar.',
       other: null,
     });
+  });
+});
+
+describe("a pass that closes on the buyer's clock (#240)", () => {
+  it('is still sent, so the server answers why it cannot be bought', () => {
+    const lapsed = { ...breaking, onlineSalesClosesAt: '2000-01-01T00:00:00.000Z' };
+    const request = buildRegistrationRequest(
+      [lapsed, openStyles],
+      { passTypeIds: [lapsed.id, openStyles.id], selectedActivityIds: { [lapsed.id]: ['bboy'] } },
+      buyer,
+    );
+    expect(request.passes).toEqual([
+      { passTypeId: lapsed.id, selectedActivityIds: ['bboy'] },
+      { passTypeId: openStyles.id },
+    ]);
   });
 });
 

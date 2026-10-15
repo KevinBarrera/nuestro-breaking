@@ -28,21 +28,23 @@ const requirementCopy: Record<PublicPassClass, string> = {
   add_on: 'un pase adicional',
 };
 
-// A pass is on sale online while the catalog said so and, on the buyer's clock, its own close
-// time (#240) has not been reached since the page loaded. The server checks it again on submit.
-const onSale = (pass: PublicPass) =>
+// A pass can be chosen while the catalog said it is on sale and, on the buyer's clock, its own
+// close time (#240) has not been reached since the page loaded.
+const choosable = (pass: PublicPass) =>
   pass.onSale && (!pass.onlineSalesClosesAt || Date.now() < Date.parse(pass.onlineSalesClosesAt));
 
-// Chosen passes still on sale: a pass that closes after it was chosen no longer counts.
+// Chosen passes the catalog lists as on sale. One that closes later on the buyer's clock stays
+// chosen and is submitted, so the server answers `pass_type_sales_closed` with a clear message
+// instead of the request silently leaving it out.
 const chosenPasses = (passes: PublicPass[], selection: PurchaseSelection) =>
-  passes.filter((pass) => selection.passTypeIds.includes(pass.id) && onSale(pass));
+  passes.filter((pass) => selection.passTypeIds.includes(pass.id) && pass.onSale);
 
 const holdsClass = (chosen: PublicPass[], passClass: PublicPassClass) =>
   chosen.some((pass) => pass.passClass === passClass);
 
 // Why a pass cannot be chosen right now, or null when it can.
 function blockedReason(pass: PublicPass, chosen: PublicPass[]): string | null {
-  if (!onSale(pass)) return 'Venta en línea cerrada';
+  if (!choosable(pass)) return 'Venta en línea cerrada';
   if (pass.passClass === 'general' && holdsClass(chosen, 'full'))
     return 'Ya incluida en tus pases completos';
   if (pass.requiresPassClass && !holdsClass(chosen, pass.requiresPassClass))

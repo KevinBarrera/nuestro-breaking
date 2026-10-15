@@ -18,12 +18,12 @@ Test runner: backend Jest unit (`pnpm --filter @nuestro-breaking/backend test`) 
 
 ## Tasks
 
-| ID  | Specs          | Route  | Status  | Evidence             |
-| --- | -------------- | ------ | ------- | -------------------- |
-| T1  | S1, S5, S7     | inline | done    | `48b578b`, `a431500` |
-| T2  | S2, S3, S4, S6 | inline | done    | `c04e52a`            |
-| T3  | S1, S5, S7     | inline | done    | `f19f452`            |
-| T4  | S3, S4, S7     | inline | pending |                      |
+| ID  | Specs          | Route  | Status | Evidence             |
+| --- | -------------- | ------ | ------ | -------------------- |
+| T1  | S1, S5, S7     | inline | done   | `48b578b`, `a431500` |
+| T2  | S2, S3, S4, S6 | inline | done   | `c04e52a`            |
+| T3  | S1, S5, S7     | inline | done   | `f19f452`            |
+| T4  | S3, S4, S7     | inline | done   | `14663e4`, see L6    |
 
 - T1 — Migration `0028` adds nullable `online_sales_closes_at` to `event_pass_types`; the admin pass-type API reads, creates, updates and clears it (offset ISO or null), and the audit snapshot carries it; `docs/contracts/event-catalog.md`.
 - T2 — Public catalog exposes each pass's close time and whether it is on sale; public registration rejects a closed pass with 409 `pass_type_sales_closed`; admin manual and entitlement paths untouched; public catalog and registration contracts.
@@ -39,3 +39,4 @@ Route evidence: no Writer trigger (units are sequential and share contracts), so
 - L3 — T1/T2: RED observed (admin e2e 5 failed; unit 2 failed), then GREEN: backend unit 588/588, full backend e2e 429/429 after counting migration `0028` in the replay check (`a431500`). Review assessment: medium, `under_budget`.
 - L4 — T3: the pass screens now read the event foundation for the time zone, so the admin Playwright mocks gained `mockEventTimeZone` (`e2e/support/event-mocks.ts`). `DateField` moved out of `sales-section.tsx` and now wraps "Quitar" under the input at phone width.
 - L5 — T4: a pass is closed on the public screens when `onSale` is false or, on the buyer's clock, its `onlineSalesClosesAt` has passed since the page loaded. `chosenPasses` ignores closed passes, and options, totals and competitions derive from the normalized selection. Vitest RED observed (5 failed), then GREEN 394/394; `verify:pr` 399 passed. The new Playwright cases were written after the code.
+- L6 — Independent verifier: S1, S2, S3, S5, S6, S7 met; S4 partial. Blocker: `buildRegistrationRequest` normalizes on the buyer's clock, so a pass that lapsed on the review screen was silently left out of the request (or the request had `passes: []`, a 400). Fix: the clock now only blocks choosing a pass; a chosen pass is still submitted, and the server answers `pass_type_sales_closed`. Probe test reproduced it first (1 failed), then Vitest 396/396 and public Playwright 80/80. Advisories, not fixed: `stepRedirect` checks the raw selection; a close time with seconds set through the API makes the form look changed; PATCH bumps `version` on an unchanged value (pre-existing behavior).

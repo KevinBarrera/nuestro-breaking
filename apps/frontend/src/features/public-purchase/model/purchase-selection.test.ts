@@ -100,16 +100,23 @@ describe('online sales close per pass (#240)', () => {
     expect(togglePass(passes, emptySelection, later.id).passTypeIds).toEqual([later.id]);
   });
 
-  it('drops a chosen pass once it closes, with the add-on that needed it', () => {
+  it('drops a chosen pass the catalog lists as closed, with the add-on that needed it', () => {
+    const closedFull = { ...breaking, onSale: false };
     const chosen = {
-      passTypeIds: [lapsed.id, openStyles.id],
-      selectedActivityIds: { [lapsed.id]: ['bboy'] },
+      passTypeIds: [closedFull.id, openStyles.id],
+      selectedActivityIds: { [closedFull.id]: ['bboy'] },
     };
-    expect(normalizeSelection(passes, chosen)).toEqual(emptySelection);
-    expect(passOptions(passes, chosen).find((entry) => entry.pass === lapsed)?.selected).toBe(
-      false,
-    );
-    expect(purchaseTotals(passes, chosen).totalCents).toBe(0);
+    expect(normalizeSelection([closedFull, openStyles], chosen)).toEqual(emptySelection);
+    expect(purchaseTotals([closedFull, openStyles], chosen).totalCents).toBe(0);
+  });
+
+  it("keeps a chosen pass that closes on the buyer's clock, so the server says why", () => {
+    const chosen = { passTypeIds: [lapsed.id], selectedActivityIds: { [lapsed.id]: ['bboy'] } };
+    expect(normalizeSelection(passes, chosen)).toEqual(chosen);
+    expect(passOptions(passes, chosen).find((entry) => entry.pass === lapsed)).toMatchObject({
+      selected: true,
+      disabled: false,
+    });
   });
 });
 

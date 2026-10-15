@@ -96,8 +96,10 @@ from the provider and are never committed.
 | `MERCADO_PAGO_WEBHOOK_SECRET`   | _secret_                                                                                                                           | _secret_                                                                |
 | `MERCADO_PAGO_NOTIFICATION_URL` | `https://staging-api.losmaspesados.com.mx/public/payments/mercado-pago/webhook`                                                    | `https://api.losmaspesados.com.mx/public/payments/mercado-pago/webhook` |
 
-Leave `TRUST_PROXY_HOPS` unset: it only applies to `CLIENT_IP_SOURCE=request`,
-and Railway's edge does not make hop counting safe. Do not set
+Leave `TRUST_PROXY_HOPS` unset (delete it if it exists): it only applies to
+`CLIENT_IP_SOURCE=request`, Railway's edge does not make hop counting safe,
+and the backend refuses to start when it is set together with `x-real-ip` or
+`cloudflare`. Do not set
 `LOCAL_ADMIN_PROVISIONING`, `LOCAL_ADMIN_PASSWORD` or
 `LOCAL_CATALOG_SEED`: they are for local databases only. Optional tuning
 variables keep their defaults (`PUBLIC_RATE_LIMIT_LIMIT`,
@@ -169,7 +171,7 @@ domain's nameservers on Cloudflare.
 7. Let the backend trust Cloudflare's client address, in this order:
    1. Generate a secret of at least 32 characters (for example
       `openssl rand -hex 32`), one per environment.
-   2. **Rules > Transform Rules > Modify Request Header > Create rule**:
+   2. **Rules > Overview > Create rule > Request Header Transform Rule**:
       when the hostname equals the API host, **Set static** header
       `X-Origin-Secret` to the secret.
    3. On the backend, set `CLOUDFLARE_ORIGIN_SECRET` to the same secret and
@@ -238,6 +240,10 @@ address: check `CLIENT_IP_SOURCE` and, with `cloudflare`, the Transform Rule.
 After the DNS move, run it twice: against the API host (through Cloudflare)
 and against the Railway domain (`*.up.railway.app`, which skips Cloudflare).
 Both must end with one `429`.
+
+Repeat with IPv6 addresses from one network, which must share one counter
+(`X-Real-IP: 2001:db8:1:2::$i` and `CF-Connecting-IP: 2001:db8:1:2::$i`).
+Same expected result.
 
 Then open the same URL from a phone on mobile data. Expected: not `429`. A
 `429` means different clients share one counter.

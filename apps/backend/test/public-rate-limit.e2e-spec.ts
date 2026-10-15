@@ -162,6 +162,23 @@ describe('public rate limit and CORS (e2e)', () => {
       await fromClient('198.51.100.99, 203.0.113.10').expect(429);
     });
 
+    it('counts IPv6 clients per /64, so rotating inside one network does not reset the limit', async () => {
+      await reboot({ TRUST_PROXY_HOPS: '1' });
+      for (let i = 0; i < LIMIT; i += 1) {
+        await fromClient(`2001:db8:1:2::${i + 1}`).expect(404);
+      }
+
+      await fromClient('2001:db8:1:2:ffff::99').expect(429);
+      await fromClient('2001:db8:1:3::1').expect(404);
+    });
+
+    it('counts an IPv4-mapped IPv6 address as its IPv4 address', async () => {
+      await reboot({ TRUST_PROXY_HOPS: '1' });
+      await exhaustLimit('203.0.113.7');
+
+      await fromClient('::ffff:203.0.113.7').expect(429);
+    });
+
     it('with two trusted hops, reads the client the outer proxy saw', async () => {
       await reboot({ TRUST_PROXY_HOPS: '2' });
       // client (forged prefix) -> Cloudflare (appends the client) -> Railway edge (appends Cloudflare)
@@ -174,10 +191,11 @@ describe('public rate limit and CORS (e2e)', () => {
 
   describe('client address source (CLIENT_IP_SOURCE)', () => {
     const SECRET = 'cloudflare-origin-secret-0123456789';
-    // The throttler reads its config from process.env when the app boots.
+    // The throttler reads its config from process.env when the app boots. Header sources refuse
+    // TRUST_PROXY_HOPS, so these apps run without it: the socket address is the last fallback.
     const rebootWithSource = async (env: Record<string, string>) => {
       Object.assign(process.env, env);
-      await reboot({ TRUST_PROXY_HOPS: '1' });
+      await reboot({});
     };
     afterEach(() => {
       delete process.env.CLIENT_IP_SOURCE;
@@ -232,6 +250,27 @@ describe('public rate limit and CORS (e2e)', () => {
         'CF-Connecting-IP': '198.51.100.3',
         'X-Real-IP': '203.0.113.10',
       }).expect(429);
+    });
+
+    it('with x-real-ip, counts an IPv6 client per /64', async () => {
+      await rebootWithSource({ CLIENT_IP_SOURCE: 'x-real-ip' });
+      for (let i = 0; i < LIMIT; i += 1) {
+        await withHeaders({ 'X-Real-IP': `2001:db8:1:2::${i + 1}` }).expect(404);
+      }
+
+      await withHeaders({ 'X-Real-IP': '2001:db8:1:2:ffff::99' }).expect(429);
+    });
+
+    it('refuses to boot with a header source and TRUST_PROXY_HOPS', async () => {
+      process.env.CLIENT_IP_SOURCE = 'x-real-ip';
+      process.env.TRUST_PROXY_HOPS = '1';
+      try {
+        await expect(reboot({})).rejects.toThrow(
+          'TRUST_PROXY_HOPS must be unset or 0 when CLIENT_IP_SOURCE is "x-real-ip".',
+        );
+      } finally {
+        delete process.env.TRUST_PROXY_HOPS;
+      }
     });
 
     it('refuses to boot with an unknown source', async () => {

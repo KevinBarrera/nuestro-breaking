@@ -11,6 +11,27 @@ const request = (
 });
 
 describe('readClientIpSource', () => {
+  it.each(['x-real-ip', 'cloudflare'])(
+    'refuses %p together with TRUST_PROXY_HOPS, whose fallback a client could forge',
+    (CLIENT_IP_SOURCE) => {
+      expect(() =>
+        readClientIpSource({
+          CLIENT_IP_SOURCE,
+          CLOUDFLARE_ORIGIN_SECRET: SECRET,
+          TRUST_PROXY_HOPS: '1',
+        }),
+      ).toThrow(
+        `TRUST_PROXY_HOPS must be unset or 0 when CLIENT_IP_SOURCE is "${CLIENT_IP_SOURCE}".`,
+      );
+    },
+  );
+
+  it('allows TRUST_PROXY_HOPS=0 with a header source', () => {
+    expect(readClientIpSource({ CLIENT_IP_SOURCE: 'x-real-ip', TRUST_PROXY_HOPS: '0' })).toEqual({
+      kind: 'x-real-ip',
+    });
+  });
+
   it.each([{}, { CLIENT_IP_SOURCE: '' }, { CLIENT_IP_SOURCE: '  ' }])(
     'defaults to the request address (%p)',
     (env) => {
@@ -62,6 +83,31 @@ describe('readClientIpSource', () => {
 });
 
 describe('resolveClientIp', () => {
+  it('groups IPv6 request addresses by /64 and unwraps IPv4-mapped ones, like the default tracker', () => {
+    expect(resolveClientIp({ kind: 'request' }, request({}, '2001:db8:1:2:aaaa::1'))).toBe(
+      resolveClientIp({ kind: 'request' }, request({}, '2001:db8:1:2:bbbb::2')),
+    );
+    expect(resolveClientIp({ kind: 'request' }, request({}, '::ffff:203.0.113.7'))).toBe(
+      '203.0.113.7',
+    );
+  });
+
+  it('groups IPv6 header addresses by /64', () => {
+    const first = resolveClientIp(
+      { kind: 'x-real-ip' },
+      request({ 'x-real-ip': '2001:db8:1:2::1' }),
+    );
+    const second = resolveClientIp(
+      { kind: 'x-real-ip' },
+      request({ 'x-real-ip': '2001:db8:1:2:ffff::9' }),
+    );
+
+    expect(first).toBe(second);
+    expect(first).not.toBe(
+      resolveClientIp({ kind: 'x-real-ip' }, request({ 'x-real-ip': '2001:db8:1:3::1' })),
+    );
+  });
+
   it('uses the request address by default and ignores forwarding headers', () => {
     expect(
       resolveClientIp(
@@ -86,9 +132,9 @@ describe('resolveClientIp', () => {
     expect(resolveClientIp({ kind: 'x-real-ip' }, request(headers))).toBe('10.0.0.1');
   });
 
-  it('accepts an IPv6 X-Real-IP', () => {
+  it('accepts an IPv6 X-Real-IP, counted by its /64 network', () => {
     expect(resolveClientIp({ kind: 'x-real-ip' }, request({ 'x-real-ip': '2001:db8::7' }))).toBe(
-      '2001:db8::7',
+      '2001:db8::/64',
     );
   });
 

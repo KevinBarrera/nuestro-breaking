@@ -1,7 +1,7 @@
 # Online service charge — issue #239
 
 Objective: online buyers pay the Mercado Pago fee as a separate "Cargo por servicio", so the organizer receives the full pass price; cash and manual registrations keep the pass price.
-Branch: `feat/239-online-service-charge` from `dev` at `a7d7575`. Delivery: forecast ~800 authored lines, over the 400-line budget; chain strategy pending the user's answer. No `Co-Authored-By`.
+Branch: chained `feat/239-NN-*` from `dev` at `a7d7575`: `feat/239-01-service-charge-backend` (T1, T2), `feat/239-02` (T3), `feat/239-03` (T4, T5). Delivery: stacked PRs to `dev`, `Closes #239` on the last PR, no `Co-Authored-By`.
 Test runner: backend Jest unit (`pnpm --filter @nuestro-breaking/backend test`) and PostgreSQL e2e (`test:e2e`, needs Docker); frontend Vitest (`test`) and Playwright (`test:e2e`). Engram mirror: `odd/online-service-charge/tasks`.
 
 ## Specs
@@ -18,13 +18,13 @@ Test runner: backend Jest unit (`pnpm --filter @nuestro-breaking/backend test`) 
 
 ## Tasks
 
-| ID  | Specs      | Route  | Status  | Evidence |
-| --- | ---------- | ------ | ------- | -------- |
-| T1  | S1, S2, S7 | inline | pending |          |
-| T2  | S4, S6     | inline | pending |          |
-| T3  | S3, S7     | inline | pending |          |
-| T4  | S5         | inline | pending |          |
-| T5  | S8, docs   | inline | pending |          |
+| ID  | Specs      | Route  | Status  | Evidence  |
+| --- | ---------- | ------ | ------- | --------- |
+| T1  | S1, S2, S7 | inline | done    | `9059890` |
+| T2  | S4, S6     | inline | done    | `33c7508` |
+| T3  | S3, S7     | inline | pending |           |
+| T4  | S5         | inline | pending |           |
+| T5  | S8, docs   | inline | pending |           |
 
 - T1 — Backend charge config reader (env, fail fast when missing) and an integer-math gross-up calculator with unit tests; `.env.example` and env docs.
 - T2 — Checkout adds the charge as its own Mercado Pago item and stores it on `registration_checkouts` (migration `0027`); webhook, reconciliation and payment status use the charged total; manual path untouched.
@@ -37,4 +37,7 @@ Test runner: backend Jest unit (`pnpm --filter @nuestro-breaking/backend test`) 
 - L1 (2026-10-15, user): "sí, arranquemos con #239"
 - 2026-10-15 (user): "Adelante con variables de entorno" — the charge is configured per environment, not per event.
 - 2026-10-15: Mapping. Money is integer cents end to end (`centsToPesos`, `checkout-preference.ts:15`). The webhook expects the sum of `event_registration_passes.price_cents` (`payment-webhook.service.ts:295`, `payment-decision.ts:66`), so it must add the charge or `amount_mismatch` flags every paid order. The review screen computes its total in the browser from the catalog (`purchaseTotals`, `purchase-selection.ts:168`). Migrations are hand-written in `apps/backend/drizzle/` with `meta/_journal.json` (latest `0026`). No central env schema; readers per module (`readMercadoPagoConfig`).
-- Next: the user picks the delivery strategy, then T1.
+- 2026-10-15 (user): "vamos con esos 3 PRs" — three chained PRs to `dev`.
+- 2026-10-15: T1 done (`9059890`). `readServiceCharge` in `events/shared/service-charge.ts` reads `ONLINE_SERVICE_CHARGE_PERCENT`, `ONLINE_SERVICE_CHARGE_FIXED_MXN` and `ONLINE_SERVICE_CHARGE_VAT_PERCENT` (all required, at most two decimals, stored as hundredths); `serviceChargeCents` grosses up with BigInt math. RED observed (module missing), GREEN 23 tests, including an exact check that the organizer keeps at least the price and one cent less would not. The e2e env forces 3.49 / 4.00 / 16.
+- 2026-10-15: T2. The checkout adds a last "Cargo por servicio" item and stores `service_charge_cents` on `registration_checkouts` (migration `0027`, default 0, check `0 <= charge < amount_cents`); `amount_cents` is passes plus charge. The webhook expects the pass sum plus the latest checkout's charge; payment status returns `serviceChargeCents` and a `totalCents` that includes it. Unit RED observed for the preference item; the e2e tests were written first but run only after the implementation. Checks: backend lint clean, unit 584/584, e2e 424/424 (the migration count in `event-activity-foundation.e2e-spec.ts` went from 27 to 28).
+- Next: review assessment of T2, then `feat/239-02` (T3).

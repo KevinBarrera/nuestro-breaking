@@ -78,24 +78,29 @@ How these behave:
 Set these in each environment's backend service. Values marked _secret_ come
 from the provider and are never committed.
 
-| Variable                        | Staging                                                                         | Production                                                              |
-| ------------------------------- | ------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| `RAILWAY_DOCKERFILE_PATH`       | `apps/backend/Dockerfile`                                                       | same                                                                    |
-| `DATABASE_URL`                  | `${{Postgres.DATABASE_URL}}` (private network, no egress cost)                  | same                                                                    |
-| `AUTH_TRUSTED_ORIGIN`           | `https://staging.losmaspesados.com.mx`                                          | `https://boletos.losmaspesados.com.mx`                                  |
-| `PUBLIC_APP_URL`                | `https://staging.losmaspesados.com.mx`                                          | `https://boletos.losmaspesados.com.mx`                                  |
-| `PUBLIC_ALLOWED_ORIGINS`        | Empty (the admin origin is already allowed)                                     | Empty                                                                   |
-| `TRUST_PROXY_HOPS`              | `1` before the DNS move, `2` after (see [Client IP check](#client-ip-check))    | same                                                                    |
-| `BREVO_API_KEY`                 | _secret_ ([email runbook](email-delivery.md))                                   | _secret_                                                                |
-| `EMAIL_SENDER_ADDRESS`          | Verified sender in Brevo                                                        | same                                                                    |
-| `EMAIL_SENDER_NAME`             | `Los más pesados`                                                               | same                                                                    |
-| `EMAIL_SANDBOX`                 | `true` (Brevo validates, never delivers)                                        | Unset (defaults to `false` in production)                               |
-| `MERCADO_PAGO_MODE`             | `sandbox`                                                                       | `production`, only after the staging demo with the organizer            |
-| `MERCADO_PAGO_ACCESS_TOKEN`     | _secret_, test account ([sandbox runbook](mercado-pago-sandbox.md))             | _secret_, organizer's account (a `TEST-` token is refused)              |
-| `MERCADO_PAGO_WEBHOOK_SECRET`   | _secret_                                                                        | _secret_                                                                |
-| `MERCADO_PAGO_NOTIFICATION_URL` | `https://staging-api.losmaspesados.com.mx/public/payments/mercado-pago/webhook` | `https://api.losmaspesados.com.mx/public/payments/mercado-pago/webhook` |
+| Variable                        | Staging                                                                                                                            | Production                                                              |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| `RAILWAY_DOCKERFILE_PATH`       | `apps/backend/Dockerfile`                                                                                                          | same                                                                    |
+| `DATABASE_URL`                  | `${{Postgres.DATABASE_URL}}` (private network, no egress cost)                                                                     | same                                                                    |
+| `AUTH_TRUSTED_ORIGIN`           | `https://staging.losmaspesados.com.mx`                                                                                             | `https://boletos.losmaspesados.com.mx`                                  |
+| `PUBLIC_APP_URL`                | `https://staging.losmaspesados.com.mx`                                                                                             | `https://boletos.losmaspesados.com.mx`                                  |
+| `PUBLIC_ALLOWED_ORIGINS`        | Empty (the admin origin is already allowed)                                                                                        | Empty                                                                   |
+| `CLIENT_IP_SOURCE`              | `x-real-ip` before the DNS move, `cloudflare` after (see [Client IP check](#client-ip-check))                                      | same                                                                    |
+| `CLOUDFLARE_ORIGIN_SECRET`      | _secret_, only with `cloudflare`: a random value of at least 32 characters, also set in the Cloudflare Transform Rule (DNS step 7) | _secret_, a different value                                             |
+| `BREVO_API_KEY`                 | _secret_ ([email runbook](email-delivery.md))                                                                                      | _secret_                                                                |
+| `EMAIL_SENDER_ADDRESS`          | Verified sender in Brevo                                                                                                           | same                                                                    |
+| `EMAIL_SENDER_NAME`             | `Los más pesados`                                                                                                                  | same                                                                    |
+| `EMAIL_SANDBOX`                 | `true` (Brevo validates, never delivers)                                                                                           | Unset (defaults to `false` in production)                               |
+| `MERCADO_PAGO_MODE`             | `sandbox`                                                                                                                          | `production`, only after the staging demo with the organizer            |
+| `MERCADO_PAGO_ACCESS_TOKEN`     | _secret_, test account ([sandbox runbook](mercado-pago-sandbox.md))                                                                | _secret_, organizer's account (a `TEST-` token is refused)              |
+| `MERCADO_PAGO_WEBHOOK_SECRET`   | _secret_                                                                                                                           | _secret_                                                                |
+| `MERCADO_PAGO_NOTIFICATION_URL` | `https://staging-api.losmaspesados.com.mx/public/payments/mercado-pago/webhook`                                                    | `https://api.losmaspesados.com.mx/public/payments/mercado-pago/webhook` |
 
-Do not set `LOCAL_ADMIN_PROVISIONING`, `LOCAL_ADMIN_PASSWORD` or
+Leave `TRUST_PROXY_HOPS` unset (delete it if it exists): it only applies to
+`CLIENT_IP_SOURCE=request`, Railway's edge does not make hop counting safe,
+and the backend refuses to start when it is set together with `x-real-ip` or
+`cloudflare`. Do not set
+`LOCAL_ADMIN_PROVISIONING`, `LOCAL_ADMIN_PASSWORD` or
 `LOCAL_CATALOG_SEED`: they are for local databases only. Optional tuning
 variables keep their defaults (`PUBLIC_RATE_LIMIT_LIMIT`,
 `PUBLIC_RATE_LIMIT_TTL_MS`, `EMAIL_DISPATCH_INTERVAL_MS`,
@@ -163,8 +168,20 @@ domain's nameservers on Cloudflare.
    the `CNAME` it shows in Cloudflare, **Proxied** (orange cloud). If Railway's
    certificate stays in validation, switch the record to DNS only until it is
    issued, then back to Proxied.
-7. Set `TRUST_PROXY_HOPS=2` on the backend and redeploy, then run the
-   [client IP check](#client-ip-check).
+7. Let the backend trust Cloudflare's client address, in this order:
+   1. Generate a secret of at least 32 characters (for example
+      `openssl rand -hex 32`), one per environment.
+   2. **Rules > Overview > Create rule > Request Header Transform Rule**:
+      when the hostname equals the API host, **Set static** header
+      `X-Origin-Secret` to the secret.
+   3. On the backend, set `CLOUDFLARE_ORIGIN_SECRET` to the same secret and
+      `CLIENT_IP_SOURCE=cloudflare`, and redeploy.
+   4. Run the [client IP check](#client-ip-check).
+
+   Requests that skip Cloudflare and reach Railway directly lack the header,
+   so the backend ignores their `CF-Connecting-IP`. If the secret leaks,
+   replace it in both places.
+
 8. **Security > WAF > Rate limiting rules**: add a per-IP rule for the API
    hostnames. Its values stay in the dashboard (ADR 0008).
 
@@ -199,32 +216,37 @@ environment's frontend host. It works only after the DNS move.
 
 ### Client IP check
 
-The API limits public requests per client IP (60 per minute by default). It
-reads the client from `X-Forwarded-For`, trusting `TRUST_PROXY_HOPS` proxies
-([public catalog contract](../contracts/public-event-catalog.md)). Railway
-documents only `X-Real-IP`, not how its edge handles `X-Forwarded-For`, so
-check the value on the real deployment, each time the proxy chain changes:
+The API limits public requests per client address (60 per minute by default).
+`CLIENT_IP_SOURCE` picks where that address comes from
+([public catalog contract](../contracts/public-event-catalog.md)). Check on
+the real deployment, each time the source or the proxy chain changes, that a
+client cannot pick a new address by forging a header. From one computer, send
+61 requests to a public route, each with different forged addresses:
 
-1. **Forged addresses share one counter.** From one computer, send 61
-   requests, each with a different forged address:
+```bash
+for i in $(seq 1 61); do
+  curl -s -o /dev/null -w '%{http_code}\n' \
+    -H "X-Forwarded-For: 203.0.113.$i" \
+    -H "X-Real-IP: 198.51.100.$i" \
+    -H "CF-Connecting-IP: 192.0.2.$i" \
+    https://<api host>/public/events/<slug>/catalog
+done | sort | uniq -c
+```
 
-   ```bash
-   for i in $(seq 1 61); do
-     curl -s -o /dev/null -w '%{http_code}\n' \
-       -H "X-Forwarded-For: 203.0.113.$i" \
-       https://<api host>/public/events/<slug>/catalog
-   done | sort | uniq -c
-   ```
+Expected: 60 answers that are not `429` (an unknown slug answers `404`, which
+is fine) and `1 429`. If no request answers `429`, a client can choose its
+address: check `CLIENT_IP_SOURCE` and, with `cloudflare`, the Transform Rule.
 
-   Expected: `60 200` and `1 429`. If every request answers `200`, a client
-   can pick its own address: lower `TRUST_PROXY_HOPS` by one and repeat.
+After the DNS move, run it twice: against the API host (through Cloudflare)
+and against the Railway domain (`*.up.railway.app`, which skips Cloudflare).
+Both must end with one `429`.
 
-2. **Real clients get separate counters.** Right after step 1, open the same
-   URL from a phone on mobile data. Expected: `200`. A `429` means everyone
-   shares one counter: raise `TRUST_PROXY_HOPS` by one and repeat both steps.
-   This step can pass by chance when the value is too low (the phone may reach
-   a different proxy address), so it confirms a correct value only together
-   with step 1 and the expected value from the table above.
+Repeat with IPv6 addresses from one network, which must share one counter
+(`X-Real-IP: 2001:db8:1:2::$i` and `CF-Connecting-IP: 2001:db8:1:2::$i`).
+Same expected result.
+
+Then open the same URL from a phone on mobile data. Expected: not `429`. A
+`429` means different clients share one counter.
 
 Wait one minute between runs so the counters reset.
 

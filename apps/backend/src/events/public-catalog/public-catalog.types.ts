@@ -18,6 +18,10 @@ export type PublicPassType = {
   passClass: PublicPassClass;
   priceCents: number;
   requiresPassClass: PublicPassClass | null;
+  /** When online sales of this pass close (#240), or null to follow the event's window. */
+  onlineSalesClosesAt: string | null;
+  /** False once that time is reached; the pass stays listed so buyers see it is closed. */
+  onSale: boolean;
   selectableActivities: PublicActivity[];
   includedActivities: PublicActivity[];
 };
@@ -57,6 +61,7 @@ export type CatalogPassRow = {
   passClass: string;
   priceCents: number;
   requiresPassClass: string | null;
+  onlineSalesClosesAt: Date | null;
 };
 
 export type CatalogLinkRow = {

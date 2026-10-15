@@ -20,6 +20,7 @@ const pass = (id: string, name: string, passClass: string): CatalogPassRow => ({
   passClass,
   priceCents: 1000,
   requiresPassClass: passClass === 'add_on' ? 'full' : null,
+  onlineSalesClosesAt: null,
 });
 const link = (
   passTypeId: string,
@@ -39,6 +40,31 @@ const link = (
 });
 
 describe('toPublicCatalog', () => {
+  it('marks a pass off sale from its online close time, which is exclusive (#240)', () => {
+    const closing = { ...pass('closing', 'Closing', 'general'), onlineSalesClosesAt: now };
+    const later = {
+      ...pass('later', 'Later', 'full'),
+      onlineSalesClosesAt: new Date(now.getTime() + 1),
+    };
+    const catalog = toPublicCatalog(
+      event(),
+      [closing, later, pass('open', 'Open', 'add_on')],
+      [],
+      now,
+    );
+    expect(
+      catalog.passes.map(({ id, onlineSalesClosesAt, onSale }) => ({
+        id,
+        onlineSalesClosesAt,
+        onSale,
+      })),
+    ).toEqual([
+      { id: 'later', onlineSalesClosesAt: '2026-10-20T12:00:00.001Z', onSale: true },
+      { id: 'closing', onlineSalesClosesAt: '2026-10-20T12:00:00.000Z', onSale: false },
+      { id: 'open', onlineSalesClosesAt: null, onSale: true },
+    ]);
+  });
+
   it('summarizes the event and the sales window as ISO strings', () => {
     const catalog = toPublicCatalog(event(), [], [], now);
     expect(catalog.event).toEqual({
@@ -105,6 +131,8 @@ describe('toPublicCatalog', () => {
       passClass: 'add_on',
       priceCents: 1000,
       requiresPassClass: 'full',
+      onlineSalesClosesAt: null,
+      onSale: true,
       selectableActivities: [],
       includedActivities: [
         {

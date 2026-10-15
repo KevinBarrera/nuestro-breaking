@@ -46,6 +46,8 @@ Code: `apps/backend/src/events/public-catalog/`. The pure projection is `toPubli
       "passClass": "add_on",
       "priceCents": 80000,
       "requiresPassClass": "full",
+      "onlineSalesClosesAt": null,
+      "onSale": true,
       "selectableActivities": [],
       "includedActivities": [
         {
@@ -65,6 +67,7 @@ Code: `apps/backend/src/events/public-catalog/`. The pure projection is `toPubli
 - `sales.state` and `sales.reason` follow the [sales state rules](event-sales.md#state-rules), computed at request time: `reason` is `disabled`, `not_yet_open` or `ended` when closed, and `null` when open.
 - `passClass` is `full`, `general` or `add_on`. `requiresPassClass` names the class an add-on needs (Open Styles requires `full`), or is `null`.
 - `serviceCharge` holds the online service charge rates (#239), so the review screen shows the charge the checkout will add: the Mercado Pago percentage in hundredths of a percent (`349` is 3.49%), the fixed fee in cents, and the VAT on the fee in hundredths of a percent. All three are before VAT and come from the `ONLINE_SERVICE_CHARGE_*` environment variables. The charge for a purchase of `price` cents is `ceil((price + fixed × (1 + VAT)) / (1 − rate × (1 + VAT)))` minus `price`, and `0` when `price` is `0`. Cash and manual registrations never pay it.
+- `onlineSalesClosesAt` is the time online sales of the pass close (#240), or `null` when the pass follows the event's sales window only. `onSale` is `false` from that time on (the close time is exclusive, like the event window's). A pass that is not on sale stays listed, so the buyer sees it is no longer available, but public registration refuses it with `409 pass_type_sales_closed`.
 - `selectableActivities` are the activities a buyer picks from; `includedActivities` come with the pass. Pass and activity ids are exposed because public registration (#174) submits them.
 
 ## Ordering

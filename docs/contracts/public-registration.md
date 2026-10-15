@@ -122,12 +122,13 @@ The endpoint reuses `PublicCatalogService.requireOpen`: an unknown, malformed or
 
 Checked inside the write transaction, with the requested pass types and activities share-locked so a concurrent archive or price edit cannot interleave. The first violation answers `409 { "statusCode": 409, "code": "<code>", "message": "<message>" }`:
 
-| `code`                  | `message`                                    | When                                                                                  |
-| ----------------------- | -------------------------------------------- | ------------------------------------------------------------------------------------- |
-| `pass_type_unavailable` | `Pass type is not available`                 | The pass type is archived or does not belong to this event.                           |
-| `general_with_full`     | `A full pass already includes general entry` | General entry and a full pass in one request (D1).                                    |
-| `required_pass_missing` | `Add-on requires a full pass`                | An add-on (Open Styles) without a pass of its required class in the same request.     |
-| `selection_unavailable` | `Invalid activity selection`                 | A selected activity is archived, not `selectable` for that pass, or in another event. |
+| `code`                   | `message`                                    | When                                                                                                                                                                           |
+| ------------------------ | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `pass_type_unavailable`  | `Pass type is not available`                 | The pass type is archived or does not belong to this event.                                                                                                                    |
+| `pass_type_sales_closed` | `Online sales of this pass are closed`       | The pass's own online close time (#240) has been reached, checked when the request is processed, so a page loaded earlier does not help. Admin manual registration ignores it. |
+| `general_with_full`      | `A full pass already includes general entry` | General entry and a full pass in one request (D1).                                                                                                                             |
+| `required_pass_missing`  | `Add-on requires a full pass`                | An add-on (Open Styles) without a pass of its required class in the same request.                                                                                              |
+| `selection_unavailable`  | `Invalid activity selection`                 | A selected activity is archived, not `selectable` for that pass, or in another event.                                                                                          |
 
 These are the same rules as admin pass assignment and selection changes (`registration-entitlements`). There is no maximum number of selections per pass beyond the request limit of 20.
 

@@ -18,13 +18,13 @@ Test runner: backend Jest unit (`pnpm --filter @nuestro-breaking/backend test`) 
 
 ## Tasks
 
-| ID  | Specs      | Route  | Status                      | Evidence  |
-| --- | ---------- | ------ | --------------------------- | --------- |
-| T1  | S1, S2, S7 | inline | done                        | `9059890` |
-| T2  | S4, S6     | inline | done                        | `33c7508` |
-| T3  | S3, S7     | inline | done                        | `88b8d64` |
-| T4  | S5         | inline | done                        | `4dc8cd0` |
-| T5  | S8, docs   | inline | partial: docs done, S8 open | `eb8c20d` |
+| ID  | Specs      | Route  | Status                                 | Evidence  |
+| --- | ---------- | ------ | -------------------------------------- | --------- |
+| T1  | S1, S2, S7 | inline | done                                   | `9059890` |
+| T2  | S4, S6     | inline | done                                   | `33c7508` |
+| T3  | S3, S7     | inline | done                                   | `88b8d64` |
+| T4  | S5         | inline | done                                   | `4dc8cd0` |
+| T5  | S8, docs   | inline | done: docs; S8 handed to the organizer | `eb8c20d` |
 
 - T1 — Backend charge config reader (env, fail fast when missing) and an integer-math gross-up calculator with unit tests; `.env.example` and env docs.
 - T2 — Checkout adds the charge as its own Mercado Pago item and stores it on `registration_checkouts` (migration `0027`); webhook, reconciliation and payment status use the charged total; manual path untouched.
@@ -48,4 +48,6 @@ Test runner: backend Jest unit (`pnpm --filter @nuestro-breaking/backend test`) 
 - 2026-10-15: T5 docs (`eb8c20d`): the purchase plan records the fee decision. S8 stays open: the draft cancellation text (`legal-texts.ts`, version `borrador-2026-10-13`) says "Las compras en línea de este evento no tienen reembolso." and does not mention the charge; legal texts come from the organizer, and a text change bumps the version in both apps.
 - 2026-10-15: T3 and T4 assessment: medium, `under_budget` (308 lines since `38aeb2a`); no review due. The stop hook twice offered a base-diff from `c9c9441` (#168 merge, about 465 files); it was declined per the standing rule.
 - 2026-10-15: Independent verifier over `a7d7575..HEAD`: S1–S7 PASS, S8 open and not claimed. Backend unit 586/586, frontend unit 389/389, both lints clean, 7 backend e2e suites 112/112. The probes found the backend and frontend calculators identical over 428,574 checks, and the organizer keeps the full price with the smallest total. No blockers. Advisories: the rate-change follow-ups already logged; deploy the backend before the frontend (now in `docs/runbooks/deploy.md`); with zero rates the email shows no summary. Parent spot check: frontend unit 389/389.
-- Next: the user's answer on S8, then the PRs.
+- 2026-10-15: S8 research. Per Mercado Pago México's help ("Cómo devuelvo un pago", https://www.mercadopago.com.mx/ayuda/devolver-pago_279, read through search results because the page answered 403), refunding an online payment gives back Mercado Pago's fee, within 90 days; how much fee a partial refund returns is unclear. So a full refund, charge included, costs the organizer nothing.
+- 2026-10-15 (user): "Ok, si mercado pago es capaz de eso entonces esta bien" — propose to the organizer, with the final legal texts, the cancellation line "Si el organizador aprueba un reembolso, se devuelve el total pagado, incluido el cargo por servicio." The draft legal text is unchanged in code. The organizer should confirm the fee refund in his Mercado Pago account.
+- Next: open the three chained PRs (user decision).

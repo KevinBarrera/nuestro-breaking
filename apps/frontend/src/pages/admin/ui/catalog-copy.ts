@@ -68,4 +68,11 @@ export const styles = {
     'mt-1 block min-h-11 w-full rounded-lg border border-input-line bg-input px-3 py-2 text-base text-fg focus-visible:border-focus focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus',
   label: 'block text-sm font-semibold text-fg',
   card: 'rounded-xl border border-line bg-surface p-5',
+  // A segmented radio control: the frame holds one label per option, and each label wraps a
+  // radio stretched over it, so the whole segment is the 44px target.
+  segments: 'grid grid-cols-3 gap-1 rounded-lg border border-input-line bg-input p-1',
+  segment:
+    'relative flex min-h-11 items-center justify-center rounded-md px-2 text-center text-sm font-semibold text-fg has-checked:bg-nav-active has-checked:text-nav-active-fg has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-focus has-disabled:cursor-wait has-disabled:opacity-50',
+  segmentInput:
+    'absolute inset-0 m-0 cursor-pointer appearance-none rounded-md disabled:cursor-wait',
 };

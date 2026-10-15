@@ -9,6 +9,7 @@ import { AppModule } from '@/app.module';
 import { DATABASE_CLIENT } from '@/database/database.constants';
 import * as schema from '@/database/schema';
 import { DatabaseService } from '@/database/database.service';
+import { readTrustedOrigin } from '@/http';
 import { PostgresHarness } from './support/postgres-harness';
 
 jest.setTimeout(120_000);
@@ -62,7 +63,7 @@ describe('admin registration commands (e2e)', () => {
     >`INSERT INTO auth_sessions (user_id, token_digest, expires_at) VALUES (${userId}, ${createHash('sha256').update(token).digest('hex')}, now() + interval '1 hour') RETURNING id`;
     return { cookie: `nb_admin_session=${token}`, userId, sessionId };
   }
-  const trustedOrigin = process.env.AUTH_TRUSTED_ORIGIN ?? 'http://localhost:5173';
+  const trustedOrigin = readTrustedOrigin(process.env);
   const headers = (cookie: string) => ({
     Cookie: cookie,
     Origin: trustedOrigin,
@@ -175,6 +176,7 @@ describe('admin registration commands (e2e)', () => {
     const [fact] = await client<
       {
         operation_type: string;
+        actor_kind: string;
         actor_user_id: string;
         session_id: string;
         affected_activity_ids: string[];
@@ -182,9 +184,10 @@ describe('admin registration commands (e2e)', () => {
         after_state: { status: string };
       }[]
     >`
-      SELECT operation_type, actor_user_id, session_id, affected_activity_ids, before_state, after_state FROM registration_operation_audit WHERE id = ${auditId} AND event_id = ${event} AND registration_id = ${registrationId} AND participant_id = ${participantId}`;
+      SELECT operation_type, actor_kind, actor_user_id, session_id, affected_activity_ids, before_state, after_state FROM registration_operation_audit WHERE id = ${auditId} AND event_id = ${event} AND registration_id = ${registrationId} AND participant_id = ${participantId}`;
     expect(fact).toMatchObject({
       operation_type: 'manual_registration',
+      actor_kind: 'admin',
       actor_user_id: userId,
       session_id: sessionId,
       affected_activity_ids: [activity],
@@ -237,12 +240,23 @@ describe('admin registration commands (e2e)', () => {
       .set(headers(cookie))
       .send({ amount: 1250, reference: 'R-1', note: 'Paid', receipt: 'receipt-1' })
       .expect(201);
-    const resultBody = result.body as { auditId: string; registrationId: string; status: string };
+    const resultBody = result.body as {
+      auditId: string;
+      registrationId: string;
+      status: string;
+      folio: string;
+    };
     expect(resultBody).toMatchObject({ registrationId: id, status: 'confirmed' });
+    // The event's prefix (default `EV`) plus four characters of the look-alike-free alphabet.
+    expect(resultBody.folio).toMatch(/^EV-[23456789ABCDEFGHJKMNPQRSTUVWXYZ]{4}$/);
     const [row] = await client<
-      { status: string; confirmation_source: string; confirmed_at: Date }[]
-    >`SELECT status, confirmation_source, confirmed_at FROM event_registrations WHERE id = ${id}`;
-    expect(row).toMatchObject({ status: 'confirmed', confirmation_source: 'admin_cash' });
+      { status: string; confirmation_source: string; confirmed_at: Date; folio: string }[]
+    >`SELECT status, confirmation_source, confirmed_at, folio FROM event_registrations WHERE id = ${id}`;
+    expect(row).toMatchObject({
+      status: 'confirmed',
+      confirmation_source: 'admin_cash',
+      folio: resultBody.folio,
+    });
     expect(typeof row.confirmed_at).toBe('string');
     const [fact] = await client<
       {
@@ -252,7 +266,7 @@ describe('admin registration commands (e2e)', () => {
         note: string;
         receipt: string;
         before_state: { status: string };
-        after_state: { status: string };
+        after_state: { status: string; folio: string };
       }[]
     >`SELECT operation_type, amount_cents, reference, note, receipt, before_state, after_state FROM registration_operation_audit WHERE id = ${resultBody.auditId}`;
     expect(fact).toMatchObject({
@@ -262,9 +276,12 @@ describe('admin registration commands (e2e)', () => {
       note: 'Paid',
       receipt: 'receipt-1',
       before_state: { status: 'pending_payment' },
-      after_state: { status: 'confirmed' },
+      after_state: { status: 'confirmed', folio: resultBody.folio },
     });
     await cash(event, id).set(headers(cookie)).send({ amount: 100 }).expect(400);
+    expect(await client`SELECT folio FROM event_registrations WHERE id = ${id}`).toEqual([
+      { folio: resultBody.folio },
+    ]);
     const [{ id: voided }] = await client<
       { id: string }[]
     >`INSERT INTO event_registrations (event_id, participant_id, status) VALUES (${event}, ${(await client<{ id: string }[]>`INSERT INTO participants (full_name) VALUES ('Void') RETURNING id`)[0].id}, 'voided') RETURNING id`;

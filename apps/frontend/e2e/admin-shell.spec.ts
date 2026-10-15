@@ -1,11 +1,12 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
 import { expectSelected, selectTrigger } from './support/select.ts';
+import { eventSummary } from './support/event-mocks.ts';
 
 const firstId = 'a1b2c3d4-1234-4567-89ab-123456789abc';
 const secondId = 'b1b2c3d4-1234-4567-89ab-123456789abc';
 const events = [
-  { id: firstId, name: 'Encuentro del barrio' },
-  { id: secondId, name: 'Batalla de otoño' },
+  eventSummary(firstId, 'Encuentro del barrio'),
+  eventSummary(secondId, 'Batalla de otoño'),
 ];
 const api = (url: URL) => url.port === '3000';
 
@@ -36,9 +37,11 @@ test('renders the shell with grouped navigation and unavailable sections disable
   const nav = sideNav(page);
   await expect(nav.getByText('OPERACIÓN')).toBeVisible();
   await expect(nav.getByText('CATÁLOGO')).toBeVisible();
-  const overview = nav.getByRole('link', { name: 'Resumen' });
-  await expect(overview).toHaveAttribute('href', '/admin');
-  await expect(overview).toHaveAttribute('aria-current', 'page');
+  // On the event list, Todos los eventos is the one current item; Resumen needs an event.
+  const allEvents = nav.getByRole('link', { name: 'Todos los eventos' });
+  await expect(allEvents).toHaveAttribute('href', '/admin');
+  await expect(allEvents).toHaveAttribute('aria-current', 'page');
+  await expect(nav.locator('[aria-current="page"]')).toHaveCount(1);
   for (const name of ['Inscripciones', 'Listas de respaldo']) {
     const item = nav.getByRole('link', { name: new RegExp(name) });
     await expect(item).toHaveAttribute('aria-disabled', 'true');
@@ -46,7 +49,7 @@ test('renders the shell with grouped navigation and unavailable sections disable
     await expect(item).toContainText('Próximamente');
   }
   // Without an event in the URL, event-scoped sections cannot be reached yet.
-  for (const name of ['Check-in', 'Actividades', 'Pases']) {
+  for (const name of ['Resumen', 'Check-in', 'Actividades', 'Pases']) {
     await expect(nav.getByRole('link', { name })).toHaveAttribute('aria-disabled', 'true');
   }
 });
@@ -256,4 +259,54 @@ test('stacks the navigation above content without horizontal overflow at 375px',
   expect(await page.evaluate<number>('document.documentElement.scrollWidth')).toBeLessThanOrEqual(
     375,
   );
+});
+
+// Completed `GET /admin/events` reads. React StrictMode (dev server) mounts effects twice and
+// aborts the first read, so aborted requests are not counted.
+function countListReads(page: Page) {
+  let reads = 0;
+  page.on('requestfinished', (request) => {
+    const url = new URL(request.url());
+    if (api(url) && url.pathname === '/admin/events') reads++;
+  });
+  return () => reads;
+}
+
+test('reads the list again once when the URL names an event it lacks, such as a new one', async ({
+  page,
+}) => {
+  // The first read predates the event (just created); the second one has it.
+  const reads = countListReads(page);
+  await page.route(
+    (url) => api(url) && url.pathname === '/admin/events',
+    (route) => route.fulfill({ json: reads() === 0 ? [events[1]] : events }),
+  );
+  await page.goto(`/admin/events/${firstId}/activities`);
+  await expectSelected(selectTrigger(page, 'Evento'), events[0].name);
+  await expect.poll(reads).toBe(2);
+});
+
+test('does not read the list again for the same unknown event id', async ({ page }) => {
+  const thirdId = 'c1b2c3d4-1234-4567-89ab-123456789abc';
+  const reads = countListReads(page);
+  await page.route(
+    (url) => api(url) && url.pathname === '/admin/events',
+    (route) => route.fulfill({ json: [events[1]] }),
+  );
+  await page.goto(`/admin/events/${firstId}/activities`);
+  await expect.poll(reads).toBe(2);
+  await expect(selectTrigger(page, 'Evento')).toHaveCount(0);
+  // Another screen of the same event: no new read.
+  // (Pases, not Check-in: the check-in screen reads the list itself for the event name.)
+  await sideNav(page).getByRole('link', { name: 'Pases' }).click();
+  await expect(page).toHaveURL(new RegExp(`/admin/events/${firstId}/passes$`));
+  await sideNav(page).getByRole('link', { name: 'Actividades' }).click();
+  await expect(page).toHaveURL(new RegExp(`/admin/events/${firstId}/activities$`));
+  // A different unknown event reads again, exactly once more; the count proves the screens
+  // above did not.
+  await page.evaluate(
+    `history.pushState({}, '', '/admin/events/${thirdId}/activities'); dispatchEvent(new PopStateEvent('popstate'))`,
+  );
+  await expect.poll(reads).toBe(3);
+  await expect(selectTrigger(page, 'Evento')).toHaveCount(0);
 });

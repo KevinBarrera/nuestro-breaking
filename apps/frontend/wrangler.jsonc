@@ -1,0 +1,18 @@
+// Cloudflare Workers static assets for the frontend (#238, ADR 0008). No Worker script runs:
+// Cloudflare serves the Vite build, and unknown paths fall back to index.html so the React
+// router can handle them. Deploy with `npx wrangler@4.144.0 deploy` (production) or
+// `... deploy --env staging`. Build variables live in each Worker's Workers Builds settings;
+// see docs/runbooks/deploy.md.
+{
+  "name": "los-mas-pesados-web",
+  "compatibility_date": "2026-09-15",
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "single-page-application",
+  },
+  "env": {
+    "staging": {
+      "name": "los-mas-pesados-web-staging",
+    },
+  },
+}

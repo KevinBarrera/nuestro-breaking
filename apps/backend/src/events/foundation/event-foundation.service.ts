@@ -3,6 +3,7 @@ import { asc, eq } from 'drizzle-orm';
 import { DATABASE_CLIENT } from '@/database/database.constants';
 import { type DatabaseService } from '@/database/database.service';
 import { activities, eventVenues, events, venues } from '@/database/schema';
+import { deleteBlockers } from '@/events/admin-events/event-delete-blockers';
 import { type EventFoundation } from './event-foundation.types';
 
 @Injectable()
@@ -14,9 +15,13 @@ export class EventFoundationService {
       .select({
         id: events.id,
         name: events.name,
+        slug: events.slug,
+        folioPrefix: events.folioPrefix,
         timeZone: events.timeZone,
         startsAt: events.startsAt,
         endsAt: events.endsAt,
+        salesEnabled: events.salesEnabled,
+        archivedAt: events.archivedAt,
       })
       .from(events)
       .where(eq(events.id, eventId))
@@ -26,7 +31,7 @@ export class EventFoundationService {
       throw new NotFoundException('Event not found');
     }
 
-    const [attachedVenues, eventActivities] = await Promise.all([
+    const [attachedVenues, eventActivities, blockers] = await Promise.all([
       this.db
         .select({ id: venues.id, name: venues.name })
         .from(eventVenues)
@@ -45,16 +50,21 @@ export class EventFoundationService {
         .from(activities)
         .where(eq(activities.eventId, eventId))
         .orderBy(asc(activities.startsAt), asc(activities.id)),
+      deleteBlockers(this.db, eventId),
     ]);
 
     return {
       event: {
         id: event.id,
         name: event.name,
+        slug: event.slug,
+        folioPrefix: event.folioPrefix,
         timeZone: event.timeZone,
         startsAt: event.startsAt?.toISOString() ?? null,
         endsAt: event.endsAt?.toISOString() ?? null,
         windowStatus: event.startsAt === null && event.endsAt === null ? 'unbounded' : 'bounded',
+        salesEnabled: event.salesEnabled,
+        archivedAt: event.archivedAt?.toISOString() ?? null,
       },
       venues: attachedVenues,
       activities: eventActivities.map((activity) => ({
@@ -66,6 +76,7 @@ export class EventFoundationService {
         endsAt: activity.endsAt.toISOString(),
         planningStatus: 'draft',
       })),
+      deleteBlockers: blockers,
       deferredFields: ['priceDisplay', 'capacity', 'registrationRequirements'],
     };
   }

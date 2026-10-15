@@ -16,6 +16,7 @@ import { verify } from 'argon2';
 import { DATABASE_CLIENT } from '@/database/database.constants';
 import { authAudit, authSessions, userRoles, users } from '@/database/schema';
 import type { DatabaseService } from '@/database/database.service';
+import { readTrustedOrigin } from '@/http';
 import {
   digest,
   sessionCookieName as cookieName,
@@ -25,6 +26,10 @@ import {
 
 const lifetimeMs = 8 * 60 * 60 * 1000; // Fixed, non-renewing 8-hour session; deployment policy remains a follow-up.
 const csrfFor = (token: string) => digest(`nb-admin-csrf-v1:${token}`);
+// Team management (#214) is for global admins only; the UI reads this to show "Equipo".
+// The backend still checks every team request on its own.
+const isGlobalAdmin = (roles: { role: string; scopeType: string }[]) =>
+  roles.some((row) => row.role === 'admin' && row.scopeType === 'global');
 const dummyPasswordHash =
   '$argon2id$v=19$m=65536,p=4,t=3$LmZxB8GFh2DD5ukJv8CQug$GopHzamrH80u906LdN2evcHzThwIsFo0zF5DZYg4PHc';
 
@@ -38,7 +43,7 @@ export class AuthController {
   private async checkOrigin(request: Request): Promise<void> {
     // A single exact browser Origin is required. JSON-only sign-in + SameSite=Strict
     // cookie makes Origin the pre-session CSRF defense; sign-out also uses a session-bound token.
-    const trusted = process.env.AUTH_TRUSTED_ORIGIN ?? 'http://localhost:5173';
+    const trusted = readTrustedOrigin(process.env);
     if (request.headers.origin !== trusted) {
       await this.db.insert(authAudit).values({ action: 'denied' });
       throw new ForbiddenException('Request denied');
@@ -75,7 +80,7 @@ export class AuthController {
     const valid = await verify(verifier, body.password).catch(() => false);
     const roles = user
       ? await this.db
-          .select({ role: userRoles.role })
+          .select({ role: userRoles.role, scopeType: userRoles.scopeType })
           .from(userRoles)
           .where(
             and(
@@ -89,6 +94,7 @@ export class AuthController {
       .map((row) => row.role)
       .filter((role) => role === 'admin' || role === 'judge');
     if (!valid || !user.active || !adminRoles.length) return this.sessions.denied();
+    const globalAdmin = isGlobalAdmin(roles);
 
     const token = randomBytes(32).toString('hex');
     const expiresAt = new Date(Date.now() + lifetimeMs);
@@ -103,7 +109,13 @@ export class AuthController {
     });
     response.cookie(cookieName, token, { ...cookieOptions, maxAge: lifetimeMs });
     return {
-      user: { id: user.id, email: user.email, displayName: user.displayName, roles: adminRoles },
+      user: {
+        id: user.id,
+        email: user.email,
+        displayName: user.displayName,
+        roles: adminRoles,
+        globalAdmin,
+      },
       csrfToken: csrfFor(token),
     };
   }
@@ -121,6 +133,7 @@ export class AuthController {
         email: user.email,
         displayName: user.displayName,
         roles: roles.map((row) => row.role),
+        globalAdmin: isGlobalAdmin(roles),
       },
       expiresAt: session.expiresAt.toISOString(),
     };

@@ -1,6 +1,9 @@
 import { Module } from '@nestjs/common';
 import { DatabaseModule } from '@/database/database.module';
 import { IdentityAccessModule } from '@/identity-access/identity-access.module';
+import { PublicRateLimitModule } from '@/http';
+import { AdminEventsController } from './admin-events/admin-events.controller';
+import { AdminEventsService } from './admin-events/admin-events.service';
 import { EventFoundationGuard } from './foundation/event-foundation.guard';
 import { EventFoundationController } from './foundation/event-foundation.controller';
 import { EventFoundationService } from './foundation/event-foundation.service';
@@ -18,10 +21,25 @@ import { PassTypeAdminController } from './pass-type-admin/pass-type-admin.contr
 import { PassTypeAdminService } from './pass-type-admin/pass-type-admin.service';
 import { RegistrationEntitlementsController } from './registration-entitlements/registration-entitlements.controller';
 import { RegistrationEntitlementsService } from './registration-entitlements/registration-entitlements.service';
+import { EventSalesController } from './sales/event-sales.controller';
+import { EventSalesService } from './sales/event-sales.service';
+import { PublicCatalogController } from './public-catalog/public-catalog.controller';
+import { PublicCatalogService } from './public-catalog/public-catalog.service';
+import { PublicRegistrationController } from './public-registration/public-registration.controller';
+import { PublicRegistrationService } from './public-registration/public-registration.service';
+import {
+  EXPIRY_SWEEP_INTERVAL_MS,
+  PendingRegistrationExpirySweeper,
+  readExpirySweepInterval,
+} from './registration-expiry';
+import { PENDING_PAYMENT_WINDOW, readPendingPaymentWindow } from './shared/pending-payment-window';
+import { VenueAdminController } from './venue-admin/venue-admin.controller';
+import { VenueAdminService } from './venue-admin/venue-admin.service';
 
 @Module({
-  imports: [DatabaseModule, IdentityAccessModule],
+  imports: [DatabaseModule, IdentityAccessModule, PublicRateLimitModule],
   controllers: [
+    AdminEventsController,
     EventFoundationController,
     RegistrationSearchController,
     ManualRegistrationController,
@@ -30,8 +48,13 @@ import { RegistrationEntitlementsService } from './registration-entitlements/reg
     ActivityAdminController,
     PassTypeAdminController,
     RegistrationEntitlementsController,
+    EventSalesController,
+    PublicCatalogController,
+    PublicRegistrationController,
+    VenueAdminController,
   ],
   providers: [
+    AdminEventsService,
     EventFoundationService,
     EventFoundationGuard,
     RegistrationSearchService,
@@ -41,6 +64,13 @@ import { RegistrationEntitlementsService } from './registration-entitlements/reg
     ActivityAdminService,
     PassTypeAdminService,
     RegistrationEntitlementsService,
+    EventSalesService,
+    PublicCatalogService,
+    PublicRegistrationService,
+    VenueAdminService,
+    { provide: PENDING_PAYMENT_WINDOW, useFactory: () => readPendingPaymentWindow(process.env) },
+    { provide: EXPIRY_SWEEP_INTERVAL_MS, useFactory: () => readExpirySweepInterval(process.env) },
+    PendingRegistrationExpirySweeper,
   ],
 })
 export class EventsModule {}

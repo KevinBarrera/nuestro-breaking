@@ -1,0 +1,16 @@
+# Allowlist: the only image (apps/backend/Dockerfile) needs the workspace manifests and the backend.
+*
+!package.json
+!pnpm-lock.yaml
+!pnpm-workspace.yaml
+!apps/backend/
+
+# Never send secrets, local builds, or test-only files to the build.
+**/.env
+**/.env.*
+apps/backend/node_modules
+apps/backend/dist
+apps/backend/coverage
+apps/backend/test
+apps/backend/**/*.spec.ts
+apps/backend/**/*.tsbuildinfo

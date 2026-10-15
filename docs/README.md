@@ -16,6 +16,9 @@ Choose a path by purpose. The November 2026 MVP proposal is **DRAFT pending orga
 
 - [Frontend architecture](frontend-architecture.md), [code quality](code-quality.md), and [setup verification](setup-verification.md) — development guides.
 - [Architecture decisions](adr/), [event/activity foundation](contracts/event-activity-foundation.md), [event/activity API boundary](contracts/event-activity-api-boundary.md), [admin registration operations scope](contracts/admin-registration-operations.md), [admin registration audit/correction policy](contracts/admin-registration-audit-policy.md), [API/event versioning](contracts/api-event-versioning.md), and [bounded contexts](models/bounded-contexts.md) — design references; check each document's stated scope before treating planned behavior as implemented.
+- [Admin bootstrap runbook](runbooks/admin-bootstrap.md) — create the first global administrator of a hosted environment, once per environment.
+- [Managing the team](runbooks/support.md#managing-the-team) — invite administrators, recover access with a new link, change access, deactivate and reactivate.
+- [Setting up an event](runbooks/admin-bootstrap.md#setting-up-an-event) and [archiving and deleting events](runbooks/support.md#archiving-and-deleting-events) — create an event without scripts, then retire or remove it; the API is in the [admin event lifecycle contract](contracts/admin-event-lifecycle.md).
 - [OpenSpec change guide](../openspec/README.md) — change artifacts and their boundaries, including the reusable event activity foundation.
 
 ## Historical and provisional context

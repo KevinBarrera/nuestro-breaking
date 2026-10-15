@@ -1,0 +1,128 @@
+# ADR 0008: Host the Frontend on Cloudflare and the Backend and Database on Railway
+
+## Status
+
+Accepted on 2026-10-11. The product owner chose the platforms. Prices were checked on that date.
+
+Amended on 2026-10-14 (#238): concrete hostnames under the organizer's domain, the frontend on Workers static assets, Railway settings in the dashboard, and the nameserver move. See [Amendment 2026-10-14](#amendment-2026-10-14). The setup steps are in the [deploy runbook](../runbooks/deploy.md).
+
+## Context
+
+The project needs a staging and a production environment, and it runs on a non-profit budget. Staging must have the same shape as production, so that a free tier for staging does not hide what production will cost.
+
+The system has three parts to host:
+
+- **Frontend:** the Vite build is static files.
+- **Backend:** NestJS is a long-running Node process. It also runs background work, such as the confirmation email sweeper, which polls the database every minute (`EMAIL_DISPATCH_INTERVAL_MS`, default 60000), and the pending registration expiry sweep (`PENDING_EXPIRY_SWEEP_INTERVAL_MS`, default 300000).
+- **Database:** PostgreSQL. Several services take row locks (`FOR UPDATE`, `SKIP LOCKED`), so SQLite-based stores such as Cloudflare D1 do not fit.
+
+The admin session also limits where these parts can live:
+
+- The `nb_admin_session` cookie is host-only and `SameSite=Strict`.
+- The backend accepts admin requests only from `AUTH_TRUSTED_ORIGIN`.
+
+The frontend and the backend therefore need to share one registrable domain that the organization owns, for example `[domain]` and `api.[domain]`. Two provider subdomains such as `*.pages.dev` and `*.up.railway.app` are different sites, and admin sign-in would fail.
+
+## Decision
+
+- **Cloudflare, free plan:** DNS for the custom domain, hosting for the frontend's static files, and the proxy in front of the backend's public hostname.
+- **Railway, Hobby plan:** the backend container and PostgreSQL. Staging and production are two environments in the same project.
+- Each environment has its own frontend host, backend host, database, secrets and `AUTH_TRUSTED_ORIGIN`. All of them use HTTPS.
+
+## Hostnames and HTTPS
+
+TLS has two legs, and both certificates are free and renew automatically:
+
+- **Browser to Cloudflare:** Cloudflare's Universal SSL certificate, included in the free plan.
+- **Cloudflare to Railway:** the certificate Railway issues for each custom domain.
+
+Universal SSL covers the apex domain and first-level subdomains only. A deeper name such as `api.staging.[domain]` gets no valid certificate unless a paid add-on is bought. Every hostname therefore stays at the first level:
+
+| Environment | Frontend                       | Backend                            |
+| ----------- | ------------------------------ | ---------------------------------- |
+| Production  | `boletos.losmaspesados.com.mx` | `api.losmaspesados.com.mx`         |
+| Staging     | `staging.losmaspesados.com.mx` | `staging-api.losmaspesados.com.mx` |
+
+Both environments stay under the same registrable domain, which the admin session cookie requires. The admin panel is served by the same frontend, under `/admin`.
+
+Cloudflare's SSL/TLS encryption mode is **Full**, as Railway recommends:
+
+- **Not Full (strict):** while Railway provisions or renews a certificate, it can briefly serve its default `*.up.railway.app` certificate. Strict mode rejects that hostname mismatch with error 526.
+- **Never Flexible:** the leg from Cloudflare to Railway would travel unencrypted, and Railway's HTTP-to-HTTPS redirect can loop.
+
+If a Railway certificate stays stuck in validation, turn the Cloudflare proxy off for that record until Railway issues the certificate, then turn it back on.
+
+## Required cost controls
+
+Railway bills by usage: CPU, memory, disk and network egress. Without a cap, traffic from an attack turns directly into a bill. The following controls are required before any environment is exposed:
+
+1. A Railway **hard usage limit** on the workspace. When usage reaches it, Railway takes every workload offline, so the bill cannot grow past it. A soft limit, which only sends an email, is set below the hard limit as an early warning.
+2. CPU and memory limits on every service, so traffic cannot scale a service without bound.
+3. The backend hostname goes through the Cloudflare proxy. Cloudflare filters denial-of-service traffic, and a rate limiting rule caps requests per client.
+4. The backend reaches the database over Railway's private network, so that traffic is not billed as egress.
+
+The limit amounts, alert thresholds and rate limiting values are operational settings. They live in the provider dashboards, not in this public repository, so the repository does not tell an attacker how much traffic would take the service offline.
+
+The hard limit applies to the whole workspace, not to one project. If staging and production share a workspace, an attack on staging can use up the budget and take production offline too. Give staging lower resource limits than production, or put it in its own workspace with its own limit.
+
+## Why
+
+- It is the cheapest option tested that covers both environments: about $8–15 USD a month in Railway usage, and $0 for Cloudflare.
+  - The Hobby plan costs $5 a month and includes $5 of usage, so the bill is whichever is higher.
+  - The estimate assumes four services (a backend and a database in each environment), each using 150–250 MB of memory and little CPU.
+  - The real number will be known after the first month.
+- Staging and production run on the same platforms with the same shape.
+- Two platforms instead of three.
+- No lock-in:
+  - the frontend is static files;
+  - the backend is a standard Docker image;
+  - the database is standard PostgreSQL;
+  - email sits behind `EmailSender` ([ADR 0007](0007-email-delivery-service.md)).
+
+  Moving any part does not require rewriting code.
+
+## Alternatives considered
+
+| Option                                     | Monthly cost | Why it was not chosen                                                                                                                                                                                                                                                                                                      |
+| ------------------------------------------ | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Cloudflare + Render + Neon                 | ≈ $26 USD    | Render's free instances sleep after 15 minutes, so staging would not match production. Neon scales to zero when idle, but the email sweeper keeps it awake, so production would pay for a full month of compute. Render has fixed instance prices, which limits attack-driven cost, but the total costs more than Railway. |
+| As much as possible on Cloudflare          | ≈ $31 USD    | Containers need the $5 Workers plan, plus a Worker and a Durable Object in front of the container. Cloudflare has no PostgreSQL, so the database would still live elsewhere.                                                                                                                                               |
+| Rewrite the backend for Cloudflare Workers | —            | Rewriting the NestJS backend and its background work for Workers is out of scope for the MVP.                                                                                                                                                                                                                              |
+
+## Consequences
+
+- The organization must buy and own a domain. It is a yearly cost, separate from the monthly estimate above.
+- An attack that reaches the hard limit causes downtime, not debt. On event day, the paper fallback covers that case.
+- Before production, confirm:
+  - how Railway backs up and restores PostgreSQL on the Hobby plan;
+  - whether database data survives when the hard limit takes workloads offline. Test this in staging with a low limit.
+
+  If backups fall short, the production database can move to another managed PostgreSQL provider without changing the rest.
+
+- Hosted environments need a supported way to create the first administrator, because `admin:provision` refuses to run outside a local database (#214). `admin:bootstrap` covers this; see the [admin bootstrap runbook](../runbooks/admin-bootstrap.md).
+- Socket.IO ([ADR 0004](0004-realtime-transport.md)) keeps working on Railway, because the backend is a normal Node process.
+
+## Amendment 2026-10-14
+
+Decided while preparing the first deploy (#238):
+
+- **Hostnames.** The organizer's domain `losmaspesados.com.mx` hosts the system on subdomains; this system does not use the apex. Production uses `boletos.` for the frontend and `api.` for the backend; staging uses `staging.` and `staging-api.` (table above). All of them are first-level names, so Universal SSL covers them.
+- **Nameservers move to Cloudflare.** Workers custom domains and the Cloudflare proxy in front of the backend both require the domain to use Cloudflare's nameservers. The existing records, mail records above all, are imported and checked before the switch.
+- **Frontend on Workers static assets, not Pages.** `apps/frontend/wrangler.jsonc` defines one Worker per environment with no Worker script and single-page-application fallback, built and deployed by Workers Builds. It stays on the free plan, because requests for static assets are free.
+- **Railway settings live in the dashboard.** Railway's Config as Code (`railway.json`) is deprecated, so the service settings (Dockerfile path, pre-deploy migration command, healthcheck path, watch paths) are recorded in the deploy runbook instead of the repository.
+- **The backend image** is `apps/backend/Dockerfile`, built from the repository root. Migrations run as Railway's pre-deploy command with `node dist/scripts/migrate-database.js`, and the first administrator is created with `node dist/scripts/bootstrap-admin.js`; neither needs development dependencies.
+
+## Sources
+
+- Railway plans: https://docs.railway.com/pricing/plans
+- Railway usage limits: https://docs.railway.com/reference/usage-limits
+- Cloudflare rate limiting on all plans: https://blog.cloudflare.com/unmetered-ratelimiting/
+- Cloudflare Universal SSL coverage: https://developers.cloudflare.com/ssl/edge-certificates/universal-ssl/limitations/
+- Railway SSL troubleshooting with Cloudflare: https://docs.railway.com/networking/troubleshooting/ssl
+- Cloudflare Containers pricing: https://developers.cloudflare.com/containers/pricing/
+- Neon pricing: https://neon.com/pricing
+- Railway pre-deploy command: https://docs.railway.com/deployments/pre-deploy-command
+- Railway healthchecks: https://docs.railway.com/deployments/healthchecks
+- Railway public networking request headers: https://docs.railway.com/networking/public-networking/specs-and-limits
+- Cloudflare Workers static assets, single-page applications: https://developers.cloudflare.com/workers/static-assets/routing/single-page-application/
+- Cloudflare Workers Builds configuration: https://developers.cloudflare.com/workers/ci-cd/builds/configuration/

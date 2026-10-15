@@ -19,10 +19,17 @@ export const eventRegistrations = pgTable(
     id: uuid('id').defaultRandom().notNull(),
     eventId: uuid('event_id').notNull(),
     participantId: uuid('participant_id').notNull(),
+    // Random `<PREFIX>-<CODE>` folio, unique system-wide, set once on confirmation and immutable
+    // (trigger `event_registrations_folio_guard`, migration 0017).
     folio: text('folio'),
     status: text('status').notNull().default('pending_payment'),
     confirmationSource: text('confirmation_source'),
     confirmedAt: timestamp('confirmed_at', { withTimezone: true }),
+    // When an unpaid online registration expires (#181). Null for admin manual registrations,
+    // which never expire on their own. Kept as history once the registration leaves pending.
+    expiresAt: timestamp('expires_at', { withTimezone: true }),
+    // When the expired registration's Mercado Pago payments were searched once (#181 S6).
+    paymentsReconciledAt: timestamp('payments_reconciled_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
   },
@@ -30,7 +37,7 @@ export const eventRegistrations = pgTable(
     primaryKey({ columns: [table.id], name: 'event_registrations_pk' }),
     unique('event_registrations_event_id_id_uq').on(table.eventId, table.id),
     unique('event_registrations_event_participant_uq').on(table.eventId, table.participantId),
-    unique('event_registrations_event_folio_uq').on(table.eventId, table.folio),
+    unique('event_registrations_folio_uq').on(table.folio),
     check(
       'event_registrations_status_ck',
       sql`${table.status} IN ('pending_payment', 'confirmed', 'voided')`,
@@ -43,6 +50,12 @@ export const eventRegistrations = pgTable(
       'event_registrations_confirmation_metadata_ck',
       sql`(${table.status} = 'confirmed' AND ${table.confirmationSource} IS NOT NULL AND ${table.confirmedAt} IS NOT NULL)
         OR (${table.status} IN ('pending_payment', 'voided') AND ${table.confirmationSource} IS NULL AND ${table.confirmedAt} IS NULL)`,
+    ),
+    check(
+      'event_registrations_folio_status_ck',
+      sql`(${table.status} = 'confirmed' AND ${table.folio} IS NOT NULL)
+        OR (${table.status} = 'pending_payment' AND ${table.folio} IS NULL)
+        OR ${table.status} = 'voided'`,
     ),
     foreignKey({
       columns: [table.eventId],

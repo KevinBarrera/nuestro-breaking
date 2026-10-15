@@ -148,11 +148,15 @@ for (const screen of adminScreens) {
     });
     const tagged = (prefix: string) => targets.filter((target) => target.name.startsWith(prefix));
     // Guards against a vacuous pass: the sweep must see the sampled control kinds.
-    expect(tagged('a ').length).toBeGreaterThanOrEqual(4);
+    // Outside an event the shell links only the brand, Todos los eventos and Equipo.
+    const eventScreen = screen.path.startsWith('/admin/events/');
+    expect(tagged('a ').length).toBeGreaterThanOrEqual(eventScreen ? 5 : 3);
     expect(tagged('button ').length).toBeGreaterThanOrEqual(2);
-    // Every event screen has the topbar event select; a pass screen adds one per access row.
-    const accessRows = screen.name === 'Pase' || screen.name === 'Nuevo pase';
-    expect(tagged('select ').length).toBeGreaterThanOrEqual(accessRows ? 2 : 1);
+    // Every event screen has the topbar event select (the team screens sit outside any event);
+    // a pass screen adds three radio segments per access row, measured through their label.
+    if (eventScreen) expect(tagged('select ').length).toBeGreaterThanOrEqual(1);
+    if (screen.name === 'Pase' || screen.name === 'Nuevo pase')
+      expect(tagged('input ').length).toBeGreaterThanOrEqual(3);
     if (screen.name === 'Actividades')
       expect(targets.some((target) => target.name.startsWith('button Todas'))).toBe(true);
     expect(targets.filter((target) => target.height < 44)).toEqual([]);
@@ -161,14 +165,9 @@ for (const screen of adminScreens) {
 
 // The open listbox renders in a popover outside the shell, so it gets its own sweep: options
 // keep 44px targets and every option text keeps 4.5:1 on its painted background, including
-// the focused and selected option, in both themes and in both the header and an access-list row.
+// the focused and selected option, in both themes.
 const popoverCases = [
   { name: 'topbar event selector', screen: adminScreens[0], trigger: 'Evento' },
-  {
-    name: 'access list row',
-    screen: adminScreen('Pase'),
-    trigger: 'Acceso a Taller de footwork',
-  },
 ] as const;
 
 for (const theme of themes) {

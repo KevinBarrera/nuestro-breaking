@@ -9,6 +9,7 @@ import { AppModule } from '@/app.module';
 import { DATABASE_CLIENT } from '@/database/database.constants';
 import * as schema from '@/database/schema';
 import { DatabaseService } from '@/database/database.service';
+import { readTrustedOrigin } from '@/http';
 import { PostgresHarness } from './support/postgres-harness';
 
 jest.setTimeout(120_000);
@@ -43,12 +44,17 @@ describe('GET /admin/events (e2e)', () => {
     const [second, first] = await client<{ id: string; name: string }[]>`
       INSERT INTO events (organization_id, name, time_zone)
       VALUES (${organizationId}, 'Zeta', 'Etc/UTC'), (${organizationId}, 'Alpha', 'Etc/UTC')
-      RETURNING id, name`;
+      RETURNING id, name, slug, folio_prefix AS "folioPrefix", archived_at AS "archivedAt",
+        time_zone AS "timeZone", starts_at AS "startsAt", ends_at AS "endsAt",
+        sales_enabled AS "salesEnabled"`;
     const [{ id: otherOrganization }] = await client<{ id: string }[]>`
       INSERT INTO organizations (name) VALUES ('Other organizer') RETURNING id`;
     const [third] = await client<{ id: string; name: string }[]>`
       INSERT INTO events (organization_id, name, time_zone)
-      VALUES (${otherOrganization}, 'Beta', 'Etc/UTC') RETURNING id, name`;
+      VALUES (${otherOrganization}, 'Beta', 'Etc/UTC')
+      RETURNING id, name, slug, folio_prefix AS "folioPrefix", archived_at AS "archivedAt",
+        time_zone AS "timeZone", starts_at AS "startsAt", ends_at AS "endsAt",
+        sales_enabled AS "salesEnabled"`;
     return { first, second, third, organizationId };
   }
 
@@ -77,7 +83,7 @@ describe('GET /admin/events (e2e)', () => {
     expect(JSON.stringify(denied.body)).not.toMatch(/Alpha|Beta|Zeta/);
   });
 
-  it('returns every persisted event for global admin with only UUID and name', async () => {
+  it('returns every persisted event for global admin with id, name, slug, folio prefix and archived state', async () => {
     const { first, second, third } = await fixture();
     const { cookie } = await session([{ role: 'admin', scopeType: 'global' }]);
     expect((await list().set('Cookie', cookie).expect(200)).body).toEqual([first, third, second]);
@@ -103,7 +109,7 @@ describe('GET /admin/events (e2e)', () => {
     await request(app.getHttpServer())
       .post(`/admin/events/${third.id}/registrations/${first.id}/check-in`)
       .set('Cookie', cookie)
-      .set('Origin', process.env.AUTH_TRUSTED_ORIGIN ?? 'http://localhost:5173')
+      .set('Origin', readTrustedOrigin(process.env))
       .send({})
       .expect(401);
   });

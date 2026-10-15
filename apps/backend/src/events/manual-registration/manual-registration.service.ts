@@ -9,8 +9,12 @@ import {
   participants,
   registrationOperationAudit,
 } from '@/database/schema';
+import { confirmRegistration } from '@/events/registration-confirmation/confirm-registration';
+import {
+  type AdminRegistrationAuditActor,
+  registrationAuditActorColumns,
+} from '@/events/registration-audit/registration-audit-actor';
 
-type Actor = { userId: string; sessionId: string };
 type Manual = { fullName: string; phone: string; email: string | null; activityIds: string[] };
 type Cash = {
   amount: number;
@@ -23,7 +27,7 @@ type Cash = {
 export class ManualRegistrationService {
   constructor(@Inject(DATABASE_CLIENT) private readonly db: DatabaseService['db']) {}
 
-  async create(eventId: string, input: Manual, actor: Actor) {
+  async create(eventId: string, input: Manual, actor: AdminRegistrationAuditActor) {
     return this.db.transaction(async (tx) => {
       // Serialize manual creations per event, including comparisons with existing participants.
       await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${eventId}))`);
@@ -67,8 +71,7 @@ export class ManualRegistrationService {
         .insert(registrationOperationAudit)
         .values({
           operationType: 'manual_registration',
-          actorUserId: actor.userId,
-          sessionId: actor.sessionId,
+          ...registrationAuditActorColumns(actor),
           eventId,
           registrationId: registration.id,
           participantId: participant.id,
@@ -94,28 +97,18 @@ export class ManualRegistrationService {
     });
   }
 
-  async confirm(eventId: string, registrationId: string, input: Cash, actor: Actor) {
+  async confirm(
+    eventId: string,
+    registrationId: string,
+    input: Cash,
+    actor: AdminRegistrationAuditActor,
+  ) {
     return this.db.transaction(async (tx) => {
-      const [registration] = await tx
-        .update(eventRegistrations)
-        .set({
-          status: 'confirmed',
-          confirmationSource: 'admin_cash',
-          confirmedAt: sql`now()`,
-          updatedAt: sql`now()`,
-        })
-        .where(
-          and(
-            eq(eventRegistrations.id, registrationId),
-            eq(eventRegistrations.eventId, eventId),
-            eq(eventRegistrations.status, 'pending_payment'),
-          ),
-        )
-        .returning({
-          id: eventRegistrations.id,
-          participantId: eventRegistrations.participantId,
-          confirmedAt: eventRegistrations.confirmedAt,
-        });
+      const registration = await confirmRegistration(tx, {
+        eventId,
+        registrationId,
+        source: 'admin_cash',
+      });
       if (!registration) throw new BadRequestException('Registration is not pending in this event');
       const links = await tx
         .select({ id: eventActivityRegistrations.activityId })
@@ -131,8 +124,7 @@ export class ManualRegistrationService {
         .insert(registrationOperationAudit)
         .values({
           operationType: 'cash_confirmation',
-          actorUserId: actor.userId,
-          sessionId: actor.sessionId,
+          ...registrationAuditActorColumns(actor),
           eventId,
           registrationId,
           participantId: registration.participantId,
@@ -141,15 +133,27 @@ export class ManualRegistrationService {
           reference: input.reference,
           note: input.note,
           receipt: input.receipt,
-          beforeState: { status: 'pending_payment', confirmationSource: null, confirmedAt: null },
+          beforeState: {
+            status: 'pending_payment',
+            confirmationSource: null,
+            confirmedAt: null,
+            folio: null,
+          },
           afterState: {
             status: 'confirmed',
             confirmationSource: 'admin_cash',
             confirmedAt: registration.confirmedAt?.toISOString(),
+            folio: registration.folio,
           },
         })
         .returning({ id: registrationOperationAudit.id });
-      return { registrationId, eventId, status: 'confirmed', auditId: fact.id };
+      return {
+        registrationId,
+        eventId,
+        status: 'confirmed',
+        folio: registration.folio,
+        auditId: fact.id,
+      };
     });
   }
 }

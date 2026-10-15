@@ -18,11 +18,14 @@ import {
   registrationOperationAudit,
 } from '@/database/schema';
 import type { PassClass } from '@/events/pass-type-admin/pass-type-admin.types';
-import type {
-  EntitlementActor,
-  HeldPass,
-  RegistrationEntitlements,
-} from './registration-entitlements.types';
+import {
+  type AdminRegistrationAuditActor,
+  type RegistrationAuditActor,
+  registrationAuditActorColumns,
+} from '@/events/registration-audit/registration-audit-actor';
+import { FULL_INCLUDES_GENERAL_MESSAGE, addingCombinesGeneralWithFull } from './pass-class-rules';
+import { areSelectableActivities } from './selectable-activities';
+import type { HeldPass, RegistrationEntitlements } from './registration-entitlements.types';
 
 type Database = DatabaseService['db'];
 type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0];
@@ -105,7 +108,7 @@ export class RegistrationEntitlementsService {
     eventId: string,
     registrationId: string,
     passTypeId: string,
-    actor: EntitlementActor,
+    actor: AdminRegistrationAuditActor,
   ): Promise<RegistrationEntitlements> {
     return this.db.transaction(async (tx) => {
       const registration = await this.lockRegistration(tx, eventId, registrationId);
@@ -138,6 +141,9 @@ export class RegistrationEntitlementsService {
       if (heldClasses.some((held) => held.passTypeId === passTypeId))
         throw new ConflictException('Registration already holds this pass type');
       // Archived pass types still count: the requirement is about what was purchased.
+      const heldPassClasses = heldClasses.map((held) => held.passClass as PassClass);
+      if (addingCombinesGeneralWithFull(heldPassClasses, passType.passClass as PassClass))
+        throw new ConflictException(FULL_INCLUDES_GENERAL_MESSAGE);
       const required = passType.requiresPassClass;
       if (required && !heldClasses.some((held) => held.passClass === required))
         throw new BadRequestException(`Add-on requires a ${required} pass`);
@@ -167,7 +173,7 @@ export class RegistrationEntitlementsService {
     registrationId: string,
     registrationPassId: string,
     activityIds: string[],
-    actor: EntitlementActor,
+    actor: AdminRegistrationAuditActor,
   ): Promise<RegistrationEntitlements> {
     return this.db.transaction(async (tx) => {
       const registration = await this.lockRegistration(tx, eventId, registrationId);
@@ -232,36 +238,13 @@ export class RegistrationEntitlementsService {
     return registration;
   }
 
-  // Every activity must be active and `selectable` for this pass type in the same event; the
-  // activities are share-locked so a concurrent archive cannot slip in before commit.
   private async assertSelectable(
     tx: Transaction,
     eventId: string,
     passTypeId: string,
     activityIds: string[],
   ) {
-    if (activityIds.length === 0) return;
-    const usable = await tx
-      .select({ id: activities.id })
-      .from(eventPassTypeActivities)
-      .innerJoin(
-        activities,
-        and(
-          eq(activities.eventId, eventPassTypeActivities.eventId),
-          eq(activities.id, eventPassTypeActivities.activityId),
-        ),
-      )
-      .where(
-        and(
-          eq(eventPassTypeActivities.eventId, eventId),
-          eq(eventPassTypeActivities.passTypeId, passTypeId),
-          eq(eventPassTypeActivities.access, 'selectable'),
-          eq(activities.status, 'active'),
-          inArray(activities.id, activityIds),
-        ),
-      )
-      .for('share', { of: activities });
-    if (usable.length !== activityIds.length)
+    if (!(await areSelectableActivities(tx, eventId, passTypeId, activityIds)))
       throw new BadRequestException('Invalid activity selection');
   }
 
@@ -342,7 +325,7 @@ export class RegistrationEntitlementsService {
 
   private async audit(
     tx: Transaction,
-    actor: EntitlementActor,
+    actor: RegistrationAuditActor,
     registration: RegistrationRow,
     fact: {
       operationType: 'pass_assignment' | 'pass_selection_change';
@@ -354,8 +337,7 @@ export class RegistrationEntitlementsService {
   ) {
     await tx.insert(registrationOperationAudit).values({
       ...fact,
-      actorUserId: actor.userId,
-      sessionId: actor.sessionId,
+      ...registrationAuditActorColumns(actor),
       eventId: registration.eventId,
       registrationId: registration.id,
       participantId: registration.participantId,

@@ -9,6 +9,7 @@ import { AppModule } from '@/app.module';
 import { DATABASE_CLIENT } from '@/database/database.constants';
 import * as schema from '@/database/schema';
 import { DatabaseService } from '@/database/database.service';
+import { readTrustedOrigin } from '@/http';
 import { PostgresHarness } from './support/postgres-harness';
 
 jest.setTimeout(120_000);
@@ -148,7 +149,7 @@ describe('admin registration entitlements (e2e)', () => {
     >`INSERT INTO auth_sessions (user_id, token_digest, expires_at) VALUES (${userId}, ${createHash('sha256').update(token).digest('hex')}, now() + interval '1 hour') RETURNING id`;
     return { cookie: `nb_admin_session=${token}`, userId, sessionId };
   }
-  const trustedOrigin = process.env.AUTH_TRUSTED_ORIGIN ?? 'http://localhost:5173';
+  const trustedOrigin = readTrustedOrigin(process.env);
   const headers = (cookie: string) => ({
     Cookie: cookie,
     Origin: trustedOrigin,
@@ -179,7 +180,7 @@ describe('admin registration entitlements (e2e)', () => {
     return { passes, selections };
   }
 
-  it('assigns several full passes and general entry to one registration with price snapshots and audit facts', async () => {
+  it('assigns several full passes and an add-on to one registration with price snapshots and audit facts', async () => {
     const f = await fixture();
     const { cookie, userId, sessionId } = await session('admin', f.event);
     const reg = await registration(f.event);
@@ -194,7 +195,7 @@ describe('admin registration entitlements (e2e)', () => {
       .expect(201);
     const response = await addPass(f.event, reg.id)
       .set(headers(cookie))
-      .send({ passTypeId: f.general })
+      .send({ passTypeId: f.openStyles })
       .expect(201);
     const body = response.body as Entitlements;
     expect(
@@ -221,10 +222,10 @@ describe('admin registration entitlements (e2e)', () => {
         selections: [],
       },
       {
-        passTypeId: f.general,
-        name: 'General',
-        passClass: 'general',
-        priceCents: 30000,
+        passTypeId: f.openStyles,
+        name: 'Open Styles',
+        passClass: 'add_on',
+        priceCents: 15000,
         selections: [],
       },
     ]);
@@ -238,7 +239,7 @@ describe('admin registration entitlements (e2e)', () => {
     );
     const facts = await audits();
     expect(facts).toHaveLength(3);
-    const generalPass = body.passes[2];
+    const addOnPass = body.passes[2];
     expect(facts[2]).toEqual({
       operation_type: 'pass_assignment',
       actor_user_id: userId,
@@ -250,14 +251,43 @@ describe('admin registration entitlements (e2e)', () => {
       amount_cents: null,
       before_state: { registrationPass: null },
       after_state: {
-        registrationPassId: generalPass.registrationPassId,
-        passTypeId: f.general,
-        priceCents: 30000,
+        registrationPassId: addOnPass.registrationPassId,
+        passTypeId: f.openStyles,
+        priceCents: 15000,
         selections: [],
       },
-      facts: { registrationPassId: generalPass.registrationPassId, passTypeId: f.general },
+      facts: { registrationPassId: addOnPass.registrationPassId, passTypeId: f.openStyles },
     });
     expect(JSON.stringify(facts)).not.toMatch(/example.com|Dancer|nb_admin_session/);
+  });
+
+  it('rejects general entry together with a full pass in either direction without writes', async () => {
+    const f = await fixture();
+    const { cookie } = await session('admin', f.event);
+    const withFull = await registration(f.event);
+    await holdPass(f.event, withFull.id, f.fullBreaking);
+    const withGeneral = await registration(f.event);
+    await holdPass(f.event, withGeneral.id, f.general);
+    // A held full pass counts even if its pass type was archived later.
+    const withArchivedFull = await registration(f.event);
+    await holdPass(f.event, withArchivedFull.id, f.archived);
+    const before = await snapshot();
+    const attempts = [
+      { registrationId: withFull.id, passTypeId: f.general },
+      { registrationId: withGeneral.id, passTypeId: f.fullPopping },
+      { registrationId: withArchivedFull.id, passTypeId: f.general },
+    ];
+    for (const { registrationId, passTypeId } of attempts) {
+      const rejected = await addPass(f.event, registrationId)
+        .set(headers(cookie))
+        .send({ passTypeId })
+        .expect(409);
+      expect(rejected.body).toMatchObject({
+        message: 'A full pass already includes general entry',
+      });
+    }
+    expect(await snapshot()).toEqual(before);
+    expect(await audits()).toHaveLength(0);
   });
 
   it('rejects an add-on without its required pass class without writes and accepts it with one', async () => {
@@ -345,7 +375,6 @@ describe('admin registration entitlements (e2e)', () => {
     const { cookie, userId, sessionId } = await session('admin', f.event);
     const reg = await registration(f.event);
     const full = await holdPass(f.event, reg.id, f.fullBreaking);
-    await holdPass(f.event, reg.id, f.general);
     const response = await select(f.event, reg.id, full)
       .set(headers(cookie))
       .send({ activityIds: [f.breaking] })
@@ -540,7 +569,7 @@ describe('admin registration entitlements (e2e)', () => {
     try {
       await addPass(f.event, reg.id)
         .set(headers(cookie))
-        .send({ passTypeId: f.general })
+        .send({ passTypeId: f.fullPopping })
         .expect(500);
       await select(f.event, reg.id, full)
         .set(headers(cookie))

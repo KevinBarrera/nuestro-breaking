@@ -1,0 +1,330 @@
+import { formatMxn } from '@/entities/event-catalog';
+import {
+  createCheckout,
+  createRegistration,
+  PublicEventError,
+  publicEventFailure,
+} from '@/entities/public-event';
+import {
+  buildRegistrationRequest,
+  checkoutFailure,
+  localIsoDate,
+  payFailure,
+  purchaseTotals,
+  reviewBuyer,
+  reviewLines,
+  safeCheckoutUrl,
+  validateBuyer,
+  type CheckoutFailure,
+  type PayFailure,
+  type PayFix,
+} from '@/features/public-purchase';
+import { legalDocuments, type LegalDocumentKey } from '@/shared/config';
+import { buttonClass, CheckboxField, Notice } from '@/shared/ui';
+import { continueButtonClass, PublicFrame, StepBar, StepProgress } from '@/widgets/public-layout';
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import { Link, Navigate } from 'react-router';
+import { clearStoredDraft, sessionDraftStorage } from './draft-storage';
+import { usePurchase } from './purchase-context';
+import { purchaseStepCount, stepNumber, stepPath, stepRedirect } from './purchase-steps';
+
+const overlapNotice =
+  'Algunas competencias o workshops pueden coincidir en horario. Puedes elegir libremente a cuáles asistir; intentaremos evitar cruces entre competencias, pero no podemos garantizarlos. Open Styles no coincidirá con competencias de pase completo, aunque podría coincidir parcialmente con workshops.';
+
+// Each document page (#180) opens in another tab, so the purchase and its checkboxes stay here.
+// The versions those pages show are the ones `buildRegistrationRequest` sends as accepted.
+const documentLink = (key: LegalDocumentKey) => {
+  const document = legalDocuments.find((item) => item.key === key)!;
+  return (
+    <a
+      href={document.path}
+      target="_blank"
+      rel="noopener"
+      className="font-semibold text-link underline underline-offset-2 hover:text-link-hover"
+    >
+      {document.title}
+      <span className="sr-only"> (se abre en otra pestaña)</span>
+    </a>
+  );
+};
+
+const legalChecks = [
+  { id: 'rules', label: <>Leí y acepto el {documentLink('rules')}.</> },
+  {
+    id: 'privacy',
+    label: <>Leí el {documentLink('privacy')} y acepto el uso de mis datos.</>,
+  },
+  { id: 'cancellation', label: <>Leí y acepto la {documentLink('cancellation')}.</> },
+] as const satisfies readonly { id: LegalDocumentKey; label: ReactNode }[];
+
+const fixLabels: Record<PayFix, string> = {
+  home: 'Volver al inicio',
+  passes: 'Cambiar mis pases',
+  competitions: 'Cambiar mis competencias',
+  buyer: 'Corregir mis datos',
+};
+
+const linkClass =
+  'inline-flex min-h-11 items-center font-semibold text-link underline underline-offset-2 hover:text-link-hover focus-visible:outline-2 focus-visible:outline-focus';
+
+// Screen 5 (Revisa y paga). "Pagar" creates the pending registration (D1), then starts a Mercado
+// Pago checkout for it (#177) and sends the browser to the hosted page with a full page load.
+// While this runs the button is disabled and says so. Registration failures keep the draft and
+// show a notice with a link to the screen that fixes them (server field errors too: the buyer
+// data passed the same validation on datos, so a list with "Corregir mis datos" is clearer than
+// sending the buyer back unasked). A checkout failure leaves the registration pending: the page
+// keeps its id, so "Reintentar" (and "Pagar") only ask for a new checkout. After a reload the id
+// is gone, but the draft is kept until the redirect and the backend reuses the buyer's pending
+// registration, so paying again never creates a second one.
+export function PublicReviewPage() {
+  const { slug, catalog, selection, buyer } = usePurchase();
+  const [accepted, setAccepted] = useState<Record<LegalDocumentKey, boolean>>({
+    rules: false,
+    privacy: false,
+    cancellation: false,
+  });
+  const [pending, setPending] = useState(false);
+  const [failure, setFailure] = useState<PayFailure | null>(null);
+  const [checkoutError, setCheckoutError] = useState<CheckoutFailure | null>(null);
+  // The pending registration this page created, kept while its checkout can still be retried.
+  const registrationId = useRef<string | null>(null);
+  // Synchronous guard: two clicks in one frame must not send two requests.
+  const sending = useRef(false);
+  const request = useRef<AbortController | null>(null);
+  const failureRef = useRef<HTMLDivElement>(null);
+  const hintId = useId();
+
+  useEffect(() => () => request.current?.abort(), []);
+  // "Back" from Mercado Pago can restore this page from the back/forward cache, still pending.
+  useEffect(() => {
+    const reset = (event: PageTransitionEvent) => {
+      if (!event.persisted) return;
+      sending.current = false;
+      setPending(false);
+    };
+    window.addEventListener('pageshow', reset);
+    return () => window.removeEventListener('pageshow', reset);
+  }, []);
+  useEffect(() => {
+    if (failure || checkoutError) failureRef.current?.scrollIntoView({ block: 'nearest' });
+  }, [failure, checkoutError]);
+
+  const buyerReady = Object.keys(validateBuyer(buyer, localIsoDate(new Date()))).length === 0;
+  const redirect = stepRedirect('review', catalog.passes, selection, buyerReady);
+  if (redirect) return <Navigate replace to={stepPath(slug, redirect)} />;
+
+  const lines = reviewLines(catalog.passes, selection);
+  const { totalCents } = purchaseTotals(catalog.passes, selection);
+  const person = reviewBuyer(buyer);
+  const allAccepted = legalChecks.every(({ id }) => accepted[id]);
+  const backTo = stepPath(slug, 'buyer');
+
+  const pay = async () => {
+    if (sending.current || !allAccepted) return;
+    sending.current = true;
+    setPending(true);
+    setFailure(null);
+    setCheckoutError(null);
+    const controller = new AbortController();
+    request.current = controller;
+    const stop = () => {
+      sending.current = false;
+      setPending(false);
+    };
+    let id = registrationId.current;
+    if (!id) {
+      try {
+        const registration = await createRegistration(
+          slug,
+          buildRegistrationRequest(catalog.passes, selection, buyer),
+          controller.signal,
+        );
+        id = registration.registrationId;
+        registrationId.current = id;
+      } catch (error) {
+        if (controller.signal.aborted) return;
+        setFailure(payFailure(publicEventFailure(error)));
+        stop();
+        return;
+      }
+    }
+    try {
+      const checkout = await createCheckout(slug, id, controller.signal);
+      const url = safeCheckoutUrl(checkout.checkoutUrl);
+      if (!url) throw new PublicEventError({ kind: 'error' });
+      clearStoredDraft(sessionDraftStorage(), slug);
+      // A full page load: Mercado Pago's hosted page is another site. Stays pending meanwhile.
+      window.location.assign(url);
+    } catch (error) {
+      if (controller.signal.aborted) return;
+      const next = checkoutFailure(publicEventFailure(error));
+      // Without a retry, "Pagar" starts over with the registration request.
+      if (!next.retry) registrationId.current = null;
+      setCheckoutError(next);
+      stop();
+    }
+  };
+
+  return (
+    <PublicFrame backTo={backTo}>
+      <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-4 px-5 py-5">
+        <StepProgress step={stepNumber('review')} total={purchaseStepCount} />
+        <h1 className="text-[26px] leading-tight font-extrabold text-heading">Revisa y paga</h1>
+
+        <Card title="Tus pases" change={{ to: stepPath(slug, 'passes'), label: 'Cambiar pases' }}>
+          <ul className="flex flex-col gap-3">
+            {lines.map((line) => (
+              <li key={line.passId} className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="font-bold text-heading">{line.name}</p>
+                  {line.competitions.length > 0 ? (
+                    <p className="text-sm text-muted">{line.competitions.join(', ')}</p>
+                  ) : null}
+                </div>
+                <p className="shrink-0 font-semibold text-fg">{formatMxn(line.priceCents)}</p>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-3 flex items-baseline justify-between gap-3 border-t border-line pt-3 font-extrabold text-heading">
+            <span>Total</span>
+            <span>{formatMxn(totalCents)} MXN</span>
+          </p>
+        </Card>
+
+        <Card title="Tus datos" change={{ to: backTo, label: 'Cambiar datos' }}>
+          <p className="font-bold break-words text-heading">
+            {person.stageName ? `${person.name} · ${person.stageName}` : person.name}
+          </p>
+          <p className="text-sm break-words text-muted">
+            {person.email} · {person.phone}
+          </p>
+        </Card>
+
+        <p
+          role="note"
+          className="rounded-xl border border-line bg-surface px-4 py-3 text-sm leading-relaxed text-fg"
+        >
+          {overlapNotice}
+        </p>
+
+        <fieldset className="flex flex-col gap-1 rounded-xl border border-line bg-surface px-4 py-3">
+          <legend className="px-1 text-lg font-extrabold text-heading">
+            Documentos y políticas
+          </legend>
+          {legalChecks.map(({ id, label }) => (
+            <CheckboxField
+              key={id}
+              name={id}
+              required
+              checked={accepted[id]}
+              disabled={pending}
+              onChange={(event) =>
+                setAccepted((current) => ({ ...current, [id]: event.target.checked }))
+              }
+              label={label}
+            />
+          ))}
+        </fieldset>
+
+        {checkoutError ? (
+          <div ref={failureRef}>
+            <Notice tone="danger" title={checkoutError.message}>
+              {checkoutError.retry ? (
+                <>
+                  <p>No se hizo ningún cargo. Tu inscripción sigue apartada mientras pagas.</p>
+                  <button
+                    type="button"
+                    disabled={pending}
+                    onClick={() => void pay()}
+                    className={buttonClass('primary', 'mt-3')}
+                  >
+                    Reintentar
+                  </button>
+                </>
+              ) : null}
+              {checkoutError.fix ? <FixLink slug={slug} fix={checkoutError.fix} /> : null}
+            </Notice>
+          </div>
+        ) : null}
+
+        {failure ? (
+          <div ref={failureRef}>
+            <Notice tone="danger" title={failure.details.length > 0 ? failure.message : undefined}>
+              {failure.details.length > 0 ? (
+                <ul className="list-disc pl-5">
+                  {failure.details.map((detail) => (
+                    <li key={detail}>{detail}</li>
+                  ))}
+                </ul>
+              ) : (
+                <p>{failure.message}</p>
+              )}
+              {failure.fix ? <FixLink slug={slug} fix={failure.fix} /> : null}
+            </Notice>
+          </div>
+        ) : null}
+
+        {!allAccepted ? (
+          <p id={hintId} className="text-sm font-medium text-muted">
+            Marca las tres casillas para poder pagar.
+          </p>
+        ) : null}
+        <p className="text-sm text-muted">
+          Te llevaremos a Mercado Pago para pagar de forma segura y después volverás aquí.
+        </p>
+      </main>
+      <StepBar backTo={backTo}>
+        <button
+          type="button"
+          disabled={!allAccepted || pending}
+          aria-describedby={allAccepted ? undefined : hintId}
+          onClick={() => void pay()}
+          className={continueButtonClass}
+        >
+          {pending
+            ? 'Te estamos llevando a Mercado Pago…'
+            : `Pagar ${formatMxn(totalCents)} con Mercado Pago`}
+        </button>
+      </StepBar>
+    </PublicFrame>
+  );
+}
+
+type CardProps = { title: string; change: { to: string; label: string }; children: ReactNode };
+
+// A summary card with its heading and a "Cambiar" link to the step that edits it.
+function Card({ title, change, children }: CardProps) {
+  const headingId = useId();
+  return (
+    <section
+      aria-labelledby={headingId}
+      className="rounded-xl border border-line bg-surface px-4 pt-2 pb-4"
+    >
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <h2 id={headingId} className="text-lg font-extrabold text-heading">
+          {title}
+        </h2>
+        <Link to={change.to} aria-label={change.label} className={linkClass}>
+          Cambiar
+        </Link>
+      </div>
+      {children}
+    </section>
+  );
+}
+
+// The way out of a failed payment. Home is a full page load, so the catalog (and the sales
+// state that just closed) is read again.
+function FixLink({ slug, fix }: { slug: string; fix: PayFix }) {
+  if (fix === 'home')
+    return (
+      <a href={stepPath(slug, 'home')} className={linkClass}>
+        {fixLabels.home}
+      </a>
+    );
+  return (
+    <Link to={stepPath(slug, fix)} className={linkClass}>
+      {fixLabels[fix]}
+    </Link>
+  );
+}

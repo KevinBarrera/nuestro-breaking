@@ -1,4 +1,6 @@
 import { expect, test } from '@playwright/test';
+import { eventId, mockAdminApi } from './support/admin-mocks.ts';
+import { eventSummary } from './support/event-mocks.ts';
 import { selectTrigger } from './support/select.ts';
 
 const sessionEndpoint = (url: URL) => url.port === '3000' && url.pathname === '/auth/session';
@@ -179,6 +181,64 @@ test('signs out an admin using the session CSRF header and clears local identity
   }
 });
 
+test('signing out from a deep screen goes to /admin, so signing in starts at the event entry', async ({
+  page,
+}) => {
+  const csrf = 'session-bound-csrf';
+  let signedIn = true;
+  await mockAdminApi(page);
+  await page.route(sessionEndpoint, (route) =>
+    signedIn
+      ? route.fulfill({
+          headers: { 'X-CSRF-Token': csrf, 'Access-Control-Expose-Headers': 'X-CSRF-Token' },
+          json: { user },
+        })
+      : route.fulfill({ status: 401, json: {} }),
+  );
+  // Two events keep the picker in place; a single event would redirect to its overview.
+  await page.route(adminEventsEndpoint, (route) =>
+    route.fulfill({
+      json: [
+        eventSummary(eventId, 'Encuentro del barrio'),
+        eventSummary('b1b2c3d4-1234-4567-89ab-123456789abc', 'Batalla de otoño'),
+      ],
+    }),
+  );
+  await page.route(signOutEndpoint, (route) => {
+    if (route.request().method() === 'OPTIONS')
+      return route.fulfill({
+        status: 204,
+        headers: {
+          'Access-Control-Allow-Origin': 'http://127.0.0.1:4173',
+          'Access-Control-Allow-Credentials': 'true',
+          'Access-Control-Allow-Methods': 'POST',
+          'Access-Control-Allow-Headers': 'X-CSRF-Token',
+        },
+      });
+    signedIn = false;
+    return route.fulfill({ status: 200, json: {} });
+  });
+  await page.route(signInEndpoint, (route) => {
+    signedIn = true;
+    return route.fulfill({ json: { user } });
+  });
+  // A screen with unsaved edits: signing out leaves it without the unsaved-changes prompt.
+  await page.goto(`/admin/events/${eventId}/passes/new`);
+  await page
+    .getByRole('form', { name: 'Nuevo pase' })
+    .getByRole('textbox', { name: 'Nombre', exact: true })
+    .fill('Pase borrador');
+  await page.getByRole('button', { name: 'Cerrar sesión' }).click();
+  await expect(page.getByRole('heading', { name: 'Iniciar sesión' })).toBeVisible();
+  await expect(page).toHaveURL(/\/admin$/);
+  await expect(page.getByRole('alertdialog')).toHaveCount(0);
+  await page.getByLabel('Correo electrónico').fill('admin@example.com');
+  await page.getByLabel('Contraseña').fill('secret');
+  await page.getByRole('button', { name: 'Iniciar sesión' }).click();
+  await expect(page.getByRole('heading', { name: 'Eventos', exact: true })).toBeVisible();
+  await expect(page).toHaveURL(/\/admin$/);
+});
+
 test('does not sign out without a session CSRF header', async ({ page }) => {
   let sessionRequests = 0;
   await page.route(sessionEndpoint, (route) => {
@@ -221,12 +281,13 @@ test('shows the authenticated admin shell with only the available navigation and
   const header = page.getByRole('banner', { name: 'Espacio de administración' });
   await expect(header.getByText('LOS MÁS PESADOS')).toBeVisible();
   const nav = page.getByRole('navigation', { name: 'Navegación administrativa' });
-  await expect(nav.getByRole('link', { name: 'Resumen' })).toHaveAttribute('href', '/admin');
-  const home = nav.getByRole('link', { name: 'Resumen' });
+  const home = nav.getByRole('link', { name: 'Todos los eventos' });
+  await expect(home).toHaveAttribute('href', '/admin');
   await expect(home).toHaveAttribute('aria-current', 'page');
   await expect(home).not.toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
   await expect(header.getByRole('button', { name: 'Cerrar sesión' })).toBeVisible();
-  await expect(header.getByRole('link')).toHaveCount(0);
+  // The brand is the header's only link, back to this same list.
+  await expect(header.getByRole('link')).toHaveText(['LOS MÁS PESADOS']);
   await expect(page.getByRole('heading', { name: 'Eventos', exact: true })).toBeVisible();
 });
 
@@ -240,8 +301,8 @@ test('keeps a narrow keyboard-accessible admin header on the event picker', asyn
     eventsRequested = true;
     return route.fulfill({
       json: [
-        { id: 'a1b2c3d4-1234-4567-89ab-123456789abc', name: 'Encuentro del barrio' },
-        { id: 'b1b2c3d4-1234-4567-89ab-123456789abc', name: 'Batalla de otoño' },
+        eventSummary('a1b2c3d4-1234-4567-89ab-123456789abc', 'Encuentro del barrio'),
+        eventSummary('b1b2c3d4-1234-4567-89ab-123456789abc', 'Batalla de otoño'),
       ],
     });
   });
@@ -251,11 +312,15 @@ test('keeps a narrow keyboard-accessible admin header on the event picker', asyn
   await expect(selectTrigger(header, 'Evento')).toHaveCount(0);
   const home = page
     .getByRole('navigation', { name: 'Navegación administrativa' })
-    .getByRole('link', { name: 'Resumen' });
+    .getByRole('link', { name: 'Todos los eventos' });
+  const brand = header.getByRole('link', { name: 'Los más pesados, ir a todos los eventos' });
   const signOut = header.getByRole('button', { name: 'Cerrar sesión' });
   await expect(home).toHaveAttribute('aria-current', 'page');
-  await expect(header.getByRole('link')).toHaveCount(0);
-  await expect(page.getByRole('article', { name: 'Encuentro del barrio' })).toBeVisible();
+  await expect(header.getByRole('link')).toHaveCount(1);
+  await expect(page.getByRole('link', { name: 'Encuentro del barrio', exact: true })).toBeVisible();
+  await page.keyboard.press('Tab');
+  await expect(brand).toBeFocused();
+  await expect(brand).toHaveCSS('outline-style', 'solid');
   await page.keyboard.press('Tab');
   await expect(header.getByRole('button', { name: 'Cambiar a tema oscuro' })).toBeFocused();
   await page.keyboard.press('Tab');
@@ -264,7 +329,7 @@ test('keeps a narrow keyboard-accessible admin header on the event picker', asyn
   await page.keyboard.press('Tab');
   await expect(home).toBeFocused();
   await expect(home).toHaveCSS('outline-style', 'solid');
-  for (const control of [home, signOut]) {
+  for (const control of [brand, home, signOut]) {
     const bounds = await control.boundingBox();
     expect(bounds).not.toBeNull();
     expect(bounds!.x).toBeGreaterThanOrEqual(0);

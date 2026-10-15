@@ -43,6 +43,57 @@ This check validates the pinned Node.js runtime, the existing pnpm workspace ins
 
 Copy `.env.example` to `.env` and replace the placeholder values. Keep `.env` local; it is ignored by Git.
 
+Optional backend variables for the public API (see the [public event catalog contract](docs/contracts/public-event-catalog.md#cors)):
+
+| Variable                   | Default | Meaning                                                                                            |
+| -------------------------- | ------- | -------------------------------------------------------------------------------------------------- |
+| `PUBLIC_ALLOWED_ORIGINS`   | empty   | Comma-separated exact origins allowed to call `/public/...` routes, besides `AUTH_TRUSTED_ORIGIN`. |
+| `PUBLIC_RATE_LIMIT_LIMIT`  | `60`    | Public requests per client IP and route per window.                                                |
+| `PUBLIC_RATE_LIMIT_TTL_MS` | `60000` | Public rate-limit window in milliseconds.                                                          |
+
+Behind a reverse proxy, Express `trust proxy` must be configured for the rate limit to see real client IPs; see the contract's deployment note.
+
+### Mercado Pago credentials
+
+Online payments ([#177](https://github.com/KevinBarrera/nuestro-breaking/issues/177)) use one Mercado Pago credential set per deployment. The backend reads these variables at startup and refuses to boot when one is missing or invalid:
+
+| Variable                        | Example placeholder                          | Meaning                                                                                               |
+| ------------------------------- | -------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `MERCADO_PAGO_MODE`             | `sandbox`                                    | `sandbox` (Mercado Pago test-account credentials) or `production` (the organizer's credentials).      |
+| `MERCADO_PAGO_ACCESS_TOKEN`     | `<your-access-token>`                        | Server-side access token. `production` mode rejects a `TEST-` token.                                  |
+| `MERCADO_PAGO_WEBHOOK_SECRET`   | `<your-webhook-secret>`                      | Secret used to verify Mercado Pago webhook signatures.                                                |
+| `PUBLIC_APP_URL`                | `https://tickets.example`                    | Buyer-facing frontend origin, with no path. Checkout Pro returns the buyer to `/e/<slug>/pago` there. |
+| `MERCADO_PAGO_NOTIFICATION_URL` | `https://api.tickets.example/<webhook-path>` | Public URL Mercado Pago sends payment notifications to. Must be `https` in `production` mode.         |
+
+Two optional settings control how long an online buyer has to pay ([#181](https://github.com/KevinBarrera/nuestro-breaking/issues/181)):
+
+| Variable                           | Example placeholder | Meaning                                                                                                                                                                                                                            |
+| ---------------------------------- | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PENDING_EXPIRY_SWEEP_INTERVAL_MS` | `300000`            | How often, in milliseconds, expired online pending registrations are voided and their Mercado Pago payments searched once: `0` (off) or 1000 to 86400000. Default `300000` (5 min). A purchase or checkout also voids what is due. |
+| `PENDING_PAYMENT_HOURS`            | `72`                | Hours an offline payment (OXXO, SPEI) stays payable after each checkout, from 1 to 720. Default `72`, the minimum Mercado Pago recommends. The pending registration expires one day later.                                         |
+
+The webhook endpoint is `POST /public/payments/mercado-pago/webhook`; Mercado Pago must reach it over public HTTPS, so local sandbox testing needs a tunnel. Follow the [Mercado Pago sandbox runbook](docs/runbooks/mercado-pago-sandbox.md) for a complete test purchase.
+
+The webhook secret belongs to the account that owns the access token: in sandbox that is the test seller, not the account that created the application.
+
+### Email delivery (Brevo)
+
+Confirmation emails ([#179](https://github.com/KevinBarrera/nuestro-breaking/issues/179), [ADR 0007](docs/adr/0007-email-delivery-service.md)) are sent through the Brevo transactional API. The backend reads these variables at startup and refuses to boot when one of the first three is missing or a value is invalid:
+
+| Variable                     | Example placeholder       | Meaning                                                                                                                                                  |
+| ---------------------------- | ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `BREVO_API_KEY`              | `<your-brevo-api-key>`    | Brevo v3 API key. Required.                                                                                                                              |
+| `EMAIL_SENDER_ADDRESS`       | `boletos@tickets.example` | From address. Required; must be an email address. Its domain must be verified in Brevo before real delivery works.                                       |
+| `EMAIL_SENDER_NAME`          | `Los más pesados`         | From name buyers see. Required.                                                                                                                          |
+| `EMAIL_SANDBOX`              | `true`                    | `true` or `false`. When `true`, Brevo validates each message but delivers nothing. Defaults to `true` unless `NODE_ENV=production`.                      |
+| `EMAIL_DISPATCH_INTERVAL_MS` | `60000`                   | Optional. How often, in milliseconds, pending confirmation emails are retried. `0` turns the retry off; otherwise 1000 to 86400000. Defaults to `60000`. |
+
+Keep `EMAIL_SANDBOX=true` for local development, so no email reaches a real inbox. Like the Mercado Pago credentials, the API key goes in your local `.env` or the deployment's secret store, never in the repository. The [email delivery runbook](docs/runbooks/email-delivery.md) covers the Brevo setup, checking delivery and resending a failed email; the [confirmation email contract](docs/contracts/confirmation-email.md) describes what is sent and when.
+
+The frontend reads `VITE_API_BASE_URL` and `VITE_PUBLIC_EVENT_SLUG` from `apps/frontend/.env` (there is no template file; see [Frontend](#frontend)).
+
+Real values live only in your local `.env` or in the deployment's secret store. Never commit them to Git: this repository is public. Configuration errors name the variable, never its value.
+
 Start PostgreSQL 16 from the repository root:
 
 ```bash
@@ -80,6 +131,18 @@ pnpm --filter @nuestro-breaking/backend db:migrate
 
 Initial migration artifacts are committed under `apps/backend/drizzle`.
 
+Hosted environments have no development dependencies, so `drizzle-kit` is not available there. After `pnpm --filter @nuestro-breaking/backend build`, the compiled command applies the same migrations with plain `node` (`node dist/scripts/migrate-database.js` from `apps/backend`, or `pnpm --filter @nuestro-breaking/backend db:migrate:prod`). It shares the migration journal with `drizzle-kit migrate`, takes a lock so overlapping deploys apply each migration once, and on failure prints one line with the PostgreSQL or connection error code and its cause, then exits non-zero.
+
+## Backend Docker image
+
+Hosted environments run the backend from `apps/backend/Dockerfile` (Node 24.18.1 on Debian slim, production dependencies only, runs as the `node` user). Build it from the repository root:
+
+```bash
+docker build -f apps/backend/Dockerfile -t nuestro-breaking-backend .
+```
+
+The image starts the API with `node dist/src/main.js` and listens on `0.0.0.0:3000` (override with `PORT`). It sets `NODE_ENV=production`, so the API docs are off and the email and payment variables are required at startup. Run `node dist/scripts/migrate-database.js` before each deploy and `node dist/scripts/bootstrap-admin.js` once per environment. `.dockerignore` is an allowlist: only the workspace manifests and `apps/backend` reach the build, never `.env` files or tests.
+
 ## Frontend
 
 Run the React frontend in development mode:
@@ -87,6 +150,26 @@ Run the React frontend in development mode:
 ```bash
 pnpm dev:frontend
 ```
+
+### Cloudflare hosting
+
+Hosted environments serve the Vite build as Cloudflare Workers static assets (`apps/frontend/wrangler.jsonc`): production deploys the `los-mas-pesados-web` Worker with `npx wrangler@4.144.0 deploy --env=""`, and staging deploys `los-mas-pesados-web-staging` with `--env=staging`. Unknown paths return `index.html`, so the React router handles deep links and page reloads.
+
+Vite inlines these build variables, so set them in each Worker's Workers Builds settings (build variables, not runtime variables):
+
+| Variable                 | Required | Meaning                                                                                       |
+| ------------------------ | -------- | --------------------------------------------------------------------------------------------- |
+| `VITE_API_BASE_URL`      | Yes      | Backend origin, HTTPS with no path or trailing slash (for example `https://api.example.com`). |
+| `VITE_PUBLIC_EVENT_SLUG` | No       | Event sold at `/`. Unset means no event is on sale at the root address.                       |
+
+Cloudflare builds set `WORKERS_CI=1`; with it, `vite build` fails when `VITE_API_BASE_URL` is missing or is not a bare HTTPS origin, instead of shipping a site that calls `http://localhost:3000`. Local and CI builds are unchanged.
+
+Optional frontend variables (read by Vite from `apps/frontend/.env` or the shell at dev and build time):
+
+| Variable                 | Default                 | Meaning                                                                                                                            |
+| ------------------------ | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `VITE_API_BASE_URL`      | `http://localhost:3000` | API origin.                                                                                                                        |
+| `VITE_PUBLIC_EVENT_SLUG` | empty                   | Event shown at `/` (for example `los-mas-pesados-nov-2026`). Empty shows "No hay evento a la venta"; `/e/<slug>` works either way. |
 
 The frontend is a Vite application organized with Feature-Sliced Design. See the [frontend architecture guide](docs/frontend-architecture.md) for setup, commands, routes, and import rules.
 

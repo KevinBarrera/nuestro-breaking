@@ -5,6 +5,7 @@ import type { Request, Response } from 'express';
 import { DATABASE_CLIENT } from '@/database/database.constants';
 import { authAudit, authSessions, userRoles, users } from '@/database/schema';
 import type { DatabaseService } from '@/database/database.service';
+import { readTrustedOrigin } from '@/http';
 
 export const sessionCookieName = 'nb_admin_session';
 export const sessionCookieOptions = {
@@ -101,14 +102,45 @@ export class SessionAccessService {
   }
 
   async authorizeEventAdminMutation(request: Request, response: Response, eventId: string) {
-    const trusted = process.env.AUTH_TRUSTED_ORIGIN ?? 'http://localhost:5173';
+    await this.assertTrustedOrigin(request);
+    const session = await this.eventAdminSession(request, response, eventId);
+    await this.assertCsrf(request, session.token);
+    return { userId: session.user.id, sessionId: session.session.id };
+  }
+
+  /** Team management (#214 D6): only an active `admin` role in `global` scope; judges and event admins are denied. */
+  private async globalAdminSession(request: Request, response: Response) {
+    const session = await this.activeSession(request, response);
+    if (!session.roles.some((role) => role.role === 'admin' && role.scopeType === 'global')) {
+      await this.denied();
+    }
+    return session;
+  }
+
+  async authorizeGlobalAdmin(request: Request, response: Response) {
+    const session = await this.globalAdminSession(request, response);
+    return { userId: session.user.id, sessionId: session.session.id };
+  }
+
+  async authorizeGlobalAdminMutation(request: Request, response: Response) {
+    await this.assertTrustedOrigin(request);
+    const session = await this.globalAdminSession(request, response);
+    await this.assertCsrf(request, session.token);
+    return { userId: session.user.id, sessionId: session.session.id };
+  }
+
+  /** Reads the origin like CORS and sign-in do, so a blank or padded variable cannot deny every mutation. */
+  private async assertTrustedOrigin(request: Request): Promise<void> {
+    const trusted = readTrustedOrigin(process.env);
     if (request.headers.origin !== trusted) {
       await this.db.insert(authAudit).values({ action: 'denied' });
       throw new ForbiddenException('Request denied');
     }
-    const session = await this.eventAdminSession(request, response, eventId);
+  }
+
+  private async assertCsrf(request: Request, token: string): Promise<void> {
     const supplied = request.header('X-CSRF-Token') ?? '';
-    const expected = digest(`nb-admin-csrf-v1:${session.token}`);
+    const expected = digest(`nb-admin-csrf-v1:${token}`);
     if (
       supplied.length !== expected.length ||
       !timingSafeEqual(Buffer.from(supplied), Buffer.from(expected))
@@ -116,7 +148,6 @@ export class SessionAccessService {
       await this.db.insert(authAudit).values({ action: 'denied' });
       throw new ForbiddenException('Request denied');
     }
-    return { userId: session.user.id, sessionId: session.session.id };
   }
 
   async authorizeEvent(request: Request, response: Response, eventId: string): Promise<void> {

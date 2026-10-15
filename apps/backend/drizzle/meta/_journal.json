@@ -99,6 +99,97 @@
       "when": 1786562775600,
       "tag": "0013_catalog_restore_audit",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1786562775601,
+      "tag": "0014_event_sales_state",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1786562775602,
+      "tag": "0015_participant_profile",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1786562775603,
+      "tag": "0016_non_admin_audit_actor",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1786562775604,
+      "tag": "0017_registration_folio",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1786562775605,
+      "tag": "0018_registration_payments",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1791675612715,
+      "tag": "0019_registration_confirmation_emails",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1791761412715,
+      "tag": "0020_admin_team_management",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1791847812715,
+      "tag": "0021_event_admin_lifecycle",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1791934212715,
+      "tag": "0022_event_venue_audit",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1791935350337,
+      "tag": "0023_pending_payment_expiry",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1791935410337,
+      "tag": "0024_registration_expiry_audit",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1791935470337,
+      "tag": "0025_payment_reconciliation",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1791935530337,
+      "tag": "0026_registration_legal_acceptances",
+      "breakpoints": true
     }
   ]
 }

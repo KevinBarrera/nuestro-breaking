@@ -1,10 +1,17 @@
 import { getSession, signIn, signOut, useSessionStore } from '@/entities/session';
+import { routes } from '@/shared/config';
 import { AdminShell } from '@/widgets/admin-shell';
 import type { FormEvent } from 'react';
-import { useEffect, useState } from 'react';
-import { Outlet } from 'react-router';
+import { useEffect, useRef, useState } from 'react';
+import { Outlet, useLocation, useNavigate } from 'react-router';
 
 type Status = 'loading' | 'signed-out' | 'signed-in';
+
+// The activation page (#214) lands here with the activated email in the history state.
+function readActivatedEmail(state: unknown): string | null {
+  if (!state || typeof state !== 'object' || !('activatedEmail' in state)) return null;
+  return typeof state.activatedEmail === 'string' ? state.activatedEmail : null;
+}
 
 function canAccessAdmin(roles: string[]) {
   return roles.includes('admin') || roles.includes('judge');
@@ -16,6 +23,10 @@ export function AdminSessionBoundary() {
   const [submitting, setSubmitting] = useState(false);
   const setSession = useSessionStore((state) => state.setSession);
   const clearSession = useSessionStore((state) => state.clearSession);
+  const navigate = useNavigate();
+  const activatedEmail = readActivatedEmail(useLocation().state);
+  // Set by a successful sign-out; the redirect waits for the shell to unmount.
+  const leaving = useRef(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -38,6 +49,15 @@ export function AdminSessionBoundary() {
       });
     return () => controller.abort();
   }, [clearSession, setSession]);
+
+  // After signing out, the sign-in form shows at /admin (replacing the screen that was open),
+  // so signing back in starts from the event entry. It runs once the shell and its page have
+  // unmounted, so a screen's unsaved-changes guard does not hold the navigation.
+  useEffect(() => {
+    if (status !== 'signed-out' || !leaving.current) return;
+    leaving.current = false;
+    void navigate(routes.admin, { replace: true });
+  }, [navigate, status]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -71,6 +91,7 @@ export function AdminSessionBoundary() {
     try {
       await signOut();
       clearSession();
+      leaving.current = true;
       setStatus('signed-out');
     } catch {
       setError(true);
@@ -100,6 +121,14 @@ export function AdminSessionBoundary() {
         <p className="mt-3 text-sm leading-6 text-slate-300">
           Accede con tu cuenta del equipo organizador o de jueces.
         </p>
+        {activatedEmail && !error && (
+          <p
+            role="status"
+            className="mt-6 rounded-lg border border-emerald-400 bg-emerald-950/70 p-3 text-sm text-emerald-100"
+          >
+            Tu cuenta está activa. Inicia sesión con tu correo y tu nueva contraseña.
+          </p>
+        )}
         <form onSubmit={(event) => void submit(event)} className="mt-8 space-y-5">
           <label className="block text-sm font-semibold text-slate-100">
             Correo electrónico
@@ -108,6 +137,7 @@ export function AdminSessionBoundary() {
               name="email"
               type="email"
               autoComplete="username"
+              defaultValue={activatedEmail ?? undefined}
               required
             />
           </label>

@@ -150,6 +150,15 @@ describe('November catalog seed (e2e)', () => {
       audit: 0,
     });
 
+    const [event] = await client<
+      { slug: string; sales_enabled: boolean; folio_prefix: string }[]
+    >`SELECT slug, sales_enabled, folio_prefix FROM events`;
+    expect(event).toEqual({
+      slug: 'los-mas-pesados-nov-2026',
+      sales_enabled: false,
+      folio_prefix: 'LMP',
+    });
+
     const [venue] = await client<{ name: string }[]>`SELECT name FROM venues`;
     expect(venue.name).toBe('Estudio principal');
     const activities = await client<{ name: string; kind: string; status: string }[]>`
@@ -239,5 +248,81 @@ describe('November catalog seed (e2e)', () => {
     const kids = await client<{ status: string }[]>`
       SELECT status FROM activities WHERE name = 'Breaking Kids'`;
     expect(kids).toEqual([{ status: 'archived' }]);
+  });
+
+  it('assigns the public slug to an event that only has a generated one, without touching sales', async () => {
+    await seedNovemberCatalog(db);
+    // An event created before migration 0014 carries the generated slug derived from its id.
+    await client`UPDATE events SET slug = 'event-' || replace(id::text, '-', ''), sales_enabled = true`;
+
+    const summary = await seedNovemberCatalog(db);
+
+    expect(summary.created.events).toBe(0);
+    expect(await client`SELECT slug, sales_enabled FROM events`).toEqual([
+      { slug: 'los-mas-pesados-nov-2026', sales_enabled: true },
+    ]);
+  });
+
+  it('replaces only the backfilled default folio prefix', async () => {
+    await seedNovemberCatalog(db);
+    // An event created before migration 0017 carries the backfilled `EV` prefix.
+    await client`UPDATE events SET folio_prefix = 'EV'`;
+    await seedNovemberCatalog(db);
+    expect(await client`SELECT folio_prefix FROM events`).toEqual([{ folio_prefix: 'LMP' }]);
+
+    await client`UPDATE events SET folio_prefix = 'NOV26'`;
+    await seedNovemberCatalog(db);
+    expect(await client`SELECT folio_prefix FROM events`).toEqual([{ folio_prefix: 'NOV26' }]);
+  });
+
+  // The other event's slug, and whether the November event's slug is a generated one.
+  async function eventSlugs() {
+    return client<{ events: number; other: string; generated: boolean }[]>`
+      SELECT (SELECT count(*)::int FROM events) AS events,
+        (SELECT slug FROM events WHERE name = 'Another event') AS other,
+        (SELECT slug ~ '^event-[0-9a-f]{32}$' FROM events WHERE name <> 'Another event') AS generated`;
+  }
+  async function otherEventWithPublicSlug() {
+    const [{ id: org }] = await client<{ id: string }[]>`
+      INSERT INTO organizations (name) VALUES ('Other organization') RETURNING id`;
+    await client`INSERT INTO events (organization_id, name, time_zone, slug)
+      VALUES (${org}, 'Another event', 'Etc/UTC', 'los-mas-pesados-nov-2026')`;
+  }
+  it('creates the event with a generated slug when another event already holds the public slug', async () => {
+    await otherEventWithPublicSlug();
+
+    const summary = await seedNovemberCatalog(db);
+
+    expect(summary.created.events).toBe(1);
+    expect(await eventSlugs()).toEqual([
+      { events: 2, other: 'los-mas-pesados-nov-2026', generated: true },
+    ]);
+    // A later run still leaves both slugs alone while the public slug stays taken.
+    await seedNovemberCatalog(db);
+    expect(await eventSlugs()).toEqual([
+      { events: 2, other: 'los-mas-pesados-nov-2026', generated: true },
+    ]);
+  });
+
+  it('keeps a generated slug when another event already holds the public slug', async () => {
+    await seedNovemberCatalog(db);
+    await client`UPDATE events SET slug = 'event-' || replace(id::text, '-', '')`;
+    await otherEventWithPublicSlug();
+
+    const summary = await seedNovemberCatalog(db);
+
+    expect(summary.created.events).toBe(0);
+    expect(await eventSlugs()).toEqual([
+      { events: 2, other: 'los-mas-pesados-nov-2026', generated: true },
+    ]);
+  });
+
+  it('keeps a slug that is not a generated one', async () => {
+    await seedNovemberCatalog(db);
+    await client`UPDATE events SET slug = 'custom-slug'`;
+
+    await seedNovemberCatalog(db);
+
+    expect(await client`SELECT slug FROM events`).toEqual([{ slug: 'custom-slug' }]);
   });
 });

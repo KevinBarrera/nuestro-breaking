@@ -40,7 +40,8 @@ const sameName = (column: AnyPgColumn, name: string): SQL =>
 /**
  * Create missing November catalog records, matched by natural keys (organization, venue, event,
  * activity, and pass type names, case-insensitive). Existing records are never updated, so admin
- * edits, archives, and access lists survive re-runs. Access links are only written for pass types
+ * edits, archives, and access lists survive re-runs; the exceptions are giving an existing event its
+ * public slug when it only has a generated one, and its folio prefix when it only has the default. Access links are only written for pass types
  * created in this run. Seed data is local bootstrap data, not an admin operation, so no
  * `event_catalog_audit` rows are written (that table requires an admin user and session).
  */
@@ -93,7 +94,7 @@ export async function seedNovemberCatalog(
     )[0];
 
     let [event] = await tx
-      .select({ id: events.id })
+      .select({ id: events.id, slug: events.slug })
       .from(events)
       .where(
         and(
@@ -104,18 +105,28 @@ export async function seedNovemberCatalog(
       .orderBy(asc(events.id))
       .limit(1);
     count('events', !event);
+    // When another event already holds the public slug, the new event keeps the generated column
+    // default instead of failing on the unique index; a later run assigns the slug once it is free.
     event ??= (
       await tx
         .insert(events)
         .values({
           organizationId: organization.id,
           name: definition.event.name,
+          slug: (await slugTaken(tx, definition.event.slug)) ? undefined : definition.event.slug,
+          folioPrefix: definition.event.folioPrefix,
           timeZone: definition.event.timeZone,
           startsAt: new Date(definition.event.startsAt),
           endsAt: new Date(definition.event.endsAt),
         })
-        .returning({ id: events.id })
+        .returning({ id: events.id, slug: events.slug })
     )[0];
+    await assignSlug(tx, event, definition.event.slug);
+    // An event from before migration 0017 has the backfilled `EV` prefix; a chosen prefix is kept.
+    await tx
+      .update(events)
+      .set({ folioPrefix: definition.event.folioPrefix })
+      .where(and(eq(events.id, event.id), eq(events.folioPrefix, DEFAULT_FOLIO_PREFIX)));
 
     const linkedVenue = await tx
       .insert(eventVenues)
@@ -194,6 +205,31 @@ export async function seedNovemberCatalog(
   });
 
   return summary;
+}
+
+// Column default and migration 0017 backfill for the folio prefix.
+const DEFAULT_FOLIO_PREFIX = 'EV';
+
+// Matches the slug migration 0014 and the column default generate; anything else is a chosen slug.
+const generatedSlug = /^event-[0-9a-f]{32}$/;
+
+// An event created before migration 0014 only has a generated slug. Give it the definition's public
+// slug unless another event already holds it; a chosen slug is never overwritten.
+type SeedTransaction = Parameters<Parameters<SeedDatabase['transaction']>[0]>[0];
+
+async function slugTaken(tx: SeedTransaction, slug: string): Promise<boolean> {
+  const [taken] = await tx
+    .select({ id: events.id })
+    .from(events)
+    .where(eq(events.slug, slug))
+    .limit(1);
+  return Boolean(taken);
+}
+
+async function assignSlug(tx: SeedTransaction, event: { id: string; slug: string }, slug: string) {
+  if (event.slug === slug || !generatedSlug.test(event.slug)) return;
+  if (!(await slugTaken(tx, slug)))
+    await tx.update(events).set({ slug }).where(eq(events.id, event.id));
 }
 
 function normalize(name: string): string {

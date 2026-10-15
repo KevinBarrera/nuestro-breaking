@@ -9,6 +9,7 @@ import { AppModule } from '@/app.module';
 import { DATABASE_CLIENT } from '@/database/database.constants';
 import * as schema from '@/database/schema';
 import { DatabaseService } from '@/database/database.service';
+import type { EventFoundation } from '@/events/foundation/event-foundation.types';
 import { PostgresHarness } from './support/postgres-harness';
 
 jest.setTimeout(120_000);
@@ -165,14 +166,20 @@ describe('GET /admin/events/:eventId/foundation (e2e)', () => {
       .get(`/admin/events/${event.id}/foundation`)
       .set('Cookie', cookie)
       .expect(200);
+    const { slug } = (response.body as EventFoundation).event;
+    expect(slug).toMatch(/^event-[0-9a-f]{32}$/);
     expect(response.body).toEqual({
       event: {
         id: event.id,
         name: 'Weekend',
+        slug,
+        folioPrefix: 'EV',
         timeZone: 'America/Bogota',
         startsAt: '2026-11-14T14:00:00.000Z',
         endsAt: '2026-11-16T01:00:00.000Z',
         windowStatus: 'bounded',
+        salesEnabled: false,
+        archivedAt: null,
       },
       venues: [
         { id: extra.id, name: 'Extra' },
@@ -198,6 +205,7 @@ describe('GET /admin/events/:eventId/foundation (e2e)', () => {
           planningStatus: 'draft',
         },
       ],
+      deleteBlockers: ['activities'],
       deferredFields: ['priceDisplay', 'capacity', 'registrationRequirements'],
     });
   });
@@ -215,17 +223,24 @@ describe('GET /admin/events/:eventId/foundation (e2e)', () => {
       .get(`/admin/events/${id}/foundation`)
       .set('Cookie', cookie)
       .expect(200);
+    const { slug } = (response.body as EventFoundation).event;
+    expect(slug).toMatch(/^event-[0-9a-f]{32}$/);
     expect(response.body).toEqual({
       event: {
         id,
         name: 'Open',
+        slug,
+        folioPrefix: 'EV',
         timeZone: 'Etc/UTC',
         startsAt: null,
         endsAt: null,
         windowStatus: 'unbounded',
+        salesEnabled: false,
+        archivedAt: null,
       },
       venues: [],
       activities: [],
+      deleteBlockers: [],
       deferredFields: ['priceDisplay', 'capacity', 'registrationRequirements'],
     });
     await request(app.getHttpServer())

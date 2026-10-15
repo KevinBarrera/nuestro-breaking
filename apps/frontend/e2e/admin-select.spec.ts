@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { adminScreens, eventId, mockAdminApi, revealControls } from './support/admin-mocks.ts';
 import { exposedNativeSelects, selectTrigger } from './support/select.ts';
+import { eventSummary } from './support/event-mocks.ts';
 
 const otherId = 'b1b2c3d4-1234-4567-89ab-123456789abc';
 const api = (url: URL) => url.port === '3000';
@@ -12,8 +13,8 @@ async function mockTwoEvents(page: Page) {
     (route) =>
       route.fulfill({
         json: [
-          { id: eventId, name: 'Encuentro del barrio' },
-          { id: otherId, name: 'Batalla de otoño' },
+          eventSummary(eventId, 'Encuentro del barrio'),
+          eventSummary(otherId, 'Batalla de otoño'),
         ],
       }),
   );
@@ -26,8 +27,9 @@ test('admin screens and catalog forms expose no native select', async ({ page })
   for (const screen of adminScreens) {
     await page.goto(screen.path);
     await revealControls(page, screen.name);
-    // The topbar event selector is on every event screen.
-    await expect(listboxTriggers(page).first()).toBeVisible();
+    // The topbar event selector is on every event screen (the team screens sit outside events).
+    if (screen.path.startsWith('/admin/events/'))
+      await expect(listboxTriggers(page).first()).toBeVisible();
     expect(await exposedNativeSelects(page), screen.name).toBe(0);
   }
 

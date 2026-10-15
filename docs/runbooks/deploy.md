@@ -99,6 +99,10 @@ from the provider and are never committed.
 | `ONLINE_SERVICE_CHARGE_FIXED_MXN`   | The organizer's rate, or placeholder `4.00`                                                                                        | The organizer's rate from the Mercado Pago costs page                   |
 | `ONLINE_SERVICE_CHARGE_VAT_PERCENT` | `16`                                                                                                                               | `16`                                                                    |
 
+Set the three `ONLINE_SERVICE_CHARGE_*` variables in each environment before
+the release that adds them (#239) is deployed there: the backend refuses to
+start without them, so a deploy that arrives first fails its healthcheck.
+
 Leave `TRUST_PROXY_HOPS` unset (delete it if it exists): it only applies to
 `CLIENT_IP_SOURCE=request`, Railway's edge does not make hop counting safe,
 and the backend refuses to start when it is set together with `x-real-ip` or

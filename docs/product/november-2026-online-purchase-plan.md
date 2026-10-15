@@ -82,7 +82,7 @@ These questions are tracked in #59 and block the production launch (#182), not t
 - Availability of e.firma and constancia de situación fiscal.
 - Whether the money is needed before the event (instant release vs 14-day release).
 - Card only, or also OXXO/SPEI.
-- Who pays the fees.
+- Who pays the fees. Answered on 2026-10-14: the online buyer pays the Mercado Pago fee as a separate "Cargo por servicio" ([#239](https://github.com/KevinBarrera/nuestro-breaking/issues/239)), shown on the review screen and in the confirmation email; cash and manual registrations pay only the pass price. The rates are set per environment from the account's costs page (`ONLINE_SERVICE_CHARGE_*`, see the README).
 - Whether invoices must be issued.
 
 The production account, exact fees, OXXO/SPEI on/off (which affects #181), invoicing and tax withholding depend on these answers. Tax topics must be confirmed with an accountant. The final legal texts for #180 also come from the organizer.

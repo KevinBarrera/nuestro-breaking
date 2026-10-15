@@ -24,6 +24,7 @@ const catalog = {
     endsAt: null,
   },
   sales: { state: 'open', reason: null, opensAt: null, closesAt: null },
+  serviceCharge: { rateBasisPoints: 349, fixedCents: 400, vatBasisPoints: 1600 },
   passes: [
     {
       id: 'p1',
@@ -61,6 +62,19 @@ describe('isPublicCatalog', () => {
     expect(isPublicCatalog({ ...catalog, sales: { ...catalog.sales, state: 'closed' } })).toBe(
       false,
     );
+  });
+
+  it('rejects missing or malformed service charge rates', () => {
+    const { serviceCharge, ...withoutCharge } = catalog;
+    expect(isPublicCatalog(withoutCharge)).toBe(false);
+    for (const malformed of [
+      { ...serviceCharge, rateBasisPoints: -1 },
+      { ...serviceCharge, fixedCents: 4.5 },
+      { ...serviceCharge, vatBasisPoints: '1600' },
+      // A rate that would take the whole payment can never be grossed up.
+      { ...serviceCharge, rateBasisPoints: 10_000, vatBasisPoints: 0 },
+    ])
+      expect(isPublicCatalog({ ...catalog, serviceCharge: malformed })).toBe(false);
   });
 
   it('rejects malformed events, passes and activities', () => {
@@ -187,7 +201,8 @@ const paymentStatus = {
     { name: 'Pase completo Breaking', competitions: ['Popping 1v1', 'Breaking 1v1'] },
     { name: 'Open Styles', competitions: [] },
   ],
-  totalCents: 220050,
+  serviceChargeCents: 9768,
+  totalCents: 229818,
 };
 
 describe('isPaymentStatus', () => {
@@ -221,6 +236,8 @@ describe('isPaymentStatus', () => {
       { ...paymentStatus, passes: [{ name: '', competitions: [] }] },
       { ...paymentStatus, passes: [{ name: 'Open Styles', competitions: [1] }] },
       { ...paymentStatus, totalCents: -1 },
+      { ...paymentStatus, serviceChargeCents: undefined },
+      { ...paymentStatus, serviceChargeCents: -1 },
       { ...paymentStatus, totalCents: 10.5 },
     ])
       expect(isPaymentStatus(body), JSON.stringify(body)).toBe(false);

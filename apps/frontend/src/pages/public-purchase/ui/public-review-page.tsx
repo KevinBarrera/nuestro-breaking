@@ -4,6 +4,7 @@ import {
   createRegistration,
   PublicEventError,
   publicEventFailure,
+  serviceChargeCents,
 } from '@/entities/public-event';
 import {
   buildRegistrationRequest,
@@ -114,7 +115,10 @@ export function PublicReviewPage() {
   if (redirect) return <Navigate replace to={stepPath(slug, redirect)} />;
 
   const lines = reviewLines(catalog.passes, selection);
-  const { totalCents } = purchaseTotals(catalog.passes, selection);
+  const passesCents = purchaseTotals(catalog.passes, selection).totalCents;
+  // Online buyers pay the Mercado Pago fee as its own line; checkout charges this same total (#239).
+  const chargeCents = serviceChargeCents(catalog.serviceCharge, passesCents);
+  const totalCents = passesCents + chargeCents;
   const person = reviewBuyer(buyer);
   const allAccepted = legalChecks.every(({ id }) => accepted[id]);
   const backTo = stepPath(slug, 'buyer');
@@ -185,6 +189,15 @@ export function PublicReviewPage() {
               </li>
             ))}
           </ul>
+          {chargeCents > 0 ? (
+            <p className="mt-3 flex items-start justify-between gap-3 border-t border-line pt-3">
+              <span className="min-w-0">
+                <span className="block font-bold text-heading">Cargo por servicio</span>
+                <span className="block text-sm text-muted">Comisión de Mercado Pago</span>
+              </span>
+              <span className="shrink-0 font-semibold text-fg">{formatMxn(chargeCents)}</span>
+            </p>
+          ) : null}
           <p className="mt-3 flex items-baseline justify-between gap-3 border-t border-line pt-3 font-extrabold text-heading">
             <span>Total</span>
             <span>{formatMxn(totalCents)} MXN</span>

@@ -10,6 +10,7 @@ import {
   type PublicCatalog,
   type PublicEventFailure,
   type PublicPass,
+  type PublicServiceCharge,
   type Registration,
   type RegistrationPass,
 } from './types';
@@ -60,6 +61,18 @@ function isPublicPass(value: unknown): value is PublicPass {
   );
 }
 
+// The rates must leave part of the payment to the organizer, or the charge cannot be grossed up.
+function isServiceCharge(value: unknown): value is PublicServiceCharge {
+  const row = record(value);
+  return (
+    !!row &&
+    cents(row.rateBasisPoints) &&
+    cents(row.fixedCents) &&
+    cents(row.vatBasisPoints) &&
+    row.rateBasisPoints * (10_000 + row.vatBasisPoints) < 100_000_000
+  );
+}
+
 export function isPublicCatalog(value: unknown): value is PublicCatalog {
   const body = record(value);
   const event = record(body?.event);
@@ -78,6 +91,7 @@ export function isPublicCatalog(value: unknown): value is PublicCatalog {
     stateMatches &&
     instantOrNull(sales.opensAt) &&
     instantOrNull(sales.closesAt) &&
+    isServiceCharge(body.serviceCharge) &&
     listOf(body.passes, isPublicPass)
   );
 }
@@ -124,6 +138,7 @@ export function isPaymentStatus(value: unknown): value is PaymentStatus {
     typeof body.firstName === 'string' &&
     (body.maskedEmail === null || text(body.maskedEmail)) &&
     listOf(body.passes, isPaymentStatusPass) &&
+    cents(body.serviceChargeCents) &&
     cents(body.totalCents)
   );
 }

@@ -33,6 +33,7 @@ import {
   readExpirySweepInterval,
 } from './registration-expiry';
 import { PENDING_PAYMENT_WINDOW, readPendingPaymentWindow } from './shared/pending-payment-window';
+import { SERVICE_CHARGE, readServiceCharge } from './shared/service-charge';
 import { VenueAdminController } from './venue-admin/venue-admin.controller';
 import { VenueAdminService } from './venue-admin/venue-admin.service';
 
@@ -69,6 +70,7 @@ import { VenueAdminService } from './venue-admin/venue-admin.service';
     PublicRegistrationService,
     VenueAdminService,
     { provide: PENDING_PAYMENT_WINDOW, useFactory: () => readPendingPaymentWindow(process.env) },
+    { provide: SERVICE_CHARGE, useFactory: () => readServiceCharge(process.env) },
     { provide: EXPIRY_SWEEP_INTERVAL_MS, useFactory: () => readExpirySweepInterval(process.env) },
     PendingRegistrationExpirySweeper,
   ],

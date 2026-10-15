@@ -58,10 +58,19 @@ export type PublicSales = {
   closesAt: string | null;
 } & ({ state: 'open'; reason: null } | { state: 'closed'; reason: PublicSalesClosedReason });
 
+// Online service charge rates (#239), all before VAT: percentages in hundredths of a percent
+// (349 is 3.49%) and the fixed fee in cents.
+export type PublicServiceCharge = {
+  rateBasisPoints: number;
+  fixedCents: number;
+  vatBasisPoints: number;
+};
+
 // Passes are listed only while sales are open; a closed catalog has `passes: []`.
 export type PublicCatalog = {
   event: PublicEventSummary;
   sales: PublicSales;
+  serviceCharge: PublicServiceCharge;
   passes: PublicPass[];
 };
 
@@ -114,6 +123,8 @@ export type PaymentStatus = {
   maskedEmail: string | null;
   folio: string | null;
   passes: PaymentStatusPass[];
+  // The online service charge included in `totalCents` (#239); 0 for manual registrations.
+  serviceChargeCents: number;
   totalCents: number;
 };
 

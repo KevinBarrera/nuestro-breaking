@@ -38,6 +38,7 @@ Code: `apps/backend/src/events/public-catalog/`. The pure projection is `toPubli
     "opensAt": "2026-10-15T15:00:00.000Z",
     "closesAt": null
   },
+  "serviceCharge": { "rateBasisPoints": 349, "fixedCents": 400, "vatBasisPoints": 1600 },
   "passes": [
     {
       "id": "6f1c…",
@@ -63,6 +64,7 @@ Code: `apps/backend/src/events/public-catalog/`. The pure projection is `toPubli
 - Dates are ISO 8601 in UTC, or `null`. `event.timeZone` is the IANA zone to display them in.
 - `sales.state` and `sales.reason` follow the [sales state rules](event-sales.md#state-rules), computed at request time: `reason` is `disabled`, `not_yet_open` or `ended` when closed, and `null` when open.
 - `passClass` is `full`, `general` or `add_on`. `requiresPassClass` names the class an add-on needs (Open Styles requires `full`), or is `null`.
+- `serviceCharge` holds the online service charge rates (#239), so the review screen shows the charge the checkout will add: the Mercado Pago percentage in hundredths of a percent (`349` is 3.49%), the fixed fee in cents, and the VAT on the fee in hundredths of a percent. All three are before VAT and come from the `ONLINE_SERVICE_CHARGE_*` environment variables. The charge for a purchase of `price` cents is `ceil((price + fixed × (1 + VAT)) / (1 − rate × (1 + VAT)))` minus `price`, and `0` when `price` is `0`. Cash and manual registrations never pay it.
 - `selectableActivities` are the activities a buyer picks from; `includedActivities` come with the pass. Pass and activity ids are exposed because public registration (#174) submits them.
 
 ## Ordering

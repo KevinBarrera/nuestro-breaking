@@ -19,6 +19,7 @@ describe('buildPreferenceRequest', () => {
       { name: 'Pase completo Breaking', priceCents: 150050 },
       { name: 'Open Styles', priceCents: 80000 },
     ],
+    serviceChargeCents: 0,
     publicAppUrl: 'https://example.test',
     notificationUrl: 'https://api.example.test/webhook',
     paymentDueAt: new Date('2026-11-04T10:00:00.000Z'),
@@ -51,6 +52,16 @@ describe('buildPreferenceRequest', () => {
     expect(request.items.map((item) => item.title)).toEqual([
       'Pase completo Breaking',
       'Open Styles',
+    ]);
+  });
+
+  it('adds the service charge as its own last item, so the order total includes it', () => {
+    const request = buildPreferenceRequest({ ...input, serviceChargeCents: 9768 });
+
+    expect(request.items).toEqual([
+      { title: 'Pase completo Breaking', quantity: 1, unit_price: 1500.5, currency_id: 'MXN' },
+      { title: 'Open Styles', quantity: 1, unit_price: 800, currency_id: 'MXN' },
+      { title: 'Cargo por servicio', quantity: 1, unit_price: 97.68, currency_id: 'MXN' },
     ]);
   });
 

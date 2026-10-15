@@ -230,7 +230,10 @@ export class PaymentWebhookService {
       : [];
     const [checkout] = registration
       ? await tx
-          .select({ id: registrationCheckouts.id })
+          .select({
+            id: registrationCheckouts.id,
+            serviceChargeCents: registrationCheckouts.serviceChargeCents,
+          })
           .from(registrationCheckouts)
           .where(
             and(
@@ -264,7 +267,8 @@ export class PaymentWebhookService {
         registration && checkout
           ? {
               status: registration.status,
-              expectedAmountCents: await this.expectedAmountCents(tx, registration.id),
+              expectedAmountCents:
+                (await this.passesCents(tx, registration.id)) + checkout.serviceChargeCents,
               confirmedByThisPayment: await this.confirmedBy(tx, registration.id, payment.id),
               expiry,
             }
@@ -292,7 +296,9 @@ export class PaymentWebhookService {
     return { outcome: decision.outcome, confirmedRegistrationId: registration.id };
   }
 
-  private async expectedAmountCents(tx: RegistrationTransaction, registrationId: string) {
+  // The buyer pays the passes plus the service charge of the latest checkout (#239). A voucher
+  // from an older checkout with a different charge is flagged as a mismatch for manual review.
+  private async passesCents(tx: RegistrationTransaction, registrationId: string) {
     const [{ total }] = await tx
       .select({ total: sql<number>`coalesce(sum(${eventRegistrationPasses.priceCents}), 0)::int` })
       .from(eventRegistrationPasses)

@@ -6,6 +6,7 @@ import {
   PENDING_PAYMENT_WINDOW,
   readPendingPaymentWindow,
 } from '@/events/shared/pending-payment-window';
+import { SERVICE_CHARGE, readServiceCharge } from '@/events/shared/service-charge';
 import { PublicRateLimitModule } from '@/http';
 import { IdentityAccessModule } from '@/identity-access/identity-access.module';
 import { NotificationsModule } from '@/notifications';
@@ -43,6 +44,7 @@ import {
   providers: [
     { provide: MERCADO_PAGO_CONFIG, useFactory: () => readMercadoPagoConfig(process.env) },
     { provide: PENDING_PAYMENT_WINDOW, useFactory: () => readPendingPaymentWindow(process.env) },
+    { provide: SERVICE_CHARGE, useFactory: () => readServiceCharge(process.env) },
     { provide: EXPIRY_SWEEP_INTERVAL_MS, useFactory: () => readExpirySweepInterval(process.env) },
     PaymentReconciliationSweeper,
     {

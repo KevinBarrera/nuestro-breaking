@@ -24,7 +24,10 @@ export const registrationCheckouts = pgTable(
     registrationId: uuid('registration_id').notNull(),
     mode: text('mode').notNull(),
     preferenceId: text('preference_id').notNull(),
+    // Passes plus `serviceChargeCents`: the total Mercado Pago charges for this preference.
     amountCents: integer('amount_cents').notNull(),
+    // Online service charge included in `amountCents` (#239, migration 0027); 0 before it existed.
+    serviceChargeCents: integer('service_charge_cents').default(0).notNull(),
     currency: text('currency').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   },
@@ -34,6 +37,10 @@ export const registrationCheckouts = pgTable(
     index('registration_checkouts_registration_idx').on(table.registrationId),
     check('registration_checkouts_mode_ck', sql`${table.mode} IN ('sandbox', 'production')`),
     check('registration_checkouts_amount_cents_ck', sql`${table.amountCents} > 0`),
+    check(
+      'registration_checkouts_service_charge_cents_ck',
+      sql`${table.serviceChargeCents} >= 0 AND ${table.serviceChargeCents} < ${table.amountCents}`,
+    ),
     check('registration_checkouts_currency_ck', sql`${table.currency} = 'MXN'`),
     foreignKey({
       columns: [table.registrationId],

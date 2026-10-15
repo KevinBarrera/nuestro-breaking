@@ -20,5 +20,8 @@ export type PublicPaymentStatusResponse = {
   /** Set only when `status` is `confirmed`. */
   folio: string | null;
   passes: PublicPaymentStatusPass[];
+  /** Online service charge of the latest checkout (#239); 0 when there is none. */
+  serviceChargeCents: number;
+  /** What the buyer pays: the passes plus `serviceChargeCents`. */
   totalCents: number;
 };

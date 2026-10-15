@@ -155,6 +155,7 @@ describe('public payment status (e2e)', () => {
         { name: 'Pase completo Breaking', competitions: ['Popping 1v1', 'Breaking 1v1'] },
         { name: 'Open Styles', competitions: [] },
       ],
+      serviceChargeCents: 0,
       totalCents: 220050,
     });
     const body = JSON.stringify(response.body);
@@ -184,6 +185,18 @@ describe('public payment status (e2e)', () => {
     const response = await status(id).expect(200);
 
     expect(response.body).toMatchObject({ status: expected, folio: null, totalCents: 150050 });
+  });
+
+  it('adds the latest checkout service charge to the total the buyer paid (#239)', async () => {
+    const ids = await fixture();
+    const id = await registration(ids.event, [{ passTypeId: ids.full, priceCents: 150050 }]);
+    await payments(id, ['pending']);
+    await client`UPDATE registration_checkouts SET service_charge_cents = 6815, amount_cents = 156865
+      WHERE registration_id = ${id}`;
+
+    const response = await status(id).expect(200);
+
+    expect(response.body).toMatchObject({ serviceChargeCents: 6815, totalCents: 156865 });
   });
 
   it('answers unavailable for a voided registration and hides its folio', async () => {

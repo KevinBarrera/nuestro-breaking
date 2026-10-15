@@ -126,6 +126,8 @@ describe('public event catalog (e2e)', () => {
           passClass: 'full',
           priceCents: 200000,
           requiresPassClass: null,
+          onlineSalesClosesAt: null,
+          onSale: true,
           selectableActivities: [
             {
               id: ids.footwork,
@@ -150,6 +152,8 @@ describe('public event catalog (e2e)', () => {
           passClass: 'general',
           priceCents: 100000,
           requiresPassClass: null,
+          onlineSalesClosesAt: null,
+          onSale: true,
           selectableActivities: [],
           includedActivities: [],
         },
@@ -159,6 +163,8 @@ describe('public event catalog (e2e)', () => {
           passClass: 'add_on',
           priceCents: 80000,
           requiresPassClass: 'full',
+          onlineSalesClosesAt: null,
+          onSale: true,
           selectableActivities: [],
           includedActivities: [
             {
@@ -196,6 +202,30 @@ describe('public event catalog (e2e)', () => {
       expect(JSON.stringify(body)).not.toMatch(FORBIDDEN);
     },
   );
+
+  it('lists a pass whose online sales closed as not on sale, while the event stays open (#240)', async () => {
+    const ids = await fixture();
+    await setSales(true, fromNow(-DAY), null);
+    const closedAt = fromNow(-60_000);
+    const closesAt = fromNow(DAY);
+    await client`UPDATE event_pass_types SET online_sales_closes_at = ${closedAt} WHERE id = ${ids.general}`;
+    await client`UPDATE event_pass_types SET online_sales_closes_at = ${closesAt} WHERE id = ${ids.full}`;
+
+    const body = (await catalog(SLUG).expect(200)).body as PublicEventCatalog;
+
+    expect(body.sales.state).toBe('open');
+    expect(
+      body.passes.map(({ id, onlineSalesClosesAt, onSale }) => ({
+        id,
+        onlineSalesClosesAt,
+        onSale,
+      })),
+    ).toEqual([
+      { id: ids.full, onlineSalesClosesAt: closesAt, onSale: true },
+      { id: ids.general, onlineSalesClosesAt: closedAt, onSale: false },
+      { id: ids.addOn, onlineSalesClosesAt: null, onSale: true },
+    ]);
+  });
 
   it('returns a neutral 404 for an unknown or malformed slug', async () => {
     await fixture();

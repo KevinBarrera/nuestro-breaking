@@ -316,6 +316,20 @@ describe('admin registration entitlements (e2e)', () => {
     expect(await audits()).toHaveLength(1);
   });
 
+  it('assigns a pass whose online sales already closed, since door sales ignore it (#240)', async () => {
+    const f = await fixture();
+    const { cookie } = await session('admin', f.event);
+    const reg = await registration(f.event);
+    await client`UPDATE event_pass_types SET online_sales_closes_at = now() - interval '1 day' WHERE id = ${f.general}`;
+    const accepted = await addPass(f.event, reg.id)
+      .set(headers(cookie))
+      .send({ passTypeId: f.general })
+      .expect(201);
+    expect((accepted.body as Entitlements).passes.map((pass) => pass.passTypeId)).toEqual([
+      f.general,
+    ]);
+  });
+
   it('rejects duplicate, archived, cross-event and unknown pass types and wrong registrations without writes', async () => {
     const f = await fixture();
     const { cookie } = await session('admin', f.event);

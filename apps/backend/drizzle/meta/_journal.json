@@ -197,6 +197,13 @@
       "when": 1791935590337,
       "tag": "0027_checkout_service_charge",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1791935650337,
+      "tag": "0028_pass_type_online_sales_close",
+      "breakpoints": true
     }
   ]
 }

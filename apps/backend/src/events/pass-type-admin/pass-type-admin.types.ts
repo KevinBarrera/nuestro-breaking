@@ -14,6 +14,8 @@ export type AdminPassType = {
   passClass: PassClass;
   priceCents: number;
   requiresPassClass: RequiredPassClass | null;
+  /** ISO time when online sales of this pass close (#240); null follows the event's window. */
+  onlineSalesClosesAt: string | null;
   status: PassTypeStatus;
   version: number;
   activities: PassTypeActivity[];
@@ -24,6 +26,7 @@ export type PassTypeFields = {
   passClass: PassClass;
   priceCents: number;
   requiresPassClass: RequiredPassClass | null;
+  onlineSalesClosesAt: Date | null;
 };
 
 export type PassTypeDraft = PassTypeFields & { activities: PassTypeActivity[] };

@@ -1,4 +1,4 @@
-import { salesState } from '@/events/sales';
+import { passOnSale, salesState } from '@/events/sales';
 import type {
   CatalogEventRow,
   CatalogLinkRow,
@@ -40,7 +40,8 @@ function toActivity({ activity }: CatalogLinkRow): PublicActivity {
 
 /**
  * Build the public catalog from active rows only (the caller filters archived pass types and
- * activities). With sales closed it lists no passes (D4). It copies an explicit allowlist of
+ * activities). With sales closed it lists no passes (D4). A pass past its own online close time
+ * (#240) stays listed with `onSale: false`. It copies an explicit allowlist of
  * fields, so versions, statuses, organization ids and audit data never leak (D5). Pure.
  */
 export function toPublicCatalog(
@@ -80,6 +81,8 @@ export function toPublicCatalog(
       passClass: pass.passClass as PublicPassClass,
       priceCents: pass.priceCents,
       requiresPassClass: pass.requiresPassClass as PublicPassClass | null,
+      onlineSalesClosesAt: pass.onlineSalesClosesAt?.toISOString() ?? null,
+      onSale: passOnSale(pass.onlineSalesClosesAt, now),
       selectableActivities: activities('selectable'),
       includedActivities: activities('included'),
     };

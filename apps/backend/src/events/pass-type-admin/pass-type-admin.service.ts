@@ -40,6 +40,7 @@ function toPassType(row: PassTypeRow, access: PassTypeActivity[]): AdminPassType
     passClass: row.passClass as AdminPassType['passClass'],
     priceCents: row.priceCents,
     requiresPassClass: row.requiresPassClass as AdminPassType['requiresPassClass'],
+    onlineSalesClosesAt: row.onlineSalesClosesAt?.toISOString() ?? null,
     status: row.status as AdminPassType['status'],
     version: row.version,
     activities: [...access].sort((left, right) => left.activityId.localeCompare(right.activityId)),
@@ -57,7 +58,7 @@ function isActiveNameConflict(error: unknown): boolean {
 }
 
 // Only an add-on may require another pass class; the database check stays as the backstop.
-function assertClassRule(fields: PassTypeFields) {
+function assertClassRule(fields: Pick<PassTypeFields, 'passClass' | 'requiresPassClass'>) {
   if (fields.requiresPassClass !== null && fields.passClass !== 'add_on')
     throw new BadRequestException('Only add-on passes may require a pass class');
 }
@@ -115,9 +116,7 @@ export class PassTypeAdminService {
       const { expectedVersion, ...fields } = changes;
       const current = await this.lockEditable(tx, eventId, passTypeId, expectedVersion);
       assertClassRule({
-        name: fields.name ?? current.name,
         passClass: fields.passClass ?? (current.passClass as PassTypeFields['passClass']),
-        priceCents: fields.priceCents ?? current.priceCents,
         requiresPassClass:
           fields.requiresPassClass !== undefined
             ? fields.requiresPassClass

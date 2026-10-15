@@ -36,6 +36,7 @@ export class PublicCatalogService {
         passClass: eventPassTypes.passClass,
         priceCents: eventPassTypes.priceCents,
         requiresPassClass: eventPassTypes.requiresPassClass,
+        onlineSalesClosesAt: eventPassTypes.onlineSalesClosesAt,
       })
       .from(eventPassTypes)
       .where(and(eq(eventPassTypes.eventId, event.id), eq(eventPassTypes.status, 'active')));

@@ -24,6 +24,8 @@ export const eventPassTypes = pgTable(
     passClass: text('pass_class').notNull(),
     priceCents: integer('price_cents').notNull(),
     requiresPassClass: text('requires_pass_class'),
+    // Online sales of this pass stop at this time (#240); null follows the event's sales window.
+    onlineSalesClosesAt: timestamp('online_sales_closes_at', { withTimezone: true }),
     status: text('status').notNull().default('active'),
     version: integer('version').notNull().default(1),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),

@@ -68,18 +68,19 @@ Tus pases:
 ¡Nos vemos en Los más pesados!
 ```
 
-| Field     | Rule                                                                                                                         |
-| --------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| Greeting  | The participant's first name; the first word of the display name when only that is stored.                                   |
-| Event     | The event name.                                                                                                              |
-| Date      | The event start in the event's time zone. Left out when the event has no start date.                                         |
-| Folio     | Shown prominently, with a line asking the buyer to show it at the entrance.                                                  |
-| Passes    | Pass names in purchase order, each with its selected competitions ordered by start time; none listed when the pass has none. |
-| Recipient | The participant's email, with their display name.                                                                            |
+| Field           | Rule                                                                                                                                                                                                                                                                                                               |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Greeting        | The participant's first name; the first word of the display name when only that is stored.                                                                                                                                                                                                                         |
+| Event           | The event name.                                                                                                                                                                                                                                                                                                    |
+| Date            | The event start in the event's time zone. Left out when the event has no start date.                                                                                                                                                                                                                               |
+| Folio           | Shown prominently, with a line asking the buyer to show it at the entrance.                                                                                                                                                                                                                                        |
+| Passes          | Pass names in purchase order, each with its selected competitions ordered by start time; none listed when the pass has none.                                                                                                                                                                                       |
+| Payment summary | Online purchases with a service charge only (#239): "Resumen de pago" with the passes total, "Cargo por servicio" and "Total pagado … MXN", from the pass price snapshots and the service charge of the checkout behind the approved payment. Left out for cash and manual registrations and when the charge is 0. |
+| Recipient       | The participant's email, with their display name.                                                                                                                                                                                                                                                                  |
 
 Every message has a plain-text and an HTML body with the same content. The HTML uses inline styles, loads no external assets, and escapes every name, because names come from buyers and admins.
 
-Never included: amounts, prices or totals, payment ids, the payment method, Mercado Pago data, the buyer's email address (masked or not) in the body, or organizer contact details (still unknown, as in #178 D6).
+Never included: amounts, prices or totals other than the payment summary above, payment ids, the payment method, Mercado Pago data, the buyer's email address (masked or not) in the body, or organizer contact details (still unknown, as in #178 D6).
 
 ## Configuration
 

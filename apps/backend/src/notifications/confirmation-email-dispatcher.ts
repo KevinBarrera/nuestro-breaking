@@ -1,12 +1,14 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { and, asc, eq, inArray, lte, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, lte, sql } from 'drizzle-orm';
 import { DATABASE_CLIENT } from '@/database/database.constants';
 import type { DatabaseService } from '@/database/database.service';
 import {
   eventRegistrations,
   events,
   participants,
+  registrationCheckouts,
   registrationConfirmationEmails as outbox,
+  registrationPayments,
 } from '@/database/schema';
 import { buildConfirmationEmail } from './confirmation-email-content';
 import {
@@ -192,6 +194,23 @@ export class ConfirmationEmailDispatcher {
     const registration = check.sendable;
 
     const passes = await readRegistrationPasses(this.db, registration.eventId, registrationId);
+    // The service charge of the checkout behind the approved payment (#239); cash and manual
+    // registrations have no approved online payment.
+    const [charged] = await this.db
+      .select({ serviceChargeCents: registrationCheckouts.serviceChargeCents })
+      .from(registrationPayments)
+      .innerJoin(
+        registrationCheckouts,
+        eq(registrationCheckouts.id, registrationPayments.checkoutId),
+      )
+      .where(
+        and(
+          eq(registrationCheckouts.registrationId, registrationId),
+          eq(registrationPayments.status, 'approved'),
+        ),
+      )
+      .orderBy(desc(registrationPayments.createdAt), desc(registrationPayments.id))
+      .limit(1);
     const content = buildConfirmationEmail({
       firstName: registration.firstName,
       fullName: registration.fullName,
@@ -200,6 +219,12 @@ export class ConfirmationEmailDispatcher {
       eventStartsAt: registration.eventStartsAt,
       folio: registration.folio,
       passes,
+      payment: charged
+        ? {
+            passesCents: passes.reduce((total, pass) => total + pass.priceCents, 0),
+            serviceChargeCents: charged.serviceChargeCents,
+          }
+        : null,
     });
     return { to: { email: registration.email, name: registration.fullName }, ...content };
   }

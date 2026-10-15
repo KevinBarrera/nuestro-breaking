@@ -12,6 +12,7 @@ const INPUT: ConfirmationEmailInput = {
     { name: 'Pase completo Breaking', competitions: ['Breaking 1v1', 'Popping 1v1'] },
     { name: 'Open Styles', competitions: [] },
   ],
+  payment: null,
 };
 
 describe('buildConfirmationEmail', () => {
@@ -103,6 +104,28 @@ describe('buildConfirmationEmail', () => {
     const { subject } = buildConfirmationEmail({ ...INPUT, eventName: 'Los más\r\npesados' });
 
     expect(subject).toBe('Tu inscripción a Los más pesados está confirmada · Folio LMP-AB12');
+  });
+
+  it('summarizes an online payment with its service charge (#239)', () => {
+    const { text, html } = buildConfirmationEmail({
+      ...INPUT,
+      payment: { passesCents: 230050, serviceChargeCents: 10190 },
+    });
+
+    expect(text).toContain(
+      'Resumen de pago:\nPases: $2,300.50\nCargo por servicio: $101.90\nTotal pagado: $2,402.40 MXN',
+    );
+    expect(html).toMatch(/Pases<\/td>\s*<td[^>]*>\$2,300\.50/);
+    expect(html).toMatch(/Cargo por servicio<\/td>\s*<td[^>]*>\$101\.90/);
+    expect(html).toMatch(/Total pagado<\/td>\s*<td[^>]*>\$2,402\.40 MXN/);
+    for (const body of [text, html]) expect(body).not.toMatch(/Mercado Pago|tarjeta|OXXO|SPEI/i);
+  });
+
+  it('shows no amounts when there is no service charge, as for cash registrations', () => {
+    for (const payment of [null, { passesCents: 230050, serviceChargeCents: 0 }]) {
+      const { html, text } = buildConfirmationEmail({ ...INPUT, payment });
+      for (const body of [html, text]) expect(body).not.toMatch(/\$|MXN|Resumen de pago/);
+    }
   });
 
   it('never includes payment data, the email address or external assets', () => {

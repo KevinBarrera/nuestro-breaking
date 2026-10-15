@@ -102,6 +102,9 @@ from the provider and are never committed.
 Set the three `ONLINE_SERVICE_CHARGE_*` variables in each environment before
 the release that adds them (#239) is deployed there: the backend refuses to
 start without them, so a deploy that arrives first fails its healthcheck.
+Deploy that backend before the frontend that shows the charge: the new
+frontend rejects a catalog or payment status without `serviceCharge` or
+`serviceChargeCents`, while the old frontend ignores the new fields.
 
 Leave `TRUST_PROXY_HOPS` unset (delete it if it exists): it only applies to
 `CLIENT_IP_SOURCE=request`, Railway's edge does not make hop counting safe,

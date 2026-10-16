@@ -125,12 +125,15 @@ test('shows the event overview with quick actions and Resumen as the current pag
     'href',
     `${overviewPath}/check-in`,
   );
-  for (const name of ['Registrar en el lugar', 'Imprimir listas']) {
-    const action = actions.getByRole('button', { name: new RegExp(name) });
-    await expect(action).toHaveAttribute('aria-disabled', 'true');
-    await expect(action).toContainText('Próximamente');
-    await expect(actions.getByRole('link', { name: new RegExp(name) })).toHaveCount(0);
-  }
+  // The in-person sale (#105) starts at Nueva inscripción.
+  await expect(actions.getByRole('link', { name: /Registrar en el lugar/ })).toHaveAttribute(
+    'href',
+    `${overviewPath}/registrations/new`,
+  );
+  const print = actions.getByRole('button', { name: /Imprimir listas/ });
+  await expect(print).toHaveAttribute('aria-disabled', 'true');
+  await expect(print).toContainText('Próximamente');
+  await expect(actions.getByRole('link', { name: /Imprimir listas/ })).toHaveCount(0);
   const box = await actions.getByRole('link', { name: /Abrir check-in/ }).boundingBox();
   expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
 });

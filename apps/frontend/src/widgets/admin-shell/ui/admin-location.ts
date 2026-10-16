@@ -2,20 +2,27 @@ import { routes } from '@/shared/config';
 import { matchPath } from 'react-router';
 
 export type EventSection =
-  'overview' | 'foundation' | 'check-in' | 'payments-review' | 'activities' | 'passes';
+  | 'overview'
+  | 'foundation'
+  | 'check-in'
+  | 'payments-review'
+  | 'registrations'
+  | 'activities'
+  | 'passes';
 
 const sectionRoutes: Record<EventSection, string> = {
   overview: routes.adminEventOverview,
   foundation: routes.adminEventFoundation,
   'check-in': routes.adminEventCheckIn,
   'payments-review': routes.adminEventPaymentsReview,
+  registrations: routes.adminEventRegistrations,
   activities: routes.adminEventActivities,
   passes: routes.adminEventPasses,
 };
 
-// Sections whose screens have sub-routes (Pases: list, new and detail); the section stays
-// current on every route below its path.
-const nestedSections = new Set<EventSection>(['passes']);
+// Sections whose screens have sub-routes (Pases and Inscripciones: list, new and detail); the
+// section stays current on every route below its path.
+const nestedSections = new Set<EventSection>(['passes', 'registrations']);
 
 export type AdminLocation = { eventId?: string; section?: EventSection };
 

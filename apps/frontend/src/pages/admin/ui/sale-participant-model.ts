@@ -32,8 +32,9 @@ const PHONE_RULES: Record<
   },
 };
 
-// The operator's copy, about the participant rather than addressed to them.
-const saleMessages = (mode: SalePhoneMode): ParticipantMessages => ({
+// The operator's copy, about the participant rather than addressed to them. Server field errors
+// reuse it (`registration-model.ts`), so a server answer reads like the client check.
+export const saleParticipantMessages = (mode: SalePhoneMode): ParticipantMessages => ({
   required: {
     firstName: 'Escribe el nombre.',
     firstLastName: 'Escribe el primer apellido.',
@@ -57,7 +58,7 @@ export function validateSaleParticipant(
   mode: SalePhoneMode = defaultSalePhoneMode,
 ): ParticipantErrors {
   return validateParticipant(form, today, {
-    messages: saleMessages(mode),
+    messages: saleParticipantMessages(mode),
     phoneIsValid: PHONE_RULES[mode].isValid,
   });
 }

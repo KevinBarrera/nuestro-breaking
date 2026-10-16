@@ -75,7 +75,6 @@ const actionCard =
 function QuickActions({ eventId }: { eventId: string }) {
   const titleId = useId();
   const upcoming = [
-    { eyebrow: 'EFECTIVO', title: 'Registrar en el lugar', hint: 'Con número de recibo foliado' },
     { eyebrow: 'RESPALDO', title: 'Imprimir listas', hint: 'Por pase y actividad, sin contactos' },
   ];
   return (
@@ -91,6 +90,17 @@ function QuickActions({ eventId }: { eventId: string }) {
           <span className="text-xs font-bold tracking-[0.08em]">EN PUERTA</span>
           <span className="text-2xl leading-tight font-extrabold">Abrir check-in</span>
           <span className="text-sm">Busca por nombre, AKA, correo o folio</span>
+        </Link>
+        {/* The in-person sale (#105) starts with the participant's data. */}
+        <Link
+          to={eventPath(routes.adminEventRegistrationNew, eventId)}
+          className={`${actionCard} border border-line bg-surface text-fg hover:bg-row`}
+        >
+          <span className="text-xs font-bold tracking-[0.08em] text-muted">EFECTIVO</span>
+          <span className="text-xl leading-tight font-extrabold text-heading">
+            Registrar en el lugar
+          </span>
+          <span className="text-sm text-muted">Con número de recibo foliado</span>
         </Link>
         {upcoming.map((action) => (
           // Not wired yet: visibly unavailable and announced as disabled, never a link.

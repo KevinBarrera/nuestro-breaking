@@ -94,6 +94,7 @@ The admin UI has a light and a dark theme built on CSS custom properties in `src
 - **Preference.** `@/shared/lib` (`theme.ts`) reads and writes the `nb-theme` key in `localStorage` with guards: any storage failure falls back to light without throwing. `@/features/theme-toggle` renders an icon-only 44×44 button whose name states the action: a moon named "Cambiar a tema oscuro" in the light theme and a sun named "Cambiar a tema claro" in the dark theme (no `aria-pressed`; a matching `title` shows on hover).
 - **No flash.** An inline script in `index.html` sets `data-theme` on `<html>` before first paint; keep its key in sync with `theme.ts`.
 - **Fonts.** Archivo (UI) and IBM Plex Mono (prices, times, folios: `font-mono`) load from Google Fonts through a non-blocking `rel="preload"` that swaps to a stylesheet on load, with a `<noscript>` fallback. `--font-sans` and `--font-mono` end in system fonts, so the UI stays usable when the font host fails. Playwright blocks the font hosts by DNS so specs stay offline.
+- **App icons.** The event's graffiti logo is the favicon (`favicon-16x16.png`, `favicon-32x32.png`, and `favicon.ico` for older browsers), the iOS home-screen icon (`apple-touch-icon.png`) and the `site.webmanifest` icons (192 and 512px), all in `public/` and linked from `index.html`. These files come from the design system (#257); replace them as one set. `e2e/app-icons.spec.ts` checks the links and that every file is served.
 
 ## Shared Select
 

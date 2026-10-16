@@ -113,6 +113,28 @@ for (const theme of themes) {
     check('primary action', rgba(fg), rgba(bg));
     expect(failures).toEqual([]);
   });
+
+  // A control's border is its only visible boundary, so it needs 3:1 (WCAG 1.4.11 non-text
+  // contrast) against every ground it sits on.
+  test(`${theme} theme control borders meet 3:1 contrast`, async ({ page }) => {
+    await useTheme(page, theme);
+    await mockAdminApi(page);
+    await page.goto(adminScreens[0].path);
+    await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
+    const borderPairs: [string, string][] = [
+      ['input-line', 'input-bg'],
+      ['input-line', 'surface'],
+      ['input-line', 'surface-inner'],
+      ['eligible-line', 'eligible-bg'],
+      ['eligible-line', 'surface'],
+    ];
+    const { colors } = await readTokens(page, [...new Set(borderPairs.flat())]);
+    const failures = borderPairs
+      .map(([line, bg]) => [`${line} on ${bg}`, contrast(colors[line], colors[bg])] as const)
+      .filter(([, ratio]) => ratio < 3)
+      .map(([label, ratio]) => `${label}: ${ratio.toFixed(2)}`);
+    expect(failures).toEqual([]);
+  });
 }
 
 // Every visible control an operator taps must offer a 44px-tall target. Inline links inside

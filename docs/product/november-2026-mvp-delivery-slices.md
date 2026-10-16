@@ -26,7 +26,7 @@ Source shorthand:
 | #   | Slice                                          | Main gap today                                                                           | Suggested order                      |
 | --- | ---------------------------------------------- | ---------------------------------------------------------------------------------------- | ------------------------------------ |
 | 1   | Pass entitlements and optional activities      | Delivered via #124; see the [event catalog contract](../contracts/event-catalog.md).     | 1st                                  |
-| 2   | Manual registration, duplicates, cash receipt  | Duplicates are hard-blocked; receipt is optional; fields differ from #58.                | 2nd (parallel with 1 where possible) |
+| 2   | Manual registration, duplicates, cash receipt  | Backend delivered via #125; admin UI (#105) pending.                                     | 2nd (parallel with 1 where possible) |
 | 3   | One-action check-in with on-arrival enrollment | Two visible actions; activity check-in needs prior event fact and prior enrollment.      | 3rd                                  |
 | 4   | Paper lists and paper contingency              | No list or print view exists; contingency is a runbook only.                             | 4th (can start after 1)              |
 | 5   | Audit, identity warnings, cash corrections     | Audit facts exist for manual/cash writes only; no correction commands or history reader. | 5th                                  |
@@ -115,30 +115,31 @@ None upstream. Slices 2, 3 and 4 consume entitlements.
 
 ### Delivered (current behavior)
 
-- `POST /admin/events/:eventId/registrations/manual` requires `fullName` and `phone`; `email` is optional. Evidence: `apps/backend/src/events/manual-registration/manual-registration.controller.ts:47-50`.
-- Participants store `full_name`, `email`, `phone`, `stage_name` only; the split #58 fields do not exist. Evidence: `apps/backend/src/database/schema/participants.ts:8-11`.
-- A same-event match on phone or email **blocks** creation with `Duplicate registration`. Evidence: `apps/backend/src/events/manual-registration/manual-registration.service.ts:30-41`.
-- Cash confirmation requires a positive amount in cents; `reference`, `note` and `receipt` are **optional**. Evidence: `manual-registration.controller.ts:71-96`; `apps/backend/src/database/schema/registration-operation-audit.ts:35-38` (nullable `receipt`).
+- `POST /admin/events/:eventId/registrations/manual` takes the #58 fields with the public registration validation (#125). Evidence: `apps/backend/src/events/manual-registration/manual-registration.controller.ts`.
+- A same-event email or phone match (not voided) answers 409 `possible_duplicates` with masked matches; resending with `confirmedDuplicateRegistrationIds` creates the registration and records the ids in the audit fact (#125). Evidence: `manual-registration.service.ts`; [contract](../contracts/admin-registration-operations.md#manual-registration-and-cash-receipt-125).
+- Cash confirmation requires a positive amount in cents and a receipt number (1 to 50 characters, unique within the event, 409 `receipt_taken`); `reference` and `note` stay optional (#125). Evidence: `manual-registration.controller.ts`; migration `0029_cash_receipt_unique`.
+- The admin search also finds a registration by its cash receipt number (#125).
 - Creation and cash confirmation each append an operation audit fact in the same transaction; judges are rejected. Evidence: `odd/tasks/admin-manual-registration-cash.md` (Constraints, Evidence).
 - No admin UI for manual registration or cash exists (#105 is not delivered). Evidence: no manual/cash screen under `apps/frontend/src`.
 
 ### Proposed design
 
 - Extend participant/registration inputs to the #58 field set for **new** manual registrations.
-- Replace the hard block with a two-step flow: the server returns possible matches (same event, email or phone); the administrator either links to the existing participant or explicitly confirms a new one. The server revalidates matches inside the write transaction and records the confirmation in the audit fact.
+- Replace the hard block with a two-step flow: the server returns possible matches (same event, email or phone); the administrator explicitly confirms a new registration (linking to the existing participant was left out of #125). The server revalidates matches inside the write transaction and records the confirmation in the audit fact.
 - Make the receipt number required and non-blank for **new** cash confirmations; keep it in the audit fact.
 - Keep earlier rows with an empty receipt as legacy; do not invent receipt numbers for them.
 - Pass and selection data from slice 1 is captured at registration time.
 
 ### Gap vs current
 
-Schema and validation change for #58 fields; a duplicate-confirmation contract change (block → confirm); receipt becomes required; admin UI (#105) for registration and cash.
+Backend delivered by #125 (#58 fields, duplicate confirmation, required unique receipt). Remaining: admin UI (#105) for registration and cash.
 
-### Pending decisions
+### Decided (#125, 2026-10-16)
 
-- Receipt number format and uniqueness scope (per event, per receipt book, global).
-- How possible matches are presented without leaking data the operator should not see.
-- Whether matching should also consider other events through the shared participant identity.
+- Receipt number: free text, trimmed, 1 to 50 characters, unique within the event; a repeated number is rejected.
+- Possible matches show name, AKA, folio, registration status and masked contact (`a***@gmail.com`, `******4567`), only to the event administrator.
+- Matching is limited to the same event; voided and expired registrations do not count, as in online registration.
+- Linking a confirmed match to the existing participant is not part of #125: confirmation creates a new participant as before.
 
 ### Dependencies
 
@@ -146,12 +147,12 @@ Slice 1 for pass selection at registration. Slice 5 audit shape for the duplicat
 
 ### Acceptance criteria
 
-- [ ] A manual registration without first name, first last name, email or phone is rejected without a write.
-- [ ] A same-event email or phone match returns the candidate match instead of a hard error, and no registration is created until the administrator confirms.
-- [ ] A confirmed "new person despite match" write records the confirmation in the operation audit fact.
-- [ ] A match that appears between preview and confirmation is detected inside the write transaction.
-- [ ] A cash confirmation with a missing or blank receipt number is rejected without a write.
-- [ ] A judge session cannot create a registration or record cash.
+- [x] A manual registration without first name, first last name, email or phone is rejected without a write.
+- [x] A same-event email or phone match returns the candidate match instead of a hard error, and no registration is created until the administrator confirms.
+- [x] A confirmed "new person despite match" write records the confirmation in the operation audit fact.
+- [x] A match that appears between preview and confirmation is detected inside the write transaction.
+- [x] A cash confirmation with a missing or blank receipt number is rejected without a write.
+- [x] A judge session cannot create a registration or record cash.
 
 ### Related issues (local references)
 

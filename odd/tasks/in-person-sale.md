@@ -30,12 +30,13 @@ An event administrator sells a pass in person on event day: search the event's r
 
 ## Tasks
 
-- [ ] 1. Add the `entities/admin-registration` API (search, manual create, passes, selections, entitlements, cash confirmation) with runtime readers, typed failures and Vitest coverage.
+- [x] 1. Add the `entities/admin-registration` API (search, manual create, passes, selections, entitlements, cash confirmation) with runtime readers, typed failures and Vitest coverage. (35 Vitest tests; frontend suite 431 passed, lint and build pass.)
 - [ ] 2. Share the participant form model between the public purchase and the admin sale, with admin copy and international phone support, covered by Vitest.
 - [ ] 3. Add the "Inscripciones" route and screen: search, new registration form and the possible-duplicates dialog, with Playwright coverage.
 - [ ] 4. Add pass and competition selection, read-only cash confirmation with the receipt number, and resuming a pending registration; Playwright coverage, accessibility and phone-width sweeps, docs.
-- [ ] 5. Open the follow-up issue for judges reaching search.
+- [x] 5. Open the follow-up issue for judges reaching search. (#262, `status:needs-decision`: check-in also calls search, so judge access must be decided first.)
 
 ## Evidence
 
 - Exploration report: Engram `issue-105/in-person-sale-map`.
+- Task 1: most pass and selection rules have no backend `code`, so the client maps them by exact message; a reworded backend message degrades to `error`. Engram `frontend/admin-registration-api`.

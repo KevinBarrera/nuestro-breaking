@@ -84,7 +84,29 @@ describe('admin registration commands (e2e)', () => {
         (SELECT count(*)::int FROM registration_operation_audit) AS facts`;
     return row;
   }
-  const data = { fullName: ' Alex Rivera ', phone: ' 555123 ', email: ' Alex@Example.com ' };
+  const data = {
+    firstName: ' Alex ',
+    firstLastName: 'Rivera',
+    phone: ' 55 1234 4567 ',
+    email: ' Alex@Example.com ',
+  };
+  // A valid #58 body for another person, distinct by name, email and phone.
+  const person = (n: number) => ({
+    firstName: `Person${n}`,
+    firstLastName: 'Test',
+    email: `person${n}@example.com`,
+    phone: `55000000${String(n).padStart(2, '0')}`,
+  });
+  type Match = {
+    registrationId: string;
+    fullName: string;
+    stageName: string | null;
+    folio: string | null;
+    status: string;
+    maskedEmail: string | null;
+    maskedPhone: string | null;
+  };
+  type Conflict = { statusCode: number; code: string; message: string; matches: Match[] };
 
   it('requires active event-admin session for both operations, rejecting judges and wrong-event access', async () => {
     const { event, other } = await fixture();
@@ -167,7 +189,7 @@ describe('admin registration commands (e2e)', () => {
       FROM event_registrations r JOIN participants p ON p.id = r.participant_id WHERE r.id = ${registrationId} AND p.id = ${participantId}`;
     expect(row).toMatchObject({
       full_name: 'Alex Rivera',
-      phone: '555123',
+      phone: '55 1234 4567',
       email: 'alex@example.com',
       status: 'pending_payment',
       confirmation_source: null,
@@ -182,9 +204,10 @@ describe('admin registration commands (e2e)', () => {
         affected_activity_ids: string[];
         before_state: unknown;
         after_state: { status: string };
+        facts: unknown;
       }[]
     >`
-      SELECT operation_type, actor_kind, actor_user_id, session_id, affected_activity_ids, before_state, after_state FROM registration_operation_audit WHERE id = ${auditId} AND event_id = ${event} AND registration_id = ${registrationId} AND participant_id = ${participantId}`;
+      SELECT operation_type, actor_kind, actor_user_id, session_id, affected_activity_ids, before_state, after_state, facts FROM registration_operation_audit WHERE id = ${auditId} AND event_id = ${event} AND registration_id = ${registrationId} AND participant_id = ${participantId}`;
     expect(fact).toMatchObject({
       operation_type: 'manual_registration',
       actor_kind: 'admin',
@@ -192,8 +215,9 @@ describe('admin registration commands (e2e)', () => {
       session_id: sessionId,
       affected_activity_ids: [activity],
       after_state: { status: 'pending_payment' },
+      facts: { participantCreated: true, possibleDuplicatesConfirmed: [] },
     });
-    expect(JSON.stringify(fact)).not.toMatch(/Alex|555123|example.com|nb_admin_session/);
+    expect(JSON.stringify(fact)).not.toMatch(/Alex|Rivera|55 1234|example.com|nb_admin_session/);
     expect(
       await client`SELECT id FROM event_activity_registrations WHERE event_registration_id = ${registrationId} AND activity_id = ${activity}`,
     ).toHaveLength(1);
@@ -202,18 +226,175 @@ describe('admin registration commands (e2e)', () => {
     ).toBe('Shared');
   });
 
-  it('rejects duplicate phone/email and foreign activities with no partial writes', async () => {
+  it('requires the #58 fields, stores the optional ones and rejects foreign activities without writes', async () => {
     const { event, foreign } = await fixture();
     const { cookie } = await session('admin', event);
-    await manual(event).set(headers(cookie)).send(data).expect(201);
+    const invalid = await manual(event)
+      .set(headers(cookie))
+      .send({ firstName: ' ', email: 'nope', phone: '123', fullName: 'Old shape' })
+      .expect(400);
+    expect(invalid.body).toEqual({
+      statusCode: 400,
+      message: 'Invalid manual registration',
+      fieldErrors: {
+        firstName: 'required',
+        firstLastName: 'required',
+        email: 'invalid',
+        phone: 'invalid',
+        fullName: 'unknown_field',
+      },
+    });
+    for (const missing of ['firstName', 'firstLastName', 'email', 'phone']) {
+      const body: Record<string, unknown> = { ...person(1) };
+      delete body[missing];
+      const response = await manual(event).set(headers(cookie)).send(body).expect(400);
+      expect((response.body as { fieldErrors: unknown }).fieldErrors).toEqual({
+        [missing]: 'required',
+      });
+    }
+    await manual(event)
+      .set(headers(cookie))
+      .send({ ...person(1), activityIds: [foreign] })
+      .expect(400);
+    await manual(event)
+      .set(headers(cookie))
+      .send({ ...person(1), activityIds: 'nope' })
+      .expect(400);
+    expect(await counts()).toEqual({ participants: 0, registrations: 0, facts: 0 });
+
+    const created = await manual(event)
+      .set(headers(cookie))
+      .send({
+        ...person(1),
+        secondLastName: ' García ',
+        stageName: 'B-Boy One',
+        city: 'CDMX',
+        instagram: '@One.Breaks',
+        level: 'Advanced',
+        birthDate: '2001-02-03',
+      })
+      .expect(201);
+    const [stored] = await client`
+      SELECT full_name, first_name, first_last_name, second_last_name, stage_name, city, instagram,
+        level, birth_date::text AS birth_date
+      FROM participants WHERE id = ${(created.body as { participantId: string }).participantId}`;
+    expect(stored).toEqual({
+      full_name: 'Person1 Test García',
+      first_name: 'Person1',
+      first_last_name: 'Test',
+      second_last_name: 'García',
+      stage_name: 'B-Boy One',
+      city: 'CDMX',
+      instagram: 'one.breaks',
+      level: 'Advanced',
+      birth_date: '2001-02-03',
+    });
+  });
+
+  it('answers same-event email or phone matches with masked possible duplicates and writes nothing', async () => {
+    const { event, other } = await fixture();
+    const { cookie } = await session('admin', event);
+    const first = await manual(event)
+      .set(headers(cookie))
+      .send({ ...data, stageName: 'Flash' })
+      .expect(201);
+    const firstId = (first.body as { registrationId: string }).registrationId;
+    const expected = {
+      statusCode: 409,
+      code: 'possible_duplicates',
+      message: 'Possible duplicate registrations need confirmation',
+      matches: [
+        {
+          registrationId: firstId,
+          fullName: 'Alex Rivera',
+          stageName: 'Flash',
+          folio: null,
+          status: 'pending_payment',
+          maskedEmail: 'a***@example.com',
+          maskedPhone: '******4567',
+        },
+      ],
+    };
+    // Email compared lowercased and trimmed; phone through the normalized match key.
     for (const payload of [
-      { fullName: 'Other', phone: ' 555123 ' },
-      { fullName: 'Other', phone: '999', email: ' ALEX@example.COM ' },
-      { fullName: 'Other', phone: '777', activityIds: [foreign] },
-      { fullName: 'Other', phone: ' ' },
-    ])
-      await manual(event).set(headers(cookie)).send(payload).expect(400);
+      { ...person(2), email: ' ALEX@example.COM ' },
+      { ...person(3), phone: '+52 55 1234 4567' },
+      { ...person(4), phone: '+521 (55) 1234-4567' },
+    ]) {
+      const response = await manual(event).set(headers(cookie)).send(payload).expect(409);
+      expect(response.body).toEqual(expected);
+    }
     expect(await counts()).toEqual({ participants: 1, registrations: 1, facts: 1 });
+    // Another event's registrations never count.
+    await manual(other)
+      .set(headers((await session('admin', other)).cookie))
+      .send({ ...person(5), email: 'alex@example.com' })
+      .expect(201);
+  });
+
+  it('ignores voided and expired registrations of the event when looking for duplicates', async () => {
+    const { event } = await fixture();
+    const { cookie } = await session('admin', event);
+    const [voidedPerson, expiredPerson] = await client<{ id: string }[]>`
+      INSERT INTO participants (full_name, email, phone)
+      VALUES ('Voided', 'person1@example.com', '000'), ('Expired', 'x@example.com', '55 0000 0002')
+      RETURNING id`;
+    await client`INSERT INTO event_registrations (event_id, participant_id, status) VALUES (${event}, ${voidedPerson.id}, 'voided')`;
+    const [{ id: expired }] = await client<{ id: string }[]>`
+      INSERT INTO event_registrations (event_id, participant_id, expires_at)
+      VALUES (${event}, ${expiredPerson.id}, now() - interval '1 minute') RETURNING id`;
+    await manual(event).set(headers(cookie)).send(person(1)).expect(201);
+    await manual(event).set(headers(cookie)).send(person(2)).expect(201);
+    // The expired online registration is voided first, as public registration does.
+    expect(await client`SELECT status FROM event_registrations WHERE id = ${expired}`).toEqual([
+      { status: 'voided' },
+    ]);
+  });
+
+  it('creates the registration once every current match is confirmed and records the confirmed ids', async () => {
+    const { event } = await fixture();
+    const { cookie, userId, sessionId } = await session('admin', event);
+    const first = await manual(event).set(headers(cookie)).send(data).expect(201);
+    const firstId = (first.body as { registrationId: string }).registrationId;
+    const duplicate = { ...person(2), email: 'alex@example.com' };
+    const preview = await manual(event).set(headers(cookie)).send(duplicate).expect(409);
+    expect((preview.body as Conflict).matches.map((m) => m.registrationId)).toEqual([firstId]);
+
+    // A match that appears between the preview and the confirmation is detected on write.
+    const [{ id: lateParticipant }] = await client<{ id: string }[]>`
+      INSERT INTO participants (full_name, phone) VALUES ('Late', '55 0000 0002') RETURNING id`;
+    const [{ id: lateId }] = await client<{ id: string }[]>`
+      INSERT INTO event_registrations (event_id, participant_id) VALUES (${event}, ${lateParticipant}) RETURNING id`;
+    const again = await manual(event)
+      .set(headers(cookie))
+      .send({ ...duplicate, confirmedDuplicateRegistrationIds: [firstId] })
+      .expect(409);
+    expect((again.body as Conflict).matches.map((m) => m.registrationId).sort()).toEqual(
+      [firstId, lateId].sort(),
+    );
+    expect(await counts()).toEqual({ participants: 2, registrations: 2, facts: 1 });
+
+    for (const confirmedDuplicateRegistrationIds of [['nope'], firstId, [firstId, firstId]])
+      await manual(event)
+        .set(headers(cookie))
+        .send({ ...duplicate, confirmedDuplicateRegistrationIds })
+        .expect(400);
+
+    const created = await manual(event)
+      .set(headers(cookie))
+      .send({ ...duplicate, confirmedDuplicateRegistrationIds: [lateId.toUpperCase(), firstId] })
+      .expect(201);
+    const { auditId } = created.body as { auditId: string };
+    const [fact] = await client<
+      { actor_user_id: string; session_id: string; created_at: Date; facts: unknown }[]
+    >`SELECT actor_user_id, session_id, created_at, facts FROM registration_operation_audit WHERE id = ${auditId}`;
+    expect(fact).toMatchObject({ actor_user_id: userId, session_id: sessionId });
+    expect(fact.created_at).toBeTruthy();
+    expect(fact.facts).toEqual({
+      participantCreated: true,
+      possibleDuplicatesConfirmed: [firstId, lateId].sort(),
+    });
+    expect(JSON.stringify(fact)).not.toMatch(/Alex|Person2|example.com|55 0000/);
   });
 
   it('rolls back participant and registration when operation audit cannot be written', async () => {
@@ -227,14 +408,11 @@ describe('admin registration commands (e2e)', () => {
   it('confirms pending cash exactly once with amount and audit; rejects invalid transitions and wrong event', async () => {
     const { event, other } = await fixture();
     const { cookie } = await session('admin', event);
-    const created = await manual(event)
-      .set(headers(cookie))
-      .send({ fullName: 'Cash', phone: '123' })
-      .expect(201);
+    const created = await manual(event).set(headers(cookie)).send(person(1)).expect(201);
     const createdBody = created.body as { registrationId: string };
     const id = createdBody.registrationId;
     await cash(event, id).set(headers(cookie)).send({}).expect(400);
-    await cash(event, id).set(headers(cookie)).send({ amount: 0 }).expect(400);
+    await cash(event, id).set(headers(cookie)).send({ amount: 0, receipt: 'R-0' }).expect(400);
     await cash(other, id).set(headers(cookie)).send({ amount: 100 }).expect(401);
     const result = await cash(event, id)
       .set(headers(cookie))
@@ -278,24 +456,33 @@ describe('admin registration commands (e2e)', () => {
       before_state: { status: 'pending_payment' },
       after_state: { status: 'confirmed', folio: resultBody.folio },
     });
-    await cash(event, id).set(headers(cookie)).send({ amount: 100 }).expect(400);
+    await cash(event, id).set(headers(cookie)).send({ amount: 100, receipt: 'R-2' }).expect(400);
     expect(await client`SELECT folio FROM event_registrations WHERE id = ${id}`).toEqual([
       { folio: resultBody.folio },
     ]);
     const [{ id: voided }] = await client<
       { id: string }[]
     >`INSERT INTO event_registrations (event_id, participant_id, status) VALUES (${event}, ${(await client<{ id: string }[]>`INSERT INTO participants (full_name) VALUES ('Void') RETURNING id`)[0].id}, 'voided') RETURNING id`;
-    await cash(event, voided).set(headers(cookie)).send({ amount: 100 }).expect(400);
+    await cash(event, voided)
+      .set(headers(cookie))
+      .send({ amount: 100, receipt: 'R-3' })
+      .expect(400);
     const [{ id: foreign }] = await client<
       { id: string }[]
     >`INSERT INTO event_registrations (event_id, participant_id) VALUES (${other}, ${(await client<{ id: string }[]>`INSERT INTO participants (full_name) VALUES ('Foreign') RETURNING id`)[0].id}) RETURNING id`;
-    await cash(event, foreign).set(headers(cookie)).send({ amount: 100 }).expect(400);
+    await cash(event, foreign)
+      .set(headers(cookie))
+      .send({ amount: 100, receipt: 'R-4' })
+      .expect(400);
     expect(await client`SELECT id FROM registration_operation_audit`).toHaveLength(2);
     await client`ALTER TABLE registration_operation_audit ADD CONSTRAINT reject_cash_test CHECK (operation_type <> 'cash_confirmation') NOT VALID`;
     const [{ id: pending }] = await client<
       { id: string }[]
     >`INSERT INTO event_registrations (event_id, participant_id) VALUES (${event}, ${(await client<{ id: string }[]>`INSERT INTO participants (full_name) VALUES ('Pending') RETURNING id`)[0].id}) RETURNING id`;
-    await cash(event, pending).set(headers(cookie)).send({ amount: 100 }).expect(500);
+    await cash(event, pending)
+      .set(headers(cookie))
+      .send({ amount: 100, receipt: 'R-5' })
+      .expect(500);
     expect(
       (
         await client<
@@ -307,5 +494,107 @@ describe('admin registration commands (e2e)', () => {
     await expect(
       client`UPDATE registration_operation_audit SET note = 'tampered' WHERE id = ${resultBody.auditId}`,
     ).rejects.toThrow();
+  });
+
+  it('requires a receipt of 1 to 50 characters, unique within the event, for cash confirmation', async () => {
+    const { event, other } = await fixture();
+    const { cookie } = await session('admin', event);
+    const otherCookie = (await session('admin', other)).cookie;
+    const register = async (eventId: string, n: number, sessionCookie = cookie) =>
+      (
+        (await manual(eventId).set(headers(sessionCookie)).send(person(n)).expect(201)).body as {
+          registrationId: string;
+        }
+      ).registrationId;
+    const [one, two, three, four] = [
+      await register(event, 1),
+      await register(event, 2),
+      await register(event, 3),
+      await register(event, 4),
+    ];
+    for (const receipt of [undefined, null, '', '   ', 7, 'x'.repeat(51)]) {
+      const response = await cash(event, one)
+        .set(headers(cookie))
+        .send({ amount: 100, receipt })
+        .expect(400);
+      expect((response.body as { message: string }).message).toBe(
+        'Receipt number is required and must be 1 to 50 characters',
+      );
+    }
+    expect(await counts()).toEqual({ participants: 4, registrations: 4, facts: 4 });
+
+    await cash(event, one)
+      .set(headers(cookie))
+      .send({ amount: 100, receipt: ` ${'9'.repeat(50)} ` })
+      .expect(201);
+    await cash(event, two)
+      .set(headers(cookie))
+      .send({ amount: 100, receipt: ' A-17 ' })
+      .expect(201);
+    expect(
+      await client`SELECT receipt FROM registration_operation_audit WHERE operation_type = 'cash_confirmation' ORDER BY receipt`,
+    ).toEqual([{ receipt: '9'.repeat(50) }, { receipt: 'A-17' }]);
+
+    // Compared exactly after trimming: the same number again is rejected, another case is not.
+    const taken = await cash(event, three)
+      .set(headers(cookie))
+      .send({ amount: 100, receipt: 'A-17' })
+      .expect(409);
+    expect(taken.body).toEqual({
+      statusCode: 409,
+      code: 'receipt_taken',
+      message: 'Receipt number already used in this event',
+    });
+    expect(await client`SELECT status, folio FROM event_registrations WHERE id = ${three}`).toEqual(
+      [{ status: 'pending_payment', folio: null }],
+    );
+    expect(await counts()).toEqual({ participants: 4, registrations: 4, facts: 6 });
+    await cash(event, three)
+      .set(headers(cookie))
+      .send({ amount: 100, receipt: 'a-17' })
+      .expect(201);
+
+    // Another event may reuse the number.
+    const foreign = await register(other, 5, otherCookie);
+    await cash(other, foreign)
+      .set(headers(otherCookie))
+      .send({ amount: 100, receipt: 'A-17' })
+      .expect(201);
+
+    // Concurrent confirmations with one number: exactly one succeeds.
+    const five = await register(event, 6);
+    const statuses = (
+      await Promise.all(
+        [four, five].map((id) =>
+          cash(event, id).set(headers(cookie)).send({ amount: 100, receipt: 'SAME' }),
+        ),
+      )
+    )
+      .map((response) => response.status)
+      .sort();
+    expect(statuses).toEqual([201, 409]);
+    expect(
+      await client`SELECT count(*)::int AS n FROM registration_operation_audit WHERE receipt = 'SAME'`,
+    ).toEqual([{ n: 1 }]);
+  });
+
+  it('keeps earlier cash confirmations without a receipt as legacy rows', async () => {
+    const { event } = await fixture();
+    const { userId, sessionId } = await session('admin', event);
+    const legacy = await client<{ id: string }[]>`
+      INSERT INTO participants (full_name) VALUES ('Legacy one'), ('Legacy two') RETURNING id`;
+    for (const { id: participantId } of legacy) {
+      const [{ id }] = await client<{ id: string }[]>`
+        INSERT INTO event_registrations (event_id, participant_id)
+        VALUES (${event}, ${participantId}) RETURNING id`;
+      await client`
+        INSERT INTO registration_operation_audit (operation_type, actor_kind, actor_user_id, session_id,
+          event_id, registration_id, participant_id, amount_cents, before_state, after_state)
+        VALUES ('cash_confirmation', 'admin', ${userId}, ${sessionId}, ${event}, ${id},
+          ${participantId}, 100, '{}', '{}')`;
+    }
+    expect(
+      await client`SELECT count(*)::int AS n FROM registration_operation_audit WHERE receipt IS NULL`,
+    ).toEqual([{ n: 2 }]);
   });
 });

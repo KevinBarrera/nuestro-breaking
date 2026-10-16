@@ -79,7 +79,19 @@ describe('GET /admin/events/:eventId/participants (e2e)', () => {
       VALUES (${event.id}, ${one.id}, ${workshop.id}), (${event.id}, ${one.id}, ${battle.id}),
         (${other.id}, ${hidden.id}, ${privateActivity.id})
     `;
-    return { event, other, first, second, one, two, hidden, battle, workshop, privateActivity };
+    return {
+      event,
+      other,
+      first,
+      second,
+      third,
+      one,
+      two,
+      hidden,
+      battle,
+      workshop,
+      privateActivity,
+    };
   }
 
   async function session(role = 'admin', eventId: string | null = null) {
@@ -184,6 +196,36 @@ describe('GET /admin/events/:eventId/participants (e2e)', () => {
     expect(JSON.stringify(result.body)).not.toMatch(
       /Private|admin_cash|confirmedAt|paymentProvider|actorUserId|sessionId|audit/,
     );
+  });
+
+  it('finds a registration by the receipt number of its cash confirmation, only in that event', async () => {
+    const { event, other, first, third, one, two, hidden } = await fixture();
+    const { cookie, userId, sessionId } = await session();
+    await client`
+      INSERT INTO registration_operation_audit (operation_type, actor_kind, actor_user_id, session_id,
+        event_id, registration_id, participant_id, amount_cents, receipt, before_state, after_state)
+      VALUES ('cash_confirmation', 'admin', ${userId}, ${sessionId}, ${event.id}, ${one.id},
+          ${first.id}, 100, 'RC-0042', '{}', '{}'),
+        ('cash_confirmation', 'admin', ${userId}, ${sessionId}, ${other.id}, ${hidden.id},
+          ${third.id}, 100, 'RC-0099', '{}', '{}')`;
+    const get = (q: string, id = event.id) =>
+      search(id, q).set('Cookie', cookie).expect(200) as unknown as Promise<{
+        body: RegistrationSearchPage;
+      }>;
+    for (const q of ['RC-0042', 'rc-00', '0042']) {
+      const page = (await get(q)).body;
+      expect(page.total).toBe(1);
+      expect(page.results.map((result) => result.registration.id)).toEqual([one.id]);
+    }
+    expect((await get('RC-0099')).body.total).toBe(0);
+    expect((await get('RC-0099', other.id)).body.results.map((r) => r.registration.id)).toEqual([
+      hidden.id,
+    ]);
+    // A receipt match never duplicates a row that also matches by name.
+    expect((await get('alex')).body.results.map((r) => r.registration.id)).toEqual([
+      one.id,
+      two.id,
+    ]);
   });
 
   it('projects only scoped durable attendance timestamps for the requested page and enrollments', async () => {

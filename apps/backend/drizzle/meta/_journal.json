@@ -204,6 +204,13 @@
       "when": 1791935650337,
       "tag": "0028_pass_type_online_sales_close",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1791935710337,
+      "tag": "0029_cash_receipt_unique",
+      "breakpoints": true
     }
   ]
 }

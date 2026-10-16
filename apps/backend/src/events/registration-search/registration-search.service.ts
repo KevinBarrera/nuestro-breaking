@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, asc, count, eq, ilike, inArray, or } from 'drizzle-orm';
+import { and, asc, count, eq, exists, ilike, inArray, or } from 'drizzle-orm';
 import { DATABASE_CLIENT } from '@/database/database.constants';
 import { type DatabaseService } from '@/database/database.service';
 import {
@@ -9,6 +9,7 @@ import {
   eventCheckIns,
   eventRegistrations,
   participants,
+  registrationOperationAudit,
 } from '@/database/schema';
 import { type RegistrationSearchPage } from './registration-search.types';
 
@@ -31,6 +32,20 @@ export class RegistrationSearchService {
         ilike(participants.email, pattern),
         ilike(participants.stageName, pattern),
         ilike(eventRegistrations.folio, pattern),
+        // The paper receipt number of the registration's cash confirmation (#125).
+        exists(
+          this.db
+            .select({ id: registrationOperationAudit.id })
+            .from(registrationOperationAudit)
+            .where(
+              and(
+                eq(registrationOperationAudit.eventId, eventRegistrations.eventId),
+                eq(registrationOperationAudit.registrationId, eventRegistrations.id),
+                eq(registrationOperationAudit.operationType, 'cash_confirmation'),
+                ilike(registrationOperationAudit.receipt, pattern),
+              ),
+            ),
+        ),
       ),
     );
     const [totals, rows] = await Promise.all([

@@ -102,14 +102,59 @@ describe('readEntitlements', () => {
     priceCents: 80000,
     selections: ['act-1'],
   };
-  const entitlements = { passes: [pass], accessibleActivityIds: ['act-1', 'act-2'] };
+  const registration = {
+    id: registrationId,
+    status: 'pending_payment',
+    folio: null,
+    participant: { fullName: 'Alex Rivera', stageName: 'Flash' },
+  };
+  const entitlements = {
+    registration,
+    passes: [pass],
+    accessibleActivityIds: ['act-1', 'act-2'],
+  };
 
-  it('reads held passes and accessible activities', () => {
-    expect(readEntitlements(entitlements)).toEqual(entitlements);
-    expect(readEntitlements({ passes: [], accessibleActivityIds: [] })).toEqual({
-      passes: [],
-      accessibleActivityIds: [],
-    });
+  it('reads the registration summary, held passes and accessible activities', () => {
+    expect(readEntitlements(entitlements, registrationId)).toEqual(entitlements);
+    const confirmed = {
+      ...registration,
+      status: 'confirmed',
+      folio: 'LMP-7K3Q',
+      participant: { fullName: 'Alex Rivera', stageName: null },
+    };
+    expect(
+      readEntitlements(
+        { registration: confirmed, passes: [], accessibleActivityIds: [] },
+        registrationId,
+      ),
+    ).toEqual({ registration: confirmed, passes: [], accessibleActivityIds: [] });
+  });
+
+  it('keeps only the name and AKA of the participant', () => {
+    const extra = {
+      ...entitlements,
+      registration: {
+        ...registration,
+        eventId,
+        participant: { ...registration.participant, email: 'alex@example.com' },
+      },
+    };
+    expect(readEntitlements(extra, registrationId)).toEqual(entitlements);
+  });
+
+  it('rejects a missing or malformed registration summary', () => {
+    for (const bad of [
+      undefined,
+      null,
+      { ...registration, id: 'x' },
+      { ...registration, id: participantId },
+      { ...registration, status: 'paid' },
+      { ...registration, folio: '' },
+      { ...registration, participant: null },
+      { ...registration, participant: { fullName: '', stageName: null } },
+      { ...registration, participant: { fullName: 'Alex Rivera' } },
+    ])
+      expect(readEntitlements({ ...entitlements, registration: bad }, registrationId)).toBeNull();
   });
 
   it('rejects a malformed pass or list', () => {
@@ -121,9 +166,11 @@ describe('readEntitlements', () => {
       { ...pass, selections: [1] },
       { ...pass, name: '' },
     ])
-      expect(readEntitlements({ ...entitlements, passes: [pass, bad] })).toBeNull();
-    expect(readEntitlements({ passes: [], accessibleActivityIds: null })).toBeNull();
-    expect(readEntitlements(null)).toBeNull();
+      expect(readEntitlements({ ...entitlements, passes: [pass, bad] }, registrationId)).toBeNull();
+    expect(
+      readEntitlements({ ...entitlements, accessibleActivityIds: null }, registrationId),
+    ).toBeNull();
+    expect(readEntitlements(null, registrationId)).toBeNull();
   });
 });
 

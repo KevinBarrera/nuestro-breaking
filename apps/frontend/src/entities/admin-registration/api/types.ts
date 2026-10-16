@@ -76,7 +76,17 @@ export type HeldPass = {
   selections: string[];
 };
 
+// Who holds the registration and its state, so the sale screen works after a reload (#105).
+// `folio` is null until confirmation. It carries no contact data.
+export type RegistrationSummary = {
+  id: string;
+  status: RegistrationStatus;
+  folio: string | null;
+  participant: { fullName: string; stageName: string | null };
+};
+
 export type RegistrationEntitlements = {
+  registration: RegistrationSummary;
   passes: HeldPass[];
   accessibleActivityIds: string[];
 };

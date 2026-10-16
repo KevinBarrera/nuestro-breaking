@@ -27,6 +27,12 @@ const input: ManualRegistrationInput = {
 };
 const created = { registrationId, participantId, eventId, status: 'pending_payment', auditId };
 const entitlements = {
+  registration: {
+    id: registrationId,
+    status: 'pending_payment',
+    folio: null,
+    participant: { fullName: 'Alex Rivera', stageName: 'Flash' },
+  },
   passes: [
     {
       registrationPassId,
@@ -146,6 +152,12 @@ describe('getRegistrationEntitlements', () => {
       { kind: 'not_found' },
     );
     stubFetch(() => Response.json({ passes: null }));
+    expect(await failureOf(getRegistrationEntitlements(eventId, registrationId, signal()))).toEqual(
+      { kind: 'error' },
+    );
+    // An answer about another registration never reaches the screen.
+    const otherRegistration = { ...entitlements.registration, id: participantId };
+    stubFetch(() => Response.json({ ...entitlements, registration: otherRegistration }));
     expect(await failureOf(getRegistrationEntitlements(eventId, registrationId, signal()))).toEqual(
       { kind: 'error' },
     );

@@ -22,7 +22,17 @@ type HeldPass = {
   priceCents: number;
   selections: string[];
 };
-type Entitlements = { passes: HeldPass[]; accessibleActivityIds: string[] };
+type RegistrationSummary = {
+  id: string;
+  status: string;
+  folio: string | null;
+  participant: { fullName: string; stageName: string | null };
+};
+type Entitlements = {
+  registration: RegistrationSummary;
+  passes: HeldPass[];
+  accessibleActivityIds: string[];
+};
 type AuditRow = {
   operation_type: string;
   actor_user_id: string;
@@ -494,6 +504,12 @@ describe('admin registration entitlements (e2e)', () => {
     const generalPass = await holdPass(f.event, generalOnly.id, f.general);
     const general = await read(f.event, generalOnly.id).set(headers(cookie)).expect(200);
     expect(general.body).toEqual({
+      registration: {
+        id: generalOnly.id,
+        status: 'pending_payment',
+        folio: null,
+        participant: { fullName: 'Dancer', stageName: null },
+      },
       passes: [
         {
           registrationPassId: generalPass,
@@ -539,6 +555,67 @@ describe('admin registration entitlements (e2e)', () => {
 
     await read(f.event, reg.id).set('Cookie', judge.cookie).expect(401);
     await read(f.event, reg.id).expect(401);
+  });
+
+  it('summarizes who holds the registration and its state on every route, without contact data (#105)', async () => {
+    const f = await fixture();
+    const { cookie } = await session('admin', f.event);
+    const pending = await registration(f.event);
+    await client`UPDATE participants SET stage_name = 'Flash', phone = '5512344567'
+      WHERE id = ${pending.participantId}`;
+    const pendingSummary = {
+      id: pending.id,
+      status: 'pending_payment',
+      folio: null,
+      participant: { fullName: 'Dancer', stageName: 'Flash' },
+    };
+    const bodies: Entitlements[] = [];
+    const before = await read(f.event, pending.id).set(headers(cookie)).expect(200);
+    bodies.push(before.body as Entitlements);
+    expect(bodies[0].registration).toEqual(pendingSummary);
+    const added = await addPass(f.event, pending.id)
+      .set(headers(cookie))
+      .send({ passTypeId: f.fullBreaking })
+      .expect(201);
+    bodies.push(added.body as Entitlements);
+    expect(bodies[1].registration).toEqual(pendingSummary);
+    const selected = await select(f.event, pending.id, bodies[1].passes[0].registrationPassId)
+      .set(headers(cookie))
+      .send({ activityIds: [f.breaking] })
+      .expect(200);
+    bodies.push(selected.body as Entitlements);
+    expect(bodies[2].registration).toEqual(pendingSummary);
+
+    const confirmed = await registration(f.event, 'confirmed');
+    const confirmedPass = await holdPass(f.event, confirmed.id, f.fullPopping);
+    const [{ folio }] = await client<{ folio: string }[]>`
+      SELECT folio FROM event_registrations WHERE id = ${confirmed.id}`;
+    expect(folio).toEqual(expect.any(String));
+    const confirmedSummary = {
+      id: confirmed.id,
+      status: 'confirmed',
+      folio,
+      participant: { fullName: 'Dancer', stageName: null },
+    };
+    const confirmedRead = await read(f.event, confirmed.id).set(headers(cookie)).expect(200);
+    bodies.push(confirmedRead.body as Entitlements);
+    expect(bodies[3].registration).toEqual(confirmedSummary);
+    const confirmedSelect = await select(f.event, confirmed.id, confirmedPass)
+      .set(headers(cookie))
+      .send({ activityIds: [f.popping] })
+      .expect(200);
+    bodies.push(confirmedSelect.body as Entitlements);
+    expect(bodies[4].registration).toEqual(confirmedSummary);
+
+    const voided = await registration(f.event, 'voided');
+    const voidedRead = await read(f.event, voided.id).set(headers(cookie)).expect(200);
+    bodies.push(voidedRead.body as Entitlements);
+    expect(bodies[5].registration).toMatchObject({ id: voided.id, status: 'voided', folio: null });
+
+    for (const body of bodies) {
+      expect(Object.keys(body.registration.participant).sort()).toEqual(['fullName', 'stageName']);
+      expect(JSON.stringify(body)).not.toMatch(/example\.com|5512344567/);
+    }
   });
 
   it('rejects writes from judges, unauthenticated callers, other-event admins and missing CSRF or origin', async () => {

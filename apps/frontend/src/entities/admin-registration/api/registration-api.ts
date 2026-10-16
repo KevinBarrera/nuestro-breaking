@@ -123,7 +123,7 @@ export async function getRegistrationEntitlements(
   signal: AbortSignal,
 ): Promise<RegistrationEntitlements> {
   const path = registrationPath(eventId, registrationId, '/entitlements');
-  return read(readEntitlements(await registrationRequest(path, { signal })));
+  return read(readEntitlements(await registrationRequest(path, { signal }), registrationId));
 }
 
 const participantFields = [
@@ -163,7 +163,7 @@ export async function addRegistrationPass(
   passTypeId: string,
 ): Promise<RegistrationEntitlements> {
   const path = registrationPath(eventId, registrationId, '/passes');
-  return written(readEntitlements(await mutate(path, 'POST', { passTypeId })));
+  return written(readEntitlements(await mutate(path, 'POST', { passTypeId }), registrationId));
 }
 
 // Replaces the selected activities of a held pass; an empty list clears them.
@@ -178,7 +178,7 @@ export async function setPassSelections(
     registrationId,
     `/passes/${encodeURIComponent(registrationPassId)}/selections`,
   );
-  return written(readEntitlements(await mutate(path, 'PUT', { activityIds })));
+  return written(readEntitlements(await mutate(path, 'PUT', { activityIds }), registrationId));
 }
 
 // Records cash received in person and confirms the pending registration, which gets its folio.

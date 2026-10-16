@@ -10,6 +10,7 @@ import {
   type RegistrationEntitlements,
   type RegistrationSearchPage,
   type RegistrationSearchResult,
+  type RegistrationSummary,
 } from './types';
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -102,13 +103,29 @@ function readHeldPass(value: unknown): HeldPass | null {
   return selections && { registrationPassId, passTypeId, name, passClass, priceCents, selections };
 }
 
-export function readEntitlements(value: unknown): RegistrationEntitlements | null {
+// Keeps only the participant's name and AKA, even if the answer carries more.
+function readSummary(value: unknown, registrationId: string): RegistrationSummary | null {
+  if (!isRecord(value) || value.id !== registrationId || !isRecord(value.participant)) return null;
+  const { status, folio } = value;
+  const { fullName, stageName } = value.participant;
+  if (!oneOf(registrationStatuses, status) || !isTextOrNull(folio)) return null;
+  if (!isText(fullName) || !isTextOrNull(stageName)) return null;
+  return { id: registrationId, status, folio, participant: { fullName, stageName } };
+}
+
+export function readEntitlements(
+  value: unknown,
+  registrationId: string,
+): RegistrationEntitlements | null {
   if (!isRecord(value)) return null;
+  const registration = readSummary(value.registration, registrationId);
   const passes = every(value.passes, readHeldPass);
   const accessibleActivityIds = every(value.accessibleActivityIds, (id) =>
     isText(id) ? id : null,
   );
-  return passes && accessibleActivityIds && { passes, accessibleActivityIds };
+  return registration && passes && accessibleActivityIds
+    ? { registration, passes, accessibleActivityIds }
+    : null;
 }
 
 function readPossibleDuplicate(value: unknown): PossibleDuplicate | null {

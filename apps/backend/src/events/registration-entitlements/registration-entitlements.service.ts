@@ -15,6 +15,7 @@ import {
   eventRegistrationPassSelections,
   eventRegistrationPasses,
   eventRegistrations,
+  participants,
   registrationOperationAudit,
 } from '@/database/schema';
 import type { PassClass } from '@/events/pass-type-admin/pass-type-admin.types';
@@ -25,7 +26,12 @@ import {
 } from '@/events/registration-audit/registration-audit-actor';
 import { FULL_INCLUDES_GENERAL_MESSAGE, addingCombinesGeneralWithFull } from './pass-class-rules';
 import { areSelectableActivities } from './selectable-activities';
-import type { HeldPass, RegistrationEntitlements } from './registration-entitlements.types';
+import type {
+  HeldPass,
+  RegistrationEntitlements,
+  RegistrationStatus,
+  RegistrationSummary,
+} from './registration-entitlements.types';
 
 type Database = DatabaseService['db'];
 type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0];
@@ -39,13 +45,6 @@ export class RegistrationEntitlementsService {
   constructor(@Inject(DATABASE_CLIENT) private readonly db: Database) {}
 
   async read(eventId: string, registrationId: string): Promise<RegistrationEntitlements> {
-    const [registration] = await this.db
-      .select({ id: eventRegistrations.id })
-      .from(eventRegistrations)
-      .where(
-        and(eq(eventRegistrations.id, registrationId), eq(eventRegistrations.eventId, eventId)),
-      );
-    if (!registration) throw new NotFoundException('Registration not found');
     return this.entitlements(this.db, eventId, registrationId);
   }
 
@@ -265,11 +264,41 @@ export class RegistrationEntitlementsService {
     return rows.map((row) => row.activityId).sort(byId);
   }
 
+  // Only the name and AKA of the participant: the sale screen needs no contact data.
+  private async summary(
+    executor: Executor,
+    eventId: string,
+    registrationId: string,
+  ): Promise<RegistrationSummary> {
+    const [row] = await executor
+      .select({
+        id: eventRegistrations.id,
+        status: eventRegistrations.status,
+        folio: eventRegistrations.folio,
+        fullName: participants.fullName,
+        stageName: participants.stageName,
+      })
+      .from(eventRegistrations)
+      .innerJoin(participants, eq(participants.id, eventRegistrations.participantId))
+      .where(
+        and(eq(eventRegistrations.id, registrationId), eq(eventRegistrations.eventId, eventId)),
+      );
+    if (!row) throw new NotFoundException('Registration not found');
+    const { id, status, folio, fullName, stageName } = row;
+    return {
+      id,
+      status: status as RegistrationStatus,
+      folio,
+      participant: { fullName, stageName },
+    };
+  }
+
   private async entitlements(
     executor: Executor,
     eventId: string,
     registrationId: string,
   ): Promise<RegistrationEntitlements> {
+    const registration = await this.summary(executor, eventId, registrationId);
     const rows = await executor
       .select({
         registrationPassId: eventRegistrationPasses.id,
@@ -318,6 +347,7 @@ export class RegistrationEntitlementsService {
         .sort(byId),
     }));
     return {
+      registration,
       passes,
       accessibleActivityIds: await this.accessibleActivityIds(executor, eventId, registrationId),
     };

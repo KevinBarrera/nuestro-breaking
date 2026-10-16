@@ -7,7 +7,8 @@
   1. `feat/105-01-admin-registration-api`
   2. `feat/105-02-participant-form-model`
   3. `feat/105-03-sale-registration-step`
-  4. `feat/105-04-sale-pass-and-cash-steps`
+  4. `feat/105-04-registration-summary-api`
+  5. `feat/105-05-sale-pass-and-cash-steps`
 - Follows: #102 search, #103 manual registration and cash, #124 entitlements, #125 duplicates and cash receipt, #257 design system.
 
 ## Goal
@@ -33,6 +34,7 @@ An event administrator sells a pass in person on event day: search the event's r
 - [x] 1. Add the `entities/admin-registration` API (search, manual create, passes, selections, entitlements, cash confirmation) with runtime readers, typed failures and Vitest coverage. (35 Vitest tests; frontend suite 431 passed, lint and build pass.)
 - [x] 2. Share the participant form model between the public purchase and the admin sale, with admin copy and international phone support, covered by Vitest. (Behavioral RED of 16 assertions; frontend suite 449 passed, lint and build pass.)
 - [x] 3. Add the "Inscripciones" route and screen: search, new registration form and the possible-duplicates dialog, with Playwright coverage. (Frontend suite 470 passed; Playwright: 37 in the flow specs and 107 in the accessibility and phone-width sweeps; lint and build pass.)
+- [x] 4a. Add a registration summary (participant name, status, folio) to the entitlements read and writes, with the contract, backend e2e and the frontend reader. (Product owner, 2026-10-16: the sale screen must survive a reload on event day.) Backend e2e: 13/13 entitlements, 436 in the full run; backend unit 596; frontend 472 Vitest, 15 Playwright flows, 107 sweeps.
 - [ ] 4. Add pass and competition selection, read-only cash confirmation with the receipt number, and resuming a pending registration; Playwright coverage, accessibility and phone-width sweeps, docs.
 - [x] 5. Open the follow-up issue for judges reaching search. (#262, `status:needs-decision`: check-in also calls search, so judge access must be decided first.)
 

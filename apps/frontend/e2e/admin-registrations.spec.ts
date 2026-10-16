@@ -151,6 +151,28 @@ test('says when a search finds nothing', async ({ page }) => {
   await expect(page.getByText('Sin resultados para «zz».')).toBeVisible();
 });
 
+test('searching again with the same text retries a failed search', async ({ page }) => {
+  let failing = true;
+  const { searches } = await mockRegistrations(page, {
+    search: () =>
+      failing
+        ? { abort: true }
+        : { json: searchPage([searchResult(registrationId, 'Luz Rivera')]) },
+  });
+  await page.goto(registrationsPath);
+  await searchBox(page).fill('Luz');
+  await page.getByRole('button', { name: 'Buscar' }).click();
+  await expect(
+    page.getByText('No pudimos buscar las inscripciones. Intenta de nuevo.'),
+  ).toBeVisible();
+
+  failing = false;
+  const before = searches.length;
+  await page.getByRole('button', { name: 'Buscar' }).click();
+  await expect(page.getByText('1 inscripción')).toBeVisible();
+  expect(searches.length).toBeGreaterThan(before);
+});
+
 test('registers a participant and opens the new registration', async ({ page }) => {
   const { creates } = await mockRegistrations(page);
   await page.goto(registrationsPath);

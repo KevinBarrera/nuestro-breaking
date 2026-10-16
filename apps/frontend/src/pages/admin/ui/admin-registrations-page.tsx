@@ -46,11 +46,14 @@ function RegistrationSearch({ eventId }: { eventId: string }) {
     setQuery(searched);
   }
   const [hint, setHint] = useState<string | null>(null);
+  // Counts submits, so "Buscar" with the same text searches again (for example after an error).
+  const [attempt, setAttempt] = useState(0);
   // Each outcome is tagged with its request, so a stale one is never shown for a newer search.
   const [outcome, setOutcome] = useState<{ key: string; result: SearchOutcome } | null>(null);
   const { name: eventName } = useEventName(eventId);
   const titleId = useId();
-  const requestKey = searched && !searchQueryHint(searched) ? `${offset}:${searched}` : null;
+  const requestKey =
+    searched && !searchQueryHint(searched) ? `${attempt}:${offset}:${searched}` : null;
   const state: { status: 'idle' | 'loading' } | SearchOutcome = !requestKey
     ? { status: 'idle' }
     : outcome?.key === requestKey
@@ -81,6 +84,7 @@ function RegistrationSearch({ eventId }: { eventId: string }) {
     const found = searchQueryHint(query);
     setHint(found);
     if (found) return;
+    setAttempt((count) => count + 1);
     setParams({ q: query.trim() });
   }
 

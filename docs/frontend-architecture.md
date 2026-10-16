@@ -83,6 +83,14 @@ The router is a data router (`createBrowserRouter` with `RouterProvider`, in `ap
 
 Keep code in `apps/frontend` until there is demonstrated reuse. Create a workspace package only when a UI primitive or API layer has a real shared consumer or requires an independent lifecycle. Do not extract packages preemptively.
 
+## Design System
+
+The [Los más pesados design system](https://claude.ai/artifact/7SRpK5YDMUVAEzuC5RNDef) (#257, approved by the product owner on 2026-10-16) is the visual reference for every admin and public screen. It shows each `--nb-*` token in both themes, the type scale, spacing and radius, the `shared/ui` components with live previews and usage guidelines, and the brand assets (logos, characters, scenes and flyers).
+
+- **New UI follows it.** New screens and components use its tokens and `shared/ui` components. When something they need is missing from it, add it to the code first (token or shared component), then to the design system, instead of styling one page by hand.
+- **Touched UI moves toward it.** When a change touches an existing screen or component that does not follow the design system, bring that screen or component in line in the same PR, in a separate commit (`style(...)` or `refactor(ui)`), so reviewers can tell the polish from the behavior change. Do not polish screens the PR does not otherwise touch; open an issue for drift found elsewhere. A large change to a shared component in `shared/ui` gets its own PR.
+- **Code is the source of truth.** The design system was built from `src/app/styles/index.css` and `src/shared/ui`. When a token or component changes in code, update the design system to match.
+
 ## Theme System
 
 The admin UI has a light and a dark theme built on CSS custom properties in `src/app/styles/index.css`.

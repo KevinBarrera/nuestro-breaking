@@ -1,5 +1,14 @@
 import { sql } from 'drizzle-orm';
-import { check, integer, jsonb, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import {
+  check,
+  integer,
+  jsonb,
+  pgTable,
+  text,
+  timestamp,
+  uniqueIndex,
+  uuid,
+} from 'drizzle-orm/pg-core';
 import { authSessions } from './auth';
 import { events } from './events';
 import { participants } from './participants';
@@ -33,6 +42,7 @@ export const registrationOperationAudit = pgTable(
     amountCents: integer('amount_cents'),
     reference: text('reference'),
     note: text('note'),
+    // Cash receipt number; required by the API for new cash confirmations, null on legacy rows.
     receipt: text('receipt'),
     beforeState: jsonb('before_state').notNull(),
     afterState: jsonb('after_state').notNull(),
@@ -60,5 +70,9 @@ export const registrationOperationAudit = pgTable(
       'registration_operation_audit_amount_ck',
       sql`(${table.operationType} IN ('cash_confirmation', 'payment_approval')) = (${table.amountCents} IS NOT NULL)`,
     ),
+    // A receipt number is used once per event among cash confirmations (#125).
+    uniqueIndex('registration_operation_audit_cash_receipt_uq')
+      .on(table.eventId, table.receipt)
+      .where(sql`${table.operationType} = 'cash_confirmation' AND ${table.receipt} IS NOT NULL`),
   ],
 );

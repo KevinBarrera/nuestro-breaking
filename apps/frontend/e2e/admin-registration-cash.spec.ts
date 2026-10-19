@@ -155,6 +155,28 @@ test('never resends a payment whose answer was lost and offers a reload', async 
   expect(cash).toHaveLength(1);
 });
 
+test('sends one payment when the confirm button is clicked twice at once', async ({ page }) => {
+  const { cash } = await mockRegistrations(page, {
+    entitlements: () => entitlements(),
+    cash: () => ({ status: 201, json: cashConfirmed(registrationId, 'LMP-7K3Q') }),
+  });
+  await page.goto(registrationPath(registrationId));
+  await receiptField(page).fill('A-17');
+  await confirmButton(page).click();
+
+  // Two clicks in one task land before React re-renders the disabled button.
+  await confirmDialog(page)
+    .getByRole('button', { name: 'Confirmar pago' })
+    .evaluate((button: HTMLButtonElement) => {
+      button.click();
+      button.click();
+    });
+
+  await expect(folio(page)).toContainText('LMP-7K3Q');
+  await page.waitForLoadState('networkidle');
+  expect(cash).toHaveLength(1);
+});
+
 test('shows a voided registration as read-only', async ({ page }) => {
   const { cash } = await mockRegistrations(page, {
     entitlements: () => entitlements('voided'),

@@ -6,7 +6,7 @@ import {
 } from '@/entities/admin-registration';
 import { formatMxn } from '@/entities/event-catalog';
 import { buttonClass, ConfirmDialog, TextField } from '@/shared/ui';
-import { useId, useState, type FormEvent } from 'react';
+import { useId, useRef, useState, type FormEvent } from 'react';
 import { styles } from './catalog-copy';
 import {
   cashConfirmation,
@@ -42,6 +42,8 @@ export function SaleCash({ eventId, entitlements, onConfirmed, onReload }: SaleC
   const [input, setInput] = useState<CashPaymentInput | null>(null);
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState(false);
+  // State updates land on the next render; the ref blocks a second POST from a fast double click.
+  const sending = useRef(false);
   const [failure, setFailure] = useState<CashFailure | null>(null);
   const { registration, passes } = entitlements;
   const totalCents = cashTotalCents(passes);
@@ -66,7 +68,8 @@ export function SaleCash({ eventId, entitlements, onConfirmed, onReload }: SaleC
   };
 
   const confirm = () => {
-    if (!input || pending) return;
+    if (!input || sending.current) return;
+    sending.current = true;
     setPending(true);
     confirmCashPayment(eventId, registration.id, input)
       .then((confirmation) => onConfirmed(confirmedEntitlements(entitlements, confirmation)))
@@ -76,6 +79,7 @@ export function SaleCash({ eventId, entitlements, onConfirmed, onReload }: SaleC
         else setFailure(next);
       })
       .finally(() => {
+        sending.current = false;
         setPending(false);
         setOpen(false);
       });

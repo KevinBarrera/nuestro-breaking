@@ -2,7 +2,8 @@ import type { Page } from '@playwright/test';
 import { activeEventId, eventSummary, mockSession } from './event-mocks.ts';
 
 // Mocked admin registration API (#105): search, entitlements, the manual registration, the
-// event's pass types and activities, adding a pass and replacing a pass's selections.
+// event's pass types and activities, adding a pass, replacing a pass's selections and confirming
+// a cash payment.
 // Each handler answers per request, and the helper returns what the screens sent.
 const api = (url: URL) => url.port === '3000';
 
@@ -161,17 +162,30 @@ export type RegistrationMocks = {
   activities?: () => Answer;
   // `attempt` counts the PUTs, starting at 1.
   selections?: (attempt: number) => Answer;
+  // `attempt` counts the POSTs, starting at 1.
+  cash?: (attempt: number) => Answer;
 };
 
 export type SentCreate = { body: Record<string, unknown>; csrf: string | null };
 export type SentPass = { registrationId: string; body: unknown; csrf: string | null };
 export type SentSelections = SentPass & { registrationPassId: string };
+export type SentCash = SentPass;
+
+// The answer of a recorded cash payment.
+export const cashConfirmed = (id: string, folio: string) => ({
+  registrationId: id,
+  eventId,
+  status: 'confirmed',
+  folio,
+  auditId: 'audit-cash-1',
+});
 
 export async function mockRegistrations(page: Page, mocks: RegistrationMocks = {}) {
   const searches: URL[] = [];
   const creates: SentCreate[] = [];
   const addedPasses: SentPass[] = [];
   const selections: SentSelections[] = [];
+  const cash: SentCash[] = [];
   await mockSession(page);
   await page.route(
     (url) => api(url) && url.pathname === '/admin/events',
@@ -253,5 +267,20 @@ export async function mockRegistrations(page: Page, mocks: RegistrationMocks = {
       return fulfill(route, withSummary(segments[5], answer));
     },
   );
-  return { searches, creates, addedPasses, selections };
+  await page.route(
+    (url) =>
+      api(url) &&
+      /^\/admin\/events\/[^/]+\/registrations\/[^/]+\/cash-confirmation$/.test(url.pathname),
+    (route) => {
+      const request = route.request();
+      const id = new URL(request.url()).pathname.split('/')[5];
+      cash.push({
+        registrationId: id,
+        body: request.postDataJSON(),
+        csrf: request.headers()['x-csrf-token'] ?? null,
+      });
+      return fulfill(route, mocks.cash?.(cash.length) ?? { status: 500, json: {} });
+    },
+  );
+  return { searches, creates, addedPasses, selections, cash };
 }

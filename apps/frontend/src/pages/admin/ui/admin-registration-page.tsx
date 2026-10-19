@@ -17,6 +17,8 @@ import { useEffect, useId, useState } from 'react';
 import { generatePath, useLocation, useParams } from 'react-router';
 import { passClassLabels, styles } from './catalog-copy';
 import { readRegistrationContext, registrationStatusLabel } from './registration-model';
+import { SaleCash } from './sale-cash';
+import { registrationViewMode, selectionSummary } from './sale-cash-model';
 import { SaleCompetitions } from './sale-competitions';
 import { SalePassPicker } from './sale-pass-picker';
 
@@ -50,7 +52,8 @@ export function AdminRegistrationPage() {
 }
 
 // One registration (#105): what it holds and, while it is pending payment, the passes it can
-// still get and the competitions of each held pass. The name and status come from the entitlements read, so a reload keeps them; the
+// still get, the competitions of each held pass and the cash payment. Confirmed and voided
+// registrations are read-only, the confirmed one led by its folio. The name and status come from the entitlements read, so a reload keeps them; the
 // screen that linked here passes them along to show before that read answers.
 function RegistrationScreen({
   eventId,
@@ -96,10 +99,12 @@ function RegistrationScreen({
       previous.status === 'ready' ? { ...previous, entitlements } : previous,
     );
   const reload = () => setRevision((value) => value + 1);
+  const [paid, setPaid] = useState(false);
 
   const summary = state.status === 'ready' ? state.entitlements.registration : null;
   const participantName = summary?.participant.fullName ?? context?.participantName ?? null;
   const status = summary?.status ?? context?.status ?? null;
+  const mode = summary ? registrationViewMode(summary.status) : null;
 
   return (
     <main className="px-4 py-8 text-fg sm:px-8 lg:py-12">
@@ -127,6 +132,14 @@ function RegistrationScreen({
         {state.status === 'failed' && <Notice tone="danger">{state.message}</Notice>}
         {state.status === 'ready' && (
           <>
+            {mode === 'confirmed' && (
+              <ConfirmedNotice folio={state.entitlements.registration.folio} paid={paid} />
+            )}
+            {mode === 'voided' && (
+              <Notice title="Inscripción anulada">
+                Esta inscripción está anulada: no admite pases, competencias ni pagos.
+              </Notice>
+            )}
             <section aria-labelledby={passesTitleId} className={`${styles.card} space-y-3`}>
               <h2 id={passesTitleId} className="text-lg font-bold text-heading">
                 Pases
@@ -136,12 +149,19 @@ function RegistrationScreen({
               ) : (
                 <ul className="divide-y divide-row">
                   {state.entitlements.passes.map((pass) => (
-                    <PassRow key={pass.registrationPassId} pass={pass} />
+                    <PassRow
+                      key={pass.registrationPassId}
+                      pass={pass}
+                      // While selling, the competitions section shows them with their controls.
+                      competitions={
+                        mode === 'sale' ? null : selectionSummary(pass.selections, state.activities)
+                      }
+                    />
                   ))}
                 </ul>
               )}
             </section>
-            {status === 'pending_payment' && (
+            {mode === 'sale' && (
               <>
                 <SalePassPicker
                   eventId={eventId}
@@ -158,10 +178,15 @@ function RegistrationScreen({
                   onSaved={updateEntitlements}
                   onReload={reload}
                 />
-                <p className="rounded-lg bg-surface-inner p-4 text-sm text-fg">
-                  Siguiente paso: cobrar en efectivo. Esa parte llega en la próxima versión del
-                  panel.
-                </p>
+                <SaleCash
+                  eventId={eventId}
+                  entitlements={state.entitlements}
+                  onConfirmed={(entitlements) => {
+                    updateEntitlements(entitlements);
+                    setPaid(true);
+                  }}
+                  onReload={reload}
+                />
               </>
             )}
           </>
@@ -171,12 +196,37 @@ function RegistrationScreen({
   );
 }
 
-function PassRow({ pass }: { pass: HeldPass }) {
+// The folio is what the participant shows at check-in, so it leads the confirmed view. `paid` is
+// true right after this screen recorded the payment.
+function ConfirmedNotice({ folio, paid }: { folio: string | null; paid: boolean }) {
+  return (
+    <section
+      aria-label="Folio"
+      className="rounded-xl border border-success-fg bg-success p-5 text-success-fg"
+    >
+      {paid && (
+        <p role="status" className="font-semibold">
+          Pago registrado. La inscripción quedó confirmada.
+        </p>
+      )}
+      <p className="text-sm font-semibold">Folio</p>
+      <p className="font-mono text-3xl font-extrabold tracking-wider break-all">
+        {folio ?? 'Sin folio'}
+      </p>
+      <p className="mt-1 text-sm">Inscripción confirmada: ya no admite cambios.</p>
+    </section>
+  );
+}
+
+function PassRow({ pass, competitions }: { pass: HeldPass; competitions: string | null }) {
   return (
     <li className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 py-3">
       <span className="min-w-0">
         <span className="block font-semibold break-words text-heading">{pass.name}</span>
         <span className="block text-sm text-muted">{passClassLabels[pass.passClass]}</span>
+        {competitions && (
+          <span className="block text-sm break-words text-fg">Competencias: {competitions}</span>
+        )}
       </span>
       <span className="font-mono font-medium">{formatMxn(pass.priceCents)}</span>
     </li>

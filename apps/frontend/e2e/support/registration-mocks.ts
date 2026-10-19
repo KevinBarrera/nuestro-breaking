@@ -2,7 +2,7 @@ import type { Page } from '@playwright/test';
 import { activeEventId, eventSummary, mockSession } from './event-mocks.ts';
 
 // Mocked admin registration API (#105): search, entitlements, the manual registration, the
-// event's pass types and adding a pass.
+// event's pass types and activities, adding a pass and replacing a pass's selections.
 // Each handler answers per request, and the helper returns what the screens sent.
 const api = (url: URL) => url.port === '3000';
 
@@ -56,7 +56,11 @@ export const catalogPassType = (
   name: string,
   passClass: string,
   priceCents: number,
-  overrides: { requiresPassClass?: string | null; status?: string } = {},
+  overrides: {
+    requiresPassClass?: string | null;
+    status?: string;
+    activities?: { activityId: string; access: string }[];
+  } = {},
 ) => ({
   id,
   eventId,
@@ -67,7 +71,25 @@ export const catalogPassType = (
   onlineSalesClosesAt: null,
   status: overrides.status ?? 'active',
   version: 1,
-  activities: [],
+  activities: overrides.activities ?? [],
+});
+
+// A catalog activity as `GET /admin/events/:eventId/activities` lists it.
+export const catalogActivity = (
+  id: string,
+  name: string,
+  startsAt: string,
+  overrides: { status?: string } = {},
+) => ({
+  id,
+  eventId,
+  venueId: 'a9b2c3d4-1234-4567-89ab-123456789abc',
+  kind: 'competition',
+  name,
+  startsAt,
+  endsAt: startsAt,
+  status: overrides.status ?? 'active',
+  version: 1,
 });
 
 export const created = (id = registrationId) => ({
@@ -136,15 +158,20 @@ export type RegistrationMocks = {
   passTypes?: () => Answer;
   // `attempt` counts the POSTs, starting at 1.
   addPass?: (attempt: number) => Answer;
+  activities?: () => Answer;
+  // `attempt` counts the PUTs, starting at 1.
+  selections?: (attempt: number) => Answer;
 };
 
 export type SentCreate = { body: Record<string, unknown>; csrf: string | null };
 export type SentPass = { registrationId: string; body: unknown; csrf: string | null };
+export type SentSelections = SentPass & { registrationPassId: string };
 
 export async function mockRegistrations(page: Page, mocks: RegistrationMocks = {}) {
   const searches: URL[] = [];
   const creates: SentCreate[] = [];
   const addedPasses: SentPass[] = [];
+  const selections: SentSelections[] = [];
   await mockSession(page);
   await page.route(
     (url) => api(url) && url.pathname === '/admin/events',
@@ -203,5 +230,28 @@ export async function mockRegistrations(page: Page, mocks: RegistrationMocks = {
       return fulfill(route, withSummary(id, answer));
     },
   );
-  return { searches, creates, addedPasses };
+  await page.route(
+    (url) => api(url) && url.pathname === `/admin/events/${eventId}/activities`,
+    (route) => fulfill(route, mocks.activities?.() ?? { json: [] }),
+  );
+  await page.route(
+    (url) =>
+      api(url) &&
+      /^\/admin\/events\/[^/]+\/registrations\/[^/]+\/passes\/[^/]+\/selections$/.test(
+        url.pathname,
+      ),
+    (route) => {
+      const request = route.request();
+      const segments = new URL(request.url()).pathname.split('/');
+      selections.push({
+        registrationId: segments[5],
+        registrationPassId: segments[7],
+        body: request.postDataJSON(),
+        csrf: request.headers()['x-csrf-token'] ?? null,
+      });
+      const answer = mocks.selections?.(selections.length) ?? { status: 500, json: {} };
+      return fulfill(route, withSummary(segments[5], answer));
+    },
+  );
+  return { searches, creates, addedPasses, selections };
 }

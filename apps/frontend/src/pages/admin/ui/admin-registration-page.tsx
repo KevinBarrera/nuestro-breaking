@@ -4,23 +4,31 @@ import {
   type HeldPass,
   type RegistrationEntitlements,
 } from '@/entities/admin-registration';
-import { formatMxn, listPassTypes, type CatalogPassType } from '@/entities/event-catalog';
+import {
+  formatMxn,
+  listActivities,
+  listPassTypes,
+  type CatalogActivity,
+  type CatalogPassType,
+} from '@/entities/event-catalog';
 import { routes } from '@/shared/config';
 import { Breadcrumbs, Notice } from '@/shared/ui';
 import { useEffect, useId, useState } from 'react';
 import { generatePath, useLocation, useParams } from 'react-router';
 import { passClassLabels, styles } from './catalog-copy';
 import { readRegistrationContext, registrationStatusLabel } from './registration-model';
+import { SaleCompetitions } from './sale-competitions';
 import { SalePassPicker } from './sale-pass-picker';
 
 type LoadState =
   | { status: 'loading' }
   | { status: 'failed'; message: string }
-  // `passTypes` is null when the event's pass types could not be read.
+  // `passTypes` and `activities` are null when the event's catalog could not be read.
   | {
       status: 'ready';
       entitlements: RegistrationEntitlements;
       passTypes: CatalogPassType[] | null;
+      activities: CatalogActivity[] | null;
     };
 
 const loadMessages = {
@@ -42,7 +50,7 @@ export function AdminRegistrationPage() {
 }
 
 // One registration (#105): what it holds and, while it is pending payment, the passes it can
-// still get. The name and status come from the entitlements read, so a reload keeps them; the
+// still get and the competitions of each held pass. The name and status come from the entitlements read, so a reload keeps them; the
 // screen that linked here passes them along to show before that read answers.
 function RegistrationScreen({
   eventId,
@@ -62,9 +70,11 @@ function RegistrationScreen({
     Promise.all([
       getRegistrationEntitlements(eventId, registrationId, controller.signal),
       listPassTypes(eventId, controller.signal).catch(() => null),
+      listActivities(eventId, controller.signal).catch(() => null),
     ])
-      .then(([entitlements, passTypes]) => {
-        if (!controller.signal.aborted) setState({ status: 'ready', entitlements, passTypes });
+      .then(([entitlements, passTypes, activities]) => {
+        if (!controller.signal.aborted)
+          setState({ status: 'ready', entitlements, passTypes, activities });
       })
       .catch((error: unknown) => {
         if (controller.signal.aborted) return;
@@ -79,6 +89,13 @@ function RegistrationScreen({
       });
     return () => controller.abort();
   }, [eventId, registrationId, revision]);
+
+  // Writes answer with the registration's current entitlements, which replace the shown ones.
+  const updateEntitlements = (entitlements: RegistrationEntitlements) =>
+    setState((previous) =>
+      previous.status === 'ready' ? { ...previous, entitlements } : previous,
+    );
+  const reload = () => setRevision((value) => value + 1);
 
   const summary = state.status === 'ready' ? state.entitlements.registration : null;
   const participantName = summary?.participant.fullName ?? context?.participantName ?? null;
@@ -130,12 +147,16 @@ function RegistrationScreen({
                   eventId={eventId}
                   entitlements={state.entitlements}
                   passTypes={state.passTypes}
-                  onAdded={(entitlements) =>
-                    setState((previous) =>
-                      previous.status === 'ready' ? { ...previous, entitlements } : previous,
-                    )
-                  }
-                  onReload={() => setRevision((value) => value + 1)}
+                  onAdded={updateEntitlements}
+                  onReload={reload}
+                />
+                <SaleCompetitions
+                  eventId={eventId}
+                  entitlements={state.entitlements}
+                  passTypes={state.passTypes}
+                  activities={state.activities}
+                  onSaved={updateEntitlements}
+                  onReload={reload}
                 />
                 <p className="rounded-lg bg-surface-inner p-4 text-sm text-fg">
                   Siguiente paso: cobrar en efectivo. Esa parte llega en la próxima versión del

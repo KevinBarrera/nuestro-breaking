@@ -117,3 +117,21 @@ test('explains a rejected selection and reloads only when asked', async ({ page 
   expect(reads).toBe(loaded + 1);
   expect(selections).toHaveLength(1);
 });
+
+test('offers a reload when the activities cannot be read', async ({ page }) => {
+  let reloaded = false;
+  await mockRegistrations(page, {
+    entitlements: () => holding([]),
+    passTypes: () => ({ json: [full] }),
+    activities: () => (reloaded ? { json: [breaking, popping, locking] } : { abort: true }),
+  });
+  await page.goto(registrationPath(registrationId));
+  const notice = competitions(page).getByText('No pudimos cargar las competencias del evento.');
+  await expect(notice).toBeVisible();
+  await expect(competitions(page).getByRole('checkbox')).toHaveCount(0);
+
+  reloaded = true;
+  await competitions(page).getByRole('button', { name: 'Recargar' }).click();
+  await expect(notice).toHaveCount(0);
+  await expect(passGroup(page).getByRole('checkbox')).toHaveCount(3);
+});

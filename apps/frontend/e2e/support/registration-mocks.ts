@@ -284,3 +284,68 @@ export async function mockRegistrations(page: Page, mocks: RegistrationMocks = {
   );
   return { searches, creates, addedPasses, selections, cash };
 }
+
+// The registration screen in each status, and the search with a pending result, for the
+// accessibility and phone-width sweeps. Each case layers its answers over `mockAdminApi`.
+const sweepEntitlements = (status: string, folio: string | null) => ({
+  json: {
+    registration: registrationSummary(registrationId, {
+      status,
+      folio,
+      fullName: 'Persona con un nombre muy largo para pantallas angostas',
+    }),
+    passes: [heldPass],
+    accessibleActivityIds: [],
+  },
+});
+
+async function overrideRoute(page: Page, suffix: string, json: unknown) {
+  await page.route(
+    (url) => api(url) && url.pathname.endsWith(suffix),
+    (route) => route.fulfill({ json }),
+  );
+}
+
+export const registrationSweepCases: {
+  name: string;
+  path: string;
+  mock: (page: Page) => Promise<void>;
+  // Waits until the screen shows the controls the sweeps measure.
+  ready: (page: Page) => Promise<void>;
+}[] = [
+  {
+    name: 'Inscripción pendiente',
+    path: registrationPath(registrationId),
+    mock: (page) =>
+      overrideRoute(page, '/entitlements', sweepEntitlements('pending_payment', null).json),
+    ready: (page) => page.getByRole('region', { name: 'Pago en efectivo' }).waitFor(),
+  },
+  {
+    name: 'Inscripción confirmada',
+    path: registrationPath(registrationId),
+    mock: (page) =>
+      overrideRoute(page, '/entitlements', sweepEntitlements('confirmed', 'EB-7K3Q').json),
+    ready: (page) => page.getByRole('region', { name: 'Folio' }).waitFor(),
+  },
+  {
+    name: 'Inscripción anulada',
+    path: registrationPath(registrationId),
+    mock: (page) => overrideRoute(page, '/entitlements', sweepEntitlements('voided', null).json),
+    ready: (page) => page.getByText('Inscripción anulada', { exact: true }).waitFor(),
+  },
+  {
+    name: 'Inscripciones con venta pendiente',
+    path: `${registrationsPath}?q=Persona`,
+    mock: (page) =>
+      overrideRoute(
+        page,
+        '/participants',
+        searchPage([
+          searchResult(registrationId, 'Persona con un nombre muy largo para pantallas angostas', {
+            stageName: 'Flash',
+          }),
+        ]),
+      ),
+    ready: (page) => page.getByRole('link', { name: /Continuar venta/ }).waitFor(),
+  },
+];

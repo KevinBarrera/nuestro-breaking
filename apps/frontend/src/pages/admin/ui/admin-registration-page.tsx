@@ -65,6 +65,8 @@ function RegistrationScreen({
   const context = readRegistrationContext(useLocation().state);
   const [state, setState] = useState<LoadState>({ status: 'loading' });
   const [revision, setRevision] = useState(0);
+  // The revision whose read last answered; behind `revision` while a reload is on its way.
+  const [answered, setAnswered] = useState(0);
   const passesTitleId = useId();
 
   // A reload keeps the current data on screen until the new read answers.
@@ -76,11 +78,13 @@ function RegistrationScreen({
       listActivities(eventId, controller.signal).catch(() => null),
     ])
       .then(([entitlements, passTypes, activities]) => {
-        if (!controller.signal.aborted)
-          setState({ status: 'ready', entitlements, passTypes, activities });
+        if (controller.signal.aborted) return;
+        setState({ status: 'ready', entitlements, passTypes, activities });
+        setAnswered(revision);
       })
       .catch((error: unknown) => {
         if (controller.signal.aborted) return;
+        setAnswered(revision);
         const { kind } = adminRegistrationFailure(error);
         const message =
           kind === 'unauthorized' || kind === 'forbidden'
@@ -99,6 +103,7 @@ function RegistrationScreen({
       previous.status === 'ready' ? { ...previous, entitlements } : previous,
     );
   const reload = () => setRevision((value) => value + 1);
+  const reloading = state.status === 'ready' && answered !== revision;
   const [paid, setPaid] = useState(false);
 
   const summary = state.status === 'ready' ? state.entitlements.registration : null;
@@ -107,7 +112,7 @@ function RegistrationScreen({
   const mode = summary ? registrationViewMode(summary.status) : null;
 
   return (
-    <main className="px-4 py-8 text-fg sm:px-8 lg:py-12">
+    <main aria-busy={reloading} className="px-4 py-8 text-fg sm:px-8 lg:py-12">
       <div className="mx-auto max-w-4xl space-y-6">
         <Breadcrumbs
           items={[
@@ -129,6 +134,10 @@ function RegistrationScreen({
           )}
         </header>
         {state.status === 'loading' && <p role="status">Cargando inscripción…</p>}
+        {/* Shown next to the current data, which stays until the new read answers. */}
+        <p role="status" className="text-sm text-muted empty:hidden">
+          {reloading ? 'Actualizando…' : ''}
+        </p>
         {state.status === 'failed' && <Notice tone="danger">{state.message}</Notice>}
         {state.status === 'ready' && (
           <>

@@ -16,11 +16,12 @@ import { formatMxn, type CatalogActivity } from '@/entities/event-catalog';
 export const cashTotalCents = (passes: readonly HeldPass[]): number =>
   passes.reduce((total, pass) => total + pass.priceCents, 0);
 
-// Why the payment cannot be recorded yet, or null. The backend requires an amount above zero.
+// Why the payment cannot be recorded yet, or null. The backend requires an amount above zero, so
+// a registration holding only free passes cannot be confirmed until #263 decides how.
 export function cashUnavailableReason(passes: readonly HeldPass[]): string | null {
   if (passes.length === 0) return 'Agrega al menos un pase antes de registrar el pago.';
   if (cashTotalCents(passes) <= 0)
-    return `El total es ${formatMxn(0)}: no hay un pago en efectivo que registrar.`;
+    return 'Esta inscripción no tiene monto a cobrar. La confirmación sin pago todavía no está disponible.';
   return null;
 }
 

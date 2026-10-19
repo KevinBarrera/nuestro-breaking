@@ -118,3 +118,35 @@ test('does not retry a pass whose answer was lost and offers a reload', async ({
   await expect(picker(page).getByRole('listitem')).toContainText('Ya tiene este pase.');
   expect(addedPasses).toHaveLength(1);
 });
+
+test('offers a reload when the pass types cannot be read, keeping the screen meanwhile', async ({
+  page,
+}) => {
+  let reloaded = false;
+  await mockRegistrations(page, {
+    entitlements: () => ({ json: { passes: [heldPass], accessibleActivityIds: [] } }),
+    passTypes: () => (reloaded ? { json: [full, general] } : { status: 500, json: {} }),
+  });
+  // Holds the reload's entitlements read, so the screen can be checked while it waits.
+  let releaseReload = () => {};
+  const reloadAnswered = new Promise<void>((resolve) => (releaseReload = resolve));
+  await page.route(/\/registrations\/[^/]+\/entitlements$/, async (route) => {
+    if (reloaded) await reloadAnswered;
+    await route.fallback();
+  });
+  await page.goto(registrationPath(registrationId));
+  const notice = picker(page).getByText('No pudimos cargar los pases del evento.');
+  await expect(notice).toBeVisible();
+
+  reloaded = true;
+  await picker(page).getByRole('button', { name: 'Recargar' }).click();
+  await expect(page.getByRole('main')).toHaveAttribute('aria-busy', 'true');
+  await expect(page.getByRole('status').filter({ hasText: 'Actualizando…' })).toBeVisible();
+  await expect(held(page)).toContainText('Pase completo');
+
+  releaseReload();
+  await expect(page.getByRole('main')).toHaveAttribute('aria-busy', 'false');
+  await expect(page.getByText('Actualizando…')).toHaveCount(0);
+  await expect(notice).toHaveCount(0);
+  await expect(picker(page).getByRole('listitem')).toHaveCount(2);
+});

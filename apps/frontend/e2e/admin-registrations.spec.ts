@@ -11,6 +11,7 @@ import {
   registrationId,
   registrationPath,
   registrationsPath,
+  registrationSummary,
   searchPage,
   searchResult,
   thirdRegistrationId,
@@ -59,7 +60,18 @@ test('searches registrations and opens one from the results', async ({ page }) =
         searchResult(otherRegistrationId, 'Luis Ruiz'),
       ]),
     }),
-    entitlements: () => ({ json: { passes: [heldPass], accessibleActivityIds: [] } }),
+    entitlements: (id) => ({
+      json: {
+        registration: registrationSummary(id, {
+          fullName: 'Luz Rivera',
+          stageName: 'Luz',
+          folio: 'EV-7K3Q',
+          status: 'confirmed',
+        }),
+        passes: [heldPass],
+        accessibleActivityIds: [],
+      },
+    }),
   });
   await page.goto(`/admin/events/${eventId}`);
   await sideNav(page).getByRole('link', { name: 'Inscripciones' }).click();
@@ -280,6 +292,13 @@ test('confirms possible duplicates and registers another person', async ({ page 
 test('continues with a pending duplicate instead of registering again', async ({ page }) => {
   const { creates } = await mockRegistrations(page, {
     create: () => possibleDuplicates([duplicateMatch(otherRegistrationId)]),
+    entitlements: (id) => ({
+      json: {
+        registration: registrationSummary(id, { fullName: 'Alex Rivera', stageName: 'Flash' }),
+        passes: [],
+        accessibleActivityIds: [],
+      },
+    }),
   });
   await page.goto(newRegistrationPath);
   await fillRequired(page);

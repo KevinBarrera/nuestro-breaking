@@ -1,7 +1,8 @@
 import type { Page } from '@playwright/test';
 import { activeEventId, eventSummary, mockSession } from './event-mocks.ts';
 
-// Mocked admin registration API (#105): search, entitlements and the manual registration.
+// Mocked admin registration API (#105): search, entitlements, the manual registration, the
+// event's pass types and adding a pass.
 // Each handler answers per request, and the helper returns what the screens sent.
 const api = (url: URL) => url.port === '3000';
 
@@ -48,6 +49,26 @@ export const heldPass = {
   priceCents: 150000,
   selections: [],
 };
+
+// A catalog pass type as `GET /admin/events/:eventId/pass-types` lists it.
+export const catalogPassType = (
+  id: string,
+  name: string,
+  passClass: string,
+  priceCents: number,
+  overrides: { requiresPassClass?: string | null; status?: string } = {},
+) => ({
+  id,
+  eventId,
+  name,
+  passClass,
+  priceCents,
+  requiresPassClass: overrides.requiresPassClass ?? null,
+  onlineSalesClosesAt: null,
+  status: overrides.status ?? 'active',
+  version: 1,
+  activities: [],
+});
 
 export const created = (id = registrationId) => ({
   registrationId: id,
@@ -99,18 +120,31 @@ export const registrationSummary = (
 
 type Answer = { status?: number; json?: unknown; abort?: boolean };
 
+// Every entitlements answer names its registration (#105); specs only set the passes.
+function withSummary(id: string, answer: Answer): Answer {
+  const json = answer.json as Record<string, unknown> | undefined;
+  return json && Array.isArray(json.passes) && !('registration' in json)
+    ? { ...answer, json: { registration: registrationSummary(id), ...json } }
+    : answer;
+}
+
 export type RegistrationMocks = {
   search?: (url: URL) => Answer;
   entitlements?: (id: string) => Answer;
   // `attempt` counts the POSTs, starting at 1.
   create?: (attempt: number) => Answer;
+  passTypes?: () => Answer;
+  // `attempt` counts the POSTs, starting at 1.
+  addPass?: (attempt: number) => Answer;
 };
 
 export type SentCreate = { body: Record<string, unknown>; csrf: string | null };
+export type SentPass = { registrationId: string; body: unknown; csrf: string | null };
 
 export async function mockRegistrations(page: Page, mocks: RegistrationMocks = {}) {
   const searches: URL[] = [];
   const creates: SentCreate[] = [];
+  const addedPasses: SentPass[] = [];
   await mockSession(page);
   await page.route(
     (url) => api(url) && url.pathname === '/admin/events',
@@ -136,14 +170,7 @@ export async function mockRegistrations(page: Page, mocks: RegistrationMocks = {
       const answer = mocks.entitlements?.(id) ?? {
         json: { passes: [], accessibleActivityIds: [] },
       };
-      // Every entitlements answer names its registration (#105); specs only set the passes.
-      const json = answer.json as Record<string, unknown> | undefined;
-      return fulfill(
-        route,
-        json && Array.isArray(json.passes) && !('registration' in json)
-          ? { ...answer, json: { registration: registrationSummary(id), ...json } }
-          : answer,
-      );
+      return fulfill(route, withSummary(id, answer));
     },
   );
   await page.route(
@@ -157,5 +184,24 @@ export async function mockRegistrations(page: Page, mocks: RegistrationMocks = {
       return fulfill(route, mocks.create?.(creates.length) ?? { status: 201, json: created() });
     },
   );
-  return { searches, creates };
+  await page.route(
+    (url) => api(url) && url.pathname === `/admin/events/${eventId}/pass-types`,
+    (route) => fulfill(route, mocks.passTypes?.() ?? { json: [] }),
+  );
+  await page.route(
+    (url) =>
+      api(url) && /^\/admin\/events\/[^/]+\/registrations\/[^/]+\/passes$/.test(url.pathname),
+    (route) => {
+      const request = route.request();
+      const id = new URL(request.url()).pathname.split('/')[5];
+      addedPasses.push({
+        registrationId: id,
+        body: request.postDataJSON(),
+        csrf: request.headers()['x-csrf-token'] ?? null,
+      });
+      const answer = mocks.addPass?.(addedPasses.length) ?? { status: 500, json: {} };
+      return fulfill(route, withSummary(id, answer));
+    },
+  );
+  return { searches, creates, addedPasses };
 }

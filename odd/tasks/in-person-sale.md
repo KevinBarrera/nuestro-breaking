@@ -21,6 +21,7 @@ An event administrator sells a pass in person on event day: search the event's r
 - **Phone:** international numbers are allowed. The default stays `+52` with 10 digits; another country takes a full international number (10 to 15 digits, as the backend validates).
 - **Possible duplicates:** the dialog shows the masked matches. A `pending_payment` match can be opened to continue the sale on it; otherwise the operator confirms and a new registration is created.
 - **Email is required** (#58, `admin-registration-operations.md:27`). `november-2026-online-purchase-plan.md:20` is stale and gets fixed in PR 4.
+- **Adding a pass asks for confirmation** (product owner, 2026-10-19): no endpoint removes a pass until #256, so the dialog names the pass and its price and says it cannot be removed from this screen.
 
 ## Technical decisions
 
@@ -35,7 +36,12 @@ An event administrator sells a pass in person on event day: search the event's r
 - [x] 2. Share the participant form model between the public purchase and the admin sale, with admin copy and international phone support, covered by Vitest. (Behavioral RED of 16 assertions; frontend suite 449 passed, lint and build pass.)
 - [x] 3. Add the "Inscripciones" route and screen: search, new registration form and the possible-duplicates dialog, with Playwright coverage. (Frontend suite 470 passed; Playwright: 37 in the flow specs and 107 in the accessibility and phone-width sweeps; lint and build pass.)
 - [x] 4a. Add a registration summary (participant name, status, folio) to the entitlements read and writes, with the contract, backend e2e and the frontend reader. (Product owner, 2026-10-16: the sale screen must survive a reload on event day.) Backend e2e: 13/13 entitlements, 436 in the full run; backend unit 596; frontend 472 Vitest, 15 Playwright flows, 107 sweeps.
-- [ ] 4. Add pass and competition selection, read-only cash confirmation with the receipt number, and resuming a pending registration; Playwright coverage, accessibility and phone-width sweeps, docs.
+- [ ] 4. Add pass and competition selection, read-only cash confirmation with the receipt number, and resuming a pending registration; Playwright coverage, accessibility and phone-width sweeps, docs. Branch `feat/105-05-sale-pass-and-cash-steps` from 1426ee0, one commit per step:
+  - [x] 4.1 Pass picker with disabled reasons and the add-pass confirmation dialog; Vitest for the picker model, Playwright flow. (RED 12/12 on assertions, then GREEN; frontend 484 Vitest, 17 Playwright in the registration specs, lint and build pass. The screen now reads name and status from the entitlements summary.)
+  - [ ] 4.2 Competitions per held pass (PUT replaces the list); Vitest and Playwright.
+  - [ ] 4.3 Cash confirmation (read-only total, receipt 1–50 chars, optional note, confirmation dialog), status-driven screen (pending, confirmed, voided), `receipt_taken` inline, unknown outcome shows "Recargar" without auto-retry; Vitest and Playwright.
+  - [ ] 4.4 Resume a pending registration from search; accessibility and phone-width sweeps.
+  - [ ] 4.5 Docs: frontend-architecture, event-day runbook "Venta en el lugar", fix `november-2026-online-purchase-plan.md:20`.
 - [x] 5. Open the follow-up issue for judges reaching search. (#262, `status:needs-decision`: check-in also calls search, so judge access must be decided first.)
 
 ## Evidence

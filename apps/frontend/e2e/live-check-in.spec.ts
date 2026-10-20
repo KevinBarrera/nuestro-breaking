@@ -12,11 +12,13 @@ type Ready = {
   event: string;
   otherEvent: string;
   registration: string;
+  activity: string;
   deniedRegistration: string;
 };
 type Snapshot = {
   type: 'snapshot';
   rows: { event_registration_id: string }[];
+  activityRows: { event_registration_id: string; activity_id: string }[];
   registrations: { id: string; status: string }[];
 };
 
@@ -69,7 +71,7 @@ async function stopChild(child: ChildProcess) {
 }
 
 test.setTimeout(240_000);
-test('browser session searches, admits only authorized registration and persists no denied fact', async ({
+test('browser session searches, checks in a pass activity in one action and persists no denied fact', async ({
   page,
 }) => {
   const child = fork(server, [], {
@@ -110,12 +112,15 @@ test('browser session searches, admits only authorized registration and persists
     await page.getByRole('button', { name: 'Buscar' }).click();
     await page.getByRole('button', { name: /Allowed Guest/ }).click();
     await expect(page.getByText('Inscripción confirmada')).toBeVisible();
-    await page.getByRole('button', { name: 'Registrar entrada al evento' }).click();
-    await expect(page.getByText('Entrada al evento registrada')).toBeVisible();
+    // One action per pass activity; no event check-in comes first.
+    await expect(page.getByRole('button', { name: 'Registrar entrada al evento' })).toHaveCount(0);
+    await page.getByRole('button', { name: 'Registrar entrada a Live workshop' }).click();
+    await expect(page.getByText('Entrada a Live workshop registrada')).toBeVisible();
+    await expect(page.getByText(/^Entrada registrada a las \d{2}:\d{2}$/)).toBeVisible();
     expect(requests.some((r) => r.url().includes('/participants?q=Allowed'))).toBe(true);
     const admitted = requests.find((r) => r.method() === 'POST' && r.url().endsWith('/check-in'));
     expect(admitted?.url()).toBe(
-      `${api}/admin/events/${ready.event}/registrations/${ready.registration}/check-in`,
+      `${api}/admin/events/${ready.event}/registrations/${ready.registration}/activities/${ready.activity}/check-in`,
     );
     const headers = await admitted!.allHeaders();
     expect(headers.origin).toBe(process.env.NB_LIVE_ORIGIN);
@@ -170,7 +175,11 @@ test('browser session searches, admits only authorized registration and persists
     expect(wrongOrigin.status()).toBe(403);
     child.send('snapshot');
     const snapshot = await waitFor<Snapshot>(child, 'snapshot');
+    // The activity check-in also recorded the event attendance fact.
     expect(snapshot.rows.map((row) => row.event_registration_id)).toEqual([ready.registration]);
+    expect(snapshot.activityRows).toEqual([
+      { event_registration_id: ready.registration, activity_id: ready.activity },
+    ]);
     expect(snapshot.registrations).toHaveLength(2);
     expect(snapshot.registrations.every((row) => row.status === 'confirmed')).toBe(true);
     expect(snapshot.registrations.some((row) => row.id === ready.deniedRegistration)).toBe(true);

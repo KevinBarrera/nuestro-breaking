@@ -3,55 +3,48 @@ import { type FormEvent, useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { routes } from '@/shared/config';
 import { buttonClass } from '@/shared/ui';
+import {
+  actionLabel,
+  admissionNotice,
+  canAdmit,
+  checkInPlan,
+  escalationMessage,
+  formatCheckInTime,
+  readAdmission,
+  readCheckInPage,
+  recordedAt,
+  type AdmissionOutcome,
+  type CheckInNotice,
+  type CheckInPage,
+  type CheckInRow,
+  type CheckInTarget,
+} from './admin-check-in-model';
 import { useEventName } from './use-event-name';
 
-type Registration = {
-  participant: { id: string; fullName: string; email: string | null; stageName: string | null };
-  registration: {
-    id: string;
-    eventId: string;
-    folio: string | null;
-    status: string;
-    checkedInAt: string | null;
-  };
-  activities: { id: string; name: string; kind: string; checkedInAt: string | null }[];
-};
 type SearchState =
   | { status: 'idle' | 'loading' | 'empty' | 'denied' | 'error' }
-  | { status: 'ready'; results: Registration[]; total: number };
-type Notice = { kind: 'success' | 'duplicate' | 'error'; text: string };
+  | ({ status: 'ready' } & CheckInPage);
 
-const eligible = new Set(['workshop', 'competition']);
 const button =
   'min-h-11 rounded-lg bg-primary px-4 py-2 font-semibold text-primary-fg hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus disabled:cursor-wait disabled:opacity-50';
 const admitButton = buttonClass('primary', 'w-full sm:w-auto');
 const chip = 'inline-flex rounded-full px-3 py-1 text-sm font-semibold';
 const statusBox = 'rounded-lg border p-4';
-const noticeStyles: Record<Notice['kind'], string> = {
+const noticeStyles: Record<CheckInNotice['kind'], string> = {
   success: 'border-success-fg bg-success text-success-fg',
-  duplicate: 'border-warning-fg bg-warning text-warning-fg',
+  already: 'border-warning-fg bg-warning text-warning-fg',
+  escalate: 'border-warning-fg bg-warning text-warning-fg',
   error: 'border-danger-fg bg-danger text-danger-fg',
 };
+const verifyFailure = 'No se pudo verificar el estado. Consulta al responsable antes de continuar.';
 
-function validRow(value: unknown, eventId: string): value is Registration {
-  if (!value || typeof value !== 'object') return false;
-  const row = value as Registration;
+function EntryState({ checkedInAt }: { checkedInAt: string | null }) {
   return (
-    !!row.participant &&
-    typeof row.participant.fullName === 'string' &&
-    !!row.registration &&
-    typeof row.registration.id === 'string' &&
-    row.registration.eventId === eventId &&
-    typeof row.registration.status === 'string' &&
-    (row.registration.checkedInAt === null || typeof row.registration.checkedInAt === 'string') &&
-    Array.isArray(row.activities) &&
-    row.activities.every(
-      (activity) =>
-        typeof activity.id === 'string' &&
-        typeof activity.name === 'string' &&
-        typeof activity.kind === 'string' &&
-        (activity.checkedInAt === null || typeof activity.checkedInAt === 'string'),
-    )
+    <p className={`${chip} ${checkedInAt ? 'bg-success text-success-fg' : 'bg-chip text-fg'}`}>
+      {checkedInAt
+        ? `Entrada registrada a las ${formatCheckInTime(checkedInAt)}`
+        : 'Entrada pendiente'}
+    </p>
   );
 }
 
@@ -66,7 +59,7 @@ function EventCheckIn({ eventId }: { eventId: string | undefined }) {
   const [searchState, setSearchState] = useState<SearchState>({ status: 'idle' });
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [notice, setNotice] = useState<Notice | null>(null);
+  const [notice, setNotice] = useState<CheckInNotice | null>(null);
   const controller = useRef<AbortController | null>(null);
   const locked = useRef(false);
   const sequence = useRef(0);
@@ -86,10 +79,7 @@ function EventCheckIn({ eventId }: { eventId: string | undefined }) {
       ? searchState.results.find((row) => row.registration.id === selectedId)
       : undefined;
 
-  async function read(
-    q: string,
-    signal: AbortSignal,
-  ): Promise<{ results: Registration[]; total: number }> {
+  async function read(q: string, signal: AbortSignal): Promise<CheckInPage> {
     const response = await fetch(
       apiUrl(
         `/admin/events/${encodeURIComponent(eventId ?? '')}/participants?q=${encodeURIComponent(q)}&limit=20&offset=0`,
@@ -101,20 +91,9 @@ function EventCheckIn({ eventId }: { eventId: string | undefined }) {
     );
     if (response.status === 401 || response.status === 403) throw new Error('denied');
     if (!response.ok) throw new Error('read failed');
-    const page: unknown = await response.json();
-    if (
-      !page ||
-      typeof page !== 'object' ||
-      !('results' in page) ||
-      !('total' in page) ||
-      !Array.isArray(page.results) ||
-      typeof page.total !== 'number' ||
-      !Number.isSafeInteger(page.total) ||
-      !page.results.every((row: unknown) => validRow(row, eventId ?? ''))
-    ) {
-      throw new Error('invalid event projection');
-    }
-    return { results: page.results, total: page.total };
+    const page = readCheckInPage(await response.json(), eventId ?? '');
+    if (!page) throw new Error('invalid event projection');
+    return page;
   }
 
   async function search(event: FormEvent<HTMLFormElement>) {
@@ -142,20 +121,14 @@ function EventCheckIn({ eventId }: { eventId: string | undefined }) {
     }
   }
 
-  async function admit(row: Registration, activity?: Registration['activities'][number]) {
+  async function admit(row: CheckInRow, target: CheckInTarget) {
     if (
       locked.current ||
       !eventId ||
       !searched ||
       searchState.status !== 'ready' ||
       row.registration.eventId !== eventId ||
-      row.registration.status !== 'confirmed' ||
-      (!activity && !!row.registration.checkedInAt) ||
-      (activity &&
-        (!row.registration.checkedInAt ||
-          activity.checkedInAt ||
-          !eligible.has(activity.kind) ||
-          !row.activities.some((item) => item.id === activity.id)))
+      !canAdmit(row, target)
     )
       return;
     locked.current = true;
@@ -164,8 +137,9 @@ function EventCheckIn({ eventId }: { eventId: string | undefined }) {
     const request = new AbortController();
     controller.current = request;
     const version = ++sequence.current;
+    const activityId = target.kind === 'activity' ? target.activity.id : undefined;
     const base = `/admin/events/${encodeURIComponent(eventId)}/registrations/${encodeURIComponent(row.registration.id)}`;
-    let outcome: 'success' | 'duplicate' | 'denied' | 'error' = 'error';
+    let outcome: AdmissionOutcome = { kind: 'error' };
     try {
       const session = await fetch(apiUrl('/auth/session'), {
         credentials: 'include',
@@ -175,7 +149,7 @@ function EventCheckIn({ eventId }: { eventId: string | undefined }) {
       if (!session.ok || !csrf) throw new Error('session unavailable');
       const response = await fetch(
         apiUrl(
-          `${base}${activity ? `/activities/${encodeURIComponent(activity.id)}` : ''}/check-in`,
+          `${base}${activityId ? `/activities/${encodeURIComponent(activityId)}` : ''}/check-in`,
         ),
         {
           method: 'POST',
@@ -184,73 +158,43 @@ function EventCheckIn({ eventId }: { eventId: string | undefined }) {
           signal: request.signal,
         },
       );
-      if (response.status === 409) outcome = 'duplicate';
-      else if (response.status === 401 || response.status === 403) outcome = 'denied';
+      if (response.status === 400) outcome = { kind: 'rejected' };
+      else if (response.status === 401 || response.status === 403) outcome = { kind: 'denied' };
       else if (response.ok) {
-        const fact: unknown = await response.json();
-        if (
-          !fact ||
-          typeof fact !== 'object' ||
-          !('registrationId' in fact) ||
-          fact.registrationId !== row.registration.id ||
-          !('eventId' in fact) ||
-          fact.eventId !== eventId ||
-          !('checkedInAt' in fact) ||
-          !fact.checkedInAt ||
-          (activity && (!('activityId' in fact) || fact.activityId !== activity.id))
-        ) {
-          throw new Error('invalid admission response');
-        }
-        outcome = 'success';
+        const admission = readAdmission(await response.json(), {
+          eventId,
+          registrationId: row.registration.id,
+          activityId,
+        });
+        if (!admission) throw new Error('invalid admission response');
+        outcome = {
+          kind: admission.alreadyCheckedIn ? 'repeat' : 'recorded',
+          checkedInAt: admission.checkedInAt,
+        };
       }
-      // Even a denial or a duplicate can race another operator. The protected projection is authoritative.
+      // Even a denial or a rejection can race another operator. The protected projection is authoritative.
       const page = await read(searched, request.signal);
       if (request.signal.aborted || version !== sequence.current) return;
       const fresh = page.results.find((item) => item.registration.id === row.registration.id);
       setSearchState(page.results.length ? { status: 'ready', ...page } : { status: 'empty' });
       if (!fresh) {
         setSelectedId(null);
-        setNotice({
-          kind: 'error',
-          text: 'No se pudo verificar el estado. Consulta al responsable antes de continuar.',
-        });
+        setNotice({ kind: 'error', text: verifyFailure });
         return;
       }
-      const admitted = activity
-        ? !!fresh.registration.checkedInAt &&
-          !!fresh.activities.find((item) => item.id === activity.id)?.checkedInAt
-        : !!fresh.registration.checkedInAt;
-      if (outcome === 'success' && admitted) {
-        setNotice({
-          kind: 'success',
-          text: activity ? `Entrada a ${activity.name} registrada` : 'Entrada al evento registrada',
-        });
-      } else if (outcome === 'duplicate' && admitted) {
-        setNotice({ kind: 'duplicate', text: 'Ya registrada por otro operador' });
-      } else if (outcome === 'denied') {
-        setNotice({
-          kind: 'error',
-          text: 'Acceso denegado para registrar esta entrada. Consulta al responsable.',
-        });
-      } else {
-        setNotice({
-          kind: 'error',
-          text: 'No se pudo registrar la entrada. Consulta al responsable antes de continuar.',
-        });
-      }
+      setNotice(admissionNotice(outcome, target, recordedAt(fresh, target)));
     } catch {
       if (!request.signal.aborted && version === sequence.current) {
         setSearchState({ status: 'error' });
-        setNotice({
-          kind: 'error',
-          text: 'No se pudo verificar el estado. Consulta al responsable antes de continuar.',
-        });
+        setNotice({ kind: 'error', text: verifyFailure });
       }
     } finally {
       locked.current = false;
       if (!request.signal.aborted && version === sequence.current) setBusy(false);
     }
   }
+
+  const plan = selected && checkInPlan(selected);
 
   return (
     <main className="px-4 py-8 text-fg sm:px-8 lg:py-12">
@@ -374,74 +318,60 @@ function EventCheckIn({ eventId }: { eventId: string | undefined }) {
                 ? 'Inscripción confirmada'
                 : 'Inscripción no confirmada · No registrar entrada'}
             </p>
-            <div className="space-y-3 border-t border-line pt-4">
-              <h3 className="font-bold text-heading">Entrada al evento</h3>
-              <p
-                className={`${chip} ${
-                  selected.registration.checkedInAt
-                    ? 'bg-success text-success-fg'
-                    : 'bg-chip text-fg'
-                }`}
-              >
-                {selected.registration.checkedInAt
-                  ? 'Evento: entrada registrada'
-                  : 'Evento: entrada pendiente'}
+            {plan?.escalate && (
+              <p className={`${statusBox} font-semibold ${noticeStyles.escalate}`}>
+                {escalationMessage}
               </p>
-              {selected.registration.status === 'confirmed' &&
-                !selected.registration.checkedInAt && (
+            )}
+            {plan?.event && (
+              <div className="space-y-3 border-t border-line pt-4">
+                <h3 className="font-bold text-heading">Entrada al evento</h3>
+                <EntryState checkedInAt={plan.event.checkedInAt} />
+                {!plan.event.checkedInAt && (
                   <div>
                     <button
                       type="button"
                       className={admitButton}
                       disabled={busy}
-                      onClick={() => void admit(selected)}
+                      onClick={() => void admit(selected, { kind: 'event' })}
                     >
-                      {busy ? 'Registrando…' : 'Registrar entrada al evento'}
+                      {busy ? 'Registrando…' : actionLabel({ kind: 'event' })}
                     </button>
                   </div>
                 )}
-            </div>
-            <div className="space-y-3 border-t border-line pt-4">
-              <h3 className="font-bold text-heading">Actividades inscritas</h3>
-              {selected.activities.filter((activity) => eligible.has(activity.kind)).length ===
-                0 && <p className="text-muted">Sin actividades elegibles.</p>}
-              {selected.activities
-                .filter((activity) => eligible.has(activity.kind))
-                .map((activity) => (
+              </div>
+            )}
+            {!!plan?.activities.length && (
+              <div className="space-y-3 border-t border-line pt-4">
+                <h3 className="font-bold text-heading">Actividades de sus pases</h3>
+                {plan.activities.map((activity) => (
                   <div
                     key={activity.id}
                     className="space-y-3 rounded-lg border border-line bg-surface-inner p-4"
                   >
                     <h4 className="font-bold text-heading">{activity.name}</h4>
-                    <p
-                      className={`${chip} ${
-                        activity.checkedInAt ? 'bg-success text-success-fg' : 'bg-chip text-fg'
-                      }`}
-                    >
-                      {activity.checkedInAt
-                        ? 'Actividad: entrada registrada'
-                        : 'Actividad pendiente'}
-                    </p>
-                    {selected.registration.status === 'confirmed' &&
-                      !!selected.registration.checkedInAt &&
-                      !activity.checkedInAt && (
+                    <EntryState checkedInAt={activity.checkedInAt} />
+                    {!activity.checkedInAt && (
+                      <div>
                         <button
                           type="button"
                           className={admitButton}
                           disabled={busy}
-                          onClick={() => void admit(selected, activity)}
+                          onClick={() => void admit(selected, { kind: 'activity', activity })}
                         >
-                          {busy ? 'Registrando…' : `Registrar ${activity.name}`}
+                          {busy ? 'Registrando…' : actionLabel({ kind: 'activity', activity })}
                         </button>
-                      )}
+                      </div>
+                    )}
                   </div>
                 ))}
-            </div>
+              </div>
+            )}
           </section>
         )}
         {notice && (
           <p
-            role={notice.kind === 'error' ? 'alert' : 'status'}
+            role={notice.kind === 'error' || notice.kind === 'escalate' ? 'alert' : 'status'}
             className={`${statusBox} font-semibold ${noticeStyles[notice.kind]}`}
           >
             {notice.text}

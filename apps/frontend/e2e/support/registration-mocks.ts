@@ -33,6 +33,7 @@ export const searchResult = (
     folio: overrides.folio ?? null,
     status: overrides.status ?? 'pending_payment',
     checkedInAt: null,
+    generalEntryOnly: false,
   },
   activities: [] as { id: string; name: string; kind: string; checkedInAt: null }[],
 });

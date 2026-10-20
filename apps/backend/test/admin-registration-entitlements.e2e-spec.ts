@@ -477,15 +477,94 @@ describe('admin registration entitlements (e2e)', () => {
     expect(await audits()).toHaveLength(0);
   });
 
-  it('allows selection changes on confirmed registrations and rejects them on voided ones', async () => {
+  it('requires a reason to change selections on confirmed registrations and stores it in the audit note (#170)', async () => {
     const f = await fixture();
-    const { cookie } = await session('admin', f.event);
+    const { cookie, userId, sessionId } = await session('admin', f.event);
     const confirmed = await registration(f.event, 'confirmed');
     const confirmedPass = await holdPass(f.event, confirmed.id, f.fullPopping);
-    await select(f.event, confirmed.id, confirmedPass)
+    const before = await snapshot();
+    for (const payload of [
+      { activityIds: [f.popping] },
+      { activityIds: [f.popping], reason: null },
+      { activityIds: [f.popping], reason: '' },
+      { activityIds: [f.popping], reason: '   ' },
+    ]) {
+      const rejected = await select(f.event, confirmed.id, confirmedPass)
+        .set(headers(cookie))
+        .send(payload)
+        .expect(400);
+      expect(rejected.body).toMatchObject({
+        message: 'Reason is required and must be 1 to 500 characters',
+        code: 'selection_change_reason_required',
+      });
+    }
+    for (const reason of ['x'.repeat(501), ` ${'x'.repeat(501)} `, 42, ['Typo'], { text: 'x' }]) {
+      const rejected = await select(f.event, confirmed.id, confirmedPass)
+        .set(headers(cookie))
+        .send({ activityIds: [f.popping], reason })
+        .expect(400);
+      expect(rejected.body).toMatchObject({
+        message: 'Reason is required and must be 1 to 500 characters',
+      });
+    }
+    const unknown = await select(f.event, '00000000-0000-4000-8000-000000000000', confirmedPass)
       .set(headers(cookie))
       .send({ activityIds: [f.popping] })
+      .expect(404);
+    expect(unknown.body).toMatchObject({ message: 'Registration not found' });
+    expect(await snapshot()).toEqual(before);
+    expect(await audits()).toHaveLength(0);
+
+    const reason = `  ${'Wrong competition at the door'.padEnd(500, '.')}  `;
+    const changed = await select(f.event, confirmed.id, confirmedPass)
+      .set(headers(cookie))
+      .send({ activityIds: [f.popping], reason })
       .expect(200);
+    expect(
+      (changed.body as Entitlements).passes.find(
+        (pass) => pass.registrationPassId === confirmedPass,
+      )?.selections,
+    ).toEqual([f.popping]);
+    expect(
+      await client`SELECT operation_type, actor_user_id, session_id, note, before_state, after_state
+        FROM registration_operation_audit`,
+    ).toEqual([
+      {
+        operation_type: 'pass_selection_change',
+        actor_user_id: userId,
+        session_id: sessionId,
+        note: reason.trim(),
+        before_state: { registrationPassId: confirmedPass, selections: [] },
+        after_state: { registrationPassId: confirmedPass, selections: [f.popping] },
+      },
+    ]);
+  });
+
+  it('changes pending selections without a reason and stores an optional one (#170)', async () => {
+    const f = await fixture();
+    const { cookie } = await session('admin', f.event);
+    const reg = await registration(f.event);
+    const full = await holdPass(f.event, reg.id, f.fullBreaking);
+    await select(f.event, reg.id, full)
+      .set(headers(cookie))
+      .send({ activityIds: [f.breaking] })
+      .expect(200);
+    await select(f.event, reg.id, full)
+      .set(headers(cookie))
+      .send({ activityIds: [], reason: '  Dancer changed their mind  ' })
+      .expect(200);
+    await select(f.event, reg.id, full)
+      .set(headers(cookie))
+      .send({ activityIds: [f.breaking], reason: 'x'.repeat(501) })
+      .expect(400);
+    expect(
+      await client`SELECT note FROM registration_operation_audit ORDER BY created_at, id`,
+    ).toEqual([{ note: null }, { note: 'Dancer changed their mind' }]);
+  });
+
+  it('rejects selection changes on voided registrations', async () => {
+    const f = await fixture();
+    const { cookie } = await session('admin', f.event);
     const voided = await registration(f.event, 'voided');
     const voidedPass = await holdPass(f.event, voided.id, f.fullPopping);
     const before = await snapshot();
@@ -495,7 +574,7 @@ describe('admin registration entitlements (e2e)', () => {
       .expect(409);
     expect(response.body).toMatchObject({ message: 'Registration is voided' });
     expect(await snapshot()).toEqual(before);
-    expect(await audits()).toHaveLength(1);
+    expect(await audits()).toHaveLength(0);
   });
 
   it('removes a held pass and its selections from a pending in-person registration with an audit fact (#282)', async () => {
@@ -739,7 +818,7 @@ describe('admin registration entitlements (e2e)', () => {
     expect(bodies[3].registration).toEqual(confirmedSummary);
     const confirmedSelect = await select(f.event, confirmed.id, confirmedPass)
       .set(headers(cookie))
-      .send({ activityIds: [f.popping] })
+      .send({ activityIds: [f.popping], reason: 'Wrong competition' })
       .expect(200);
     bodies.push(confirmedSelect.body as Entitlements);
     expect(bodies[4].registration).toEqual(confirmedSummary);

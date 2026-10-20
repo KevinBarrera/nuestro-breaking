@@ -163,6 +163,8 @@ export type RegistrationMocks = {
   activities?: () => Answer;
   // `attempt` counts the PUTs, starting at 1.
   selections?: (attempt: number) => Answer;
+  // `attempt` counts the DELETEs, starting at 1.
+  removePass?: (attempt: number) => Answer;
   // `attempt` counts the POSTs, starting at 1.
   cash?: (attempt: number) => Answer;
   // `attempt` counts the POSTs, starting at 1.
@@ -172,6 +174,11 @@ export type RegistrationMocks = {
 export type SentCreate = { body: Record<string, unknown>; csrf: string | null };
 export type SentPass = { registrationId: string; body: unknown; csrf: string | null };
 export type SentSelections = SentPass & { registrationPassId: string };
+export type SentRemoval = {
+  registrationId: string;
+  registrationPassId: string;
+  csrf: string | null;
+};
 export type SentCash = SentPass;
 export type SentComplimentary = SentPass;
 
@@ -199,6 +206,7 @@ export async function mockRegistrations(page: Page, mocks: RegistrationMocks = {
   const creates: SentCreate[] = [];
   const addedPasses: SentPass[] = [];
   const selections: SentSelections[] = [];
+  const removedPasses: SentRemoval[] = [];
   const cash: SentCash[] = [];
   const complimentary: SentComplimentary[] = [];
   await mockSession(page);
@@ -285,6 +293,23 @@ export async function mockRegistrations(page: Page, mocks: RegistrationMocks = {
   await page.route(
     (url) =>
       api(url) &&
+      /^\/admin\/events\/[^/]+\/registrations\/[^/]+\/passes\/[^/]+$/.test(url.pathname),
+    (route) => {
+      const request = route.request();
+      if (request.method() !== 'DELETE') return route.fallback();
+      const segments = new URL(request.url()).pathname.split('/');
+      removedPasses.push({
+        registrationId: segments[5],
+        registrationPassId: segments[7],
+        csrf: request.headers()['x-csrf-token'] ?? null,
+      });
+      const answer = mocks.removePass?.(removedPasses.length) ?? { status: 500, json: {} };
+      return fulfill(route, withSummary(segments[5], answer));
+    },
+  );
+  await page.route(
+    (url) =>
+      api(url) &&
       /^\/admin\/events\/[^/]+\/registrations\/[^/]+\/cash-confirmation$/.test(url.pathname),
     (route) => {
       const request = route.request();
@@ -315,7 +340,7 @@ export async function mockRegistrations(page: Page, mocks: RegistrationMocks = {
       return fulfill(route, answer);
     },
   );
-  return { searches, creates, addedPasses, selections, cash, complimentary };
+  return { searches, creates, addedPasses, selections, removedPasses, cash, complimentary };
 }
 
 // The registration screen in each status, and the search with a pending result, for the

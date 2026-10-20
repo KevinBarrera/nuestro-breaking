@@ -75,8 +75,14 @@ async function csrfToken(): Promise<string> {
   return token;
 }
 
-async function mutate(path: string, method: 'POST' | 'PUT', body: unknown): Promise<unknown> {
+async function mutate(
+  path: string,
+  method: 'POST' | 'PUT' | 'DELETE',
+  body?: unknown,
+): Promise<unknown> {
   const token = await csrfToken();
+  if (body === undefined)
+    return registrationRequest(path, { method, headers: { 'X-CSRF-Token': token }, write: true });
   return registrationRequest(path, {
     method,
     headers: { 'X-CSRF-Token': token, 'Content-Type': 'application/json' },
@@ -181,6 +187,20 @@ export async function setPassSelections(
     `/passes/${encodeURIComponent(registrationPassId)}/selections`,
   );
   return written(readEntitlements(await mutate(path, 'PUT', { activityIds }), registrationId));
+}
+
+// Removes a held pass and its selections from an in-person `pending_payment` registration (#282).
+export async function removeRegistrationPass(
+  eventId: string,
+  registrationId: string,
+  registrationPassId: string,
+): Promise<RegistrationEntitlements> {
+  const path = registrationPath(
+    eventId,
+    registrationId,
+    `/passes/${encodeURIComponent(registrationPassId)}`,
+  );
+  return written(readEntitlements(await mutate(path, 'DELETE'), registrationId));
 }
 
 // Records cash received in person and confirms the pending registration, which gets its folio.

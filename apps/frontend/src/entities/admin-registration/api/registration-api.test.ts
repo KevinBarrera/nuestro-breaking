@@ -6,6 +6,7 @@ import {
   confirmComplimentary,
   createManualRegistration,
   getRegistrationEntitlements,
+  removeRegistrationPass,
   searchRegistrations,
   setPassSelections,
 } from './registration-api';
@@ -263,6 +264,45 @@ describe('registration passes', () => {
     );
     expect(init.method).toBe('PUT');
     expect(JSON.parse(init.body as string)).toEqual({ activityIds: ['act-1'] });
+  });
+
+  it('removes a held pass with DELETE and the CSRF token, and reads the entitlements', async () => {
+    const fetchMock = stubFetch(() => Response.json(entitlements));
+    expect(await removeRegistrationPass(eventId, registrationId, registrationPassId)).toEqual(
+      entitlements,
+    );
+    const [url, init] = call(fetchMock, 1);
+    expect(url).toMatch(
+      new RegExp(`${base}/registrations/${registrationId}/passes/${registrationPassId}$`),
+    );
+    expect(init.method).toBe('DELETE');
+    expect((init.headers as Record<string, string>)['X-CSRF-Token']).toBe('csrf-token');
+    expect(init.body).toBeUndefined();
+  });
+
+  it('maps the removal rules and a malformed answer', async () => {
+    stubFetch(() =>
+      Response.json({ message: 'Online registrations cannot lose a pass' }, { status: 409 }),
+    );
+    expect(
+      await failureOf(removeRegistrationPass(eventId, registrationId, registrationPassId)),
+    ).toEqual({ kind: 'rule', code: 'online_registration_pass_locked' });
+    stubFetch(() =>
+      Response.json(
+        {
+          message: 'Remove «Open Styles» first; it requires this pass',
+          code: 'pass_required_by_add_on',
+        },
+        { status: 409 },
+      ),
+    );
+    expect(
+      await failureOf(removeRegistrationPass(eventId, registrationId, registrationPassId)),
+    ).toEqual({ kind: 'rule', code: 'pass_required_by_add_on' });
+    stubFetch(() => Response.json({ passes: [] }));
+    expect(
+      await failureOf(removeRegistrationPass(eventId, registrationId, registrationPassId)),
+    ).toEqual({ kind: 'unknown' });
   });
 });
 

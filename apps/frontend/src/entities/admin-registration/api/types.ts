@@ -115,8 +115,9 @@ export type ComplimentaryConfirmationInput = { reason: string };
 // The same answer as a cash confirmation.
 export type ComplimentaryConfirmation = CashConfirmation;
 
-// Stable codes for the 400 and 409 rule answers of these writes. `receipt_taken`, `no_passes`
-// and `not_zero_total` are backend `code`s; the rest are read from the backend message.
+// Stable codes for the 400 and 409 rule answers of these writes. `receipt_taken`, `no_passes`,
+// `not_zero_total` and `pass_required_by_add_on` are backend `code`s; the rest are read from the
+// backend message.
 export const adminRegistrationRuleCodes = [
   'receipt_taken',
   'no_passes',
@@ -129,6 +130,8 @@ export const adminRegistrationRuleCodes = [
   'add_on_requires_full',
   'add_on_requires_general',
   'invalid_activity_selection',
+  'online_registration_pass_locked',
+  'pass_required_by_add_on',
 ] as const;
 export type AdminRegistrationRuleCode = (typeof adminRegistrationRuleCodes)[number];
 

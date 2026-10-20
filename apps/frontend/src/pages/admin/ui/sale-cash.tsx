@@ -26,14 +26,23 @@ import {
 type SaleCashProps = {
   eventId: string;
   entitlements: RegistrationEntitlements;
+  // Why confirming waits for the competitions section, or null.
+  unsavedCompetitions: string | null;
   onConfirmed: (entitlements: RegistrationEntitlements) => void;
   onReload: () => void;
 };
 
 // Records the cash received for a pending registration (#105). The total comes from the held
 // passes and is read-only; the operator types the paper receipt number and confirms in a dialog.
-// A failure that needs a reload locks the button, so a lost answer is never sent twice.
-export function SaleCash({ eventId, entitlements, onConfirmed, onReload }: SaleCashProps) {
+// A failure that needs a reload locks the button, so a lost answer is never sent twice, and
+// unsaved competition checks hold it until they are saved or discarded (#277).
+export function SaleCash({
+  eventId,
+  entitlements,
+  unsavedCompetitions,
+  onConfirmed,
+  onReload,
+}: SaleCashProps) {
   const titleId = useId();
   const reasonId = useId();
   const [form, setForm] = useState<CashForm>({ receipt: '', note: '' });
@@ -48,6 +57,7 @@ export function SaleCash({ eventId, entitlements, onConfirmed, onReload }: SaleC
   const { registration, passes } = entitlements;
   const totalCents = cashTotalCents(passes);
   const unavailable = cashUnavailableReason(passes);
+  const waiting = unavailable ?? unsavedCompetitions;
   const locked = failure?.reload ?? false;
 
   const edit = (field: keyof CashForm, value: string) => {
@@ -58,7 +68,7 @@ export function SaleCash({ eventId, entitlements, onConfirmed, onReload }: SaleC
 
   const review = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (unavailable || locked || pending) return;
+    if (waiting || locked || pending) return;
     const found = cashFormErrors(form);
     setErrors(found);
     if (Object.keys(found).length > 0) return;
@@ -69,6 +79,11 @@ export function SaleCash({ eventId, entitlements, onConfirmed, onReload }: SaleC
 
   const confirm = () => {
     if (!input || sending.current) return;
+    // The dialog is modal, so the checks cannot change while it is open; this only guards the POST.
+    if (unsavedCompetitions) {
+      setOpen(false);
+      return;
+    }
     sending.current = true;
     setPending(true);
     confirmCashPayment(eventId, registration.id, input)
@@ -108,9 +123,9 @@ export function SaleCash({ eventId, entitlements, onConfirmed, onReload }: SaleC
         <dd className="font-mono text-2xl font-bold text-heading">{formatMxn(totalCents)}</dd>
       </dl>
       <p className="text-sm text-muted">Suma de los pases agregados, sin cargo por servicio.</p>
-      {unavailable && (
+      {waiting && (
         <p id={reasonId} className="rounded-lg bg-surface-inner p-4 text-sm text-fg">
-          {unavailable}
+          {waiting}
         </p>
       )}
       <form noValidate className="space-y-4" onSubmit={review}>
@@ -151,8 +166,8 @@ export function SaleCash({ eventId, entitlements, onConfirmed, onReload }: SaleC
         <button
           type="submit"
           className={buttonClass('primary')}
-          disabled={unavailable !== null || locked || pending}
-          aria-describedby={unavailable ? reasonId : undefined}
+          disabled={waiting !== null || locked || pending}
+          aria-describedby={waiting ? reasonId : undefined}
         >
           Confirmar pago
         </button>

@@ -5,14 +5,16 @@ import {
 } from '@/entities/admin-registration';
 import type { CatalogActivity, CatalogPassType } from '@/entities/event-catalog';
 import { buttonClass, CheckboxField, Notice } from '@/shared/ui';
-import { useId, useState } from 'react';
+import { useId, useRef, useState } from 'react';
 import { styles } from './catalog-copy';
 import {
   competitionDraft,
   competitionsPayload,
+  effectiveDraft,
   saleCompetitionPasses,
   saveCompetitionsFailure,
   toggleCompetition,
+  type CompetitionDrafts,
   type SaleCompetitionPass,
 } from './sale-competitions-model';
 
@@ -22,18 +24,23 @@ type SaleCompetitionsProps = {
   // Null when the event's pass types or activities could not be read.
   passTypes: CatalogPassType[] | null;
   activities: CatalogActivity[] | null;
+  drafts: CompetitionDrafts;
+  onDraftChange: (pass: SaleCompetitionPass, next: readonly string[] | null) => void;
   onSaved: (entitlements: RegistrationEntitlements) => void;
   onReload: () => void;
 };
 
-// Competitions of each held pass while the registration is pending (#105). Each pass keeps its
-// own draft; saving replaces the pass's whole list, and selections can change again later, so
-// no confirmation is asked.
+// Competitions of each held pass while the registration is pending (#105). The page keeps
+// each pass's draft so a refresh of the entitlements, such as adding a pass, keeps the unsaved
+// checks (#277); saving replaces the pass's whole list, and selections can change again later,
+// so no confirmation is asked. Discarding drops the draft back to the saved list.
 export function SaleCompetitions({
   eventId,
   entitlements,
   passTypes,
   activities,
+  drafts,
+  onDraftChange,
   onSaved,
   onReload,
 }: SaleCompetitionsProps) {
@@ -67,6 +74,8 @@ export function SaleCompetitions({
               eventId={eventId}
               registrationId={entitlements.registration.id}
               pass={pass}
+              draft={effectiveDraft(drafts, pass)}
+              onDraftChange={(next) => onDraftChange(pass, next)}
               onSaved={onSaved}
               onReload={onReload}
             />
@@ -81,6 +90,8 @@ type PassCompetitionsProps = {
   eventId: string;
   registrationId: string;
   pass: SaleCompetitionPass;
+  draft: readonly string[];
+  onDraftChange: (next: readonly string[] | null) => void;
   onSaved: (entitlements: RegistrationEntitlements) => void;
   onReload: () => void;
 };
@@ -91,20 +102,15 @@ function PassCompetitions({
   eventId,
   registrationId,
   pass,
+  draft,
+  onDraftChange,
   onSaved,
   onReload,
 }: PassCompetitionsProps) {
   const hintId = useId();
-  const [draft, setDraft] = useState<string[]>(pass.saved);
-  // Every read or write answer brings a new saved list, which resets the draft.
-  const [draftBase, setDraftBase] = useState(pass.saved);
-  if (draftBase !== pass.saved) {
-    setDraftBase(pass.saved);
-    setDraft(pass.saved);
-  }
   const [pending, setPending] = useState(false);
   const [outcome, setOutcome] = useState<Outcome | null>(null);
-  const { blocked, canSave } = competitionDraft(pass, draft);
+  const { changed, blocked, canSave } = competitionDraft(pass, draft);
 
   const save = () => {
     if (!canSave || pending) return;
@@ -117,6 +123,7 @@ function PassCompetitions({
       competitionsPayload(pass, draft),
     )
       .then((updated) => {
+        onDraftChange(null);
         onSaved(updated);
         setOutcome({ kind: 'saved' });
       })
@@ -134,8 +141,15 @@ function PassCompetitions({
     onReload();
   };
 
+  // The button disappears with the draft, so focus moves to the pass's first competition.
+  const fieldsetRef = useRef<HTMLFieldSetElement>(null);
+  const discard = () => {
+    onDraftChange(null);
+    fieldsetRef.current?.querySelector<HTMLInputElement>('input[type="checkbox"]')?.focus();
+  };
+
   return (
-    <fieldset className="space-y-2 py-3 first:pt-0 last:pb-0">
+    <fieldset ref={fieldsetRef} className="space-y-2 py-3 first:pt-0 last:pb-0">
       <legend className="font-semibold break-words text-heading">{pass.name}</legend>
       <div>
         {pass.choices.map((choice) => (
@@ -145,7 +159,7 @@ function PassCompetitions({
             description={choice.available ? undefined : 'Ya no está disponible para este pase.'}
             checked={draft.includes(choice.activityId)}
             disabled={pending || (!choice.available && !draft.includes(choice.activityId))}
-            onChange={() => setDraft((current) => toggleCompetition(current, choice.activityId))}
+            onChange={() => onDraftChange(toggleCompetition(draft, choice.activityId))}
           />
         ))}
       </div>
@@ -175,15 +189,27 @@ function PassCompetitions({
           )}
         </div>
       )}
-      <button
-        type="button"
-        className={buttonClass('primary')}
-        disabled={!canSave || pending}
-        aria-describedby={blocked ? hintId : undefined}
-        onClick={save}
-      >
-        {pending ? 'Guardando…' : 'Guardar competencias'}
-      </button>
+      <div className="flex flex-wrap gap-3">
+        <button
+          type="button"
+          className={buttonClass('primary')}
+          disabled={!canSave || pending}
+          aria-describedby={blocked ? hintId : undefined}
+          onClick={save}
+        >
+          {pending ? 'Guardando…' : 'Guardar competencias'}
+        </button>
+        {changed && (
+          <button
+            type="button"
+            className={buttonClass('secondary')}
+            disabled={pending}
+            onClick={discard}
+          >
+            Descartar cambios
+          </button>
+        )}
+      </div>
     </fieldset>
   );
 }

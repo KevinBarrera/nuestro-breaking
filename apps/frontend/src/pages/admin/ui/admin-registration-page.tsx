@@ -18,10 +18,18 @@ import { generatePath, useLocation, useParams } from 'react-router';
 import { passClassLabels, styles } from './catalog-copy';
 import { readRegistrationContext, registrationStatusLabel } from './registration-model';
 import { SaleCash } from './sale-cash';
-import { registrationViewMode, selectionSummary } from './sale-cash-model';
+import { registrationViewMode } from './sale-cash-model';
 import { SaleComplimentary } from './sale-complimentary';
 import { isComplimentarySale } from './sale-complimentary-model';
 import { SaleCompetitions } from './sale-competitions';
+import {
+  passCompetitionLines,
+  unsavedCompetitionPasses,
+  unsavedCompetitionsHint,
+  withDraft,
+  type CompetitionDrafts,
+  type SaleCompetitionPass,
+} from './sale-competitions-model';
 import { SalePassPicker } from './sale-pass-picker';
 
 type LoadState =
@@ -109,11 +117,20 @@ function RegistrationScreen({
   const reloading = state.status === 'ready' && answered !== revision;
   // What this screen just recorded, announced over the folio.
   const [confirmedBy, setConfirmedBy] = useState<ConfirmedBy | null>(null);
+  // Unsaved competition checks by held pass; refreshes and reloads leave them untouched (#277).
+  const [drafts, setDrafts] = useState<CompetitionDrafts>({});
+  const changeDraft = (pass: SaleCompetitionPass, next: readonly string[] | null) =>
+    setDrafts((current) => withDraft(current, pass, next));
 
   const summary = state.status === 'ready' ? state.entitlements.registration : null;
   const participantName = summary?.participant.fullName ?? context?.participantName ?? null;
   const status = summary?.status ?? context?.status ?? null;
   const mode = summary ? registrationViewMode(summary.status) : null;
+  // Confirming waits until every held pass's checks are saved or discarded (#277).
+  const unsavedCompetitions =
+    state.status === 'ready'
+      ? unsavedCompetitionsHint(unsavedCompetitionPasses(state.entitlements.passes, drafts))
+      : null;
 
   return (
     <main aria-busy={reloading} className="px-4 py-8 text-fg sm:px-8 lg:py-12">
@@ -164,16 +181,18 @@ function RegistrationScreen({
                 <p className="text-muted">Aún no tiene pases.</p>
               ) : (
                 <ul className="divide-y divide-row">
-                  {state.entitlements.passes.map((pass) => (
-                    <PassRow
-                      key={pass.registrationPassId}
-                      pass={pass}
-                      // While selling, the competitions section shows them with their controls.
-                      competitions={
-                        mode === 'sale' ? null : selectionSummary(pass.selections, state.activities)
-                      }
-                    />
-                  ))}
+                  {state.entitlements.passes.map((pass) => {
+                    const lines = passCompetitionLines(pass, state.passTypes, state.activities);
+                    return (
+                      <PassRow
+                        key={pass.registrationPassId}
+                        pass={pass}
+                        included={lines.included}
+                        // While selling, the competitions section shows them with their controls.
+                        selected={mode === 'sale' ? null : lines.selected}
+                      />
+                    );
+                  })}
                 </ul>
               )}
             </section>
@@ -191,6 +210,8 @@ function RegistrationScreen({
                   entitlements={state.entitlements}
                   passTypes={state.passTypes}
                   activities={state.activities}
+                  drafts={drafts}
+                  onDraftChange={changeDraft}
                   onSaved={updateEntitlements}
                   onReload={reload}
                 />
@@ -198,6 +219,7 @@ function RegistrationScreen({
                   <SaleComplimentary
                     eventId={eventId}
                     entitlements={state.entitlements}
+                    unsavedCompetitions={unsavedCompetitions}
                     onConfirmed={(entitlements) => {
                       updateEntitlements(entitlements);
                       setConfirmedBy('complimentary');
@@ -208,6 +230,7 @@ function RegistrationScreen({
                   <SaleCash
                     eventId={eventId}
                     entitlements={state.entitlements}
+                    unsavedCompetitions={unsavedCompetitions}
                     onConfirmed={(entitlements) => {
                       updateEntitlements(entitlements);
                       setConfirmedBy('cash');
@@ -259,14 +282,29 @@ function ConfirmedNotice({
   );
 }
 
-function PassRow({ pass, competitions }: { pass: HeldPass; competitions: string | null }) {
+function PassRow({
+  pass,
+  included,
+  selected,
+}: {
+  pass: HeldPass;
+  included: string | null;
+  selected: string | null;
+}) {
   return (
     <li className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 py-3">
       <span className="min-w-0">
         <span className="block font-semibold break-words text-heading">{pass.name}</span>
         <span className="block text-sm text-muted">{passClassLabels[pass.passClass]}</span>
-        {competitions && (
-          <span className="block text-sm break-words text-fg">Competencias: {competitions}</span>
+        {included && (
+          <span className="block text-sm break-words text-fg">
+            Competencias incluidas: {included}
+          </span>
+        )}
+        {selected && (
+          <span className="block text-sm break-words text-fg">
+            Competencias elegidas: {selected}
+          </span>
         )}
       </span>
       <span className="font-mono font-medium">{formatMxn(pass.priceCents)}</span>

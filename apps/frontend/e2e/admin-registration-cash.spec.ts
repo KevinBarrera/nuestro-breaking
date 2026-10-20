@@ -89,7 +89,7 @@ test('confirms the cash payment after restating it and shows the folio', async (
   // The confirmed view is read-only: the passes and competitions stay, no controls remain.
   await expect(page.getByRole('main')).toContainText('Confirmada');
   await expect(page.getByRole('region', { name: 'Pases' })).toContainText(
-    'Competencias: Breaking 1 vs 1',
+    'Competencias elegidas: Breaking 1 vs 1',
   );
   await expect(cashSection(page)).toHaveCount(0);
   await expect(page.getByRole('main').getByRole('button')).toHaveCount(0);

@@ -1,5 +1,6 @@
 import type { AdminRegistrationFailure, HeldPass } from '@/entities/admin-registration';
 import type { CatalogActivity, CatalogPassType } from '@/entities/event-catalog';
+import { selectionSummary } from './sale-cash-model';
 
 // Competitions of each held pass in the in-person sale (#105). The backend accepts only active
 // activities with `selectable` access on the pass's type and replaces the whole list on save, so
@@ -60,6 +61,37 @@ export function saleCompetitionPasses(
   });
 }
 
+// The competition lines of a held pass in the passes list (#277). A competition the pass type
+// includes is access, not a choice, so a pass with only included ones gets no "Sin competencias".
+// Null lines are hidden; a pass whose type is unknown (unreadable or missing) keeps its selection
+// summary.
+export function passCompetitionLines(
+  pass: HeldPass,
+  passTypes: readonly CatalogPassType[] | null,
+  activities: readonly CatalogActivity[] | null,
+): { included: string | null; selected: string | null } {
+  const passType = passTypes?.find((candidate) => candidate.id === pass.passTypeId);
+  const links = passType?.activities ?? [];
+  const includedIds = new Set(
+    links.filter((link) => link.access === 'included').map((link) => link.activityId),
+  );
+  const includedNames = (activities ?? [])
+    .filter(
+      (activity) =>
+        activity.kind === 'competition' &&
+        activity.status === 'active' &&
+        includedIds.has(activity.id),
+    )
+    .sort(byStart)
+    .map((activity) => activity.name);
+  const choosable =
+    !passType || pass.selections.length > 0 || links.some((link) => link.access === 'selectable');
+  return {
+    included: includedNames.length > 0 ? includedNames.join(', ') : null,
+    selected: choosable ? selectionSummary(pass.selections, activities) : null,
+  };
+}
+
 export const toggleCompetition = (draft: readonly string[], activityId: string): string[] =>
   draft.includes(activityId) ? draft.filter((id) => id !== activityId) : [...draft, activityId];
 
@@ -68,6 +100,51 @@ const sameSet = (left: readonly string[], right: readonly string[]) => {
   const b = new Set(right);
   return a.size === b.size && [...a].every((id) => b.has(id));
 };
+
+// Unsaved checks of each held pass by `registrationPassId`. An entry exists only after the
+// operator changes a pass, so refreshed entitlements never rewrite or drop it.
+export type CompetitionDrafts = Readonly<Record<string, readonly string[]>>;
+
+export const effectiveDraft = (drafts: CompetitionDrafts, pass: SaleCompetitionPass) =>
+  drafts[pass.registrationPassId] ?? pass.saved;
+
+// Records the pass's next draft; null (after a save) or a draft back at the saved list drops it.
+export function withDraft(
+  drafts: CompetitionDrafts,
+  pass: SaleCompetitionPass,
+  next: readonly string[] | null,
+): CompetitionDrafts {
+  const updated = { ...drafts };
+  if (next === null || sameSet(next, pass.saved)) delete updated[pass.registrationPassId];
+  else updated[pass.registrationPassId] = next;
+  return updated;
+}
+
+// Names of the held passes with unsaved checks, in held order. A draft of a pass no longer held
+// is ignored, so it never blocks the confirmation.
+export const unsavedCompetitionPasses = (
+  held: readonly HeldPass[],
+  drafts: CompetitionDrafts,
+): string[] =>
+  held
+    .filter((pass) => {
+      const draft = drafts[pass.registrationPassId];
+      return draft !== undefined && !sameSet(draft, pass.selections);
+    })
+    .map((pass) => pass.name);
+
+const joinNames = (names: readonly string[]) => {
+  const quoted = names.map((name) => `«${name}»`);
+  return quoted.length < 2
+    ? quoted.join('')
+    : `${quoted.slice(0, -1).join(', ')} y ${quoted[quoted.length - 1]}`;
+};
+
+// Why confirming waits, or null: the confirmation would leave the unsaved checks behind (#277).
+export const unsavedCompetitionsHint = (names: readonly string[]): string | null =>
+  names.length === 0
+    ? null
+    : `Guarda o descarta los cambios de competencias de ${joinNames(names)} antes de confirmar.`;
 
 // Saving needs a change and only activities the backend would accept.
 export function competitionDraft(pass: SaleCompetitionPass, draft: readonly string[]) {

@@ -21,6 +21,7 @@ import type { AdminRegistrationAuditActor } from '@/events/registration-audit/re
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MAX_IDS = 100;
 const RECEIPT_MAX = 50;
+const REASON_MAX = 500;
 const BODY_KEYS = new Set([
   ...PARTICIPANT_FIELD_KEYS,
   'activityIds',
@@ -127,5 +128,23 @@ export class ManualRegistrationController {
       },
       actor,
     );
+  }
+
+  /** Confirms a $0 registration without payment (#263); the reason is required evidence. */
+  @Post(':eventId/registrations/:registrationId/complimentary-confirmation')
+  async confirmComplimentary(
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+    @Param('registrationId', ParseUUIDPipe) registrationId: string,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+    @Body() body: unknown,
+  ) {
+    const session = await this.sessions.authorizeEventAdminMutation(request, response, eventId);
+    const actor: AdminRegistrationAuditActor = { kind: 'admin', ...session };
+    const input = object(body);
+    const reason = typeof input.reason === 'string' ? input.reason.trim() : '';
+    if (!reason || reason.length > REASON_MAX)
+      throw new BadRequestException('Reason is required and must be 1 to 500 characters');
+    return this.operations.confirmComplimentary(eventId, registrationId, reason, actor);
   }
 }

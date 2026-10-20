@@ -669,6 +669,28 @@ describe('Confirmation email dispatch (e2e)', () => {
     expect((await outboxRows())[0]).toMatchObject({ status: 'pending', attempts: 1 });
   });
 
+  it('sends one email when an administrator confirms a free registration without payment (#263)', async () => {
+    const id = await pendingRegistration();
+    await client`UPDATE event_registration_passes SET price_cents = 0 WHERE event_registration_id = ${id}`;
+    const [{ event_id: eventId }] = await client<{ event_id: string }[]>`
+      SELECT event_id FROM event_registrations WHERE id = ${id}`;
+
+    await request(app.getHttpServer())
+      .post(`/admin/events/${eventId}/registrations/${id}/complimentary-confirmation`)
+      .set(await adminHeaders(id))
+      .send({ reason: 'Golden ticket' })
+      .expect(201);
+    await dispatcher.whenIdle();
+
+    const { status, folio } = await registrationRow(id);
+    expect(status).toBe('confirmed');
+    expect(sent).toHaveLength(1);
+    expect(sent[0].subject).toBe(
+      `Tu inscripción a Los más pesados está confirmada · Folio ${folio}`,
+    );
+    expect(await outboxRows()).toEqual([expect.objectContaining({ status: 'sent', attempts: 1 })]);
+  });
+
   it('sends no second email when an online approval arrives after a cash confirmation', async () => {
     const id = await pendingRegistration();
     setPayment(id);

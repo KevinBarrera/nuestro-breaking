@@ -5,6 +5,7 @@ import type { DatabaseService } from '@/database/database.service';
 import {
   activities,
   eventActivityRegistrations,
+  eventRegistrationPasses,
   eventRegistrations,
   participants,
   registrationOperationAudit,
@@ -16,13 +17,21 @@ import {
   phoneMatchKey,
 } from '@/events/participant-profile/participant-normalization';
 import type { PublicRegistrationBuyer } from '@/events/public-registration/public-registration.types';
-import { confirmRegistration } from '@/events/registration-confirmation/confirm-registration';
+import {
+  confirmRegistration,
+  type ConfirmationSource,
+  type RegistrationTransaction,
+} from '@/events/registration-confirmation/confirm-registration';
 import { expireDueRegistrations } from '@/events/registration-expiry/expire-registrations';
 import {
   type AdminRegistrationAuditActor,
   registrationAuditActorColumns,
 } from '@/events/registration-audit/registration-audit-actor';
-import { ConfirmationEmailDispatcher, enqueueConfirmationEmail } from '@/notifications';
+import {
+  ConfirmationEmailDispatcher,
+  dispatchAfterCommit,
+  enqueueConfirmationEmail,
+} from '@/notifications';
 import { maskEmail, maskPhone } from './mask-contact';
 
 type Manual = {
@@ -66,6 +75,10 @@ function receiptTaken() {
     message: 'Receipt number already used in this event',
     code: 'receipt_taken',
   });
+}
+
+function notPending() {
+  return new BadRequestException('Registration is not pending in this event');
 }
 
 @Injectable()
@@ -167,9 +180,17 @@ export class ManualRegistrationService {
     actor: AdminRegistrationAuditActor,
   ) {
     try {
-      const confirmed = await this.confirmInTransaction(eventId, registrationId, input, actor);
+      const confirmed = await this.db.transaction((tx) =>
+        this.confirmAndAudit(tx, eventId, registrationId, 'admin_cash', actor, {
+          operationType: 'cash_confirmation',
+          amountCents: input.amount,
+          reference: input.reference,
+          note: input.note,
+          receipt: input.receipt,
+        }),
+      );
       // After commit, as the payments webhook does: a send failure never changes the answer.
-      this.sendConfirmationEmail(registrationId);
+      dispatchAfterCommit(this.confirmationEmails, registrationId, this.logger);
       return confirmed;
     } catch (error) {
       // The unique index rejects a reused receipt even under concurrent requests; the whole
@@ -179,75 +200,126 @@ export class ManualRegistrationService {
     }
   }
 
-  /** Fire and forget: the outbox row is committed, so the sweep retries whatever fails here. */
-  private sendConfirmationEmail(registrationId: string) {
-    this.confirmationEmails.dispatchRegistration(registrationId).catch((error: unknown) => {
-      this.logger.error(
-        `Confirmation email dispatch for registration ${registrationId} failed (${error instanceof Error ? error.name : 'unknown'}); the sweep will retry it.`,
-      );
-    });
-  }
-
-  private async confirmInTransaction(
+  /**
+   * Confirms, without payment, a pending registration whose held passes total $0 by their price
+   * snapshots (#263): golden tickets and guests granted in person. The reason is stored in the
+   * audit `note`; the folio and the email follow the same path as cash.
+   */
+  async confirmComplimentary(
     eventId: string,
     registrationId: string,
-    input: Cash,
+    reason: string,
     actor: AdminRegistrationAuditActor,
   ) {
-    return this.db.transaction(async (tx) => {
-      const registration = await confirmRegistration(tx, {
-        eventId,
-        registrationId,
-        source: 'admin_cash',
-      });
-      if (!registration) throw new BadRequestException('Registration is not pending in this event');
-      const links = await tx
-        .select({ id: eventActivityRegistrations.activityId })
-        .from(eventActivityRegistrations)
+    const confirmed = await this.db.transaction(async (tx) => {
+      // The row lock serializes with pass changes, which lock the registration too, so the total
+      // checked here is the one confirmed.
+      const [registration] = await tx
+        .select({ status: eventRegistrations.status })
+        .from(eventRegistrations)
+        .where(
+          and(eq(eventRegistrations.id, registrationId), eq(eventRegistrations.eventId, eventId)),
+        )
+        .for('update');
+      if (registration?.status !== 'pending_payment') throw notPending();
+      const [held] = await tx
+        .select({
+          passes: sql<number>`count(*)::int`,
+          totalCents: sql<number>`coalesce(sum(${eventRegistrationPasses.priceCents}), 0)::int`,
+        })
+        .from(eventRegistrationPasses)
         .where(
           and(
-            eq(eventActivityRegistrations.eventId, eventId),
-            eq(eventActivityRegistrations.eventRegistrationId, registrationId),
+            eq(eventRegistrationPasses.eventId, eventId),
+            eq(eventRegistrationPasses.eventRegistrationId, registrationId),
           ),
         );
-      const activityIds = links.map((link) => link.id);
-      const [fact] = await tx
-        .insert(registrationOperationAudit)
-        .values({
-          operationType: 'cash_confirmation',
-          ...registrationAuditActorColumns(actor),
-          eventId,
-          registrationId,
-          participantId: registration.participantId,
-          affectedActivityIds: activityIds,
-          amountCents: input.amount,
-          reference: input.reference,
-          note: input.note,
-          receipt: input.receipt,
-          beforeState: {
-            status: 'pending_payment',
-            confirmationSource: null,
-            confirmedAt: null,
-            folio: null,
-          },
-          afterState: {
-            status: 'confirmed',
-            confirmationSource: 'admin_cash',
-            confirmedAt: registration.confirmedAt?.toISOString(),
-            folio: registration.folio,
-          },
-        })
-        .returning({ id: registrationOperationAudit.id });
-      // Queued with the confirmation, so the email exists exactly when it commits (#263).
-      await enqueueConfirmationEmail(tx, registrationId);
-      return {
-        registrationId,
-        eventId,
-        status: 'confirmed',
-        folio: registration.folio,
-        auditId: fact.id,
-      };
+      if (held.passes === 0)
+        throw new ConflictException({
+          statusCode: 409,
+          message: 'Registration holds no passes',
+          code: 'no_passes',
+        });
+      if (held.totalCents !== 0)
+        throw new ConflictException({
+          statusCode: 409,
+          message: 'Registration passes do not total zero',
+          code: 'not_zero_total',
+        });
+      return this.confirmAndAudit(tx, eventId, registrationId, 'admin_complimentary', actor, {
+        operationType: 'complimentary_confirmation',
+        note: reason,
+      });
     });
+    dispatchAfterCommit(this.confirmationEmails, registrationId, this.logger);
+    return confirmed;
+  }
+
+  /**
+   * Confirms the pending registration with its folio, appends the attributed audit fact and queues
+   * the confirmation email, all in the caller's transaction (#263).
+   */
+  private async confirmAndAudit(
+    tx: RegistrationTransaction,
+    eventId: string,
+    registrationId: string,
+    source: Extract<ConfirmationSource, 'admin_cash' | 'admin_complimentary'>,
+    actor: AdminRegistrationAuditActor,
+    fact: {
+      operationType: 'cash_confirmation' | 'complimentary_confirmation';
+      amountCents?: number;
+      reference?: string | null;
+      note: string | null;
+      receipt?: string;
+    },
+  ) {
+    const registration = await confirmRegistration(tx, {
+      eventId,
+      registrationId,
+      source,
+    });
+    if (!registration) throw notPending();
+    const links = await tx
+      .select({ id: eventActivityRegistrations.activityId })
+      .from(eventActivityRegistrations)
+      .where(
+        and(
+          eq(eventActivityRegistrations.eventId, eventId),
+          eq(eventActivityRegistrations.eventRegistrationId, registrationId),
+        ),
+      );
+    const [audit] = await tx
+      .insert(registrationOperationAudit)
+      .values({
+        ...fact,
+        ...registrationAuditActorColumns(actor),
+        eventId,
+        registrationId,
+        participantId: registration.participantId,
+        affectedActivityIds: links.map((link) => link.id),
+        beforeState: {
+          status: 'pending_payment',
+          confirmationSource: null,
+          confirmedAt: null,
+          folio: null,
+        },
+        afterState: {
+          status: 'confirmed',
+          confirmationSource: source,
+          confirmedAt: registration.confirmedAt?.toISOString(),
+          folio: registration.folio,
+        },
+      })
+      .returning({ id: registrationOperationAudit.id });
+    // Queued with the confirmation, so the email exists exactly when it commits (#263).
+    await enqueueConfirmationEmail(tx, registrationId);
+    return {
+      registrationId,
+      eventId,
+      status: 'confirmed',
+      folio: registration.folio,
+      auditId: audit.id,
+    };
   }
 
   /**

@@ -70,9 +70,9 @@ describe('admin activity catalog (e2e)', () => {
       VALUES (${org}, ${event.id}, ${venue.id}), (${org}, ${other.id}, ${venue.id}), (${org}, ${other.id}, ${foreignVenue.id})`;
     const [late, early, foreign] = await client<{ id: string }[]>`
       INSERT INTO activities (event_id, venue_id, kind, name, starts_at, ends_at)
-      VALUES (${event.id}, ${venue.id}, 'battle', 'Late', '2026-11-20T18:00:00Z', '2026-11-20T20:00:00Z'),
+      VALUES (${event.id}, ${venue.id}, 'competition', 'Late', '2026-11-20T18:00:00Z', '2026-11-20T20:00:00Z'),
         (${event.id}, ${venue.id}, 'workshop', 'Early', '2026-11-20T10:00:00Z', '2026-11-20T12:00:00Z'),
-        (${other.id}, ${venue.id}, 'battle', 'Foreign', '2026-11-20T10:00:00Z', '2026-11-20T12:00:00Z')
+        (${other.id}, ${venue.id}, 'competition', 'Foreign', '2026-11-20T10:00:00Z', '2026-11-20T12:00:00Z')
       RETURNING id`;
     return {
       event: event.id,
@@ -208,6 +208,8 @@ describe('admin activity catalog (e2e)', () => {
       { ...draft(venue), name: '  ' },
       { ...draft(venue), kind: '' },
       { ...draft(venue), kind: 'x'.repeat(101) },
+      { ...draft(venue), kind: 'party' },
+      { ...draft(venue), kind: 'Taller' },
       { ...draft(venue), name: 7 },
       { ...draft(venue), startsAt: '2026-11-21T11:00:00Z' },
       { ...draft(venue), endsAt: '2026-11-21T09:00:00Z' },
@@ -270,6 +272,8 @@ describe('admin activity catalog (e2e)', () => {
       { expectedVersion: '1', name: 'Bad version' },
       { expectedVersion: 1 },
       { expectedVersion: 1, name: ' ' },
+      { expectedVersion: 1, kind: 'party' },
+      { expectedVersion: 1, kind: 'Taller' },
       { expectedVersion: 1, startsAt: '2026-11-20T12:00:00Z' },
       { expectedVersion: 1, venueId: foreignVenue },
     ])

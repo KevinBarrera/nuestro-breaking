@@ -1,3 +1,4 @@
+import type { ActivityKind } from '@/events/activity-admin/activity-kind';
 import type { EventDeleteBlocker } from '@/events/admin-events/event-delete-blockers';
 
 export interface EventFoundation {
@@ -18,7 +19,7 @@ export interface EventFoundation {
   activities: {
     id: string;
     name: string;
-    kind: string;
+    kind: ActivityKind;
     venueId: string;
     startsAt: string;
     endsAt: string;

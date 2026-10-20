@@ -1,3 +1,5 @@
+import type { ActivityKind } from '@/events/activity-admin/activity-kind';
+
 export type RegistrationSearchResult = {
   participant: { id: string; fullName: string; email: string | null; stageName: string | null };
   registration: {
@@ -7,7 +9,7 @@ export type RegistrationSearchResult = {
     status: string;
     checkedInAt: string | null;
   };
-  activities: { id: string; name: string; kind: string; checkedInAt: string | null }[];
+  activities: { id: string; name: string; kind: ActivityKind; checkedInAt: string | null }[];
 };
 
 export type RegistrationSearchPage = {

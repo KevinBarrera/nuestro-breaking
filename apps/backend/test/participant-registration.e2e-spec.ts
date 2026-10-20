@@ -273,9 +273,9 @@ describe('participant registration persistence (e2e)', () => {
     `;
     const activities = await client<{ id: string }[]>`
       INSERT INTO activities (event_id, venue_id, kind, name, starts_at, ends_at)
-      VALUES (${events[0].id}, ${venueId}, 'battle', 'First battle',
+      VALUES (${events[0].id}, ${venueId}, 'competition', 'First battle',
         TIMESTAMPTZ '2026-11-02 10:00+00', TIMESTAMPTZ '2026-11-02 11:00+00'),
-        (${events[1].id}, ${venueId}, 'battle', 'Second battle',
+        (${events[1].id}, ${venueId}, 'competition', 'Second battle',
         TIMESTAMPTZ '2026-11-02 10:00+00', TIMESTAMPTZ '2026-11-02 11:00+00') RETURNING id
     `;
     const [{ participantId }] = await client<{ participantId: string }[]>`

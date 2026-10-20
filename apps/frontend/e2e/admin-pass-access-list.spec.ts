@@ -35,9 +35,9 @@ const activity = (id: string, kind: string, name: string, hour: number, status =
 // Battles start in the opposite order of their names, so the list must sort by time first.
 const activities = [
   activity(footworkId, 'workshop', 'Taller de footwork', 16),
-  activity(duoId, 'battle', 'Batalla 2 vs 2', 18),
+  activity(duoId, 'competition', 'Batalla 2 vs 2', 18),
   activity(oldWorkshopId, 'workshop', 'Taller viejo', 12, 'archived'),
-  activity(crewsId, 'battle', 'Batalla de crews', 16),
+  activity(crewsId, 'competition', 'Batalla de crews', 16),
 ];
 
 const pass = (id: string, name: string, version: number, links: Access[], overrides = {}) => ({
@@ -167,8 +167,8 @@ test('lists the open pass access grouped by kind, by start time then name', asyn
   // Only the open pass is shown: a vertical list, not a matrix of every pass.
   await expect(list(page).getByRole('table')).toHaveCount(0);
   await expect(list(page)).not.toContainText('Entrada general');
-  await expect(list(page).getByRole('heading', { level: 3 })).toHaveText(['Batalla', 'Taller']);
-  await expect(group(page, 'Batalla').getByRole('listitem')).toHaveText([
+  await expect(list(page).getByRole('heading', { level: 3 })).toHaveText(['Competencia', 'Taller']);
+  await expect(group(page, 'Competencia').getByRole('listitem')).toHaveText([
     /^Batalla de crews/,
     /^Batalla 2 vs 2/,
   ]);
@@ -581,7 +581,7 @@ test('a new pass shows its fields and access side by side, with counts per kind'
   const left = (await fields.boundingBox())!;
   const right = (await list(page).boundingBox())!;
   expect(right.x).toBeGreaterThan(left.x + left.width);
-  const battles = list(page).getByRole('group', { name: 'Batalla', exact: true });
+  const battles = list(page).getByRole('group', { name: 'Competencia', exact: true });
   await expect(battles).toContainText('0 elegibles · 0 incluidas · 2 actividades');
   await chooseAccess(access(page, 'Batalla de crews'), 'Incluida');
   await expect(battles).toContainText('0 elegibles · 1 incluida · 2 actividades');

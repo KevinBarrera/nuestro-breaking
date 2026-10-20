@@ -55,7 +55,7 @@ test('searches registrations and opens one from the results', async ({ page }) =
             status: 'confirmed',
           }),
           activities: [
-            { id: 'a1', name: 'Batalla de crews', kind: 'battle', checkedInAt: null },
+            { id: 'a1', name: 'Batalla de crews', kind: 'competition', checkedInAt: null },
             { id: 'a2', name: 'Taller de footwork', kind: 'workshop', checkedInAt: null },
           ],
         },

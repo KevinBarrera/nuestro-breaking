@@ -1,3 +1,4 @@
+import type { ActivityKind } from '@/events/activity-admin/activity-kind';
 import type { SalesSettings, SalesState } from '@/events/sales';
 import type { ServiceCharge } from '@/events/shared/service-charge';
 
@@ -5,7 +6,7 @@ import type { ServiceCharge } from '@/events/shared/service-charge';
 export type PublicActivity = {
   id: string;
   name: string;
-  kind: string;
+  kind: ActivityKind;
   startsAt: string;
   endsAt: string;
 };
@@ -67,5 +68,5 @@ export type CatalogPassRow = {
 export type CatalogLinkRow = {
   passTypeId: string;
   access: string;
-  activity: { id: string; name: string; kind: string; startsAt: Date; endsAt: Date };
+  activity: { id: string; name: string; kind: ActivityKind; startsAt: Date; endsAt: Date };
 };

@@ -12,13 +12,22 @@ import {
 } from 'drizzle-orm/pg-core';
 import { eventVenues } from './event-venues';
 
+/**
+ * The closed list of activity kinds (#249, migration 0031); `activities_kind_ck` allows exactly
+ * these. The admin shows them with Spanish labels, but the stored code is always one of these.
+ */
+export const ACTIVITY_KINDS = ['competition', 'workshop', 'social'] as const;
+export type ActivityKind = (typeof ACTIVITY_KINDS)[number];
+
+const activityKindList = sql.raw(ACTIVITY_KINDS.map((kind) => `'${kind}'`).join(', '));
+
 export const activities = pgTable(
   'activities',
   {
     id: uuid('id').defaultRandom().notNull(),
     eventId: uuid('event_id').notNull(),
     venueId: uuid('venue_id').notNull(),
-    kind: text('kind').notNull(),
+    kind: text('kind', { enum: ACTIVITY_KINDS }).notNull(),
     name: text('name').notNull(),
     startsAt: timestamp('starts_at', { withTimezone: true }).notNull(),
     endsAt: timestamp('ends_at', { withTimezone: true }).notNull(),
@@ -35,7 +44,7 @@ export const activities = pgTable(
     })
       .onDelete('no action')
       .onUpdate('no action'),
-    check('activities_kind_ck', sql`length(btrim(${table.kind})) > 0`),
+    check('activities_kind_ck', sql`${table.kind} IN (${activityKindList})`),
     check('activities_name_ck', sql`length(btrim(${table.name})) > 0`),
     check('activities_window_ck', sql`${table.startsAt} < ${table.endsAt}`),
     check('activities_status_ck', sql`${table.status} IN ('active', 'archived')`),

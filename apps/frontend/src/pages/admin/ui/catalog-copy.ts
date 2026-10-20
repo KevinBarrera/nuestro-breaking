@@ -1,8 +1,11 @@
-import type {
-  ActivityAccess,
-  CatalogFailure,
-  CatalogStatus,
-  PassClass,
+import {
+  activityKinds,
+  isActivityKind,
+  type ActivityAccess,
+  type ActivityKind,
+  type CatalogFailure,
+  type CatalogStatus,
+  type PassClass,
 } from '@/entities/event-catalog';
 
 // Spanish copy and shared styles for the admin catalog screens.
@@ -47,15 +50,21 @@ export const accessLabels: Record<ActivityAccess, string> = {
   included: 'Incluida',
 };
 
-const activityKindLabels: Record<string, string> = {
-  battle: 'Batalla',
+const activityKindLabels: Record<ActivityKind, string> = {
   competition: 'Competencia',
   workshop: 'Taller',
   social: 'Social',
 };
 
+// The "Tipo" select options, in the entity's order.
+export const activityKindOptions = activityKinds.map((kind) => ({
+  id: kind,
+  label: activityKindLabels[kind],
+}));
+
 // Known kinds read in Spanish; any other kind is shown as stored.
-export const activityKindLabel = (kind: string) => activityKindLabels[kind] ?? kind;
+export const activityKindLabel = (kind: string) =>
+  isActivityKind(kind) ? activityKindLabels[kind] : kind;
 
 export const styles = {
   primary:

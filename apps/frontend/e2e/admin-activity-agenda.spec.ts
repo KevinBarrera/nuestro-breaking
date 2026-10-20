@@ -49,7 +49,7 @@ const row = ({ status = 'active', venueId = mainVenueId, ...rest }: Activity) =>
 const activities = [
   row({
     id: 'd1b2c3d4-1234-4567-89ab-123456789abc',
-    kind: 'battle',
+    kind: 'competition',
     name: 'Batalla de crews',
     startsAt: '2026-11-21T22:00:00.000Z', // Saturday 16:00 local
     endsAt: '2026-11-22T00:00:00.000Z',
@@ -72,7 +72,7 @@ const activities = [
   }),
   row({
     id: 'd4b2c3d4-1234-4567-89ab-123456789abc',
-    kind: 'battle',
+    kind: 'competition',
     name: 'Exhibición final',
     startsAt: '2026-11-22T20:00:00.000Z', // Sunday 14:00 local
     endsAt: '2026-11-22T21:00:00.000Z',
@@ -135,8 +135,7 @@ test('renders the agenda on the event clock and wires its filters', async ({ pag
 
   await expect(kinds(page).getByRole('button')).toHaveText([
     'Todas · 4',
-    'Batalla · 2',
-    'Competencia · 1',
+    'Competencia · 3',
     'Social · 1',
     'Taller · 0',
   ]);
@@ -145,9 +144,9 @@ test('renders the agenda on the event clock and wires its filters', async ({ pag
     'true',
   );
   await kinds(page)
-    .getByRole('button', { name: /^Batalla/ })
+    .getByRole('button', { name: /^Competencia/ })
     .click();
-  await expect(kinds(page).getByRole('button', { name: /^Batalla/ })).toHaveAttribute(
+  await expect(kinds(page).getByRole('button', { name: /^Competencia/ })).toHaveAttribute(
     'aria-pressed',
     'true',
   );
@@ -156,6 +155,7 @@ test('renders the agenda on the event clock and wires its filters', async ({ pag
     'false',
   );
   await expect(page.getByRole('main').getByRole('heading', { level: 3 })).toHaveText([
+    'Bgirl 1v1',
     'Batalla de crews',
     'Exhibición final',
   ]);
@@ -250,10 +250,14 @@ test('fits a 375px screen without horizontal page overflow', async ({ page }) =>
 });
 
 const pressed = (page: Page) => kinds(page).locator('button[aria-pressed="true"]');
+// Bgirl 1v1 as the only competition, so archiving it leaves its kind with no visible activity.
+const soleCompetition = activities.filter(
+  (entry) => entry.kind !== 'competition' || entry.name === 'Bgirl 1v1',
+);
 
 test('keeps the selected kind chip after archiving its last active activity', async ({ page }) => {
-  let rows = activities;
-  await mockCatalog(page);
+  let rows = soleCompetition;
+  await mockCatalog(page, soleCompetition);
   await page.route(
     (url) => api(url) && url.pathname === activitiesPath,
     (route) => route.fulfill({ json: rows }),
@@ -282,14 +286,14 @@ test('keeps the selected kind chip after archiving its last active activity', as
   await kinds(page)
     .getByRole('button', { name: /^Todas/ })
     .click();
-  await expect(pressed(page)).toHaveText('Todas · 3');
+  await expect(pressed(page)).toHaveText('Todas · 1');
   await expect(kinds(page).getByRole('button', { name: /^Competencia/ })).toHaveCount(0);
 });
 
 test('keeps the selected kind chip when hiding archived activities', async ({ page }) => {
   await mockCatalog(
     page,
-    activities.map((entry) =>
+    soleCompetition.map((entry) =>
       entry.name === 'Bgirl 1v1' ? { ...entry, status: 'archived' } : entry,
     ),
   );

@@ -32,6 +32,7 @@ export type {
   PassTypeInput,
   RequiredPassClass,
 } from './api/types';
+export { activityKinds, isActivityKind, type ActivityKind } from './model/activity-kind';
 export { centsToInput, formatMxn, parseMxnToCents } from './model/money';
 export {
   eventDayKey,

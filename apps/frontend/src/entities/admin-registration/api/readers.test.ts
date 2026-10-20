@@ -21,7 +21,7 @@ const result = {
     status: 'confirmed',
     checkedInAt: null,
   },
-  activities: [{ id: 'act-1', name: 'Breaking 1vs1', kind: 'battle', checkedInAt: null }],
+  activities: [{ id: 'act-1', name: 'Breaking 1vs1', kind: 'competition', checkedInAt: null }],
 };
 const page = { total: 1, limit: 20, offset: 0, results: [result] };
 

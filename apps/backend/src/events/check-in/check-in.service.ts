@@ -49,7 +49,7 @@ export class CheckInService {
         );
       if (!enrollment)
         throw new BadRequestException('Registration is not enrolled in this activity');
-      if (!['workshop', 'battle', 'competition'].includes(enrollment.kind))
+      if (!['workshop', 'competition'].includes(enrollment.kind))
         throw new BadRequestException('Activity kind is not eligible for check-in');
       const [eventFact] = await tx
         .select({ id: eventCheckIns.id })

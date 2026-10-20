@@ -12,7 +12,7 @@ const activity: CatalogActivity = {
   id: 'activity-1',
   eventId: 'event-1',
   venueId: 'venue-1',
-  kind: 'battle',
+  kind: 'competition',
   name: 'Batalla de crews',
   startsAt: '2026-11-14T16:00:00.000Z',
   endsAt: '2026-11-14T18:00:00.000Z',
@@ -46,7 +46,7 @@ describe('activityChangeRows', () => {
       timeZone,
     );
     expect(rows).toEqual([
-      { key: 'kind', label: 'Tipo', before: 'Batalla', after: 'Taller' },
+      { key: 'kind', label: 'Tipo', before: 'Competencia', after: 'Taller' },
       { key: 'venue', label: 'Sede', before: 'Centro cultural', after: 'Estudio principal' },
       {
         key: 'startsAt',
@@ -68,7 +68,7 @@ describe('activityChangeRows', () => {
     ]);
     expect(rows.map((row) => row.after).slice(0, 3)).toEqual([
       'Batalla de crews',
-      'Batalla',
+      'Competencia',
       'Centro cultural',
     ]);
   });

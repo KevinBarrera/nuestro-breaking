@@ -21,7 +21,7 @@ const activity = (id: string, name: string): CatalogActivity => ({
   id,
   eventId: 'event',
   venueId: 'venue',
-  kind: 'battle',
+  kind: 'competition',
   name,
   startsAt: '2026-11-14T16:00:00.000Z',
   endsAt: '2026-11-14T18:00:00.000Z',

@@ -2,12 +2,13 @@ import {
   eventDayKey,
   formatEventClock,
   formatEventDay,
+  type ActivityKind,
   type CatalogActivity,
 } from '@/entities/event-catalog';
 import { activityKindLabel } from './catalog-copy';
 
 // The one kind with its own empty state: workshops are announced after the competitions.
-export const workshopKind = 'workshop';
+export const workshopKind: ActivityKind = 'workshop';
 
 export type AgendaFilters = {
   // `null` shows every kind.

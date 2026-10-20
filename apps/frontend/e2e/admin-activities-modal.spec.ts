@@ -31,7 +31,7 @@ const battle = {
   id: battleId,
   eventId,
   venueId,
-  kind: 'battle',
+  kind: 'competition',
   name: 'Batalla de crews',
   startsAt: '2026-11-14T16:00:00.000Z',
   endsAt: '2026-11-14T18:00:00.000Z',
@@ -164,7 +164,7 @@ test('reviews an edit as before → after, and "Volver a editar" keeps the edits
   expect(body).toEqual({
     expectedVersion: 3,
     name: 'Batalla de crews',
-    kind: 'battle',
+    kind: 'competition',
     venueId: studioId,
     startsAt: '2026-11-14T17:30:00.000Z',
     endsAt: '2026-11-14T18:00:00.000Z',
@@ -180,7 +180,7 @@ test('reviews a new activity against empty values before creating it', async ({ 
 
   const dialog = page.getByRole('dialog', { name: 'Nueva actividad' });
   await dialog.getByLabel('Nombre').fill('Cypher');
-  await dialog.getByLabel('Tipo').fill('social');
+  await chooseOption(selectTrigger(dialog, 'Tipo'), 'Social');
   await dialog.getByLabel('Inicio').fill('2026-11-14T20:00');
   await dialog.getByLabel('Fin').fill('2026-11-14T22:00');
   await dialog.getByRole('button', { name: 'Guardar', exact: true }).click();

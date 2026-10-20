@@ -64,7 +64,7 @@ async function mockCatalog(
     (route) =>
       route.fulfill({
         json: [
-          activity(battleId, 'battle', 'Batalla de crews'),
+          activity(battleId, 'competition', 'Batalla de crews'),
           activity(workshopId, 'workshop', 'Taller de footwork'),
         ],
       }),

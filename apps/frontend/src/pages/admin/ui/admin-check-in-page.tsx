@@ -21,7 +21,7 @@ type SearchState =
   | { status: 'ready'; results: Registration[]; total: number };
 type Notice = { kind: 'success' | 'duplicate' | 'error'; text: string };
 
-const eligible = new Set(['workshop', 'battle', 'competition']);
+const eligible = new Set(['workshop', 'competition']);
 const button =
   'min-h-11 rounded-lg bg-primary px-4 py-2 font-semibold text-primary-fg hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus disabled:cursor-wait disabled:opacity-50';
 const admitButton = buttonClass('primary', 'w-full sm:w-auto');

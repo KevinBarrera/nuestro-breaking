@@ -10,6 +10,15 @@ describe('readAdminLocation', () => {
       expect(readAdminLocation(path)).toEqual({ eventId, section: 'passes' });
   });
 
+  it('keeps Inscripciones current on the search, new and registration routes', () => {
+    for (const path of [
+      `${base}/registrations`,
+      `${base}/registrations/new`,
+      `${base}/registrations/c1b2c3d4-1234-4567-89ab-123456789abc`,
+    ])
+      expect(readAdminLocation(path)).toEqual({ eventId, section: 'registrations' });
+  });
+
   it('matches the other sections exactly', () => {
     expect(readAdminLocation(base)).toEqual({ eventId, section: 'overview' });
     expect(readAdminLocation(`${base}/activities`)).toEqual({ eventId, section: 'activities' });
@@ -27,5 +36,6 @@ describe('readAdminLocation', () => {
 describe('eventSectionPath', () => {
   it('builds the list path of a section', () => {
     expect(eventSectionPath(eventId, 'passes')).toBe(`${base}/passes`);
+    expect(eventSectionPath(eventId, 'registrations')).toBe(`${base}/registrations`);
   });
 });

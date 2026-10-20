@@ -12,7 +12,7 @@ const groups: { title: string; items: NavItem[] }[] = [
       { label: 'Resumen', section: 'overview' },
       { label: 'Check-in', section: 'check-in' },
       { label: 'Pagos por revisar', section: 'payments-review' },
-      { label: 'Inscripciones', upcoming: true },
+      { label: 'Inscripciones', section: 'registrations' },
       { label: 'Listas de respaldo', upcoming: true },
     ],
   },

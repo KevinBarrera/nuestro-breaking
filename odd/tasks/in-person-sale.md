@@ -32,7 +32,7 @@ An event administrator sells a pass in person on event day: search the event's r
 
 - [x] 1. Add the `entities/admin-registration` API (search, manual create, passes, selections, entitlements, cash confirmation) with runtime readers, typed failures and Vitest coverage. (35 Vitest tests; frontend suite 431 passed, lint and build pass.)
 - [x] 2. Share the participant form model between the public purchase and the admin sale, with admin copy and international phone support, covered by Vitest. (Behavioral RED of 16 assertions; frontend suite 449 passed, lint and build pass.)
-- [ ] 3. Add the "Inscripciones" route and screen: search, new registration form and the possible-duplicates dialog, with Playwright coverage.
+- [x] 3. Add the "Inscripciones" route and screen: search, new registration form and the possible-duplicates dialog, with Playwright coverage. (Frontend suite 470 passed; Playwright: 37 in the flow specs and 107 in the accessibility and phone-width sweeps; lint and build pass.)
 - [ ] 4. Add pass and competition selection, read-only cash confirmation with the receipt number, and resuming a pending registration; Playwright coverage, accessibility and phone-width sweeps, docs.
 - [x] 5. Open the follow-up issue for judges reaching search. (#262, `status:needs-decision`: check-in also calls search, so judge access must be decided first.)
 
@@ -41,3 +41,4 @@ An event administrator sells a pass in person on event day: search the event's r
 - Exploration report: Engram `issue-105/in-person-sale-map`.
 - Task 1: most pass and selection rules have no backend `code`, so the client maps them by exact message; a reworded backend message degrades to `error`. Engram `frontend/admin-registration-api`.
 - Task 2: `buyer-form.ts` is a wrapper over `entities/participant` with unchanged exports and messages. An international `+52…` number is sent as `+52…` digits, and the backend's `phoneMatchKey` matches it to the national form (read, not tested).
+- Task 3: the entitlements read has no participant name or status, so the registration screen takes them from the navigation state and loses them on reload. Task 4 must handle that. Server field errors reuse `saleParticipantMessages`. About 1,000 production lines: consider splitting PR 3 when opening it.

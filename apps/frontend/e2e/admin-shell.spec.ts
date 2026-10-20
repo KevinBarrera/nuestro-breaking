@@ -42,14 +42,12 @@ test('renders the shell with grouped navigation and unavailable sections disable
   await expect(allEvents).toHaveAttribute('href', '/admin');
   await expect(allEvents).toHaveAttribute('aria-current', 'page');
   await expect(nav.locator('[aria-current="page"]')).toHaveCount(1);
-  for (const name of ['Inscripciones', 'Listas de respaldo']) {
-    const item = nav.getByRole('link', { name: new RegExp(name) });
-    await expect(item).toHaveAttribute('aria-disabled', 'true');
-    await expect(item).not.toHaveAttribute('href');
-    await expect(item).toContainText('Próximamente');
-  }
+  const backup = nav.getByRole('link', { name: /Listas de respaldo/ });
+  await expect(backup).toHaveAttribute('aria-disabled', 'true');
+  await expect(backup).not.toHaveAttribute('href');
+  await expect(backup).toContainText('Próximamente');
   // Without an event in the URL, event-scoped sections cannot be reached yet.
-  for (const name of ['Resumen', 'Check-in', 'Actividades', 'Pases']) {
+  for (const name of ['Resumen', 'Check-in', 'Inscripciones', 'Actividades', 'Pases']) {
     await expect(nav.getByRole('link', { name })).toHaveAttribute('aria-disabled', 'true');
   }
 });
@@ -70,6 +68,9 @@ test('links event sections, marks the active one and switches events in place', 
     'href',
     `/admin/events/${firstId}/check-in`,
   );
+  const registrations = nav.getByRole('link', { name: 'Inscripciones' });
+  await expect(registrations).toHaveAttribute('href', `/admin/events/${firstId}/registrations`);
+  await expect(registrations).not.toContainText('Próximamente');
   await expect(nav.getByRole('link', { name: 'Resumen' })).not.toHaveAttribute('aria-current');
 
   const selector = selectTrigger(page, 'Evento');

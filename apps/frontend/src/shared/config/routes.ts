@@ -18,6 +18,10 @@ export const routes = {
   adminEventCheckIn: '/admin/events/:eventId/check-in',
   // Pagos por revisar (#230): flagged Mercado Pago payments, read only.
   adminEventPaymentsReview: '/admin/events/:eventId/payments-review',
+  // Inscripciones (#105): search, the in-person registration and one registration's screen.
+  adminEventRegistrations: '/admin/events/:eventId/registrations',
+  adminEventRegistrationNew: '/admin/events/:eventId/registrations/new',
+  adminEventRegistration: '/admin/events/:eventId/registrations/:registrationId',
   adminEventActivities: '/admin/events/:eventId/activities',
   adminEventPasses: '/admin/events/:eventId/passes',
   adminEventPassNew: '/admin/events/:eventId/passes/new',

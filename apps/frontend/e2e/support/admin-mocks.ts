@@ -10,6 +10,7 @@ const battleId = 'd1b2c3d4-1234-4567-89ab-123456789abc';
 const workshopId = 'd2b2c3d4-1234-4567-89ab-123456789abc';
 const cypherId = 'd3b2c3d4-1234-4567-89ab-123456789abc';
 const fullPassId = 'f1b2c3d4-1234-4567-89ab-123456789abc';
+const registrationId = 'c1b2c3d4-1234-4567-89ab-123456789abc';
 const api = (url: URL) => url.port === '3000';
 
 export const adminScreens = [
@@ -21,6 +22,10 @@ export const adminScreens = [
   { name: 'Nuevo pase', path: `/admin/events/${eventId}/passes/new` },
   { name: 'Datos del evento', path: `/admin/events/${eventId}/foundation` },
   { name: 'Pagos por revisar', path: `/admin/events/${eventId}/payments-review` },
+  // Inscripciones (#105): the search with results, the in-person form and one registration.
+  { name: 'Inscripciones', path: `/admin/events/${eventId}/registrations?q=Luz` },
+  { name: 'Nueva inscripción', path: `/admin/events/${eventId}/registrations/new` },
+  { name: 'Inscripción', path: `/admin/events/${eventId}/registrations/${registrationId}` },
   // Team screens (#214): global admins only, outside any event.
   { name: 'Equipo', path: '/admin/team' },
   { name: 'Agregar administrador', path: '/admin/team/new' },
@@ -162,7 +167,7 @@ const registration = {
     stageName: 'Luz',
   },
   registration: {
-    id: 'c1b2c3d4-1234-4567-89ab-123456789abc',
+    id: registrationId,
     eventId,
     folio: 'NB-42',
     status: 'confirmed',
@@ -192,18 +197,69 @@ const flaggedPayments = {
   })),
 };
 
+// The in-person registration form gets possible duplicates, so the sweeps measure that dialog.
+const duplicateMatches = {
+  statusCode: 409,
+  message: 'Possible duplicate registrations need confirmation',
+  code: 'possible_duplicates',
+  matches: [
+    {
+      registrationId,
+      fullName: 'Persona con un nombre muy largo para pantallas angostas',
+      stageName: 'Flash',
+      folio: null,
+      status: 'pending_payment',
+      maskedEmail: 'p***@un-dominio-largo-para-pantallas-angostas.example.org',
+      maskedPhone: '******4567',
+    },
+    {
+      registrationId: 'c2b2c3d4-1234-4567-89ab-123456789abc',
+      fullName: 'Luz Rivera',
+      stageName: null,
+      folio: 'EB-7K3Q',
+      status: 'confirmed',
+      maskedEmail: null,
+      maskedPhone: null,
+    },
+  ],
+};
+
+const entitlements = {
+  passes: [
+    {
+      registrationPassId: 'f9b2c3d4-1234-4567-89ab-123456789abc',
+      passTypeId: fullPassId,
+      name: 'Pase completo',
+      passClass: 'full',
+      priceCents: 150000,
+      selections: [],
+    },
+  ],
+  accessibleActivityIds: [],
+};
+
 export async function mockAdminApi(page: Page) {
+  // Writes read the CSRF token from the session response.
+  await page.route(
+    (url) => api(url) && url.pathname === '/auth/session',
+    (route) =>
+      route.fulfill({
+        json: { user: { id: 'admin', roles: ['admin'], globalAdmin: true } },
+        headers: { 'X-CSRF-Token': 'csrf-token', 'Access-Control-Expose-Headers': 'X-CSRF-Token' },
+      }),
+  );
+  await page.route(
+    (url) => api(url) && url.pathname.endsWith('/registrations/manual'),
+    (route) => route.fulfill({ status: 409, json: duplicateMatches }),
+  );
   const routes: [(url: URL) => boolean, unknown][] = [
-    [
-      (url) => url.pathname === '/auth/session',
-      { user: { id: 'admin', roles: ['admin'], globalAdmin: true } },
-    ],
     [(url) => url.pathname === '/admin/team', { members: teamMembers() }],
     [(url) => url.pathname.endsWith('/foundation'), foundation],
     [(url) => url.pathname.endsWith('/activities'), activities],
     [(url) => url.pathname.endsWith('/pass-types'), passTypes],
     [(url) => url.pathname.endsWith('/sales'), sales],
     [(url) => url.pathname.endsWith('/flagged-payments'), flaggedPayments],
+    [(url) => url.pathname.endsWith('/entitlements'), entitlements],
     [
       (url) => url.pathname.endsWith('/participants'),
       { total: 1, limit: 20, offset: 0, results: [registration] },
@@ -269,6 +325,17 @@ export async function revealControls(page: Page, name: AdminScreenName) {
     await page.getByRole('link', { name: 'Editar Pase completo' }).waitFor();
     await page.getByRole('button', { name: /^Restaurar Pase archivado/ }).waitFor();
   }
+  if (name === 'Inscripciones')
+    await page.getByRole('region', { name: 'Resultados' }).getByRole('link').first().waitFor();
+  // An empty submit shows the field errors, and Más datos is opened so its fields are measured.
+  if (name === 'Nueva inscripción') {
+    const form = page.getByRole('form', { name: 'Nueva inscripción' });
+    await form.getByRole('button', { name: 'Registrar' }).click();
+    await form.getByText('Escribe el nombre.').first().waitFor();
+    await form.getByText('Más datos (opcional)').click();
+    await form.getByLabel('Fecha de nacimiento').waitFor();
+  }
+  if (name === 'Inscripción') await page.getByRole('region', { name: 'Pases' }).waitFor();
   if (name === 'Pagos por revisar')
     await page
       .getByRole('table', { name: 'Pagos por revisar' })
@@ -397,6 +464,21 @@ export const adminDialogs: {
       // The empty-reason error shows too, so its text is measured.
       await dialog.getByRole('button', { name: 'Desactivar acceso' }).click();
       await dialog.getByText('Escribe el motivo.').waitFor();
+      return dialog;
+    },
+  },
+  {
+    name: 'possible duplicates',
+    screen: 'Nueva inscripción',
+    open: async (page) => {
+      const form = page.getByRole('form', { name: 'Nueva inscripción' });
+      await form.getByRole('textbox', { name: 'Nombre(s)', exact: true }).fill('Ana');
+      await form.getByRole('textbox', { name: 'Primer apellido', exact: true }).fill('López');
+      await form.getByRole('textbox', { name: 'Correo electrónico' }).fill('ana@example.org');
+      await form.getByRole('textbox', { name: 'Teléfono celular' }).fill('3312345678');
+      await form.getByRole('button', { name: 'Registrar' }).click();
+      const dialog = page.getByRole('alertdialog', { name: '¿Es la misma persona?' });
+      await dialog.getByRole('listitem').nth(1).waitFor();
       return dialog;
     },
   },

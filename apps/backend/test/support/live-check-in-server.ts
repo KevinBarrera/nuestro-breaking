@@ -62,6 +62,23 @@ async function main() {
     INSERT INTO event_registrations (event_id, participant_id, status, confirmation_source, confirmed_at)
     VALUES (${event}, ${allowed.id}, 'confirmed', 'admin_cash', now()),
       (${otherEvent}, ${forbidden.id}, 'confirmed', 'admin_cash', now()) RETURNING id`;
+  // Activity access comes from passes (#126): the allowed guest holds a full pass that includes
+  // the workshop, so the screen offers one check-in action for it.
+  const [{ id: venue }] = await client<{ id: string }[]>`
+    INSERT INTO venues (organization_id, name) VALUES (${org}, 'Live hall') RETURNING id`;
+  await client`INSERT INTO event_venues (organization_id, event_id, venue_id)
+    VALUES (${org}, ${event}, ${venue})`;
+  const [{ id: activity }] = await client<{ id: string }[]>`
+    INSERT INTO activities (event_id, venue_id, kind, name, starts_at, ends_at)
+    VALUES (${event}, ${venue}, 'workshop', 'Live workshop', now(), now() + interval '1 hour')
+    RETURNING id`;
+  const [{ id: fullPass }] = await client<{ id: string }[]>`
+    INSERT INTO event_pass_types (event_id, name, pass_class, price_cents)
+    VALUES (${event}, 'Full', 'full', 1000) RETURNING id`;
+  await client`INSERT INTO event_pass_type_activities (event_id, pass_type_id, activity_id, access)
+    VALUES (${event}, ${fullPass}, ${activity}, 'included')`;
+  await client`INSERT INTO event_registration_passes (event_id, event_registration_id, pass_type_id, price_cents)
+    VALUES (${event}, ${registration.id}, ${fullPass}, 1000)`;
 
   const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
     .overrideProvider(DatabaseService)
@@ -83,6 +100,7 @@ async function main() {
       event,
       otherEvent,
       registration: registration.id,
+      activity,
       deniedRegistration: deniedRegistration.id,
     });
   process.on('message', (message) => {
@@ -90,9 +108,11 @@ async function main() {
     void (async () => {
       const rows =
         await client!`SELECT event_registration_id FROM event_check_ins ORDER BY event_registration_id`;
+      const activityRows = await client!`
+        SELECT event_registration_id, activity_id FROM activity_check_ins ORDER BY event_registration_id`;
       const registrations = await client!`
         SELECT id, status FROM event_registrations ORDER BY id`;
-      process.send?.({ type: 'snapshot', rows, registrations });
+      process.send?.({ type: 'snapshot', rows, activityRows, registrations });
     })().catch((error: unknown) => console.error(error));
   });
 }

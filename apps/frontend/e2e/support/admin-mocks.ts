@@ -172,6 +172,7 @@ const registration = {
     folio: 'NB-42',
     status: 'confirmed',
     checkedInAt: null,
+    generalEntryOnly: false,
   },
   activities: [{ id: battleId, name: 'Batalla de crews', kind: 'competition', checkedInAt: null }],
 };
@@ -324,7 +325,8 @@ export async function revealControls(page: Page, name: AdminScreenName) {
     await page.getByRole('textbox', { name: 'Buscar inscripción' }).fill('Luz');
     await page.getByRole('button', { name: 'Buscar' }).click();
     await page.getByRole('button', { name: /Luz Rivera/ }).click();
-    await page.getByRole('button', { name: 'Registrar entrada al evento' }).waitFor();
+    // Not general-entry-only: the activity action is the one shown (#126).
+    await page.getByRole('button', { name: 'Registrar entrada a Batalla de crews' }).waitFor();
   }
   // The list holds cards: links to each pass's own screen and "Restaurar" on archived ones.
   if (name === 'Pases') {

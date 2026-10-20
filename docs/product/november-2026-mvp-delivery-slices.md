@@ -178,12 +178,15 @@ Slice 1 for pass selection at registration. Slice 5 audit shape for the duplicat
 
 ### Delivered (current behavior)
 
-- Event check-in: `POST /admin/events/:eventId/registrations/:registrationId/check-in`, once per confirmed registration. Evidence: `docs/contracts/operational-check-in.md:3`; `apps/backend/src/events/check-in/check-in.service.ts:100-111`.
-- Activity check-in requires a **prior event check-in** fact. Evidence: `check-in.service.ts:64` (`Event check-in required before activity check-in`).
-- Activity check-in requires a **prior enrollment** in that activity. Evidence: `check-in.service.ts:50-51` (`Registration is not enrolled in this activity`).
-- The operator screen shows two visible actions: event check-in first, then per-activity check-in offered only after the event fact. Evidence: `apps/frontend/src/pages/admin/ui/admin-check-in-page.tsx:142-145, 342-350`; `odd/tasks/event-day-check-in.md` (Acceptance).
-- No command exists to add a workshop enrollment to an existing registration.
-- Live browser-to-PostgreSQL evidence exists for the current two-step flow (#112). Evidence: `odd/tasks/event-day-check-in.md` (T7, D8).
+Delivered by #126 (2026-10-20); see `docs/contracts/operational-check-in.md` and `odd/tasks/single-action-check-in.md`.
+
+- Activity check-in is authorized by pass entitlements (`accessibleActivityIds`: active `included` activities of held pass types plus active selections), for `workshop` and `competition` only. Archived activities are rejected. Evidence: `apps/backend/src/events/check-in/check-in.service.ts` (`createActivity`).
+- One request records the event fact when it is missing, the legacy `event_activity_registrations` row when it is missing (referenced by `activity_check_ins`) and the activity fact, in one transaction. No prior event check-in or enrollment is required.
+- Repeats on both endpoints return `201` with the first fact and `alreadyCheckedIn: true`; no `409`, no second row.
+- Not entitled, archived, general-entry-only and ineligible-kind requests return `400` with no write.
+- Registration search returns `registration.generalEntryOnly` and `activities[]` from passes, with their `checkedInAt`. Evidence: `registration-search.service.ts`.
+- The operator screen shows one action per eligible activity, the event action only for general-entry-only registrations, the first check-in time on repeats, and an escalation message to main coordination otherwise. Evidence: `apps/frontend/src/pages/admin/ui/admin-check-in-model.ts`, `admin-check-in-page.tsx`.
+- Live browser-to-PostgreSQL evidence covers the single action (`apps/frontend/e2e/live-check-in.spec.ts`; the live server seeds a full pass that includes a workshop).
 
 ### Proposed design
 
@@ -200,13 +203,15 @@ Slice 1 for pass selection at registration. Slice 5 audit shape for the duplicat
 
 ### Gap vs current
 
-New combined command and contract revision of `docs/contracts/operational-check-in.md`; entitlement checks (slice 1); enrollment-on-arrival write; UI change. The current endpoints may remain for compatibility, decision pending.
+New combined command and contract revision of `docs/contracts/operational-check-in.md`; entitlement checks (slice 1); enrollment-on-arrival write; UI change. Closed by #126: both endpoints remain (see Resolved decisions).
 
-### Pending decisions
+### Resolved decisions (2026-10-20, #126)
 
-- Whether the standalone event check-in endpoint stays, is hidden from the UI, or is retired.
-- Whether competition selection changes at the entrance are allowed in the same action or only through slice 5 corrections.
-- Who coordinates on-arrival workshop enrollment staff (Q 1 open).
+- The standalone event check-in endpoint stays; the screen shows it only for general-entry-only registrations.
+- No changes at the entrance: no competition selection or pass edits at the door. Unresolved cases go to main coordination.
+- A full pass includes its discipline's workshops (`included` access), so on-arrival enrollment is the automatic legacy enrollment row; there are no selectable workshops.
+- Repeats return the first fact (`201`, `alreadyCheckedIn: true`) instead of the conflict in the proposed design, with no audit table.
+- Staff coordination (Q 1) stays out of scope.
 
 ### Dependencies
 
@@ -373,7 +378,7 @@ flowchart LR
 These are documentation follow-ups, not code claims:
 
 - `docs/contracts/admin-registration-audit-policy.md:3` and `docs/contracts/admin-registration-operations.md:3` still describe the proposal as "DRAFT pending organizer validation"; the working-tree proposal now states the general MVP scope is approved.
-- `docs/contracts/operational-check-in.md:5` says a general-pass-only registration "only receives event check-in"; the confirmed design has no visible event check-in.
+- Resolved by #126: `docs/contracts/operational-check-in.md` now keeps the visible event check-in only for general-entry-only registrations, which have no activity to check in to.
 - Cash-correction wording in the audit contract (coordination verification, minimum evidence) predates the confirmed "original receipt check and reason" rule.
 - `docs/product/november-2026-mvp-proposal.html` may not match the updated Markdown proposal.
 
@@ -402,12 +407,12 @@ Read-only GitHub review of `KevinBarrera/nuestro-breaking` on 2026-10-06. No iss
 
 The proposed follow-ups F1–F4 were created on GitHub as #124–#127.
 
-| Issue | Slice | Title                                                                              | Depends on                  | Delivery status                              |
-| ----- | ----- | ---------------------------------------------------------------------------------- | --------------------------- | -------------------------------------------- |
-| #124  | 1     | Model event catalog: admin-managed activities and pass entitlements                | #60, #62 (delivered)        | Delivered via PRs #128–#133 plus its docs PR |
-| #125  | 2     | Confirm possible duplicates and require cash receipt number in manual registration | #103 (delivered)            | Open                                         |
-| #126  | 3     | Single-action activity check-in with on-arrival workshop enrollment                | #64, #112 (delivered), #124 | Open                                         |
-| #127  | 2–5   | Align MVP contracts and docs with confirmed organizer decisions                    | This document               | Open                                         |
+| Issue | Slice | Title                                                                              | Depends on                  | Delivery status                                   |
+| ----- | ----- | ---------------------------------------------------------------------------------- | --------------------------- | ------------------------------------------------- |
+| #124  | 1     | Model event catalog: admin-managed activities and pass entitlements                | #60, #62 (delivered)        | Delivered via PRs #128–#133 plus its docs PR      |
+| #125  | 2     | Confirm possible duplicates and require cash receipt number in manual registration | #103 (delivered)            | Open                                              |
+| #126  | 3     | Single-action activity check-in with on-arrival workshop enrollment                | #64, #112 (delivered), #124 | Implemented in #126's branch; PR to `dev` pending |
+| #127  | 2–5   | Align MVP contracts and docs with confirmed organizer decisions                    | This document               | Open                                              |
 
 ## Next step
 

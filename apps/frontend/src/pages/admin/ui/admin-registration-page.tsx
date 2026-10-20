@@ -19,6 +19,8 @@ import { passClassLabels, styles } from './catalog-copy';
 import { readRegistrationContext, registrationStatusLabel } from './registration-model';
 import { SaleCash } from './sale-cash';
 import { registrationViewMode, selectionSummary } from './sale-cash-model';
+import { SaleComplimentary } from './sale-complimentary';
+import { isComplimentarySale } from './sale-complimentary-model';
 import { SaleCompetitions } from './sale-competitions';
 import { SalePassPicker } from './sale-pass-picker';
 
@@ -52,7 +54,8 @@ export function AdminRegistrationPage() {
 }
 
 // One registration (#105): what it holds and, while it is pending payment, the passes it can
-// still get, the competitions of each held pass and the cash payment. Confirmed and voided
+// still get, the competitions of each held pass and the cash payment, or the confirmation without
+// payment when its passes total $0 (#263). Confirmed and voided
 // registrations are read-only, the confirmed one led by its folio. The name and status come from the entitlements read, so a reload keeps them; the
 // screen that linked here passes them along to show before that read answers.
 function RegistrationScreen({
@@ -104,7 +107,8 @@ function RegistrationScreen({
     );
   const reload = () => setRevision((value) => value + 1);
   const reloading = state.status === 'ready' && answered !== revision;
-  const [paid, setPaid] = useState(false);
+  // What this screen just recorded, announced over the folio.
+  const [confirmedBy, setConfirmedBy] = useState<ConfirmedBy | null>(null);
 
   const summary = state.status === 'ready' ? state.entitlements.registration : null;
   const participantName = summary?.participant.fullName ?? context?.participantName ?? null;
@@ -142,7 +146,10 @@ function RegistrationScreen({
         {state.status === 'ready' && (
           <>
             {mode === 'confirmed' && (
-              <ConfirmedNotice folio={state.entitlements.registration.folio} paid={paid} />
+              <ConfirmedNotice
+                folio={state.entitlements.registration.folio}
+                confirmedBy={confirmedBy}
+              />
             )}
             {mode === 'voided' && (
               <Notice title="Inscripción anulada">
@@ -187,15 +194,27 @@ function RegistrationScreen({
                   onSaved={updateEntitlements}
                   onReload={reload}
                 />
-                <SaleCash
-                  eventId={eventId}
-                  entitlements={state.entitlements}
-                  onConfirmed={(entitlements) => {
-                    updateEntitlements(entitlements);
-                    setPaid(true);
-                  }}
-                  onReload={reload}
-                />
+                {isComplimentarySale(state.entitlements.passes) ? (
+                  <SaleComplimentary
+                    eventId={eventId}
+                    entitlements={state.entitlements}
+                    onConfirmed={(entitlements) => {
+                      updateEntitlements(entitlements);
+                      setConfirmedBy('complimentary');
+                    }}
+                    onReload={reload}
+                  />
+                ) : (
+                  <SaleCash
+                    eventId={eventId}
+                    entitlements={state.entitlements}
+                    onConfirmed={(entitlements) => {
+                      updateEntitlements(entitlements);
+                      setConfirmedBy('cash');
+                    }}
+                    onReload={reload}
+                  />
+                )}
               </>
             )}
           </>
@@ -205,17 +224,30 @@ function RegistrationScreen({
   );
 }
 
-// The folio is what the participant shows at check-in, so it leads the confirmed view. `paid` is
-// true right after this screen recorded the payment.
-function ConfirmedNotice({ folio, paid }: { folio: string | null; paid: boolean }) {
+type ConfirmedBy = 'cash' | 'complimentary';
+
+const confirmedMessages: Record<ConfirmedBy, string> = {
+  cash: 'Pago registrado. La inscripción quedó confirmada.',
+  complimentary: 'La inscripción quedó confirmada sin cobro.',
+};
+
+// The folio is what the participant shows at check-in, so it leads the confirmed view.
+// `confirmedBy` is set right after this screen confirmed the registration.
+function ConfirmedNotice({
+  folio,
+  confirmedBy,
+}: {
+  folio: string | null;
+  confirmedBy: ConfirmedBy | null;
+}) {
   return (
     <section
       aria-label="Folio"
       className="rounded-xl border border-success-fg bg-success p-5 text-success-fg"
     >
-      {paid && (
+      {confirmedBy && (
         <p role="status" className="font-semibold">
-          Pago registrado. La inscripción quedó confirmada.
+          {confirmedMessages[confirmedBy]}
         </p>
       )}
       <p className="text-sm font-semibold">Folio</p>

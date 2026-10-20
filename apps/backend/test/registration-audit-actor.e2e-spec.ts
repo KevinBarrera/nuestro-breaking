@@ -149,6 +149,15 @@ describe('registration audit actor (e2e)', () => {
     );
   });
 
+  it('accepts a pass removal without an amount (#282)', async () => {
+    const ids = await fixture();
+    const admin = { kind: 'admin', userId: ids.userId, sessionId: ids.sessionId };
+    await expect(
+      insertFact(ids, { ...admin, operation: 'pass_removal', amount: 100 }),
+    ).rejects.toThrow(/registration_operation_audit_amount_ck/);
+    await expect(insertFact(ids, { ...admin, operation: 'pass_removal' })).resolves.toHaveLength(1);
+  });
+
   it('accepts a complimentary confirmation without an amount and its admin source (#263)', async () => {
     const ids = await fixture();
     const admin = { kind: 'admin', userId: ids.userId, sessionId: ids.sessionId };

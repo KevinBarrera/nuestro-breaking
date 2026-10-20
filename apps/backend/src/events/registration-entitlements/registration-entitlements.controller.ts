@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   ParseUUIDPipe,
@@ -73,6 +74,19 @@ export class RegistrationEntitlementsController {
     const actor: AdminRegistrationAuditActor = { kind: 'admin', ...session };
     const id = passTypeId(object(body).passTypeId);
     return this.entitlements.addPass(eventId, registrationId, id, actor);
+  }
+
+  @Delete(':eventId/registrations/:registrationId/passes/:registrationPassId')
+  async removePass(
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+    @Param('registrationId', ParseUUIDPipe) registrationId: string,
+    @Param('registrationPassId', ParseUUIDPipe) registrationPassId: string,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<RegistrationEntitlements> {
+    const session = await this.sessions.authorizeEventAdminMutation(request, response, eventId);
+    const actor: AdminRegistrationAuditActor = { kind: 'admin', ...session };
+    return this.entitlements.removePass(eventId, registrationId, registrationPassId, actor);
   }
 
   @Put(':eventId/registrations/:registrationId/passes/:registrationPassId/selections')

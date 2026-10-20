@@ -24,7 +24,11 @@ import {
   type RegistrationAuditActor,
   registrationAuditActorColumns,
 } from '@/events/registration-audit/registration-audit-actor';
-import { FULL_INCLUDES_GENERAL_MESSAGE, addingCombinesGeneralWithFull } from './pass-class-rules';
+import {
+  FULL_INCLUDES_GENERAL_MESSAGE,
+  addingCombinesGeneralWithFull,
+  passesRequiringRemoved,
+} from './pass-class-rules';
 import { areSelectableActivities } from './selectable-activities';
 import type {
   HeldPass,
@@ -209,6 +213,89 @@ export class RegistrationEntitlementsService {
         affectedActivityIds: [],
         beforeState: { registrationPass: null },
         afterState: { ...facts, priceCents: passType.priceCents, selections: [] },
+        facts,
+      });
+      return this.entitlements(tx, eventId, registrationId);
+    });
+  }
+
+  // Undoes a mistaken in-person sale line before payment (#282). Online checkouts keep the passes
+  // the buyer chose, and confirmed registrations are out of scope.
+  async removePass(
+    eventId: string,
+    registrationId: string,
+    registrationPassId: string,
+    actor: AdminRegistrationAuditActor,
+  ): Promise<RegistrationEntitlements> {
+    return this.db.transaction(async (tx) => {
+      const registration = await this.lockRegistration(tx, eventId, registrationId);
+      if (registration.status !== 'pending_payment')
+        throw new ConflictException('Registration is not pending payment');
+      if (registration.expiresAt !== null)
+        throw new ConflictException('Online registrations cannot lose a pass');
+      // Archived pass types still count: the requirement is about what was purchased.
+      const held = await tx
+        .select({
+          registrationPassId: eventRegistrationPasses.id,
+          passTypeId: eventRegistrationPasses.passTypeId,
+          priceCents: eventRegistrationPasses.priceCents,
+          name: eventPassTypes.name,
+          passClass: eventPassTypes.passClass,
+          requiresPassClass: eventPassTypes.requiresPassClass,
+        })
+        .from(eventRegistrationPasses)
+        .innerJoin(
+          eventPassTypes,
+          and(
+            eq(eventPassTypes.eventId, eventRegistrationPasses.eventId),
+            eq(eventPassTypes.id, eventRegistrationPasses.passTypeId),
+          ),
+        )
+        .where(
+          and(
+            eq(eventRegistrationPasses.eventId, eventId),
+            eq(eventRegistrationPasses.eventRegistrationId, registrationId),
+          ),
+        );
+      const removed = held.find((pass) => pass.registrationPassId === registrationPassId);
+      if (!removed) throw new NotFoundException('Registration pass not found');
+      const dependents = passesRequiringRemoved(
+        held.map((pass) => ({
+          ...pass,
+          passClass: pass.passClass as PassClass,
+          requiresPassClass: pass.requiresPassClass as PassClass | null,
+        })),
+        registrationPassId,
+      );
+      if (dependents.length > 0) {
+        const names = dependents.map((name) => `«${name}»`).join(', ');
+        const verb = dependents.length === 1 ? 'it requires' : 'they require';
+        throw new ConflictException(`Remove ${names} first; ${verb} this pass`);
+      }
+      const selections = await this.selections(tx, eventId, registrationPassId);
+      await tx
+        .delete(eventRegistrationPassSelections)
+        .where(
+          and(
+            eq(eventRegistrationPassSelections.eventId, eventId),
+            eq(eventRegistrationPassSelections.registrationPassId, registrationPassId),
+          ),
+        );
+      await tx
+        .delete(eventRegistrationPasses)
+        .where(
+          and(
+            eq(eventRegistrationPasses.id, registrationPassId),
+            eq(eventRegistrationPasses.eventId, eventId),
+          ),
+        );
+      const { passTypeId, priceCents } = removed;
+      const facts = { registrationPassId, passTypeId };
+      await this.audit(tx, actor, registration, {
+        operationType: 'pass_removal',
+        affectedActivityIds: selections,
+        beforeState: { registrationPass: { ...facts, priceCents, selections } },
+        afterState: { registrationPass: null },
         facts,
       });
       return this.entitlements(tx, eventId, registrationId);
@@ -406,7 +493,7 @@ export class RegistrationEntitlementsService {
     actor: RegistrationAuditActor,
     registration: RegistrationRow,
     fact: {
-      operationType: 'pass_assignment' | 'pass_selection_change';
+      operationType: 'pass_assignment' | 'pass_selection_change' | 'pass_removal';
       affectedActivityIds: string[];
       beforeState: Record<string, unknown>;
       afterState: Record<string, unknown>;

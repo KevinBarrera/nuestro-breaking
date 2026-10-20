@@ -22,3 +22,25 @@ export function addingCombinesGeneralWithFull(
 export function holdsGeneralEntryOnly(heldClasses: readonly PassClass[]): boolean {
   return heldClasses.length > 0 && heldClasses.every((passClass) => passClass === 'general');
 }
+
+export type PassRequirement = {
+  registrationPassId: string;
+  name: string;
+  passClass: PassClass;
+  requiresPassClass: PassClass | null;
+};
+
+// Removal check for one pass (#282): names the other held passes that require the removed pass's
+// class when no other held pass keeps it. No cascade; the caller removes those passes first.
+export function passesRequiringRemoved(
+  held: readonly PassRequirement[],
+  removedId: string,
+): string[] {
+  const removed = held.find((pass) => pass.registrationPassId === removedId);
+  if (!removed) return [];
+  const remaining = held.filter((pass) => pass !== removed);
+  if (remaining.some((pass) => pass.passClass === removed.passClass)) return [];
+  return remaining
+    .filter((pass) => pass.requiresPassClass === removed.passClass)
+    .map((pass) => pass.name);
+}

@@ -225,6 +225,13 @@
       "when": 1791935830337,
       "tag": "0031_activity_kind_list",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1791935890337,
+      "tag": "0032_pass_removal_audit",
+      "breakpoints": true
     }
   ]
 }

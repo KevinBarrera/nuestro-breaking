@@ -200,7 +200,7 @@ test('creates an activity with CSRF and event-time instants, then refreshes the 
   await page.getByRole('button', { name: 'Nueva actividad' }).click();
   const form = page.getByRole('form', { name: 'Nueva actividad' });
   await form.getByLabel('Nombre').fill('Taller de toprock');
-  await form.getByLabel('Tipo').fill('workshop');
+  await chooseOption(selectTrigger(form, 'Tipo'), 'Taller');
   await chooseOption(selectTrigger(form, 'Sede'), 'Centro cultural');
   await form.getByLabel('Inicio').fill('2026-11-14T12:00');
   await form.getByLabel('Fin').fill('2026-11-14T13:30');
@@ -253,6 +253,45 @@ test('edits an activity with its expected version', async ({ page }) => {
     startsAt: '2026-11-14T16:00:00.000Z',
     endsAt: '2026-11-14T18:00:00.000Z',
   });
+});
+
+test('picks the type from the list: editing preselects it and a new activity requires one', async ({
+  page,
+}) => {
+  await mockFoundation(page);
+  await mockActivityList(page, () => [activity()]);
+  const writes: string[] = [];
+  await page.route(
+    (url) => api(url) && url.pathname === activitiesPath,
+    (route) => {
+      if (route.request().method() === 'GET') return route.fallback();
+      writes.push(route.request().method());
+      return route.fulfill({ status: 201, json: activity() });
+    },
+  );
+  await page.goto(activitiesPath);
+  await page
+    .getByRole('listitem')
+    .filter({ hasText: 'Batalla de crews' })
+    .getByRole('button', { name: 'Editar' })
+    .click();
+  await expectSelected(
+    selectTrigger(page.getByRole('form', { name: 'Editar actividad' }), 'Tipo'),
+    'Batalla',
+  );
+  await page.getByRole('dialog').getByRole('button', { name: 'Cancelar' }).click();
+
+  await page.getByRole('button', { name: 'Nueva actividad' }).click();
+  const form = page.getByRole('form', { name: 'Nueva actividad' });
+  const kind = selectTrigger(form, 'Tipo');
+  await expect(kind).toHaveText('Elige un tipo');
+  await form.getByLabel('Nombre').fill('Taller de toprock');
+  await form.getByLabel('Inicio').fill('2026-11-14T12:00');
+  await form.getByLabel('Fin').fill('2026-11-14T13:30');
+  await page.getByRole('dialog').getByRole('button', { name: 'Guardar', exact: true }).click();
+  await expect(form.getByText('Elige el tipo de la actividad.')).toBeVisible();
+  await expect(kind).toHaveAccessibleDescription('Elige el tipo de la actividad.');
+  expect(writes).toEqual([]);
 });
 
 test('requires a venue when the saved one is no longer among the event venues', async ({
@@ -607,7 +646,7 @@ test('keeps the success message when the refresh after a write fails', async ({ 
   await page.getByRole('button', { name: 'Nueva actividad' }).click();
   const form = page.getByRole('form', { name: 'Nueva actividad' });
   await form.getByLabel('Nombre').fill('Taller de toprock');
-  await form.getByLabel('Tipo').fill('battle');
+  await chooseOption(selectTrigger(form, 'Tipo'), 'Batalla');
   await form.getByLabel('Inicio').fill('2026-11-14T12:00');
   await form.getByLabel('Fin').fill('2026-11-14T13:30');
   await saveActivity(page);

@@ -180,7 +180,7 @@ test('reviews a new activity against empty values before creating it', async ({ 
 
   const dialog = page.getByRole('dialog', { name: 'Nueva actividad' });
   await dialog.getByLabel('Nombre').fill('Cypher');
-  await dialog.getByLabel('Tipo').fill('social');
+  await chooseOption(selectTrigger(dialog, 'Tipo'), 'Social');
   await dialog.getByLabel('Inicio').fill('2026-11-14T20:00');
   await dialog.getByLabel('Fin').fill('2026-11-14T22:00');
   await dialog.getByRole('button', { name: 'Guardar', exact: true }).click();

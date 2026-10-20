@@ -1,14 +1,15 @@
 import {
   fromZonedInput,
+  isActivityKind,
   toZonedInput,
   type ActivityInput,
   type CatalogActivity,
   type CatalogVenue,
 } from '@/entities/event-catalog';
 import { Select, type ChangeRow } from '@/shared/ui';
-import { type FormEvent, useId, useState } from 'react';
+import { type FormEvent, useState } from 'react';
 import { activityChangeRows } from './activity-changes';
-import { styles } from './catalog-copy';
+import { activityKindOptions, styles } from './catalog-copy';
 
 type ActivityFormProps = {
   // The form's accessible name; the surrounding dialog shows it as its title.
@@ -23,18 +24,15 @@ type ActivityFormProps = {
   onReview: (input: ActivityInput, rows: ChangeRow[]) => void;
 };
 
-const kindSuggestions = ['battle', 'competition', 'workshop', 'social'];
-
 export function ActivityForm({
   title,
-  id: formId,
+  id,
   activity,
   venues,
   timeZone,
   busy,
   onReview,
 }: ActivityFormProps) {
-  const id = useId();
   const [name, setName] = useState(activity?.name ?? '');
   const [kind, setKind] = useState(activity?.kind ?? '');
   const [venueId, setVenueId] = useState(activity?.venueId ?? venues[0]?.id ?? '');
@@ -50,6 +48,8 @@ export function ActivityForm({
   const noVenues = venues.length === 0;
   // A saved venue that is no longer among the event venues (e.g. archived) counts as unselected.
   const selectedVenueId = venues.some((venue) => venue.id === venueId) ? venueId : '';
+  // Likewise a stored kind outside the list counts as unselected, so it cannot be saved again.
+  const selectedKind = isActivityKind(kind) ? kind : '';
 
   function instant(value: string, initial: string, stored: string | undefined) {
     return stored !== undefined && value === initial ? stored : fromZonedInput(value, timeZone);
@@ -60,7 +60,7 @@ export function ActivityForm({
     if (busy || noVenues) return;
     const start = instant(startsAt, initialStartsAt, activity?.startsAt);
     const end = instant(endsAt, initialEndsAt, activity?.endsAt);
-    if (!name.trim() || !kind.trim() || !selectedVenueId) {
+    if (!name.trim() || !selectedKind || !selectedVenueId) {
       setError('Completa nombre, tipo y sede.');
       return;
     }
@@ -74,7 +74,7 @@ export function ActivityForm({
     }
     const input = {
       name: name.trim(),
-      kind: kind.trim(),
+      kind: selectedKind,
       venueId: selectedVenueId,
       startsAt: start,
       endsAt: end,
@@ -91,7 +91,7 @@ export function ActivityForm({
   }
 
   return (
-    <form id={formId} aria-label={title} onSubmit={submit} className="space-y-4">
+    <form id={id} aria-label={title} onSubmit={submit} className="space-y-4">
       {activity && (
         <p className="font-mono text-sm text-muted">
           <span className="sr-only">Versión </span>v{activity.version}
@@ -108,22 +108,15 @@ export function ActivityForm({
             onChange={(event) => setName(event.target.value)}
           />
         </label>
-        <label className={styles.label}>
-          Tipo
-          <input
-            className={styles.field}
-            value={kind}
-            maxLength={100}
-            required
-            list={`${id}-kinds`}
-            onChange={(event) => setKind(event.target.value)}
-          />
-          <datalist id={`${id}-kinds`}>
-            {kindSuggestions.map((suggestion) => (
-              <option key={suggestion} value={suggestion} />
-            ))}
-          </datalist>
-        </label>
+        <Select
+          label="Tipo"
+          options={activityKindOptions}
+          selectedKey={selectedKind}
+          isRequired
+          requiredMessage="Elige el tipo de la actividad."
+          placeholder="Elige un tipo"
+          onSelectionChange={setKind}
+        />
         <Select
           label="Sede"
           options={venues.map((venue) => ({ id: venue.id, label: venue.name }))}

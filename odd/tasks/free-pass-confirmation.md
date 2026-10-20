@@ -32,7 +32,7 @@ An event administrator confirms, at the venue, a `pending_payment` registration 
 ## Tasks
 
 - [x] 1. Cash confirmation queues and dispatches the confirmation email; backend e2e; update the confirmation-email contract. (PR 1) (RED 4 failed in the dispatch suite, then GREEN 21/21; backend unit 596; e2e: dispatch, manual registration and webhook, 80 passed; lint and Prettier pass. A webhook approval after cash sends no second email: `payment-decision.ts:71-73`, plus `onConflictDoNothing` in the outbox.)
-- [ ] 2. Migration for the `complimentary_confirmation` audit operation and the `admin_complimentary` source; schema and types. (PR 2)
+- [x] 2. Migration for the `complimentary_confirmation` audit operation and the `admin_complimentary` source; schema and types. (PR 2) (`0030_complimentary_confirmation.sql` re-creates both checks with every existing value. RED: the new database test hit the operation-type check; GREEN 7/7. The 0016 amount check stays valid with a NULL amount, and the 0029 receipt index does not apply.)
 - [ ] 3. Complimentary confirmation route and service: required reason, $0 snapshot total, folio, audit, email; backend e2e; update the operations and audit-policy contracts. (PR 2) The after-commit send is now copied in the webhook and in cash; extract one shared helper in notifications instead of adding a third copy.
 - [ ] 4. Hide $0 pass types from the public catalog and reject them in public registration; unit and e2e tests; update the public contracts. (PR 3)
 - [ ] 5. Frontend entity: `confirmComplimentary` API, reader and typed failures, with Vitest. (PR 4)

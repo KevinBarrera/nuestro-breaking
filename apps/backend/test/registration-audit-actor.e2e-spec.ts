@@ -149,6 +149,27 @@ describe('registration audit actor (e2e)', () => {
     );
   });
 
+  it('accepts a complimentary confirmation without an amount and its admin source (#263)', async () => {
+    const ids = await fixture();
+    const admin = { kind: 'admin', userId: ids.userId, sessionId: ids.sessionId };
+    await expect(
+      insertFact(ids, { ...admin, operation: 'complimentary_confirmation', amount: 100 }),
+    ).rejects.toThrow(/registration_operation_audit_amount_ck/);
+    await expect(
+      insertFact(ids, { ...admin, operation: 'complimentary_confirmation' }),
+    ).resolves.toHaveLength(1);
+    await expect(client`
+      UPDATE event_registrations
+      SET status = 'confirmed', confirmation_source = 'admin_complimentary', confirmed_at = now(),
+        folio = 'ONE-ABC123'
+      WHERE id = ${ids.registrationId} RETURNING id`).resolves.toHaveLength(1);
+    await expect(client`
+      UPDATE event_registrations SET confirmation_source = 'free'
+      WHERE id = ${ids.registrationId}`).rejects.toThrow(
+      /event_registrations_confirmation_source_ck/,
+    );
+  });
+
   it('keeps public and system facts immutable', async () => {
     const ids = await fixture();
     const [publicFact] = await insertFact(ids, {

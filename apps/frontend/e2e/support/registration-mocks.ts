@@ -78,6 +78,25 @@ export const possibleDuplicates = (matches: ReturnType<typeof duplicateMatch>[])
   },
 });
 
+// The summary every entitlements answer carries: pending, no folio, the created participant.
+export const registrationSummary = (
+  id: string,
+  overrides: {
+    status?: string;
+    folio?: string | null;
+    fullName?: string;
+    stageName?: string | null;
+  } = {},
+) => ({
+  id,
+  status: overrides.status ?? 'pending_payment',
+  folio: overrides.folio ?? null,
+  participant: {
+    fullName: overrides.fullName ?? 'Ana López',
+    stageName: overrides.stageName ?? null,
+  },
+});
+
 type Answer = { status?: number; json?: unknown; abort?: boolean };
 
 export type RegistrationMocks = {
@@ -114,9 +133,16 @@ export async function mockRegistrations(page: Page, mocks: RegistrationMocks = {
       api(url) && /^\/admin\/events\/[^/]+\/registrations\/[^/]+\/entitlements$/.test(url.pathname),
     (route) => {
       const id = new URL(route.request().url()).pathname.split('/')[5];
+      const answer = mocks.entitlements?.(id) ?? {
+        json: { passes: [], accessibleActivityIds: [] },
+      };
+      // Every entitlements answer names its registration (#105); specs only set the passes.
+      const json = answer.json as Record<string, unknown> | undefined;
       return fulfill(
         route,
-        mocks.entitlements?.(id) ?? { json: { passes: [], accessibleActivityIds: [] } },
+        json && Array.isArray(json.passes) && !('registration' in json)
+          ? { ...answer, json: { registration: registrationSummary(id), ...json } }
+          : answer,
       );
     },
   );

@@ -225,6 +225,12 @@ const duplicateMatches = {
 };
 
 const entitlements = {
+  registration: {
+    id: registrationId,
+    status: 'pending_payment',
+    folio: null,
+    participant: { fullName: 'Ana López', stageName: null },
+  },
   passes: [
     {
       registrationPassId: 'f9b2c3d4-1234-4567-89ab-123456789abc',

@@ -66,7 +66,9 @@ outcome, and the screen only shows what it answered.
    confirming; corrections belong to #256. Passes that cannot be added show the
    reason instead of the button.
 4. In "Competencias", check the competitions for each pass and press "Guardar
-   competencias".
+   competencias". Checks you have not saved stay while you add passes, but the
+   payment cannot be confirmed until each pass is saved or "Descartar cambios"
+   is pressed.
 5. Take the cash for "Total a cobrar". The total is the sum of the passes,
    read-only, with no service charge. Write the paper receipt number in
    "Número de recibo" (optional "Nota") and press "Confirmar pago". A receipt

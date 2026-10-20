@@ -3,7 +3,7 @@
 ## Tracking
 
 - GitHub issue: #282 — Let an administrator remove a pass from an in-person sale before payment
-- Branch: `feat/282-remove-sale-pass` → `dev`, one commit per task.
+- Branch: `feat/282-remove-sale-pass` → `dev` (base `be568ab`), one commit per task. Split into chained PRs: #283 `feat/282-01-remove-pass-backend` (task 1 and the `code` commit) → `dev`, and #284 `feat/282-02-remove-pass-screen` (task 2 frontend and task 3) → #283.
 
 ## Goal
 

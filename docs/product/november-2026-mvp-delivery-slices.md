@@ -407,12 +407,12 @@ Read-only GitHub review of `KevinBarrera/nuestro-breaking` on 2026-10-06. No iss
 
 The proposed follow-ups F1–F4 were created on GitHub as #124–#127.
 
-| Issue | Slice | Title                                                                              | Depends on                  | Delivery status                                   |
-| ----- | ----- | ---------------------------------------------------------------------------------- | --------------------------- | ------------------------------------------------- |
-| #124  | 1     | Model event catalog: admin-managed activities and pass entitlements                | #60, #62 (delivered)        | Delivered via PRs #128–#133 plus its docs PR      |
-| #125  | 2     | Confirm possible duplicates and require cash receipt number in manual registration | #103 (delivered)            | Open                                              |
-| #126  | 3     | Single-action activity check-in with on-arrival workshop enrollment                | #64, #112 (delivered), #124 | Implemented in #126's branch; PR to `dev` pending |
-| #127  | 2–5   | Align MVP contracts and docs with confirmed organizer decisions                    | This document               | Open                                              |
+| Issue | Slice | Title                                                                              | Depends on                  | Delivery status                              |
+| ----- | ----- | ---------------------------------------------------------------------------------- | --------------------------- | -------------------------------------------- |
+| #124  | 1     | Model event catalog: admin-managed activities and pass entitlements                | #60, #62 (delivered)        | Delivered via PRs #128–#133 plus its docs PR |
+| #125  | 2     | Confirm possible duplicates and require cash receipt number in manual registration | #103 (delivered)            | Open                                         |
+| #126  | 3     | Single-action activity check-in with on-arrival workshop enrollment                | #64, #112 (delivered), #124 | Implemented in chained PRs #278 and #279     |
+| #127  | 2–5   | Align MVP contracts and docs with confirmed organizer decisions                    | This document               | Open                                         |
 
 ## Next step
 

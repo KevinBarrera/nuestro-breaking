@@ -3,7 +3,8 @@
 ## Tracking
 
 - GitHub issue: #126 — Single-action activity check-in with on-arrival workshop enrollment
-- Branch: `feat/126-single-action-check-in` → `dev` (base `8a9c47a`), one commit per task. Split into chained PRs if the diff passes ~400 lines.
+- Branch: `feat/126-single-action-check-in` → `dev` (base `8a9c47a`), one commit per task. Split into chained PRs: #278 `feat/126-01-check-in-backend` (tasks 1–2) → `dev`, and #279 `feat/126-02-check-in-screen` (tasks 3–4) → #278.
+- Follow-up found in the manual check: #277 (the in-person sale drops unsaved competition choices).
 
 ## Goal
 

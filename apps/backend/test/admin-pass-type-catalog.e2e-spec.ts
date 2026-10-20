@@ -206,6 +206,11 @@ describe('admin pass type catalog (e2e)', () => {
       requiresPassClass: 'full',
       activities: [],
     });
+    // The admin catalog keeps listing a $0 pass type, which the public catalog hides (#263).
+    const listed = (await list(event).set('Cookie', cookie).expect(200)).body as PassType[];
+    expect(listed.find((passType) => passType.id === (addOn.body as PassType).id)).toMatchObject({
+      priceCents: 0,
+    });
   });
 
   it('lists every pass type of the event with status, version, class, price and access list', async () => {

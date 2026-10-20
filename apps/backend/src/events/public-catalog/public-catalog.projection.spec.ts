@@ -40,6 +40,17 @@ const link = (
 });
 
 describe('toPublicCatalog', () => {
+  it('hides a $0 pass type, which is granted in person only (#263)', () => {
+    const free = { ...pass('free', 'Golden ticket', 'full'), priceCents: 0 };
+    const catalog = toPublicCatalog(
+      event(),
+      [free, pass('paid', 'Paid', 'full')],
+      [link('free', 'selectable', 'a1', '2026-11-20T15:00:00Z')],
+      now,
+    );
+    expect(catalog.passes.map(({ id }) => id)).toEqual(['paid']);
+  });
+
   it('marks a pass off sale from its online close time, which is exclusive (#240)', () => {
     const closing = { ...pass('closing', 'Closing', 'general'), onlineSalesClosesAt: now };
     const later = {

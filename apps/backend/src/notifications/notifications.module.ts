@@ -9,8 +9,8 @@ import { EmailSender } from './email-sender';
 /**
  * Outgoing email (#179). The config is read once when the app boots: a missing or invalid value
  * stops the boot. Brevo stays behind `EmailSender`, so the provider can be swapped (ADR 0007).
- * The payments webhook asks `ConfirmationEmailDispatcher` for an immediate send after it commits a
- * confirmation; `ConfirmationEmailSweeper` retries whatever is still due.
+ * The payments webhook and the cash confirmation ask `ConfirmationEmailDispatcher` for an immediate
+ * send after they commit a confirmation; `ConfirmationEmailSweeper` retries whatever is still due.
  */
 @Module({
   imports: [DatabaseModule],

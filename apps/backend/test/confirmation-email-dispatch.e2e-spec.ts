@@ -1,4 +1,4 @@
-import { createHmac } from 'node:crypto';
+import { createHash, createHmac, randomBytes } from 'node:crypto';
 import { INestApplication, Logger } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { drizzle } from 'drizzle-orm/postgres-js';
@@ -9,7 +9,7 @@ import { AppModule } from '@/app.module';
 import { DATABASE_CLIENT } from '@/database/database.constants';
 import * as schema from '@/database/schema';
 import { DatabaseService } from '@/database/database.service';
-import { configureHttp } from '@/http';
+import { configureHttp, readTrustedOrigin } from '@/http';
 import {
   CONFIRMATION_EMAIL_LEASE_SECONDS,
   CONFIRMATION_EMAIL_MAX_ATTEMPTS,
@@ -199,6 +199,18 @@ describe('Confirmation email dispatch (e2e)', () => {
     return id;
   }
 
+  /** Another pending registration, without passes, in the same event as `registrationId`. */
+  async function anotherPendingRegistration(registrationId: string) {
+    const [{ id }] = await client<{ id: string }[]>`
+      WITH participant AS (
+        INSERT INTO participants (full_name, first_name, first_last_name, email)
+        VALUES ('Beto Ruiz', 'Beto', 'Ruiz', 'beto.buyer@example.test') RETURNING id)
+      INSERT INTO event_registrations (event_id, participant_id, status)
+      SELECT r.event_id, participant.id, 'pending_payment'
+      FROM participant, event_registrations r WHERE r.id = ${registrationId} RETURNING id`;
+    return id;
+  }
+
   /** A sender answer for call 1 that holds until released; `entered` resolves once it starts. */
   function heldFirstCall(release: (settle: { ok: () => void; fail: () => void }) => void) {
     let entered: () => void = () => undefined;
@@ -214,6 +226,36 @@ describe('Confirmation email dispatch (e2e)', () => {
       });
     };
     return started;
+  }
+
+  /** An event-admin session for the registration's event, with the headers a command needs. */
+  async function adminHeaders(registrationId: string) {
+    const [{ id: userId }] = await client<{ id: string }[]>`
+      INSERT INTO users (email, display_name, active)
+      VALUES (${randomBytes(8).toString('hex') + '@example.com'}, 'Operator', true) RETURNING id`;
+    await client`INSERT INTO user_roles (user_id, role, scope_type, scope_id)
+      SELECT ${userId}, 'admin', 'event', event_id FROM event_registrations WHERE id = ${registrationId}`;
+    const token = randomBytes(32).toString('hex');
+    await client`INSERT INTO auth_sessions (user_id, token_digest, expires_at)
+      VALUES (${userId}, ${createHash('sha256').update(token).digest('hex')}, now() + interval '1 hour')`;
+    return {
+      Cookie: `nb_admin_session=${token}`,
+      Origin: readTrustedOrigin(process.env),
+      'X-CSRF-Token': createHash('sha256').update(`nb-admin-csrf-v1:${token}`).digest('hex'),
+    };
+  }
+
+  /** Confirms the registration with cash; resolves once the answer came and its dispatch settled. */
+  async function confirmCash(registrationId: string, receipt: string, expectedStatus = 201) {
+    const [{ event_id: eventId }] = await client<{ event_id: string }[]>`
+      SELECT event_id FROM event_registrations WHERE id = ${registrationId}`;
+    const response = await request(app.getHttpServer())
+      .post(`/admin/events/${eventId}/registrations/${registrationId}/cash-confirmation`)
+      .set(await adminHeaders(registrationId))
+      .send({ amount: FULL_CENTS + ADD_ON_CENTS, receipt })
+      .expect(expectedStatus);
+    await dispatcher.whenIdle();
+    return response;
   }
 
   type OutboxRow = {
@@ -580,5 +622,61 @@ describe('Confirmation email dispatch (e2e)', () => {
     expect(await registrationRow(id)).toEqual({ status: 'pending_payment', folio: null });
     expect(await outboxRows()).toHaveLength(0);
     expect(sent).toHaveLength(0);
+  });
+
+  it('sends one email when an administrator confirms a registration with cash (#263)', async () => {
+    const id = await pendingRegistration();
+
+    await confirmCash(id, 'R-1');
+
+    const { status, folio } = await registrationRow(id);
+    expect(status).toBe('confirmed');
+    expect(sent).toHaveLength(1);
+    expect(sent[0].to).toEqual({ email: EMAIL, name: 'Ana López' });
+    expect(sent[0].subject).toBe(
+      `Tu inscripción a Los más pesados está confirmada · Folio ${folio}`,
+    );
+    expect(await outboxRows()).toEqual([
+      expect.objectContaining({ status: 'sent', attempts: 1, provider_message_id: '<msg-1@smtp>' }),
+    ]);
+  });
+
+  it('queues nothing when a cash confirmation is rejected', async () => {
+    const taken = await pendingRegistration();
+    await confirmCash(taken, 'R-1');
+    sent.length = 0;
+    const other = await anotherPendingRegistration(taken);
+
+    // Already confirmed, then a receipt already used in the event.
+    await confirmCash(taken, 'R-2', 400);
+    await confirmCash(other, 'R-1', 409);
+
+    expect((await registrationRow(other)).status).toBe('pending_payment');
+    expect(await client`SELECT registration_id FROM registration_confirmation_emails`).toEqual([
+      { registration_id: taken },
+    ]);
+    expect(sent).toHaveLength(0);
+  });
+
+  it('answers the cash confirmation and keeps the email for the sweep when the send fails', async () => {
+    const id = await pendingRegistration();
+    answer = () => Promise.reject(new EmailSendError('provider_unavailable', true, 503));
+
+    await confirmCash(id, 'R-1');
+
+    expect((await registrationRow(id)).status).toBe('confirmed');
+    expect(sent).toHaveLength(1);
+    expect((await outboxRows())[0]).toMatchObject({ status: 'pending', attempts: 1 });
+  });
+
+  it('sends no second email when an online approval arrives after a cash confirmation', async () => {
+    const id = await pendingRegistration();
+    setPayment(id);
+
+    await confirmCash(id, 'R-1');
+    await notify(1001);
+
+    expect(sent).toHaveLength(1);
+    expect(await outboxRows()).toEqual([expect.objectContaining({ status: 'sent', attempts: 1 })]);
   });
 });

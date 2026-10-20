@@ -124,6 +124,65 @@ test('keeps unsaved competitions when another pass is added', async ({ page }) =
   await expect(saveButton(page)).toBeEnabled();
 });
 
+// Unsaved checks hold the confirmation (#277); the hint text is covered by the model tests.
+const cashConfirm = (page: Page) =>
+  page.getByRole('region', { name: 'Pago en efectivo' }).getByRole('button', {
+    name: 'Confirmar pago',
+  });
+const unsavedHint =
+  'Guarda o descarta los cambios de competencias de «Pase completo» antes de confirmar.';
+const discardButton = (page: Page) =>
+  passGroup(page).getByRole('button', { name: 'Descartar cambios' });
+
+test('discarding unsaved competitions restores the saved checks and allows confirming', async ({
+  page,
+}) => {
+  const { selections } = await mockRegistrations(page, {
+    entitlements: () => holding([popping.id]),
+    passTypes: () => ({ json: [full] }),
+    activities: () => ({ json: [breaking, popping, locking] }),
+  });
+  await page.goto(registrationPath(registrationId));
+  await expect(cashConfirm(page)).toBeEnabled();
+  await expect(discardButton(page)).toHaveCount(0);
+
+  await passGroup(page).getByText('Breaking 1 vs 1').click();
+  await passGroup(page).getByText('Popping 1 vs 1').click();
+  await expect(cashConfirm(page)).toBeDisabled();
+  await expect(cashConfirm(page)).toHaveAccessibleDescription(unsavedHint);
+
+  await discardButton(page).click();
+  // The button goes away, so focus moves to the pass's first competition instead of the page.
+  await expect(passGroup(page).getByRole('checkbox').first()).toBeFocused();
+  await expect(passGroup(page).getByRole('checkbox', { name: 'Popping 1 vs 1' })).toBeChecked();
+  await expect(
+    passGroup(page).getByRole('checkbox', { name: 'Breaking 1 vs 1' }),
+  ).not.toBeChecked();
+  await expect(discardButton(page)).toHaveCount(0);
+  await expect(cashConfirm(page)).toBeEnabled();
+  await expect(page.getByText(unsavedHint)).toHaveCount(0);
+  expect(selections).toHaveLength(0);
+});
+
+test('saving unsaved competitions allows confirming', async ({ page }) => {
+  await mockRegistrations(page, {
+    entitlements: () => holding([]),
+    passTypes: () => ({ json: [full] }),
+    activities: () => ({ json: [breaking, popping, locking] }),
+    selections: () => holding([breaking.id]),
+  });
+  await page.goto(registrationPath(registrationId));
+
+  await passGroup(page).getByText('Breaking 1 vs 1').click();
+  await expect(cashConfirm(page)).toBeDisabled();
+  await saveButton(page).click();
+  await expect(passGroup(page).getByRole('status')).toHaveText(
+    'Se guardaron las competencias de «Pase completo».',
+  );
+  await expect(cashConfirm(page)).toBeEnabled();
+  await expect(discardButton(page)).toHaveCount(0);
+});
+
 test('explains a rejected selection and reloads only when asked', async ({ page }) => {
   let reads = 0;
   const { selections } = await mockRegistrations(page, {

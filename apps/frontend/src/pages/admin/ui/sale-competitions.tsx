@@ -5,7 +5,7 @@ import {
 } from '@/entities/admin-registration';
 import type { CatalogActivity, CatalogPassType } from '@/entities/event-catalog';
 import { buttonClass, CheckboxField, Notice } from '@/shared/ui';
-import { useId, useState } from 'react';
+import { useId, useRef, useState } from 'react';
 import { styles } from './catalog-copy';
 import {
   competitionDraft,
@@ -33,7 +33,7 @@ type SaleCompetitionsProps = {
 // Competitions of each held pass while the registration is pending (#105). The page keeps
 // each pass's draft so a refresh of the entitlements, such as adding a pass, keeps the unsaved
 // checks (#277); saving replaces the pass's whole list, and selections can change again later,
-// so no confirmation is asked.
+// so no confirmation is asked. Discarding drops the draft back to the saved list.
 export function SaleCompetitions({
   eventId,
   entitlements,
@@ -110,7 +110,7 @@ function PassCompetitions({
   const hintId = useId();
   const [pending, setPending] = useState(false);
   const [outcome, setOutcome] = useState<Outcome | null>(null);
-  const { blocked, canSave } = competitionDraft(pass, draft);
+  const { changed, blocked, canSave } = competitionDraft(pass, draft);
 
   const save = () => {
     if (!canSave || pending) return;
@@ -141,8 +141,15 @@ function PassCompetitions({
     onReload();
   };
 
+  // The button disappears with the draft, so focus moves to the pass's first competition.
+  const fieldsetRef = useRef<HTMLFieldSetElement>(null);
+  const discard = () => {
+    onDraftChange(null);
+    fieldsetRef.current?.querySelector<HTMLInputElement>('input[type="checkbox"]')?.focus();
+  };
+
   return (
-    <fieldset className="space-y-2 py-3 first:pt-0 last:pb-0">
+    <fieldset ref={fieldsetRef} className="space-y-2 py-3 first:pt-0 last:pb-0">
       <legend className="font-semibold break-words text-heading">{pass.name}</legend>
       <div>
         {pass.choices.map((choice) => (
@@ -182,15 +189,27 @@ function PassCompetitions({
           )}
         </div>
       )}
-      <button
-        type="button"
-        className={buttonClass('primary')}
-        disabled={!canSave || pending}
-        aria-describedby={blocked ? hintId : undefined}
-        onClick={save}
-      >
-        {pending ? 'Guardando…' : 'Guardar competencias'}
-      </button>
+      <div className="flex flex-wrap gap-3">
+        <button
+          type="button"
+          className={buttonClass('primary')}
+          disabled={!canSave || pending}
+          aria-describedby={blocked ? hintId : undefined}
+          onClick={save}
+        >
+          {pending ? 'Guardando…' : 'Guardar competencias'}
+        </button>
+        {changed && (
+          <button
+            type="button"
+            className={buttonClass('secondary')}
+            disabled={pending}
+            onClick={discard}
+          >
+            Descartar cambios
+          </button>
+        )}
+      </div>
     </fieldset>
   );
 }

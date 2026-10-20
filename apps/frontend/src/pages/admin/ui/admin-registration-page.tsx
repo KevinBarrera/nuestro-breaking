@@ -23,6 +23,8 @@ import { SaleComplimentary } from './sale-complimentary';
 import { isComplimentarySale } from './sale-complimentary-model';
 import { SaleCompetitions } from './sale-competitions';
 import {
+  unsavedCompetitionPasses,
+  unsavedCompetitionsHint,
   withDraft,
   type CompetitionDrafts,
   type SaleCompetitionPass,
@@ -123,6 +125,11 @@ function RegistrationScreen({
   const participantName = summary?.participant.fullName ?? context?.participantName ?? null;
   const status = summary?.status ?? context?.status ?? null;
   const mode = summary ? registrationViewMode(summary.status) : null;
+  // Confirming waits until every held pass's checks are saved or discarded (#277).
+  const unsavedCompetitions =
+    state.status === 'ready'
+      ? unsavedCompetitionsHint(unsavedCompetitionPasses(state.entitlements.passes, drafts))
+      : null;
 
   return (
     <main aria-busy={reloading} className="px-4 py-8 text-fg sm:px-8 lg:py-12">
@@ -209,6 +216,7 @@ function RegistrationScreen({
                   <SaleComplimentary
                     eventId={eventId}
                     entitlements={state.entitlements}
+                    unsavedCompetitions={unsavedCompetitions}
                     onConfirmed={(entitlements) => {
                       updateEntitlements(entitlements);
                       setConfirmedBy('complimentary');
@@ -219,6 +227,7 @@ function RegistrationScreen({
                   <SaleCash
                     eventId={eventId}
                     entitlements={state.entitlements}
+                    unsavedCompetitions={unsavedCompetitions}
                     onConfirmed={(entitlements) => {
                       updateEntitlements(entitlements);
                       setConfirmedBy('cash');

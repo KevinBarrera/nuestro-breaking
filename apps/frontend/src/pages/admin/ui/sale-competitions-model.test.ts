@@ -12,6 +12,8 @@ import {
   saleCompetitionPasses,
   saveCompetitionsFailure,
   toggleCompetition,
+  unsavedCompetitionPasses,
+  unsavedCompetitionsHint,
   withDraft,
   type SaleCompetitionPass,
 } from './sale-competitions-model';
@@ -149,6 +151,46 @@ describe('withDraft', () => {
     expect(withDraft(drafts, pass(['popping', 'breaking']), ['breaking', 'popping'])).toEqual({
       'held-other': ['breaking'],
     });
+  });
+});
+
+describe('unsavedCompetitionPasses', () => {
+  it('names the held passes whose draft differs from their saved list, in held order', () => {
+    const passes = [held('full', ['popping']), held('general'), held('extra', ['breaking'])];
+    expect(
+      unsavedCompetitionPasses(passes, {
+        'held-extra': ['popping'],
+        'held-general': [],
+        'held-full': ['breaking'],
+      }),
+    ).toEqual(['Pase full', 'Pase extra']);
+  });
+
+  it('ignores drafts back at the saved list and drafts of passes no longer held', () => {
+    expect(
+      unsavedCompetitionPasses([held('full', ['popping', 'breaking'])], {
+        'held-full': ['breaking', 'popping'],
+        'held-removed': ['popping'],
+      }),
+    ).toEqual([]);
+  });
+});
+
+describe('unsavedCompetitionsHint', () => {
+  it('is null without unsaved passes', () => {
+    expect(unsavedCompetitionsHint([])).toBeNull();
+  });
+
+  it('names every unsaved pass', () => {
+    expect(unsavedCompetitionsHint(['Pase completo'])).toBe(
+      'Guarda o descarta los cambios de competencias de «Pase completo» antes de confirmar.',
+    );
+    expect(unsavedCompetitionsHint(['A', 'B'])).toBe(
+      'Guarda o descarta los cambios de competencias de «A» y «B» antes de confirmar.',
+    );
+    expect(unsavedCompetitionsHint(['A', 'B', 'C'])).toBe(
+      'Guarda o descarta los cambios de competencias de «A», «B» y «C» antes de confirmar.',
+    );
   });
 });
 

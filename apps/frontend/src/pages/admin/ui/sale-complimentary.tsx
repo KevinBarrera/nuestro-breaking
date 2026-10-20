@@ -20,6 +20,8 @@ import {
 type SaleComplimentaryProps = {
   eventId: string;
   entitlements: RegistrationEntitlements;
+  // Why confirming waits for the competitions section, or null.
+  unsavedCompetitions: string | null;
   onConfirmed: (entitlements: RegistrationEntitlements) => void;
   onReload: () => void;
 };
@@ -30,15 +32,18 @@ const reasonFrame =
 
 // Confirms without payment a pending registration whose passes total $0 (#263). The operator
 // writes the required reason and confirms in a dialog. It keeps the cash safeguards: a failure
-// that needs a reload locks the button, so a lost answer is never sent twice.
+// that needs a reload locks the button, so a lost answer is never sent twice, and unsaved
+// competition checks hold it until they are saved or discarded (#277).
 export function SaleComplimentary({
   eventId,
   entitlements,
+  unsavedCompetitions,
   onConfirmed,
   onReload,
 }: SaleComplimentaryProps) {
   const titleId = useId();
   const reasonId = useId();
+  const waitingId = useId();
   const [reason, setReason] = useState('');
   const [error, setError] = useState<string | undefined>();
   // `sent` outlives `open` so the dialog keeps its copy while it closes.
@@ -59,7 +64,7 @@ export function SaleComplimentary({
 
   const review = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (locked || pending) return;
+    if (unsavedCompetitions || locked || pending) return;
     const found = complimentaryReasonError(reason);
     setError(found);
     if (found) return;
@@ -70,6 +75,11 @@ export function SaleComplimentary({
 
   const confirm = () => {
     if (sent === null || sending.current) return;
+    // The dialog is modal, so the checks cannot change while it is open; this only guards the POST.
+    if (unsavedCompetitions) {
+      setOpen(false);
+      return;
+    }
     sending.current = true;
     setPending(true);
     confirmComplimentary(eventId, registration.id, { reason: sent })
@@ -113,6 +123,11 @@ export function SaleComplimentary({
       <p className="text-sm text-muted">
         Los pases de esta inscripción no tienen costo. Escribe el motivo y confírmala sin cobro.
       </p>
+      {unsavedCompetitions && (
+        <p id={waitingId} className="rounded-lg bg-surface-inner p-4 text-sm text-fg">
+          {unsavedCompetitions}
+        </p>
+      )}
       <form noValidate className="space-y-4" onSubmit={review}>
         <div>
           <label htmlFor={reasonId} className="block text-sm font-semibold text-fg">
@@ -149,7 +164,12 @@ export function SaleComplimentary({
             )}
           </div>
         )}
-        <button type="submit" className={buttonClass('primary')} disabled={locked || pending}>
+        <button
+          type="submit"
+          className={buttonClass('primary')}
+          disabled={unsavedCompetitions !== null || locked || pending}
+          aria-describedby={unsavedCompetitions ? waitingId : undefined}
+        >
           Confirmar sin cobro
         </button>
       </form>

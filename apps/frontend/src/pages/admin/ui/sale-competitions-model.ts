@@ -88,6 +88,32 @@ export function withDraft(
   return updated;
 }
 
+// Names of the held passes with unsaved checks, in held order. A draft of a pass no longer held
+// is ignored, so it never blocks the confirmation.
+export const unsavedCompetitionPasses = (
+  held: readonly HeldPass[],
+  drafts: CompetitionDrafts,
+): string[] =>
+  held
+    .filter((pass) => {
+      const draft = drafts[pass.registrationPassId];
+      return draft !== undefined && !sameSet(draft, pass.selections);
+    })
+    .map((pass) => pass.name);
+
+const joinNames = (names: readonly string[]) => {
+  const quoted = names.map((name) => `«${name}»`);
+  return quoted.length < 2
+    ? quoted.join('')
+    : `${quoted.slice(0, -1).join(', ')} y ${quoted[quoted.length - 1]}`;
+};
+
+// Why confirming waits, or null: the confirmation would leave the unsaved checks behind (#277).
+export const unsavedCompetitionsHint = (names: readonly string[]): string | null =>
+  names.length === 0
+    ? null
+    : `Guarda o descarta los cambios de competencias de ${joinNames(names)} antes de confirmar.`;
+
 // Saving needs a change and only activities the backend would accept.
 export function competitionDraft(pass: SaleCompetitionPass, draft: readonly string[]) {
   const changed = !sameSet(draft, pass.saved);

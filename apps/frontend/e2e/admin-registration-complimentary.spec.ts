@@ -1,5 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import {
+  catalogActivity,
+  catalogPassType,
   cashConfirmed,
   freeHeldPass,
   heldPass,
@@ -76,6 +78,32 @@ test('blocks an empty reason before the dialog', async ({ page }) => {
   await expect(section(page)).toContainText('Escribe el motivo de la confirmación sin cobro.');
   await expect(reasonField(page)).toHaveAttribute('aria-invalid', 'true');
   await expect(confirmDialog(page)).toHaveCount(0);
+  expect(complimentary).toHaveLength(0);
+});
+
+test('waits for unsaved competition checks before confirming', async ({ page }) => {
+  const breaking = catalogActivity(
+    'b1b2c3d4-1234-4567-89ab-123456789abc',
+    'Breaking 1 vs 1',
+    '2026-11-14T16:00:00Z',
+  );
+  const golden = catalogPassType(freeHeldPass.passTypeId, 'Golden ticket', 'full', 0, {
+    activities: [{ activityId: breaking.id, access: 'selectable' }],
+  });
+  const { complimentary } = await mockRegistrations(page, {
+    entitlements: () => entitlements(),
+    passTypes: () => ({ json: [golden] }),
+    activities: () => ({ json: [breaking] }),
+    complimentary: confirmed,
+  });
+  await page.goto(registrationPath(registrationId));
+  await reasonField(page).fill('Golden ticket');
+  await page.getByRole('group', { name: 'Golden ticket' }).getByText('Breaking 1 vs 1').click();
+
+  await expect(confirmButton(page)).toBeDisabled();
+  await expect(confirmButton(page)).toHaveAccessibleDescription(
+    'Guarda o descarta los cambios de competencias de «Golden ticket» antes de confirmar.',
+  );
   expect(complimentary).toHaveLength(0);
 });
 

@@ -176,6 +176,8 @@ describe('admin registration entitlements (e2e)', () => {
     server().post(`${base(event, registrationId)}/passes`);
   const select = (event: string, registrationId: string, registrationPassId: string) =>
     server().put(`${base(event, registrationId)}/passes/${registrationPassId}/selections`);
+  const removePass = (event: string, registrationId: string, registrationPassId: string) =>
+    server().delete(`${base(event, registrationId)}/passes/${registrationPassId}`);
   async function audits() {
     return client<AuditRow[]>`
       SELECT operation_type, actor_user_id, session_id, event_id, registration_id, participant_id,
@@ -496,6 +498,141 @@ describe('admin registration entitlements (e2e)', () => {
     expect(await audits()).toHaveLength(1);
   });
 
+  it('removes a held pass and its selections from a pending in-person registration with an audit fact (#282)', async () => {
+    const f = await fixture();
+    const { cookie, userId, sessionId } = await session('admin', f.event);
+    const reg = await registration(f.event);
+    const breakingPass = await holdPass(f.event, reg.id, f.fullBreaking);
+    const poppingPass = await holdPass(f.event, reg.id, f.fullPopping);
+    await client`INSERT INTO event_registration_pass_selections (event_id, registration_pass_id, activity_id)
+      VALUES (${f.event}, ${breakingPass}, ${f.breaking}), (${f.event}, ${poppingPass}, ${f.popping})`;
+    const response = await removePass(f.event, reg.id, breakingPass)
+      .set(headers(cookie))
+      .expect(200);
+    const body = response.body as Entitlements;
+    expect(body.registration).toMatchObject({ id: reg.id, status: 'pending_payment' });
+    expect(body.passes.map((pass) => pass.registrationPassId)).toEqual([poppingPass]);
+    expect(body.accessibleActivityIds).toEqual([f.popping]);
+    expect(await snapshot()).toEqual({
+      passes: [
+        {
+          id: poppingPass,
+          event_id: f.event,
+          event_registration_id: reg.id,
+          pass_type_id: f.fullPopping,
+          price_cents: 100,
+        },
+      ],
+      selections: [
+        { event_id: f.event, registration_pass_id: poppingPass, activity_id: f.popping },
+      ],
+    });
+    expect(await audits()).toEqual([
+      {
+        operation_type: 'pass_removal',
+        actor_user_id: userId,
+        session_id: sessionId,
+        event_id: f.event,
+        registration_id: reg.id,
+        participant_id: reg.participantId,
+        affected_activity_ids: [f.breaking],
+        amount_cents: null,
+        before_state: {
+          registrationPass: {
+            registrationPassId: breakingPass,
+            passTypeId: f.fullBreaking,
+            priceCents: 100,
+            selections: [f.breaking],
+          },
+        },
+        after_state: { registrationPass: null },
+        facts: { registrationPassId: breakingPass, passTypeId: f.fullBreaking },
+      },
+    ]);
+  });
+
+  it('rejects removing passes from confirmed, voided and online registrations and foreign or unknown passes without writes', async () => {
+    const f = await fixture();
+    const { cookie } = await session('admin', f.event);
+    const closed: { reg: { id: string }; pass: string }[] = [];
+    for (const status of ['confirmed', 'voided']) {
+      const reg = await registration(f.event, status);
+      closed.push({ reg, pass: await holdPass(f.event, reg.id, f.fullBreaking) });
+    }
+    // An online checkout has an expiry; its pass list is fixed by the buyer.
+    const online = await registration(f.event);
+    await client`UPDATE event_registrations SET expires_at = now() + interval '1 hour'
+      WHERE id = ${online.id}`;
+    const onlinePass = await holdPass(f.event, online.id, f.fullBreaking);
+    const reg = await registration(f.event);
+    await holdPass(f.event, reg.id, f.fullBreaking);
+    const otherReg = await registration(f.event);
+    const otherPass = await holdPass(f.event, otherReg.id, f.fullPopping);
+    const foreignReg = await registration(f.other);
+    const foreignPass = await holdPass(f.other, foreignReg.id, f.foreignPass);
+    const before = await snapshot();
+    for (const { reg: closedReg, pass } of closed) {
+      const response = await removePass(f.event, closedReg.id, pass)
+        .set(headers(cookie))
+        .expect(409);
+      expect(response.body).toMatchObject({ message: 'Registration is not pending payment' });
+    }
+    const onlineResponse = await removePass(f.event, online.id, onlinePass)
+      .set(headers(cookie))
+      .expect(409);
+    expect(onlineResponse.body).toMatchObject({
+      message: 'Online registrations cannot lose a pass',
+    });
+    for (const registrationPassId of [
+      otherPass,
+      foreignPass,
+      '00000000-0000-4000-8000-000000000000',
+    ]) {
+      const missing = await removePass(f.event, reg.id, registrationPassId)
+        .set(headers(cookie))
+        .expect(404);
+      expect(missing.body).toMatchObject({ message: 'Registration pass not found' });
+    }
+    const missingRegistration = await removePass(f.event, foreignReg.id, foreignPass)
+      .set(headers(cookie))
+      .expect(404);
+    expect(missingRegistration.body).toMatchObject({ message: 'Registration not found' });
+    await removePass(f.event, reg.id, 'nope').set(headers(cookie)).expect(400);
+    expect(await snapshot()).toEqual(before);
+    expect(await audits()).toHaveLength(0);
+  });
+
+  it('rejects removing the last pass of a class a held add-on requires, naming the add-on (#282)', async () => {
+    const f = await fixture();
+    const { cookie } = await session('admin', f.event);
+    const reg = await registration(f.event);
+    const breakingPass = await holdPass(f.event, reg.id, f.fullBreaking);
+    const addOnPass = await holdPass(f.event, reg.id, f.openStyles);
+    const before = await snapshot();
+    const rejected = await removePass(f.event, reg.id, breakingPass)
+      .set(headers(cookie))
+      .expect(409);
+    expect(rejected.body).toMatchObject({
+      message: 'Remove «Open Styles» first; it requires this pass',
+      code: 'pass_required_by_add_on',
+    });
+    expect(await snapshot()).toEqual(before);
+    expect(await audits()).toHaveLength(0);
+
+    // Another held pass of the required class still satisfies the add-on.
+    const poppingPass = await holdPass(f.event, reg.id, f.fullPopping);
+    await removePass(f.event, reg.id, breakingPass).set(headers(cookie)).expect(200);
+    await removePass(f.event, reg.id, poppingPass).set(headers(cookie)).expect(409);
+    await removePass(f.event, reg.id, addOnPass).set(headers(cookie)).expect(200);
+    const emptied = await removePass(f.event, reg.id, poppingPass).set(headers(cookie)).expect(200);
+    expect((emptied.body as Entitlements).passes).toEqual([]);
+    expect((await audits()).map((fact) => fact.operation_type)).toEqual([
+      'pass_removal',
+      'pass_removal',
+      'pass_removal',
+    ]);
+  });
+
   it('reads entitlements: general-only grants nothing, full grants included plus selected, prices stay snapshotted', async () => {
     const f = await fixture();
     const { cookie } = await session('admin', f.event);
@@ -629,6 +766,7 @@ describe('admin registration entitlements (e2e)', () => {
     const commands = [
       () => addPass(f.event, reg.id).send({ passTypeId: f.general }),
       () => select(f.event, reg.id, full).send({ activityIds: [f.breaking] }),
+      () => removePass(f.event, reg.id, full),
     ];
     for (const command of commands) {
       await command().set('Origin', trustedOrigin).expect(401);
@@ -656,7 +794,7 @@ describe('admin registration entitlements (e2e)', () => {
     const full = await holdPass(f.event, reg.id, f.fullBreaking);
     const before = await snapshot();
     await client`ALTER TABLE registration_operation_audit ADD CONSTRAINT reject_entitlement_test
-      CHECK (operation_type NOT IN ('pass_assignment', 'pass_selection_change')) NOT VALID`;
+      CHECK (operation_type NOT IN ('pass_assignment', 'pass_selection_change', 'pass_removal')) NOT VALID`;
     try {
       await addPass(f.event, reg.id)
         .set(headers(cookie))
@@ -666,6 +804,7 @@ describe('admin registration entitlements (e2e)', () => {
         .set(headers(cookie))
         .send({ activityIds: [f.breaking] })
         .expect(500);
+      await removePass(f.event, reg.id, full).set(headers(cookie)).expect(500);
     } finally {
       await client`ALTER TABLE registration_operation_audit DROP CONSTRAINT reject_entitlement_test`;
     }

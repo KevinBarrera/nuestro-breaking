@@ -3,6 +3,8 @@ import {
   addingCombinesGeneralWithFull,
   combinesGeneralWithFull,
   holdsGeneralEntryOnly,
+  type PassRequirement,
+  passesRequiringRemoved,
 } from './pass-class-rules';
 
 describe('combinesGeneralWithFull', () => {
@@ -48,5 +50,35 @@ describe('holdsGeneralEntryOnly', () => {
     expect(holdsGeneralEntryOnly(['full'])).toBe(false);
     expect(holdsGeneralEntryOnly(['general', 'add_on'])).toBe(false);
     expect(holdsGeneralEntryOnly(['add_on'])).toBe(false);
+  });
+});
+
+describe('passesRequiringRemoved', () => {
+  const full: PassRequirement = {
+    registrationPassId: 'a',
+    name: 'Full',
+    passClass: 'full',
+    requiresPassClass: null,
+  };
+  const other: PassRequirement = { ...full, registrationPassId: 'b', name: 'Other full' };
+  const addOn: PassRequirement = {
+    registrationPassId: 'c',
+    name: 'Open Styles',
+    passClass: 'add_on',
+    requiresPassClass: 'full',
+  };
+
+  it('names the held passes that would lose their only pass of the required class', () => {
+    expect(passesRequiringRemoved([full, addOn], 'a')).toEqual(['Open Styles']);
+  });
+
+  it('allows the removal when another held pass keeps the class or nothing requires it', () => {
+    expect(passesRequiringRemoved([full, other, addOn], 'a')).toEqual([]);
+    expect(passesRequiringRemoved([full, addOn], 'c')).toEqual([]);
+    expect(passesRequiringRemoved([full], 'a')).toEqual([]);
+    // An add-on already missing its class (legacy data) does not block an unrelated removal.
+    const general: PassRequirement = { ...full, registrationPassId: 'd', passClass: 'general' };
+    expect(passesRequiringRemoved([general, addOn, other], 'd')).toEqual([]);
+    expect(passesRequiringRemoved([general, addOn], 'd')).toEqual([]);
   });
 });

@@ -10,9 +10,11 @@ import { styles } from './catalog-copy';
 import {
   competitionDraft,
   competitionsPayload,
+  effectiveDraft,
   saleCompetitionPasses,
   saveCompetitionsFailure,
   toggleCompetition,
+  type CompetitionDrafts,
   type SaleCompetitionPass,
 } from './sale-competitions-model';
 
@@ -22,18 +24,23 @@ type SaleCompetitionsProps = {
   // Null when the event's pass types or activities could not be read.
   passTypes: CatalogPassType[] | null;
   activities: CatalogActivity[] | null;
+  drafts: CompetitionDrafts;
+  onDraftChange: (pass: SaleCompetitionPass, next: readonly string[] | null) => void;
   onSaved: (entitlements: RegistrationEntitlements) => void;
   onReload: () => void;
 };
 
-// Competitions of each held pass while the registration is pending (#105). Each pass keeps its
-// own draft; saving replaces the pass's whole list, and selections can change again later, so
-// no confirmation is asked.
+// Competitions of each held pass while the registration is pending (#105). The page keeps
+// each pass's draft so a refresh of the entitlements, such as adding a pass, keeps the unsaved
+// checks (#277); saving replaces the pass's whole list, and selections can change again later,
+// so no confirmation is asked.
 export function SaleCompetitions({
   eventId,
   entitlements,
   passTypes,
   activities,
+  drafts,
+  onDraftChange,
   onSaved,
   onReload,
 }: SaleCompetitionsProps) {
@@ -67,6 +74,8 @@ export function SaleCompetitions({
               eventId={eventId}
               registrationId={entitlements.registration.id}
               pass={pass}
+              draft={effectiveDraft(drafts, pass)}
+              onDraftChange={(next) => onDraftChange(pass, next)}
               onSaved={onSaved}
               onReload={onReload}
             />
@@ -81,6 +90,8 @@ type PassCompetitionsProps = {
   eventId: string;
   registrationId: string;
   pass: SaleCompetitionPass;
+  draft: readonly string[];
+  onDraftChange: (next: readonly string[] | null) => void;
   onSaved: (entitlements: RegistrationEntitlements) => void;
   onReload: () => void;
 };
@@ -91,17 +102,12 @@ function PassCompetitions({
   eventId,
   registrationId,
   pass,
+  draft,
+  onDraftChange,
   onSaved,
   onReload,
 }: PassCompetitionsProps) {
   const hintId = useId();
-  const [draft, setDraft] = useState<string[]>(pass.saved);
-  // Every read or write answer brings a new saved list, which resets the draft.
-  const [draftBase, setDraftBase] = useState(pass.saved);
-  if (draftBase !== pass.saved) {
-    setDraftBase(pass.saved);
-    setDraft(pass.saved);
-  }
   const [pending, setPending] = useState(false);
   const [outcome, setOutcome] = useState<Outcome | null>(null);
   const { blocked, canSave } = competitionDraft(pass, draft);
@@ -117,6 +123,7 @@ function PassCompetitions({
       competitionsPayload(pass, draft),
     )
       .then((updated) => {
+        onDraftChange(null);
         onSaved(updated);
         setOutcome({ kind: 'saved' });
       })
@@ -145,7 +152,7 @@ function PassCompetitions({
             description={choice.available ? undefined : 'Ya no está disponible para este pase.'}
             checked={draft.includes(choice.activityId)}
             disabled={pending || (!choice.available && !draft.includes(choice.activityId))}
-            onChange={() => setDraft((current) => toggleCompetition(current, choice.activityId))}
+            onChange={() => onDraftChange(toggleCompetition(draft, choice.activityId))}
           />
         ))}
       </div>

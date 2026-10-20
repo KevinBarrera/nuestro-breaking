@@ -82,6 +82,48 @@ test('saves the full list of chosen competitions for a held pass', async ({ page
   await expect(saveButton(page)).toBeDisabled();
 });
 
+test('keeps unsaved competitions when another pass is added', async ({ page }) => {
+  const workshop = catalogPassType(
+    'f4b2c3d4-1234-4567-89ab-123456789abc',
+    'Taller de popping',
+    'add_on',
+    20000,
+    { requiresPassClass: 'full' },
+  );
+  const heldWorkshop = {
+    registrationPassId: 'f7b2c3d4-1234-4567-89ab-123456789abc',
+    passTypeId: workshop.id,
+    name: 'Taller de popping',
+    passClass: 'add_on',
+    priceCents: 20000,
+    selections: [],
+  };
+  const { addedPasses } = await mockRegistrations(page, {
+    entitlements: () => holding([]),
+    passTypes: () => ({ json: [full, workshop] }),
+    activities: () => ({ json: [breaking, popping, locking] }),
+    addPass: () => ({
+      status: 201,
+      json: { passes: [{ ...heldPass, selections: [] }, heldWorkshop], accessibleActivityIds: [] },
+    }),
+  });
+  await page.goto(registrationPath(registrationId));
+
+  await passGroup(page).getByText('Breaking 1 vs 1').click();
+  await passGroup(page).getByText('Locking 1 vs 1').click();
+  const picker = page.getByRole('region', { name: 'Agregar pase' });
+  await picker.getByRole('button', { name: 'Agregar Taller de popping' }).click();
+  await page.getByRole('alertdialog').getByRole('button', { name: 'Agregar pase' }).click();
+  await expect(picker.getByRole('status')).toHaveText('Se agregó «Taller de popping».');
+  expect(addedPasses).toHaveLength(1);
+
+  // The answer brings the pass's saved list again; the operator's checks are not lost.
+  await expect(passGroup(page).getByRole('checkbox', { name: 'Breaking 1 vs 1' })).toBeChecked();
+  await expect(passGroup(page).getByRole('checkbox', { name: 'Locking 1 vs 1' })).toBeChecked();
+  await expect(passGroup(page).getByRole('checkbox', { name: 'Popping 1 vs 1' })).not.toBeChecked();
+  await expect(saveButton(page)).toBeEnabled();
+});
+
 test('explains a rejected selection and reloads only when asked', async ({ page }) => {
   let reads = 0;
   const { selections } = await mockRegistrations(page, {
@@ -111,10 +153,11 @@ test('explains a rejected selection and reloads only when asked', async ({ page 
   await expect(passGroup(page).getByRole('checkbox', { name: 'Popping 1 vs 1' })).toBeChecked();
   expect(reads).toBe(loaded);
 
+  // Reloading reads the registration again but keeps the operator's unsaved checks (#277).
   await alert.getByRole('button', { name: 'Recargar' }).click();
-  await expect(passGroup(page).getByRole('checkbox', { name: 'Popping 1 vs 1' })).not.toBeChecked();
   await expect(passGroup(page).getByRole('alert')).toHaveCount(0);
   expect(reads).toBe(loaded + 1);
+  await expect(passGroup(page).getByRole('checkbox', { name: 'Popping 1 vs 1' })).toBeChecked();
   expect(selections).toHaveLength(1);
 });
 

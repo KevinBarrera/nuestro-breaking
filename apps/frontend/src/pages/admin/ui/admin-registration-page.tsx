@@ -22,6 +22,11 @@ import { registrationViewMode, selectionSummary } from './sale-cash-model';
 import { SaleComplimentary } from './sale-complimentary';
 import { isComplimentarySale } from './sale-complimentary-model';
 import { SaleCompetitions } from './sale-competitions';
+import {
+  withDraft,
+  type CompetitionDrafts,
+  type SaleCompetitionPass,
+} from './sale-competitions-model';
 import { SalePassPicker } from './sale-pass-picker';
 
 type LoadState =
@@ -109,6 +114,10 @@ function RegistrationScreen({
   const reloading = state.status === 'ready' && answered !== revision;
   // What this screen just recorded, announced over the folio.
   const [confirmedBy, setConfirmedBy] = useState<ConfirmedBy | null>(null);
+  // Unsaved competition checks by held pass; refreshes and reloads leave them untouched (#277).
+  const [drafts, setDrafts] = useState<CompetitionDrafts>({});
+  const changeDraft = (pass: SaleCompetitionPass, next: readonly string[] | null) =>
+    setDrafts((current) => withDraft(current, pass, next));
 
   const summary = state.status === 'ready' ? state.entitlements.registration : null;
   const participantName = summary?.participant.fullName ?? context?.participantName ?? null;
@@ -191,6 +200,8 @@ function RegistrationScreen({
                   entitlements={state.entitlements}
                   passTypes={state.passTypes}
                   activities={state.activities}
+                  drafts={drafts}
+                  onDraftChange={changeDraft}
                   onSaved={updateEntitlements}
                   onReload={reload}
                 />

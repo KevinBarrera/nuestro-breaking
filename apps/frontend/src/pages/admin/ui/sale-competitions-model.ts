@@ -69,6 +69,25 @@ const sameSet = (left: readonly string[], right: readonly string[]) => {
   return a.size === b.size && [...a].every((id) => b.has(id));
 };
 
+// Unsaved checks of each held pass by `registrationPassId`. An entry exists only after the
+// operator changes a pass, so refreshed entitlements never rewrite or drop it.
+export type CompetitionDrafts = Readonly<Record<string, readonly string[]>>;
+
+export const effectiveDraft = (drafts: CompetitionDrafts, pass: SaleCompetitionPass) =>
+  drafts[pass.registrationPassId] ?? pass.saved;
+
+// Records the pass's next draft; null (after a save) or a draft back at the saved list drops it.
+export function withDraft(
+  drafts: CompetitionDrafts,
+  pass: SaleCompetitionPass,
+  next: readonly string[] | null,
+): CompetitionDrafts {
+  const updated = { ...drafts };
+  if (next === null || sameSet(next, pass.saved)) delete updated[pass.registrationPassId];
+  else updated[pass.registrationPassId] = next;
+  return updated;
+}
+
 // Saving needs a change and only activities the backend would accept.
 export function competitionDraft(pass: SaleCompetitionPass, draft: readonly string[]) {
   const changed = !sameSet(draft, pass.saved);

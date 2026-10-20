@@ -13,7 +13,7 @@ import {
 } from '@/entities/event-catalog';
 import { routes } from '@/shared/config';
 import { Breadcrumbs, Notice } from '@/shared/ui';
-import { useEffect, useId, useState } from 'react';
+import { useEffect, useId, useState, type ReactNode } from 'react';
 import { generatePath, useLocation, useParams } from 'react-router';
 import { passClassLabels, styles } from './catalog-copy';
 import { readRegistrationContext, registrationStatusLabel } from './registration-model';
@@ -31,6 +31,7 @@ import {
   type SaleCompetitionPass,
 } from './sale-competitions-model';
 import { SalePassPicker } from './sale-pass-picker';
+import { SalePassRemoval } from './sale-pass-remove';
 
 type LoadState =
   | { status: 'loading' }
@@ -121,6 +122,13 @@ function RegistrationScreen({
   const [drafts, setDrafts] = useState<CompetitionDrafts>({});
   const changeDraft = (pass: SaleCompetitionPass, next: readonly string[] | null) =>
     setDrafts((current) => withDraft(current, pass, next));
+  // A removed pass takes its unsaved checks with it (#282).
+  const removePassDraft = (pass: HeldPass) =>
+    setDrafts((current) =>
+      Object.fromEntries(
+        Object.entries(current).filter(([passId]) => passId !== pass.registrationPassId),
+      ),
+    );
 
   const summary = state.status === 'ready' ? state.entitlements.registration : null;
   const participantName = summary?.participant.fullName ?? context?.participantName ?? null;
@@ -177,23 +185,28 @@ function RegistrationScreen({
               <h2 id={passesTitleId} className="text-lg font-bold text-heading">
                 Pases
               </h2>
-              {state.entitlements.passes.length === 0 ? (
-                <p className="text-muted">Aún no tiene pases.</p>
+              {mode === 'sale' ? (
+                <SalePassRemoval
+                  eventId={eventId}
+                  entitlements={state.entitlements}
+                  passTypes={state.passTypes}
+                  onRemoved={(entitlements, removed) => {
+                    updateEntitlements(entitlements);
+                    removePassDraft(removed);
+                  }}
+                  onReload={reload}
+                >
+                  {(removeAction) => (
+                    <HeldPassList
+                      ready={state}
+                      // While selling, the competitions section shows them with their controls.
+                      showSelected={false}
+                      action={removeAction}
+                    />
+                  )}
+                </SalePassRemoval>
               ) : (
-                <ul className="divide-y divide-row">
-                  {state.entitlements.passes.map((pass) => {
-                    const lines = passCompetitionLines(pass, state.passTypes, state.activities);
-                    return (
-                      <PassRow
-                        key={pass.registrationPassId}
-                        pass={pass}
-                        included={lines.included}
-                        // While selling, the competitions section shows them with their controls.
-                        selected={mode === 'sale' ? null : lines.selected}
-                      />
-                    );
-                  })}
-                </ul>
+                <HeldPassList ready={state} showSelected />
               )}
             </section>
             {mode === 'sale' && (
@@ -282,14 +295,45 @@ function ConfirmedNotice({
   );
 }
 
+function HeldPassList({
+  ready,
+  showSelected,
+  action,
+}: {
+  ready: Extract<LoadState, { status: 'ready' }>;
+  showSelected: boolean;
+  action?: (pass: HeldPass) => ReactNode;
+}) {
+  if (ready.entitlements.passes.length === 0)
+    return <p className="text-muted">Aún no tiene pases.</p>;
+  return (
+    <ul className="divide-y divide-row">
+      {ready.entitlements.passes.map((pass) => {
+        const lines = passCompetitionLines(pass, ready.passTypes, ready.activities);
+        return (
+          <PassRow
+            key={pass.registrationPassId}
+            pass={pass}
+            included={lines.included}
+            selected={showSelected ? lines.selected : null}
+            action={action?.(pass)}
+          />
+        );
+      })}
+    </ul>
+  );
+}
+
 function PassRow({
   pass,
   included,
   selected,
+  action,
 }: {
   pass: HeldPass;
   included: string | null;
   selected: string | null;
+  action?: ReactNode;
 }) {
   return (
     <li className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 py-3">
@@ -308,6 +352,7 @@ function PassRow({
         )}
       </span>
       <span className="font-mono font-medium">{formatMxn(pass.priceCents)}</span>
+      {action}
     </li>
   );
 }

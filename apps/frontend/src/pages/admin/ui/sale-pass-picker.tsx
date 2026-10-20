@@ -27,7 +27,7 @@ type Outcome =
   { kind: 'added'; name: string } | { kind: 'failed'; message: string; reload: boolean };
 
 // Adds passes to a pending registration (#105). Passes the backend would reject show why instead
-// of an action, and every add is confirmed first since no screen removes a pass yet (#256).
+// of an action, and every add is confirmed first.
 export function SalePassPicker({
   eventId,
   entitlements,

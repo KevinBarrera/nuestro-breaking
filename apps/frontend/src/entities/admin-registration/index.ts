@@ -6,6 +6,7 @@ export {
   confirmComplimentary,
   createManualRegistration,
   getRegistrationEntitlements,
+  removeRegistrationPass,
   searchRegistrations,
   setPassSelections,
 } from './api/registration-api';

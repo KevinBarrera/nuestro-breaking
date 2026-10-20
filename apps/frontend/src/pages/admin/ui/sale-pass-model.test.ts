@@ -110,12 +110,11 @@ describe('salePassOptions', () => {
 });
 
 describe('addPassConfirmation', () => {
-  it('names the pass and its price, and warns it cannot be removed here', () => {
+  it('names the pass and its price, and says when it is charged', () => {
     const [option] = salePassOptions([full], []);
     expect(addPassConfirmation(option)).toEqual({
       title: '¿Agregar «Pase completo» por $1,500.00?',
-      consequence:
-        'Después no podrás quitarlo desde esta pantalla. El cobro se hace al confirmar el pago.',
+      consequence: 'El cobro se hace al confirmar el pago. Hasta entonces puedes quitarlo.',
     });
   });
 });

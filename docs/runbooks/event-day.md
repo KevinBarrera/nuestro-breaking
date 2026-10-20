@@ -61,10 +61,11 @@ outcome, and the screen only shows what it answered.
    misma persona?" opens, compare the listed matches: "Continuar con esta
    inscripción" (pending matches only) opens the existing registration; "Es
    otra persona, registrar" creates a new one.
-3. In "Agregar pase", press "Agregar" on each pass and confirm the dialog. A
-   pass cannot be removed from this screen, so check the name and price before
-   confirming; corrections belong to #256. Passes that cannot be added show the
-   reason instead of the button.
+3. In "Agregar pase", press "Agregar" on each pass and confirm the dialog.
+   Passes that cannot be added show the reason instead of the button. A pass
+   added by mistake can be removed with "Quitar" next to it, before the payment
+   is confirmed; remove an add-on before the pass it requires. After
+   confirmation, corrections belong to #256.
 4. In "Competencias", check the competitions for each pass and press "Guardar
    competencias". Checks you have not saved stay while you add passes, but the
    payment cannot be confirmed until each pass is saved or "Descartar cambios"

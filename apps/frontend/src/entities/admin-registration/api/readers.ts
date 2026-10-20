@@ -149,6 +149,7 @@ const ruleMessages: Record<string, AdminRegistrationRuleCode> = {
   'Add-on requires a full pass': 'add_on_requires_full',
   'Add-on requires a general pass': 'add_on_requires_general',
   'Invalid activity selection': 'invalid_activity_selection',
+  'Online registrations cannot lose a pass': 'online_registration_pass_locked',
 };
 
 // Cash and complimentary confirmation report their invalid fields only by message; they map to
@@ -164,6 +165,7 @@ const ruleCodes: readonly AdminRegistrationRuleCode[] = [
   'receipt_taken',
   'no_passes',
   'not_zero_total',
+  'pass_required_by_add_on',
 ];
 
 const messageOf = (body: unknown) =>

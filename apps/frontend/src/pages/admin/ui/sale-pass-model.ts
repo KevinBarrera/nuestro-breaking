@@ -56,12 +56,11 @@ export const salePassOptions = (
       reason: unavailableReason(passType, held),
     }));
 
-// No endpoint removes a pass yet (#256), so adding one is confirmed first (product owner,
-// 2026-10-19).
+// Adding a pass is confirmed first (product owner, 2026-10-19); until payment it can be removed
+// again (#282).
 export const addPassConfirmation = (option: SalePassOption) => ({
   title: `¿Agregar «${option.name}» por ${formatMxn(option.priceCents)}?`,
-  consequence:
-    'Después no podrás quitarlo desde esta pantalla. El cobro se hace al confirmar el pago.',
+  consequence: 'El cobro se hace al confirmar el pago. Hasta entonces puedes quitarlo.',
 });
 
 const staleMessage = 'La inscripción cambió. Recarga para ver su estado.';

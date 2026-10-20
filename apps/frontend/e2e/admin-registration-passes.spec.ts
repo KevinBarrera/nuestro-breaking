@@ -5,6 +5,7 @@ import {
   mockRegistrations,
   registrationId,
   registrationPath,
+  registrationSummary,
 } from './support/registration-mocks.ts';
 
 // Pass picker of the in-person sale (#105). Disabled reasons, dialog copy and failure messages
@@ -65,9 +66,7 @@ test('adds a pass only after confirming it, and explains the passes it cannot ge
 
   // Cancelling sends nothing.
   await picker(page).getByRole('button', { name: 'Agregar Entrada general' }).click();
-  await expect(confirmDialog(page)).toContainText(
-    'Después no podrás quitarlo desde esta pantalla.',
-  );
+  await expect(confirmDialog(page)).toContainText('Hasta entonces puedes quitarlo.');
   await confirmDialog(page).getByRole('button', { name: 'Cancelar' }).click();
   await expect(confirmDialog(page)).toHaveCount(0);
   expect(addedPasses).toHaveLength(0);
@@ -149,4 +148,117 @@ test('offers a reload when the pass types cannot be read, keeping the screen mea
   await expect(page.getByText('Actualizando…')).toHaveCount(0);
   await expect(notice).toHaveCount(0);
   await expect(picker(page).getByRole('listitem')).toHaveCount(2);
+});
+
+// Removing a held pass (#282). Blockers, dialog copy and failure messages are covered by
+// `sale-pass-removal-model.test.ts`.
+const workshop = catalogPassType(
+  'f4b2c3d4-1234-4567-89ab-123456789abc',
+  'Taller de footwork',
+  'add_on',
+  20000,
+);
+const openStyles = catalogPassType(
+  'f5b2c3d4-1234-4567-89ab-123456789abc',
+  'Open Styles',
+  'add_on',
+  25000,
+  { requiresPassClass: 'full' },
+);
+const heldAddOn = (passType: ReturnType<typeof catalogPassType>, registrationPassId: string) => ({
+  registrationPassId,
+  passTypeId: passType.id,
+  name: passType.name,
+  passClass: 'add_on',
+  priceCents: passType.priceCents,
+  selections: [],
+});
+const heldWorkshop = heldAddOn(workshop, 'f6b2c3d4-1234-4567-89ab-123456789abc');
+const heldOpenStyles = heldAddOn(openStyles, 'f7b2c3d4-1234-4567-89ab-123456789abc');
+const removeDialog = (page: Page, name: string) =>
+  page.getByRole('alertdialog', { name: `¿Quitar «${name}»?` });
+const cashTotal = (page: Page) =>
+  page.getByRole('region', { name: 'Pago en efectivo' }).getByRole('definition');
+
+test('removes a held pass only after confirming it, and the total follows', async ({ page }) => {
+  const { removedPasses } = await mockRegistrations(page, {
+    passTypes: () => ({ json: [full, workshop] }),
+    entitlements: () => ({ json: { passes: [heldPass, heldWorkshop], accessibleActivityIds: [] } }),
+    removePass: () => ({ json: { passes: [heldPass], accessibleActivityIds: [] } }),
+  });
+  await page.goto(registrationPath(registrationId));
+  await expect(cashTotal(page)).toHaveText('$1,700.00');
+
+  await held(page).getByRole('button', { name: 'Quitar «Taller de footwork»' }).click();
+  const dialog = removeDialog(page, 'Taller de footwork');
+  await expect(dialog).toContainText('Se descuentan $200.00 del total.');
+  await dialog.getByRole('button', { name: 'Quitar pase' }).click();
+  await expect(dialog).toHaveCount(0);
+
+  await expect(held(page).getByRole('status')).toHaveText('Se quitó «Taller de footwork».');
+  expect(removedPasses).toEqual([
+    {
+      registrationId,
+      registrationPassId: heldWorkshop.registrationPassId,
+      csrf: 'csrf-token',
+    },
+  ]);
+  await expect(held(page).getByRole('listitem')).toHaveCount(1);
+  await expect(held(page).getByRole('listitem')).toContainText('Pase completo');
+  await expect(cashTotal(page)).toHaveText('$1,500.00');
+});
+
+test('keeps a full pass while an add-on that requires it is held', async ({ page }) => {
+  const { removedPasses } = await mockRegistrations(page, {
+    passTypes: () => ({ json: [full, openStyles] }),
+    entitlements: () => ({
+      json: { passes: [heldPass, heldOpenStyles], accessibleActivityIds: [] },
+    }),
+  });
+  await page.goto(registrationPath(registrationId));
+  const removeFull = held(page).getByRole('button', { name: 'Quitar «Pase completo»' });
+  await expect(removeFull).toBeDisabled();
+  await expect(removeFull).toHaveAccessibleDescription(
+    'Quita primero «Open Styles», que requiere este pase.',
+  );
+  await expect(held(page).getByRole('button', { name: 'Quitar «Open Styles»' })).toBeEnabled();
+  expect(removedPasses).toHaveLength(0);
+});
+
+test('shows a rejected removal and sends nothing more', async ({ page }) => {
+  const { removedPasses } = await mockRegistrations(page, {
+    passTypes: () => ({ json: [full] }),
+    entitlements: () => ({ json: { passes: [heldPass], accessibleActivityIds: [] } }),
+    removePass: () => ({
+      status: 409,
+      json: { statusCode: 409, message: 'Online registrations cannot lose a pass' },
+    }),
+  });
+  await page.goto(registrationPath(registrationId));
+  await held(page).getByRole('button', { name: 'Quitar «Pase completo»' }).click();
+  await removeDialog(page, 'Pase completo').getByRole('button', { name: 'Quitar pase' }).click();
+
+  const alert = held(page).getByRole('alert');
+  await expect(alert).toContainText(
+    'Esta inscripción se hizo en línea: sus pases no se pueden quitar.',
+  );
+  await expect(alert.getByRole('button', { name: 'Recargar' })).toBeVisible();
+  await expect(held(page)).toContainText('Pase completo');
+  expect(removedPasses).toHaveLength(1);
+});
+
+test('offers no removal once the registration is confirmed', async ({ page }) => {
+  await mockRegistrations(page, {
+    passTypes: () => ({ json: [full] }),
+    entitlements: (id) => ({
+      json: {
+        registration: registrationSummary(id, { status: 'confirmed', folio: 'LMP-7K3Q' }),
+        passes: [heldPass],
+        accessibleActivityIds: [],
+      },
+    }),
+  });
+  await page.goto(registrationPath(registrationId));
+  await expect(held(page)).toContainText('Pase completo');
+  await expect(page.getByRole('button', { name: /^Quitar/ })).toHaveCount(0);
 });

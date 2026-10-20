@@ -232,6 +232,7 @@ describe('readRegistrationFailure', () => {
       [400, 'Add-on requires a general pass', 'add_on_requires_general'],
       [400, 'Invalid activity selection', 'invalid_activity_selection'],
       [409, 'Registration is voided', 'registration_voided'],
+      [409, 'Online registrations cannot lose a pass', 'online_registration_pass_locked'],
     ] as const)
       expect(readRegistrationFailure(status, { statusCode: status, message })).toEqual({
         kind: 'rule',
@@ -258,6 +259,15 @@ describe('readRegistrationFailure', () => {
         code: 'not_zero_total',
       }),
     ).toEqual({ kind: 'rule', code: 'not_zero_total' });
+  });
+
+  it('maps a pass an add-on requires by its code, whatever add-on the message names', () => {
+    expect(
+      readRegistrationFailure(409, {
+        message: 'Remove «Open Styles», «Top Rock» first; they require this pass',
+        code: 'pass_required_by_add_on',
+      }),
+    ).toEqual({ kind: 'rule', code: 'pass_required_by_add_on' });
   });
 
   it('reads the possible duplicates with their masked contact', () => {

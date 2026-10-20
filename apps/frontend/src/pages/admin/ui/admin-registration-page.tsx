@@ -18,11 +18,12 @@ import { generatePath, useLocation, useParams } from 'react-router';
 import { passClassLabels, styles } from './catalog-copy';
 import { readRegistrationContext, registrationStatusLabel } from './registration-model';
 import { SaleCash } from './sale-cash';
-import { registrationViewMode, selectionSummary } from './sale-cash-model';
+import { registrationViewMode } from './sale-cash-model';
 import { SaleComplimentary } from './sale-complimentary';
 import { isComplimentarySale } from './sale-complimentary-model';
 import { SaleCompetitions } from './sale-competitions';
 import {
+  passCompetitionLines,
   unsavedCompetitionPasses,
   unsavedCompetitionsHint,
   withDraft,
@@ -180,16 +181,18 @@ function RegistrationScreen({
                 <p className="text-muted">Aún no tiene pases.</p>
               ) : (
                 <ul className="divide-y divide-row">
-                  {state.entitlements.passes.map((pass) => (
-                    <PassRow
-                      key={pass.registrationPassId}
-                      pass={pass}
-                      // While selling, the competitions section shows them with their controls.
-                      competitions={
-                        mode === 'sale' ? null : selectionSummary(pass.selections, state.activities)
-                      }
-                    />
-                  ))}
+                  {state.entitlements.passes.map((pass) => {
+                    const lines = passCompetitionLines(pass, state.passTypes, state.activities);
+                    return (
+                      <PassRow
+                        key={pass.registrationPassId}
+                        pass={pass}
+                        included={lines.included}
+                        // While selling, the competitions section shows them with their controls.
+                        selected={mode === 'sale' ? null : lines.selected}
+                      />
+                    );
+                  })}
                 </ul>
               )}
             </section>
@@ -279,14 +282,29 @@ function ConfirmedNotice({
   );
 }
 
-function PassRow({ pass, competitions }: { pass: HeldPass; competitions: string | null }) {
+function PassRow({
+  pass,
+  included,
+  selected,
+}: {
+  pass: HeldPass;
+  included: string | null;
+  selected: string | null;
+}) {
   return (
     <li className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 py-3">
       <span className="min-w-0">
         <span className="block font-semibold break-words text-heading">{pass.name}</span>
         <span className="block text-sm text-muted">{passClassLabels[pass.passClass]}</span>
-        {competitions && (
-          <span className="block text-sm break-words text-fg">Competencias: {competitions}</span>
+        {included && (
+          <span className="block text-sm break-words text-fg">
+            Competencias incluidas: {included}
+          </span>
+        )}
+        {selected && (
+          <span className="block text-sm break-words text-fg">
+            Competencias elegidas: {selected}
+          </span>
         )}
       </span>
       <span className="font-mono font-medium">{formatMxn(pass.priceCents)}</span>

@@ -6,6 +6,7 @@ import {
   mockRegistrations,
   registrationId,
   registrationPath,
+  registrationSummary,
 } from './support/registration-mocks.ts';
 
 // Competitions of each held pass in the in-person sale (#105). Which activities are offered, the
@@ -181,6 +182,50 @@ test('saving unsaved competitions allows confirming', async ({ page }) => {
   );
   await expect(cashConfirm(page)).toBeEnabled();
   await expect(discardButton(page)).toHaveCount(0);
+});
+
+test('the confirmed view tells included competitions apart from chosen ones', async ({ page }) => {
+  const openStyles = catalogActivity(
+    'b4b2c3d4-1234-4567-89ab-123456789abc',
+    'Open Styles 1 vs 1',
+    '2026-11-14T19:00:00Z',
+  );
+  const addOn = catalogPassType(
+    'f4b2c3d4-1234-4567-89ab-123456789abc',
+    'Open Styles',
+    'add_on',
+    20000,
+    { activities: [{ activityId: openStyles.id, access: 'included' }] },
+  );
+  const heldAddOn = {
+    registrationPassId: 'f7b2c3d4-1234-4567-89ab-123456789abc',
+    passTypeId: addOn.id,
+    name: 'Open Styles',
+    passClass: 'add_on',
+    priceCents: 20000,
+    selections: [],
+  };
+  await mockRegistrations(page, {
+    entitlements: (id) => ({
+      json: {
+        registration: registrationSummary(id, { status: 'confirmed', folio: 'LMP-7K3Q' }),
+        passes: [{ ...heldPass, selections: [breaking.id] }, heldAddOn],
+        accessibleActivityIds: [breaking.id, openStyles.id],
+      },
+    }),
+    passTypes: () => ({ json: [full, addOn] }),
+    activities: () => ({ json: [breaking, popping, locking, openStyles] }),
+  });
+  await page.goto(registrationPath(registrationId));
+
+  const rows = page.getByRole('region', { name: 'Pases' }).getByRole('listitem');
+  await expect(rows.filter({ hasText: 'Pase completo' })).toContainText(
+    'Competencias elegidas: Breaking 1 vs 1',
+  );
+  const addOnRow = rows.filter({ hasText: 'Open Styles' });
+  await expect(addOnRow).toContainText('Competencias incluidas: Open Styles 1 vs 1');
+  await expect(addOnRow).not.toContainText('Sin competencias');
+  await expect(addOnRow).not.toContainText('Competencias elegidas');
 });
 
 test('explains a rejected selection and reloads only when asked', async ({ page }) => {

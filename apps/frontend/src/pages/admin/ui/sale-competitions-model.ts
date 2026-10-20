@@ -1,5 +1,6 @@
 import type { AdminRegistrationFailure, HeldPass } from '@/entities/admin-registration';
 import type { CatalogActivity, CatalogPassType } from '@/entities/event-catalog';
+import { selectionSummary } from './sale-cash-model';
 
 // Competitions of each held pass in the in-person sale (#105). The backend accepts only active
 // activities with `selectable` access on the pass's type and replaces the whole list on save, so
@@ -58,6 +59,37 @@ export function saleCompetitionPasses(
       },
     ];
   });
+}
+
+// The competition lines of a held pass in the passes list (#277). A competition the pass type
+// includes is access, not a choice, so a pass with only included ones gets no "Sin competencias".
+// Null lines are hidden; a pass whose type is unknown (unreadable or missing) keeps its selection
+// summary.
+export function passCompetitionLines(
+  pass: HeldPass,
+  passTypes: readonly CatalogPassType[] | null,
+  activities: readonly CatalogActivity[] | null,
+): { included: string | null; selected: string | null } {
+  const passType = passTypes?.find((candidate) => candidate.id === pass.passTypeId);
+  const links = passType?.activities ?? [];
+  const includedIds = new Set(
+    links.filter((link) => link.access === 'included').map((link) => link.activityId),
+  );
+  const includedNames = (activities ?? [])
+    .filter(
+      (activity) =>
+        activity.kind === 'competition' &&
+        activity.status === 'active' &&
+        includedIds.has(activity.id),
+    )
+    .sort(byStart)
+    .map((activity) => activity.name);
+  const choosable =
+    !passType || pass.selections.length > 0 || links.some((link) => link.access === 'selectable');
+  return {
+    included: includedNames.length > 0 ? includedNames.join(', ') : null,
+    selected: choosable ? selectionSummary(pass.selections, activities) : null,
+  };
 }
 
 export const toggleCompetition = (draft: readonly string[], activityId: string): string[] =>

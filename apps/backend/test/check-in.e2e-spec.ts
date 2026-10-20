@@ -66,6 +66,8 @@ describe('event check-in (e2e)', () => {
       foreign: id('Foreign'),
     };
   }
+  // Access comes from passes: Full includes the workshop, battle, social and archived activities
+  // and makes Competition and Unselected selectable; General grants nothing. No legacy enrollments.
   async function activityFixture() {
     const registrations = await fixture();
     const [{ id: org }] = await client<{ id: string }[]>`
@@ -75,34 +77,65 @@ describe('event check-in (e2e)', () => {
     await client`
       INSERT INTO event_venues (organization_id, event_id, venue_id)
       VALUES (${org}, ${registrations.event}, ${venue}), (${org}, ${registrations.other}, ${venue})`;
-    const [workshop, competition, battle, unenrolled] = await client<{ id: string }[]>`
-      INSERT INTO activities (event_id, venue_id, kind, name, starts_at, ends_at)
-      VALUES (${registrations.event}, ${venue}, 'workshop', 'Workshop', now(), now() + interval '1 hour'),
-        (${registrations.event}, ${venue}, 'competition', 'Competition', now(), now() + interval '1 hour'),
-        (${registrations.event}, ${venue}, 'competition', 'Battle', now(), now() + interval '1 hour'),
-        (${registrations.event}, ${venue}, 'social', 'Unenrolled', now(), now() + interval '1 hour')
+    const [workshop, competition, battle, social, archived, unselected] = await client<
+      { id: string }[]
+    >`
+      INSERT INTO activities (event_id, venue_id, kind, name, starts_at, ends_at, status)
+      VALUES (${registrations.event}, ${venue}, 'workshop', 'Workshop', now(), now() + interval '1 hour', 'active'),
+        (${registrations.event}, ${venue}, 'competition', 'Competition', now(), now() + interval '1 hour', 'active'),
+        (${registrations.event}, ${venue}, 'competition', 'Battle', now(), now() + interval '1 hour', 'active'),
+        (${registrations.event}, ${venue}, 'social', 'Social', now(), now() + interval '1 hour', 'active'),
+        (${registrations.event}, ${venue}, 'workshop', 'Archived', now(), now() + interval '1 hour', 'archived'),
+        (${registrations.event}, ${venue}, 'competition', 'Unselected', now(), now() + interval '1 hour', 'active')
       RETURNING id`;
     const [{ id: foreignActivity }] = await client<{ id: string }[]>`
       INSERT INTO activities (event_id, venue_id, kind, name, starts_at, ends_at)
       VALUES (${registrations.other}, ${venue}, 'workshop', 'Foreign', now(), now() + interval '1 hour') RETURNING id`;
+    const [full, generalPass] = await client<{ id: string }[]>`
+      INSERT INTO event_pass_types (event_id, name, pass_class, price_cents)
+      VALUES (${registrations.event}, 'Full', 'full', 1000), (${registrations.event}, 'General', 'general', 300)
+      RETURNING id`;
+    const [{ id: foreignPass }] = await client<{ id: string }[]>`
+      INSERT INTO event_pass_types (event_id, name, pass_class, price_cents)
+      VALUES (${registrations.other}, 'Foreign pass', 'full', 1000) RETURNING id`;
     await client`
-      INSERT INTO event_activity_registrations (event_id, event_registration_id, activity_id)
-      VALUES (${registrations.event}, ${registrations.confirmed}, ${workshop.id}),
-        (${registrations.event}, ${registrations.confirmed}, ${competition.id}),
-        (${registrations.event}, ${registrations.confirmed}, ${battle.id}),
-        (${registrations.event}, ${registrations.pending}, ${workshop.id}),
-        (${registrations.event}, ${registrations.voided}, ${workshop.id}),
-        (${registrations.other}, ${registrations.foreign}, ${foreignActivity})`;
+      INSERT INTO event_pass_type_activities (event_id, pass_type_id, activity_id, access)
+      VALUES (${registrations.event}, ${full.id}, ${workshop.id}, 'included'),
+        (${registrations.event}, ${full.id}, ${battle.id}, 'included'),
+        (${registrations.event}, ${full.id}, ${social.id}, 'included'),
+        (${registrations.event}, ${full.id}, ${archived.id}, 'included'),
+        (${registrations.event}, ${full.id}, ${competition.id}, 'selectable'),
+        (${registrations.event}, ${full.id}, ${unselected.id}, 'selectable'),
+        (${registrations.other}, ${foreignPass}, ${foreignActivity}, 'included')`;
     const [{ id: general }] = await client<{ id: string }[]>`
       WITH person AS (INSERT INTO participants (full_name) VALUES ('General') RETURNING id)
       INSERT INTO event_registrations (event_id, participant_id, status, confirmation_source, confirmed_at)
       SELECT ${registrations.event}, id, 'confirmed', 'admin_cash', now() FROM person RETURNING id`;
+    const holdings: [string, string, string][] = [
+      [registrations.event, registrations.confirmed, full.id],
+      [registrations.event, registrations.pending, full.id],
+      [registrations.event, registrations.voided, full.id],
+      [registrations.event, general, generalPass.id],
+      [registrations.other, registrations.foreign, foreignPass],
+    ];
+    const held: string[] = [];
+    for (const [eventId, registrationId, passTypeId] of holdings) {
+      const [{ id }] = await client<{ id: string }[]>`
+        INSERT INTO event_registration_passes (event_id, event_registration_id, pass_type_id, price_cents)
+        VALUES (${eventId}, ${registrationId}, ${passTypeId}, 100) RETURNING id`;
+      held.push(id);
+    }
+    await client`
+      INSERT INTO event_registration_pass_selections (event_id, registration_pass_id, activity_id)
+      VALUES (${registrations.event}, ${held[0]}, ${competition.id})`;
     return {
       ...registrations,
       workshop: workshop.id,
       competition: competition.id,
       battle: battle.id,
-      unenrolled: unenrolled.id,
+      social: social.id,
+      archived: archived.id,
+      unselected: unselected.id,
       foreignActivity,
       general,
     };
@@ -137,112 +170,156 @@ describe('event check-in (e2e)', () => {
     );
   const activityRows = () => client`SELECT * FROM activity_check_ins ORDER BY activity_id`;
 
-  it('records one fact per enrolled activity after event admission with server actor/time and no registration mutation', async () => {
-    const { event, confirmed, workshop, competition, battle } = await activityFixture();
+  const enrollmentRows = () =>
+    client`SELECT * FROM event_activity_registrations ORDER BY activity_id`;
+  const snapshot = async () => ({
+    registrations: await client`SELECT * FROM event_registrations ORDER BY id`,
+    events: await rows(),
+    enrollments: await enrollmentRows(),
+    activities: await activityRows(),
+  });
+
+  it('records the event fact, enrollment and activity fact in one action from an included pass activity', async () => {
+    const { event, confirmed, workshop } = await activityFixture();
     const { cookie, userId, sessionId } = await session('admin', event);
     const before = await client`SELECT * FROM event_registrations ORDER BY id`;
-    const enrollments = await client`SELECT * FROM event_activity_registrations ORDER BY id`;
-    await checkIn(event, confirmed).set(headers(cookie)).send({}).expect(201);
+    expect(await rows()).toHaveLength(0);
+    expect(await enrollmentRows()).toHaveLength(0);
     const start = Date.now();
-    for (const activity of [workshop, competition, battle]) {
+    const result = await activityCheckIn(event, confirmed, workshop)
+      .set(headers(cookie))
+      .send({})
+      .expect(201);
+    const end = Date.now();
+    const [eventFact] = await rows();
+    const [enrollment] = await enrollmentRows();
+    const [fact] = await activityRows();
+    expect(result.body).toEqual({
+      id: fact.id as string,
+      eventId: event,
+      registrationId: confirmed,
+      activityId: workshop,
+      checkedInAt: new Date(fact.checked_in_at as string).toISOString(),
+      alreadyCheckedIn: false,
+    });
+    expect(eventFact).toMatchObject({
+      event_id: event,
+      event_registration_id: confirmed,
+      actor_user_id: userId,
+      session_id: sessionId,
+    });
+    expect(enrollment).toMatchObject({
+      event_id: event,
+      event_registration_id: confirmed,
+      activity_id: workshop,
+    });
+    expect(fact).toMatchObject({
+      event_id: event,
+      event_registration_id: confirmed,
+      activity_id: workshop,
+      enrollment_id: enrollment.id as string,
+      event_check_in_id: eventFact.id as string,
+      actor_user_id: userId,
+      session_id: sessionId,
+    });
+    expect(new Date(fact.checked_in_at as string).getTime()).toBeGreaterThanOrEqual(start - 5000);
+    expect(new Date(fact.checked_in_at as string).getTime()).toBeLessThanOrEqual(end + 5000);
+    expect(await client`SELECT * FROM event_registrations ORDER BY id`).toEqual(before);
+  });
+
+  it('reuses the event fact and an existing enrollment for selected and included activities', async () => {
+    const { event, confirmed, workshop, competition, battle } = await activityFixture();
+    const { cookie } = await session('admin', event);
+    const [legacy] = await client`
+      INSERT INTO event_activity_registrations (event_id, event_registration_id, activity_id)
+      VALUES (${event}, ${confirmed}, ${battle}) RETURNING *`;
+    await checkIn(event, confirmed).set(headers(cookie)).send({}).expect(201);
+    const [eventFact] = await rows();
+    for (const activity of [competition, battle, workshop]) {
       const result = await activityCheckIn(event, confirmed, activity)
         .set(headers(cookie))
         .send({})
         .expect(201);
-      expect(result.body as object).toMatchObject({
-        eventId: event,
-        registrationId: confirmed,
-        activityId: activity,
-      });
+      expect(result.body).toMatchObject({ activityId: activity, alreadyCheckedIn: false });
     }
-    const end = Date.now();
+    expect(await rows()).toEqual([eventFact]);
+    const enrollments = await enrollmentRows();
+    expect(enrollments).toHaveLength(3);
+    expect(enrollments).toContainEqual(legacy);
     const facts = await activityRows();
     expect(facts).toHaveLength(3);
-    for (const fact of facts) {
-      expect(fact).toMatchObject({
-        event_id: event,
-        event_registration_id: confirmed,
-        actor_user_id: userId,
-        session_id: sessionId,
-      });
-      expect(new Date(fact.checked_in_at as string).getTime()).toBeGreaterThanOrEqual(start - 5000);
-      expect(new Date(fact.checked_in_at as string).getTime()).toBeLessThanOrEqual(end + 5000);
-    }
-    expect(await client`SELECT * FROM event_registrations ORDER BY id`).toEqual(before);
-    expect(await client`SELECT * FROM event_activity_registrations ORDER BY id`).toEqual(
-      enrollments,
-    );
+    for (const fact of facts) expect(fact.event_check_in_id).toBe(eventFact.id);
+    expect(facts.find((fact) => fact.activity_id === battle)!.enrollment_id).toBe(legacy.id);
   });
 
-  it('denies missing event admission, unenrolled, foreign, general-only, pending and voided without mutation', async () => {
+  it('denies activities without pass access, archived, general-only, foreign, pending and voided without mutation', async () => {
     const f = await activityFixture();
     const { cookie } = await session('admin', f.event);
-    const before = await client`SELECT * FROM event_registrations ORDER BY id`;
-    const enrollments = await client`SELECT * FROM event_activity_registrations ORDER BY id`;
-    await activityCheckIn(f.event, f.confirmed, f.workshop)
-      .set(headers(cookie))
-      .send({})
-      .expect(400);
-    await checkIn(f.event, f.confirmed).set(headers(cookie)).send({}).expect(201);
+    await client`
+      INSERT INTO event_activity_registrations (event_id, event_registration_id, activity_id)
+      VALUES (${f.event}, ${f.general}, ${f.workshop})`;
+    const before = await snapshot();
     for (const [registration, activity] of [
-      [f.confirmed, f.unenrolled],
+      [f.confirmed, f.unselected],
+      [f.confirmed, f.archived],
       [f.confirmed, f.foreignActivity],
+      [f.confirmed, randomUUID()],
       [f.general, f.workshop],
       [f.pending, f.workshop],
       [f.voided, f.workshop],
       [f.foreign, f.workshop],
     ]) {
-      await activityCheckIn(f.event, registration, activity)
+      const response = await activityCheckIn(f.event, registration, activity)
         .set(headers(cookie))
         .send({})
         .expect(400);
+      expect((response.body as { message: string }).message).toMatch(/registration|access/i);
     }
-    expect(await activityRows()).toHaveLength(0);
-    expect(await client`SELECT * FROM event_registrations ORDER BY id`).toEqual(before);
-    expect(await client`SELECT * FROM event_activity_registrations ORDER BY id`).toEqual(
-      enrollments,
-    );
+    expect(await snapshot()).toEqual(before);
   });
 
-  it('denies enrolled non-workshop/competition kinds after event admission without mutation', async () => {
+  it('denies an included activity whose kind is not eligible without mutation', async () => {
     const f = await activityFixture();
     const { cookie } = await session('admin', f.event);
-    const kinds = ['social'];
-    const activities = [f.unenrolled];
-    for (const kind of kinds) {
-      const [{ id }] = await client<{ id: string }[]>`
-        INSERT INTO activities (event_id, venue_id, kind, name, starts_at, ends_at)
-        SELECT ${f.event}, venue_id, ${kind}, ${kind}, now(), now() + interval '1 hour'
-        FROM activities WHERE id = ${f.workshop} RETURNING id`;
-      activities.push(id);
-    }
-    for (const activity of activities) {
-      await client`
-        INSERT INTO event_activity_registrations (event_id, event_registration_id, activity_id)
-        VALUES (${f.event}, ${f.confirmed}, ${activity})`;
-    }
-    await checkIn(f.event, f.confirmed).set(headers(cookie)).send({}).expect(201);
-    const registrations = await client`SELECT * FROM event_registrations ORDER BY id`;
-    const enrollments = await client`SELECT * FROM event_activity_registrations ORDER BY id`;
-    for (const activity of activities) {
-      const response = await activityCheckIn(f.event, f.confirmed, activity)
-        .set(headers(cookie))
-        .send({})
-        .expect(400);
-      expect((response.body as { message: string }).message).toMatch(/activity|kind/i);
-    }
-    expect(await activityRows()).toHaveLength(0);
-    expect(await client`SELECT * FROM event_registrations ORDER BY id`).toEqual(registrations);
-    expect(await client`SELECT * FROM event_activity_registrations ORDER BY id`).toEqual(
-      enrollments,
+    const before = await snapshot();
+    const response = await activityCheckIn(f.event, f.confirmed, f.social)
+      .set(headers(cookie))
+      .send({})
+      .expect(400);
+    expect((response.body as { message: string }).message).toBe(
+      'Activity kind is not eligible for check-in',
     );
+    expect(await snapshot()).toEqual(before);
   });
 
-  it('denies unauthorized and concurrent duplicate activity requests', async () => {
+  it('returns the original activity fact on a repeat without new rows', async () => {
+    const f = await activityFixture();
+    const first = await session('admin', f.event);
+    const second = await session('admin', f.event);
+    const created = await activityCheckIn(f.event, f.confirmed, f.workshop)
+      .set(headers(first.cookie))
+      .send({})
+      .expect(201);
+    const before = await snapshot();
+    const repeat = await activityCheckIn(f.event, f.confirmed, f.workshop)
+      .set(headers(second.cookie))
+      .send({})
+      .expect(201);
+    expect(repeat.body).toEqual({
+      ...(created.body as object),
+      alreadyCheckedIn: true,
+    });
+    expect(await snapshot()).toEqual(before);
+    expect(before.activities[0]).toMatchObject({
+      actor_user_id: first.userId,
+      session_id: first.sessionId,
+    });
+  });
+
+  it('denies unauthorized activity requests and records concurrent duplicates once', async () => {
     const f = await activityFixture();
     const admin = await session('admin', f.event);
     const judge = await session('judge', f.event);
-    await checkIn(f.event, f.confirmed).set(headers(admin.cookie)).send({}).expect(201);
     await activityCheckIn(f.event, f.confirmed, f.workshop)
       .set('Origin', origin)
       .send({})
@@ -270,35 +347,53 @@ describe('event check-in (e2e)', () => {
       activityCheckIn(f.event, f.confirmed, f.workshop).set(headers(admin.cookie)).send({}),
       activityCheckIn(f.event, f.confirmed, f.workshop).set(headers(admin.cookie)).send({}),
     ]);
-    expect(results.map((result) => result.status).sort()).toEqual([201, 409]);
+    expect(results.map((result) => result.status)).toEqual([201, 201]);
+    expect(
+      results
+        .map((result) => (result.body as { alreadyCheckedIn: boolean }).alreadyCheckedIn)
+        .sort(),
+    ).toEqual([false, true]);
+    expect(results[0].body).toMatchObject({ id: (results[1].body as { id: string }).id });
+    expect(await rows()).toHaveLength(1);
+    expect(await enrollmentRows()).toHaveLength(1);
     expect(await activityRows()).toHaveLength(1);
+  });
+
+  it('shares one event fact between concurrent first check-ins to different activities', async () => {
+    const f = await activityFixture();
+    const { cookie } = await session('admin', f.event);
+    const results = await Promise.all(
+      [f.workshop, f.competition].map((activity) =>
+        activityCheckIn(f.event, f.confirmed, activity).set(headers(cookie)).send({}),
+      ),
+    );
+    expect(results.map((result) => result.status)).toEqual([201, 201]);
+    const [eventFact] = await rows();
+    expect(await rows()).toHaveLength(1);
+    const facts = await activityRows();
+    expect(facts).toHaveLength(2);
+    for (const fact of facts) expect(fact.event_check_in_id).toBe(eventFact.id);
   });
 
   it('rejects direct SQL check-in for an enrolled social activity after valid event admission', async () => {
     const f = await activityFixture();
     const { cookie, userId, sessionId } = await session('admin', f.event);
-    const [{ id: social }] = await client<{ id: string }[]>`
-      INSERT INTO activities (event_id, venue_id, kind, name, starts_at, ends_at)
-      SELECT ${f.event}, venue_id, 'social', 'Social', now(), now() + interval '1 hour'
-      FROM activities WHERE id = ${f.workshop} RETURNING id`;
     const [{ id: enrollmentId }] = await client<{ id: string }[]>`
       INSERT INTO event_activity_registrations (event_id, event_registration_id, activity_id)
-      VALUES (${f.event}, ${f.confirmed}, ${social}) RETURNING id`;
+      VALUES (${f.event}, ${f.confirmed}, ${f.social}) RETURNING id`;
     const admission = await checkIn(f.event, f.confirmed).set(headers(cookie)).send({}).expect(201);
     const eventFactId = (admission.body as { id: string }).id;
     const registrations = await client`SELECT * FROM event_registrations ORDER BY id`;
-    const enrollments = await client`SELECT * FROM event_activity_registrations ORDER BY id`;
+    const enrollments = await enrollmentRows();
     await expect(client`
       INSERT INTO activity_check_ins (event_id, event_registration_id, activity_id,
         enrollment_id, event_check_in_id, actor_user_id, session_id)
-      VALUES (${f.event}, ${f.confirmed}, ${social}, ${enrollmentId}, ${eventFactId},
+      VALUES (${f.event}, ${f.confirmed}, ${f.social}, ${enrollmentId}, ${eventFactId},
         ${userId}, ${sessionId})
     `).rejects.toThrow('activity check-in requires a workshop or competition');
     expect(await activityRows()).toHaveLength(0);
     expect(await client`SELECT * FROM event_registrations ORDER BY id`).toEqual(registrations);
-    expect(await client`SELECT * FROM event_activity_registrations ORDER BY id`).toEqual(
-      enrollments,
-    );
+    expect(await enrollmentRows()).toEqual(enrollments);
   });
 
   it('enforces enrollment, event admission, session ownership, server time and immutability in PostgreSQL', async () => {
@@ -316,7 +411,8 @@ describe('event check-in (e2e)', () => {
         enrollment_id, event_check_in_id, actor_user_id, session_id)
       VALUES (${eventId}, ${registrationId}, ${activityId}, ${enrollmentId}, ${eventCheckInId}, ${actor}, ${sessionId})`;
     const [{ id: enrollmentId }] = await client<{ id: string }[]>`
-      SELECT id FROM event_activity_registrations WHERE activity_id = ${f.workshop} AND event_registration_id = ${f.confirmed}`;
+      INSERT INTO event_activity_registrations (event_id, event_registration_id, activity_id)
+      VALUES (${f.event}, ${f.confirmed}, ${f.workshop}) RETURNING id`;
     await expect(
       insert(f.event, f.confirmed, f.workshop, enrollmentId, randomUUID()),
     ).rejects.toMatchObject({ code: '23503' });
@@ -325,9 +421,8 @@ describe('event check-in (e2e)', () => {
       .send({})
       .expect(201);
     const eventFactId = (eventResult.body as { id: string }).id;
-    await client`UPDATE activities SET kind = 'workshop' WHERE id = ${f.unenrolled}`;
     await expect(
-      insert(f.event, f.confirmed, f.unenrolled, enrollmentId, eventFactId),
+      insert(f.event, f.confirmed, f.competition, enrollmentId, eventFactId),
     ).rejects.toMatchObject({ code: '23503' });
     await expect(
       insert(f.other, f.confirmed, f.workshop, enrollmentId, eventFactId),
@@ -381,8 +476,19 @@ describe('event check-in (e2e)', () => {
     expect(new Date(fact.checked_in_at).getTime()).toBeGreaterThanOrEqual(start.getTime() - 5_000);
     expect(new Date(fact.checked_in_at).getTime()).toBeLessThanOrEqual(end.getTime() + 5_000);
     expect(await client`SELECT * FROM event_registrations WHERE id = ${confirmed}`).toEqual(before);
-    await checkIn(event, confirmed).set(headers(cookie)).send({}).expect(409);
-    expect(await rows()).toHaveLength(1);
+    expect(body).toMatchObject({ alreadyCheckedIn: false });
+  });
+
+  it('returns the original event fact on a repeat without a new row', async () => {
+    const { event, confirmed } = await fixture();
+    const first = await session('admin', event);
+    const second = await session('admin', event);
+    const created = await checkIn(event, confirmed).set(headers(first.cookie)).send({}).expect(201);
+    const before = await rows();
+    const repeat = await checkIn(event, confirmed).set(headers(second.cookie)).send({}).expect(201);
+    expect(repeat.body).toEqual({ ...(created.body as object), alreadyCheckedIn: true });
+    expect(await rows()).toEqual(before);
+    expect(before[0]).toMatchObject({ actor_user_id: first.userId, session_id: first.sessionId });
   });
 
   it('denies pending, voided and wrong-event registrations without writing check-ins or changing registration state', async () => {
@@ -429,14 +535,20 @@ describe('event check-in (e2e)', () => {
     expect(await rows()).toHaveLength(0);
   });
 
-  it('serializes concurrent repeats so only one succeeds and the other is explicitly denied', async () => {
+  it('serializes concurrent repeats into one fact that both requests return', async () => {
     const { event, confirmed } = await fixture();
     const { cookie } = await session('admin', event);
     const results = await Promise.all([
       checkIn(event, confirmed).set(headers(cookie)).send({}),
       checkIn(event, confirmed).set(headers(cookie)).send({}),
     ]);
-    expect(results.map((result) => result.status).sort()).toEqual([201, 409]);
+    expect(results.map((result) => result.status)).toEqual([201, 201]);
+    expect(
+      results
+        .map((result) => (result.body as { alreadyCheckedIn: boolean }).alreadyCheckedIn)
+        .sort(),
+    ).toEqual([false, true]);
+    expect(results[0].body).toMatchObject({ id: (results[1].body as { id: string }).id });
     expect(await rows()).toHaveLength(1);
   });
 

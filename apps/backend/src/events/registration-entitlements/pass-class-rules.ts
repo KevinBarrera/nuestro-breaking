@@ -16,3 +16,9 @@ export function addingCombinesGeneralWithFull(
 ): boolean {
   return addedClass !== 'add_on' && combinesGeneralWithFull([...heldClasses, addedClass]);
 }
+
+// General entry grants no activity, so a registration holding only general passes keeps the
+// standalone "arrived at the event" action (#126). No passes at all is not general entry.
+export function holdsGeneralEntryOnly(heldClasses: readonly PassClass[]): boolean {
+  return heldClasses.length > 0 && heldClasses.every((passClass) => passClass === 'general');
+}

@@ -1,0 +1,33 @@
+# Single-action check-in
+
+## Tracking
+
+- GitHub issue: #126 — Single-action activity check-in with on-arrival workshop enrollment
+- Branch: `feat/126-single-action-check-in` → `dev` (base `8a9c47a`), one commit per task. Split into chained PRs if the diff passes ~400 lines.
+
+## Goal
+
+Event staff check a person in with one visible action at each activity entrance. That action records the activity attendance fact and, when it is missing, the event attendance fact, in one transaction. Access comes from the person's passes (#124), so online and in-person registrations behave the same. General-entry-only registrations keep a separate "arrived at the event" action.
+
+## Decisions
+
+- **Access source (2026-10-20):** a registration may check in to an activity when `RegistrationEntitlementsService.accessibleActivityIds` returns it (active `included` activities of held pass types plus active selections). The legacy `event_activity_registrations` table is no longer the gate. Today only manual registration writes it, so online registrants cannot check in to any activity. Check-in writes the legacy enrollment row when it is missing, because `activity_check_ins.enrollment_id` references it.
+- **Workshops:** a full pass includes its discipline's workshops (`included` access, Slice 1 plan). "On-arrival enrollment" is therefore the automatic enrollment row from the access-source decision; there are no selectable workshops and no door-side pass edits.
+- **Repeats:** a repeated action returns the existing fact (who and when, first time) without failing (no 409) and without a new row. No audit table or migration.
+- **Event check-in:** the standalone endpoint stays. The screen shows it only for general-entry-only registrations (held pass classes are only `general`).
+- **Door changes:** none. The screen shows an escalation message to main coordination for unresolved cases.
+- **Archived activities:** rejected, via the active-only entitlement read.
+- **Out of scope:** staff coordination.
+
+## Tasks
+
+- [x] 1. Backend command: activity check-in gated by pass entitlements and eligible kind (`workshop`, `competition`); records the event fact when missing and the legacy enrollment row when missing; idempotent repeats for activity and event check-in; rejects archived, not-entitled and general-only. PostgreSQL e2e first (`apps/backend/test/check-in.e2e-spec.ts`).
+- [x] 2. Backend projection: registration search returns a general-only flag and the accessible, check-in-eligible activities from passes with their `checkedInAt`. PostgreSQL e2e.
+- [ ] 3. Frontend screen: extract a check-in model with Vitest; one action per activity without the event prerequisite; event action only for general-only; already-checked-in state; escalation message. Update `admin-check-in.spec.ts` and `live-check-in.spec.ts`.
+- [ ] 4. Docs: `docs/contracts/operational-check-in.md`, Slice 3 in `docs/product/november-2026-mvp-delivery-slices.md` (delivered bullets, resolved decision, mismatch note and matrix row), `event-catalog.md` if the entitlement contract changes.
+
+## Evidence
+
+- Exploration on 2026-10-20: check-in reads `eventActivityRegistrations` (`check-in.service.ts:35`), written only by `manual-registration.service.ts:135`; public registration writes pass selections only. Activity check-in requires a prior event fact (`:64`) and returns 409 on repeats (`:79`, `:111`). It joins `activities` without a status filter, so archived activities pass. `admin-check-in-page.tsx` is self-contained, with no model and no Vitest. The November seed has no workshops.
+- Task 1 on 2026-10-20: RED 9 of 14 check-in e2e failed on the old behavior (legacy enrollment gate, event check-in prerequisite, 409 repeats); GREEN 15 of 15 after the change (one triangulation case added: concurrent first check-ins to two activities share one event fact), full backend e2e 456 of 456, unit 600 of 600. Response shape: both endpoints keep `201` and their body and add `alreadyCheckedIn`; a repeat returns the first fact's `id` and `checkedInAt`, and the stored actor and session stay the first ones. The registration `FOR UPDATE` lock serializes every check-in of one registration, and inserts use `ON CONFLICT DO NOTHING` with a fallback read. Legacy enrollment row readers: `payment-webhook.service.ts:348` and `manual-registration.service.ts:284` read it only while confirming, and check-in needs a confirmed registration, so those audits are unchanged; `registration-search.service.ts:97` now also lists activities enrolled at check-in, with their `checkedInAt`, until task 2 replaces that projection. Required columns are `event_id`, `event_registration_id` and `activity_id`; no trigger on that table. Commit: b02c518; native review approved (lineage review-b698689217bfaeba).
+- Task 2 on 2026-10-20: RED 3 of 6 search e2e failed on the legacy projection (empty `activities[]` for a pass holder without enrollment rows, no flag), and 2 of 7 `pass-class-rules` unit tests failed (`holdsGeneralEntryOnly` missing); GREEN 7 of 7 search e2e (one triangulation case added: two entitled registrations on one page keep their activities and check-in times apart), full backend e2e 458 of 458, unit 602 of 602. Response shape: `registration` adds `generalEntryOnly: boolean` (true only when every held pass is `general` and at least one is held); `activities[]` keeps `{id, name, kind, checkedInAt}`, sorted by id, now from `accessibleActivityIdsByRegistration` (the batched source that `accessibleActivityIds` delegates to) restricted to `workshop` and `competition`, with `checkedInAt` from `activity_check_ins`. Four queries per page whatever its size. Consumers for task 3: `admin-check-in-page.tsx` (own reader and type), `admin-registrations-page.tsx` and `registration-model.ts` through `entities/admin-registration` (`types.ts`, `readers.ts`, `readers.test.ts`, `registration-api.ts` and its test), and the mocks in `e2e/admin-check-in.spec.ts`, `e2e/support/registration-mocks.ts`, `e2e/support/admin-mocks.ts`, `e2e/admin-event-picker.spec.ts`; `live-check-in.spec.ts` runs against `test/support/live-check-in-server.ts`, which seeds no passes.

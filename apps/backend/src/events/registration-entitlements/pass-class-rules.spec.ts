@@ -2,6 +2,7 @@ import {
   FULL_INCLUDES_GENERAL_MESSAGE,
   addingCombinesGeneralWithFull,
   combinesGeneralWithFull,
+  holdsGeneralEntryOnly,
 } from './pass-class-rules';
 
 describe('combinesGeneralWithFull', () => {
@@ -33,5 +34,19 @@ describe('addingCombinesGeneralWithFull', () => {
     expect(addingCombinesGeneralWithFull(['full'], 'full')).toBe(false);
     expect(addingCombinesGeneralWithFull([], 'general')).toBe(false);
     expect(addingCombinesGeneralWithFull(['general', 'full'], 'add_on')).toBe(false);
+  });
+});
+
+describe('holdsGeneralEntryOnly', () => {
+  it('is true when every held pass is general entry', () => {
+    expect(holdsGeneralEntryOnly(['general'])).toBe(true);
+    expect(holdsGeneralEntryOnly(['general', 'general'])).toBe(true);
+  });
+
+  it('is false without passes or with any full or add-on pass', () => {
+    expect(holdsGeneralEntryOnly([])).toBe(false);
+    expect(holdsGeneralEntryOnly(['full'])).toBe(false);
+    expect(holdsGeneralEntryOnly(['general', 'add_on'])).toBe(false);
+    expect(holdsGeneralEntryOnly(['add_on'])).toBe(false);
   });
 });

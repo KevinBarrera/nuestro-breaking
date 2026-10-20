@@ -5,17 +5,25 @@ import { type DatabaseService } from '@/database/database.service';
 import {
   activities,
   activityCheckIns,
-  eventActivityRegistrations,
   eventCheckIns,
   eventRegistrations,
   participants,
   registrationOperationAudit,
 } from '@/database/schema';
+import { type ActivityKind } from '@/events/activity-admin/activity-kind';
+import { holdsGeneralEntryOnly } from '@/events/registration-entitlements/pass-class-rules';
+import { RegistrationEntitlementsService } from '@/events/registration-entitlements/registration-entitlements.service';
 import { type RegistrationSearchPage } from './registration-search.types';
+
+// Kinds staff check in at an activity entrance; the same set the check-in command accepts.
+const CHECK_IN_KINDS: readonly ActivityKind[] = ['workshop', 'competition'];
 
 @Injectable()
 export class RegistrationSearchService {
-  constructor(@Inject(DATABASE_CLIENT) private readonly db: DatabaseService['db']) {}
+  constructor(
+    @Inject(DATABASE_CLIENT) private readonly db: DatabaseService['db'],
+    private readonly entitlements: RegistrationEntitlementsService,
+  ) {}
 
   async search(
     eventId: string,
@@ -85,46 +93,44 @@ export class RegistrationSearchService {
         .offset(offset),
     ]);
 
-    const activityRows = rows.length
-      ? await this.db
-          .select({
-            registrationId: eventActivityRegistrations.eventRegistrationId,
-            id: activities.id,
-            name: activities.name,
-            kind: activities.kind,
-            checkedInAt: activityCheckIns.checkedInAt,
-          })
-          .from(eventActivityRegistrations)
-          .innerJoin(
-            activities,
-            and(
-              eq(activities.id, eventActivityRegistrations.activityId),
-              eq(activities.eventId, eventActivityRegistrations.eventId),
-            ),
-          )
-          .leftJoin(
-            activityCheckIns,
-            and(
-              eq(activityCheckIns.eventId, eventActivityRegistrations.eventId),
-              eq(
-                activityCheckIns.eventRegistrationId,
-                eventActivityRegistrations.eventRegistrationId,
-              ),
-              eq(activityCheckIns.activityId, eventActivityRegistrations.activityId),
-              eq(activityCheckIns.enrollmentId, eventActivityRegistrations.id),
-            ),
-          )
-          .where(
-            and(
-              eq(eventActivityRegistrations.eventId, eventId),
-              inArray(
-                eventActivityRegistrations.eventRegistrationId,
-                rows.map((row) => row.registrationId),
+    const registrationIds = rows.map((row) => row.registrationId);
+    const [accessible, heldClasses] = await Promise.all([
+      this.entitlements.accessibleActivityIdsByRegistration(this.db, eventId, registrationIds),
+      this.entitlements.heldPassClassesByRegistration(this.db, eventId, registrationIds),
+    ]);
+    const activityIds = [...new Set([...accessible.values()].flat())];
+    const [catalog, checkIns] = activityIds.length
+      ? await Promise.all([
+          this.db
+            .select({ id: activities.id, name: activities.name, kind: activities.kind })
+            .from(activities)
+            .where(
+              and(
+                eq(activities.eventId, eventId),
+                inArray(activities.id, activityIds),
+                inArray(activities.kind, CHECK_IN_KINDS),
               ),
             ),
-          )
-          .orderBy(asc(activities.id))
-      : [];
+          this.db
+            .select({
+              registrationId: activityCheckIns.eventRegistrationId,
+              activityId: activityCheckIns.activityId,
+              checkedInAt: activityCheckIns.checkedInAt,
+            })
+            .from(activityCheckIns)
+            .where(
+              and(
+                eq(activityCheckIns.eventId, eventId),
+                inArray(activityCheckIns.eventRegistrationId, registrationIds),
+                inArray(activityCheckIns.activityId, activityIds),
+              ),
+            ),
+        ])
+      : [[], []];
+    const eligible = new Map(catalog.map((activity) => [activity.id, activity]));
+    const checkedIn = new Map(
+      checkIns.map((fact) => [`${fact.registrationId}:${fact.activityId}`, fact.checkedInAt]),
+    );
 
     return {
       total: totals[0].total,
@@ -143,15 +149,15 @@ export class RegistrationSearchService {
           folio: row.folio,
           status: row.status,
           checkedInAt: row.checkedInAt?.toISOString() ?? null,
+          generalEntryOnly: holdsGeneralEntryOnly(heldClasses.get(row.registrationId) ?? []),
         },
-        activities: activityRows
-          .filter((activity) => activity.registrationId === row.registrationId)
-          .map(({ id, name, kind, checkedInAt }) => ({
-            id,
-            name,
-            kind,
-            checkedInAt: checkedInAt?.toISOString() ?? null,
-          })),
+        // Already sorted by id; activities that are not check-in eligible drop out.
+        activities: (accessible.get(row.registrationId) ?? []).flatMap((activityId) => {
+          const activity = eligible.get(activityId);
+          if (!activity) return [];
+          const checkedInAt = checkedIn.get(`${row.registrationId}:${activityId}`);
+          return [{ ...activity, checkedInAt: checkedInAt?.toISOString() ?? null }];
+        }),
       })),
     };
   }

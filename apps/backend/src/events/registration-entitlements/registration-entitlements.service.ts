@@ -56,12 +56,28 @@ export class RegistrationEntitlementsService {
     eventId: string,
     registrationId: string,
   ): Promise<string[]> {
+    const byRegistration = await this.accessibleActivityIdsByRegistration(executor, eventId, [
+      registrationId,
+    ]);
+    return byRegistration.get(registrationId) ?? [];
+  }
+
+  // Batched form of `accessibleActivityIds` (the single source of the access rule) for list
+  // screens: one query for every registration, each list sorted by id. Registrations without
+  // access get an empty list.
+  async accessibleActivityIdsByRegistration(
+    executor: Executor,
+    eventId: string,
+    registrationIds: readonly string[],
+  ): Promise<Map<string, string[]>> {
+    const result = new Map(registrationIds.map((id) => [id, [] as string[]]));
+    if (registrationIds.length === 0) return result;
     const held = and(
       eq(eventRegistrationPasses.eventId, eventId),
-      eq(eventRegistrationPasses.eventRegistrationId, registrationId),
+      inArray(eventRegistrationPasses.eventRegistrationId, [...registrationIds]),
     );
     const included = executor
-      .select({ id: activities.id })
+      .select({ registrationId: eventRegistrationPasses.eventRegistrationId, id: activities.id })
       .from(eventRegistrationPasses)
       .innerJoin(
         eventPassTypeActivities,
@@ -81,7 +97,7 @@ export class RegistrationEntitlementsService {
       )
       .where(held);
     const selected = executor
-      .select({ id: activities.id })
+      .select({ registrationId: eventRegistrationPasses.eventRegistrationId, id: activities.id })
       .from(eventRegistrationPasses)
       .innerJoin(
         eventRegistrationPassSelections,
@@ -99,8 +115,40 @@ export class RegistrationEntitlementsService {
         ),
       )
       .where(held);
-    const rows = await included.union(selected);
-    return rows.map((row) => row.id).sort(byId);
+    for (const row of await included.union(selected)) result.get(row.registrationId)?.push(row.id);
+    for (const ids of result.values()) ids.sort(byId);
+    return result;
+  }
+
+  // Classes of every held pass per registration, archived pass types included (what was bought).
+  async heldPassClassesByRegistration(
+    executor: Executor,
+    eventId: string,
+    registrationIds: readonly string[],
+  ): Promise<Map<string, PassClass[]>> {
+    const result = new Map(registrationIds.map((id) => [id, [] as PassClass[]]));
+    if (registrationIds.length === 0) return result;
+    const rows = await executor
+      .select({
+        registrationId: eventRegistrationPasses.eventRegistrationId,
+        passClass: eventPassTypes.passClass,
+      })
+      .from(eventRegistrationPasses)
+      .innerJoin(
+        eventPassTypes,
+        and(
+          eq(eventPassTypes.eventId, eventRegistrationPasses.eventId),
+          eq(eventPassTypes.id, eventRegistrationPasses.passTypeId),
+        ),
+      )
+      .where(
+        and(
+          eq(eventRegistrationPasses.eventId, eventId),
+          inArray(eventRegistrationPasses.eventRegistrationId, [...registrationIds]),
+        ),
+      );
+    for (const row of rows) result.get(row.registrationId)?.push(row.passClass as PassClass);
+    return result;
   }
 
   async addPass(

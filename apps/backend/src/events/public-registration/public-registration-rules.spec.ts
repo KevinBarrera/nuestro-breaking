@@ -4,18 +4,21 @@ import { type CatalogPassType, passRuleViolation } from './public-registration-r
 const full: CatalogPassType = {
   passClass: 'full',
   requiresPassClass: null,
+  priceCents: 1000,
   status: 'active',
   onlineSalesClosesAt: null,
 };
 const general: CatalogPassType = {
   passClass: 'general',
   requiresPassClass: null,
+  priceCents: 1000,
   status: 'active',
   onlineSalesClosesAt: null,
 };
 const openStyles: CatalogPassType = {
   passClass: 'add_on',
   requiresPassClass: 'full',
+  priceCents: 1000,
   status: 'active',
   onlineSalesClosesAt: null,
 };
@@ -27,6 +30,7 @@ const catalog = new Map<string, CatalogPassType>([
   ['archived', { ...full, status: 'archived' }],
   ['closed-now', { ...general, onlineSalesClosesAt: now }],
   ['closes-later', { ...full, onlineSalesClosesAt: new Date(now.getTime() + 1) }],
+  ['free', { ...full, priceCents: 0 }],
 ]);
 const check = (...ids: string[]) => passRuleViolation(ids, catalog, now);
 
@@ -38,6 +42,14 @@ describe('passRuleViolation', () => {
       path: 'passes[1].passTypeId',
     });
     expect(check('closes-later')).toBeNull();
+  });
+
+  it('rejects a $0 pass type, which is granted in person only (#263)', () => {
+    expect(check('general', 'free')).toEqual({
+      code: 'pass_type_unavailable',
+      message: 'Pass type is not available',
+      path: 'passes[1].passTypeId',
+    });
   });
 
   it('accepts valid pass sets', () => {

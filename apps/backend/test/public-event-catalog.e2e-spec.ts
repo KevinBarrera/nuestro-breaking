@@ -227,6 +227,21 @@ describe('public event catalog (e2e)', () => {
     ]);
   });
 
+  it('does not list an active $0 pass type, which is granted in person only (#263)', async () => {
+    const ids = await fixture();
+    await setSales(true, fromNow(-DAY), null);
+    const [free] = await client<{ id: string }[]>`
+      INSERT INTO event_pass_types (event_id, name, pass_class, price_cents, requires_pass_class, status)
+      VALUES (${ids.event}, 'Golden ticket', 'full', 0, NULL, 'active') RETURNING id`;
+    await client`INSERT INTO event_pass_type_activities (event_id, pass_type_id, activity_id, access)
+      VALUES (${ids.event}, ${free.id}, ${ids.toprock}, 'selectable')`;
+
+    const body = (await catalog(SLUG).expect(200)).body as PublicEventCatalog;
+
+    expect(body.passes.map(({ id }) => id)).toEqual([ids.full, ids.general, ids.addOn]);
+    expect(JSON.stringify(body)).not.toMatch(/Golden ticket/);
+  });
+
   it('returns a neutral 404 for an unknown or malformed slug', async () => {
     await fixture();
     for (const slug of ['missing-event', 'Los-Mas-Pesados', 'a'.repeat(81), 'bad_slug', '%20']) {

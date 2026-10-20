@@ -7,6 +7,7 @@ This contract describes the public, read-only catalog of one event for issue #17
 - `GET /public/events/:slug/catalog` needs **no login, session, cookie or CSRF token**.
 - It always returns the event summary and the **sales state**. Passes are listed **only while sales are open** (D4 in `odd/tasks/public-catalog-sales.md`).
 - Only **active** pass types and **active** activities appear. Archived rows never do.
+- A pass type priced **$0** never appears: free passes (golden tickets, guests) are granted in person only (#263). Admin pass type endpoints still list them, and an admin can assign them.
 - The response is an explicit allowlist (D5): no `version`, `status`, organization or event ids, audit fields or personal data.
 - It is **rate limited** per client IP (default 60 requests per minute) and answers **429** over the limit.
 - Browsers may call it only from **configured origins**, and never with credentials.

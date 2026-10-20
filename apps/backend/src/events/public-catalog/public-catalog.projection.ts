@@ -41,8 +41,9 @@ function toActivity({ activity }: CatalogLinkRow): PublicActivity {
 /**
  * Build the public catalog from active rows only (the caller filters archived pass types and
  * activities). With sales closed it lists no passes (D4). A pass past its own online close time
- * (#240) stays listed with `onSale: false`. It copies an explicit allowlist of
- * fields, so versions, statuses, organization ids and audit data never leak (D5). Pure.
+ * (#240) stays listed with `onSale: false`. A $0 pass type is never listed: free passes are
+ * granted in person only (#263). It copies an explicit allowlist of fields, so versions, statuses,
+ * organization ids and audit data never leak (D5). Pure.
  */
 export function toPublicCatalog(
   event: CatalogEventRow,
@@ -68,24 +69,27 @@ export function toPublicCatalog(
   };
   if (state.state === 'closed') return catalog;
 
-  catalog.passes = [...passes].sort(byPassOrder).map((pass) => {
-    const access = links.filter((link) => link.passTypeId === pass.id);
-    const activities = (kind: string) =>
-      access
-        .filter((link) => link.access === kind)
-        .map(toActivity)
-        .sort(byActivityOrder);
-    return {
-      id: pass.id,
-      name: pass.name,
-      passClass: pass.passClass as PublicPassClass,
-      priceCents: pass.priceCents,
-      requiresPassClass: pass.requiresPassClass as PublicPassClass | null,
-      onlineSalesClosesAt: pass.onlineSalesClosesAt?.toISOString() ?? null,
-      onSale: passOnSale(pass.onlineSalesClosesAt, now),
-      selectableActivities: activities('selectable'),
-      includedActivities: activities('included'),
-    };
-  });
+  catalog.passes = passes
+    .filter((pass) => pass.priceCents > 0)
+    .sort(byPassOrder)
+    .map((pass) => {
+      const access = links.filter((link) => link.passTypeId === pass.id);
+      const activities = (kind: string) =>
+        access
+          .filter((link) => link.access === kind)
+          .map(toActivity)
+          .sort(byActivityOrder);
+      return {
+        id: pass.id,
+        name: pass.name,
+        passClass: pass.passClass as PublicPassClass,
+        priceCents: pass.priceCents,
+        requiresPassClass: pass.requiresPassClass as PublicPassClass | null,
+        onlineSalesClosesAt: pass.onlineSalesClosesAt?.toISOString() ?? null,
+        onSale: passOnSale(pass.onlineSalesClosesAt, now),
+        selectableActivities: activities('selectable'),
+        includedActivities: activities('included'),
+      };
+    });
   return catalog;
 }

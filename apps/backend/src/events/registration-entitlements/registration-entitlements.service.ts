@@ -270,7 +270,11 @@ export class RegistrationEntitlementsService {
       if (dependents.length > 0) {
         const names = dependents.map((name) => `«${name}»`).join(', ');
         const verb = dependents.length === 1 ? 'it requires' : 'they require';
-        throw new ConflictException(`Remove ${names} first; ${verb} this pass`);
+        throw new ConflictException({
+          statusCode: 409,
+          message: `Remove ${names} first; ${verb} this pass`,
+          code: 'pass_required_by_add_on',
+        });
       }
       const selections = await this.selections(tx, eventId, registrationPassId);
       await tx

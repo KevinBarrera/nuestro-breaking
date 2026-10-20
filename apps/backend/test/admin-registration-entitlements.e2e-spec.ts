@@ -614,6 +614,7 @@ describe('admin registration entitlements (e2e)', () => {
       .expect(409);
     expect(rejected.body).toMatchObject({
       message: 'Remove «Open Styles» first; it requires this pass',
+      code: 'pass_required_by_add_on',
     });
     expect(await snapshot()).toEqual(before);
     expect(await audits()).toHaveLength(0);

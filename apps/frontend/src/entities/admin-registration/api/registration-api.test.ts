@@ -3,6 +3,7 @@ import {
   addRegistrationPass,
   adminRegistrationFailure,
   confirmCashPayment,
+  confirmComplimentary,
   createManualRegistration,
   getRegistrationEntitlements,
   searchRegistrations,
@@ -297,6 +298,63 @@ describe('confirmCashPayment', () => {
         confirmCashPayment(eventId, registrationId, { amountCents: 1, receipt: 'A' }),
       ),
     ).toEqual({ kind: 'rule', code: 'receipt_taken' });
+  });
+});
+
+describe('confirmComplimentary', () => {
+  it('posts the reason with the CSRF token and reads the confirmation', async () => {
+    const fetchMock = stubFetch(() => Response.json(confirmed, { status: 201 }));
+    expect(
+      await confirmComplimentary(eventId, registrationId, { reason: 'Golden ticket, ganador' }),
+    ).toEqual(confirmed);
+    const [url, init] = call(fetchMock, 1);
+    expect(url).toMatch(
+      new RegExp(`${base}/registrations/${registrationId}/complimentary-confirmation$`),
+    );
+    expect(init.method).toBe('POST');
+    expect((init.headers as Record<string, string>)['X-CSRF-Token']).toBe('csrf-token');
+    expect(JSON.parse(init.body as string)).toEqual({ reason: 'Golden ticket, ganador' });
+  });
+
+  it('maps the no-passes and non-zero-total conflicts to their rules', async () => {
+    const reason = { reason: 'Invitado' };
+    stubFetch(() =>
+      Response.json(
+        { statusCode: 409, message: 'Registration holds no passes', code: 'no_passes' },
+        { status: 409 },
+      ),
+    );
+    expect(await failureOf(confirmComplimentary(eventId, registrationId, reason))).toEqual({
+      kind: 'rule',
+      code: 'no_passes',
+    });
+    stubFetch(() =>
+      Response.json(
+        {
+          statusCode: 409,
+          message: 'Registration passes do not total zero',
+          code: 'not_zero_total',
+        },
+        { status: 409 },
+      ),
+    );
+    expect(await failureOf(confirmComplimentary(eventId, registrationId, reason))).toEqual({
+      kind: 'rule',
+      code: 'not_zero_total',
+    });
+  });
+
+  it('reports an unknown outcome when the answer is lost or malformed', async () => {
+    stubFetch(() => Promise.reject(new TypeError('Failed to fetch')));
+    expect(
+      await failureOf(confirmComplimentary(eventId, registrationId, { reason: 'Invitado' })),
+    ).toEqual({ kind: 'unknown' });
+    stubFetch(() =>
+      Response.json({ ...confirmed, registrationId: participantId }, { status: 201 }),
+    );
+    expect(
+      await failureOf(confirmComplimentary(eventId, registrationId, { reason: 'Invitado' })),
+    ).toEqual({ kind: 'unknown' });
   });
 });
 

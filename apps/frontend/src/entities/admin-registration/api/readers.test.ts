@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  readCashConfirmation,
+  readConfirmation,
   readEntitlements,
   readManualRegistration,
   readRegistrationFailure,
@@ -77,19 +77,19 @@ describe('readManualRegistration', () => {
   });
 });
 
-describe('readCashConfirmation', () => {
+describe('readConfirmation', () => {
   const confirmed = { registrationId, eventId, status: 'confirmed', folio: 'LMP-7K3Q', auditId };
 
   it('reads the confirmation with its folio', () => {
-    expect(readCashConfirmation(confirmed, eventId, registrationId)).toEqual(confirmed);
+    expect(readConfirmation(confirmed, eventId, registrationId)).toEqual(confirmed);
   });
 
   it('rejects a confirmation without folio or for another registration', () => {
-    expect(readCashConfirmation({ ...confirmed, folio: null }, eventId, registrationId)).toBeNull();
+    expect(readConfirmation({ ...confirmed, folio: null }, eventId, registrationId)).toBeNull();
     expect(
-      readCashConfirmation({ ...confirmed, status: 'pending_payment' }, eventId, registrationId),
+      readConfirmation({ ...confirmed, status: 'pending_payment' }, eventId, registrationId),
     ).toBeNull();
-    expect(readCashConfirmation(confirmed, eventId, participantId)).toBeNull();
+    expect(readConfirmation(confirmed, eventId, participantId)).toBeNull();
   });
 });
 
@@ -213,6 +213,14 @@ describe('readRegistrationFailure', () => {
     ).toEqual({ kind: 'invalid', fieldErrors: { receipt: 'invalid' } });
   });
 
+  it('maps a rejected complimentary reason to the reason field', () => {
+    expect(
+      readRegistrationFailure(400, {
+        message: 'Reason is required and must be 1 to 500 characters',
+      }),
+    ).toEqual({ kind: 'invalid', fieldErrors: { reason: 'invalid' } });
+  });
+
   it('maps the known entitlement and cash rule messages to stable codes', () => {
     for (const [status, message, code] of [
       [409, 'Pass type is archived', 'pass_type_archived'],
@@ -238,6 +246,18 @@ describe('readRegistrationFailure', () => {
         code: 'receipt_taken',
       }),
     ).toEqual({ kind: 'rule', code: 'receipt_taken' });
+  });
+
+  it('maps the complimentary confirmation conflicts by their codes', () => {
+    expect(
+      readRegistrationFailure(409, { message: 'Registration holds no passes', code: 'no_passes' }),
+    ).toEqual({ kind: 'rule', code: 'no_passes' });
+    expect(
+      readRegistrationFailure(409, {
+        message: 'Registration passes do not total zero',
+        code: 'not_zero_total',
+      }),
+    ).toEqual({ kind: 'rule', code: 'not_zero_total' });
   });
 
   it('reads the possible duplicates with their masked contact', () => {

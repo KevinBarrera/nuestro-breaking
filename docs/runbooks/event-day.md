@@ -71,18 +71,25 @@ outcome, and the screen only shows what it answered.
    read-only, with no service charge. Write the paper receipt number in
    "Número de recibo" (optional "Nota") and press "Confirmar pago". A receipt
    number already used in this event is rejected; check the paper receipt.
+   If the passes total $0 (golden tickets and guests, #263), there is no cash
+   section: write why it is free in "Motivo" (for example "Golden ticket,
+   ganador de …"; required, up to 500 characters) and press "Confirmar sin
+   cobro". The reason stays in the registration audit.
 6. Confirm the dialog, then read the folio shown (for example `LMP-7K3Q`) to
-   the participant. It is not the paper receipt number.
+   the participant. It is not the paper receipt number. Both the cash and the
+   without-payment confirmation send the participant the confirmation email
+   with the folio.
 
 If the screen says "No pudimos confirmar si el pago se registró", press
 "Recargar" and read the status. Never charge again or confirm a second time
 before reloading: the first payment may already be recorded. The same applies
-when adding a pass or saving competitions cannot be confirmed.
+when a confirmation without payment, adding a pass or saving competitions
+cannot be confirmed. If a confirmation without payment says the registration
+no longer has passes or now has an amount to charge, press "Recargar": someone
+changed its passes, and a priced registration goes back to the cash payment.
 
-A registration whose passes are all free ($0) cannot be confirmed yet; the
-screen says so (#263). Judges can reach registration search today, but cannot
-sell or read a registration's passes; whether search stays open to them is
-undecided (#262).
+No account gets the judge role for now. Registration search would still admit
+a judge, so reopen #262 before creating one.
 
 ## Safe stop conditions
 

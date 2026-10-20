@@ -57,6 +57,7 @@ Decided on 2026-10-16 (see issue #125).
 - `receipt` is required: trimmed, 1 to 50 characters. Missing, blank, non-text or longer values answer 400 `Receipt number is required and must be 1 to 50 characters`.
 - The receipt number is unique among the cash confirmations of the event, compared exactly after trimming (case-sensitive: `A-17` and `a-17` differ). A repeated number answers 409 `{ "statusCode": 409, "message": "Receipt number already used in this event", "code": "receipt_taken" }` and writes nothing. The database enforces it with the partial unique index `registration_operation_audit_cash_receipt_uq` on `(event_id, receipt)` for `cash_confirmation` rows with a receipt (migration `0029_cash_receipt_unique`), so concurrent requests are safe. Another event may use the same number.
 - Earlier cash confirmations without a receipt stay as legacy rows; the column stays nullable and no number is invented for them.
+- A successful cash confirmation queues the participant's confirmation email in the same transaction and tries to send it after commit; a send failure never changes the answer, and the sweep retries it (#263, [confirmation email contract](confirmation-email.md)).
 
 ## Permissions and audit invariants
 

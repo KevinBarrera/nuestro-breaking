@@ -1,6 +1,6 @@
 # Confirmation email contract
 
-This contract describes the email an online buyer receives when their registration is confirmed, for issue #179. Only the verified Mercado Pago webhook (#177) queues it, and each registration gets at most one. A send failure never undoes the confirmation: the email is retried and, if it still fails, reported. The provider is Brevo ([ADR 0007](../adr/0007-email-delivery-service.md)). It is implemented and covered by backend unit and e2e tests. Operating it (Brevo setup, checking delivery, requeueing) is in the [email delivery runbook](../runbooks/email-delivery.md).
+This contract describes the email a participant receives when their registration is confirmed, for issue #179. The verified Mercado Pago webhook (#177) and an admin's cash confirmation (#263) queue it, and each registration gets at most one. A send failure never undoes the confirmation: the email is retried and, if it still fails, reported. The provider is Brevo ([ADR 0007](../adr/0007-email-delivery-service.md)). It is implemented and covered by backend unit and e2e tests. Operating it (Brevo setup, checking delivery, requeueing) is in the [email delivery runbook](../runbooks/email-delivery.md).
 
 ## When it is sent
 
@@ -9,16 +9,16 @@ This contract describes the email an online buyer receives when their registrati
 | The webhook confirms a `pending_payment` registration with `approved_payment` | Yes, once.                                  |
 | An OXXO/SPEI payment is approved later and the webhook then confirms          | Yes, once, the same email.                  |
 | Mercado Pago retries the notification, or sends another one for the payment   | No: the registration already has its email. |
-| An admin confirms the registration with cash                                  | No.                                         |
-| An approval arrives for a registration already confirmed with cash            | No.                                         |
+| An admin confirms the registration with cash                                  | Yes, once.                                  |
+| An approval arrives for a registration already confirmed with cash            | No: the registration already has its email. |
 | The confirmation transaction fails and rolls back                             | No: the queued email rolls back with it.    |
 
-The buyer's return to our site plays no part: only the webhook confirms.
+The buyer's return to our site plays no part: only the webhook or a cash confirmation confirms.
 
 ## How it is delivered
 
-1. In the same transaction that confirms the registration, the webhook inserts one row in `registration_confirmation_emails` (status `pending`). A unique `registration_id` makes this the once-per-registration guarantee.
-2. Right after that transaction commits, the backend tries to send it. The webhook answers Mercado Pago without waiting for the send, and a send error never changes its answer.
+1. In the same transaction that confirms the registration, the webhook or the cash confirmation inserts one row in `registration_confirmation_emails` (status `pending`). A unique `registration_id` makes this the once-per-registration guarantee.
+2. Right after that transaction commits, the backend tries to send it. The webhook answers Mercado Pago, and the cash confirmation answers the admin, without waiting for the send; a send error never changes either answer.
 3. A periodic sweep inside the backend retries every row that is still due.
 
 Code: `apps/backend/src/notifications/` (`ConfirmationEmailDispatcher`, `ConfirmationEmailSweeper`, `buildConfirmationEmail`).

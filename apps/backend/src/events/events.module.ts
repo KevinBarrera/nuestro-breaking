@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { DatabaseModule } from '@/database/database.module';
 import { IdentityAccessModule } from '@/identity-access/identity-access.module';
 import { PublicRateLimitModule } from '@/http';
+import { NotificationsModule } from '@/notifications';
 import { AdminEventsController } from './admin-events/admin-events.controller';
 import { AdminEventsService } from './admin-events/admin-events.service';
 import { EventFoundationGuard } from './foundation/event-foundation.guard';
@@ -38,7 +39,7 @@ import { VenueAdminController } from './venue-admin/venue-admin.controller';
 import { VenueAdminService } from './venue-admin/venue-admin.service';
 
 @Module({
-  imports: [DatabaseModule, IdentityAccessModule, PublicRateLimitModule],
+  imports: [DatabaseModule, IdentityAccessModule, NotificationsModule, PublicRateLimitModule],
   controllers: [
     AdminEventsController,
     EventFoundationController,

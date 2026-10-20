@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Inject, Injectable } from '@nestjs/common';
+import { BadRequestException, ConflictException, Inject, Injectable, Logger } from '@nestjs/common';
 import { and, asc, eq, inArray, ne, or, sql } from 'drizzle-orm';
 import { DATABASE_CLIENT } from '@/database/database.constants';
 import type { DatabaseService } from '@/database/database.service';
@@ -22,6 +22,7 @@ import {
   type AdminRegistrationAuditActor,
   registrationAuditActorColumns,
 } from '@/events/registration-audit/registration-audit-actor';
+import { ConfirmationEmailDispatcher, enqueueConfirmationEmail } from '@/notifications';
 import { maskEmail, maskPhone } from './mask-contact';
 
 type Manual = {
@@ -69,7 +70,12 @@ function receiptTaken() {
 
 @Injectable()
 export class ManualRegistrationService {
-  constructor(@Inject(DATABASE_CLIENT) private readonly db: DatabaseService['db']) {}
+  private readonly logger = new Logger(ManualRegistrationService.name);
+
+  constructor(
+    @Inject(DATABASE_CLIENT) private readonly db: DatabaseService['db'],
+    private readonly confirmationEmails: ConfirmationEmailDispatcher,
+  ) {}
 
   async create(eventId: string, input: Manual, actor: AdminRegistrationAuditActor) {
     const p = input.participant;
@@ -161,13 +167,25 @@ export class ManualRegistrationService {
     actor: AdminRegistrationAuditActor,
   ) {
     try {
-      return await this.confirmInTransaction(eventId, registrationId, input, actor);
+      const confirmed = await this.confirmInTransaction(eventId, registrationId, input, actor);
+      // After commit, as the payments webhook does: a send failure never changes the answer.
+      this.sendConfirmationEmail(registrationId);
+      return confirmed;
     } catch (error) {
       // The unique index rejects a reused receipt even under concurrent requests; the whole
       // transaction rolls back, so nothing is written.
       if (isUniqueViolation(error, CASH_RECEIPT_UNIQUE)) throw receiptTaken();
       throw error;
     }
+  }
+
+  /** Fire and forget: the outbox row is committed, so the sweep retries whatever fails here. */
+  private sendConfirmationEmail(registrationId: string) {
+    this.confirmationEmails.dispatchRegistration(registrationId).catch((error: unknown) => {
+      this.logger.error(
+        `Confirmation email dispatch for registration ${registrationId} failed (${error instanceof Error ? error.name : 'unknown'}); the sweep will retry it.`,
+      );
+    });
   }
 
   private async confirmInTransaction(
@@ -220,6 +238,8 @@ export class ManualRegistrationService {
           },
         })
         .returning({ id: registrationOperationAudit.id });
+      // Queued with the confirmation, so the email exists exactly when it commits (#263).
+      await enqueueConfirmationEmail(tx, registrationId);
       return {
         registrationId,
         eventId,

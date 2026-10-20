@@ -18,7 +18,7 @@ During the in-person sale, competitions checked but not yet saved survive any re
 
 ## Tasks
 
-- [ ] 1. Keep drafts across entitlements refreshes: lift drafts to the page, Vitest for the draft helpers, Playwright for "add a pass keeps the checked competitions".
+- [x] 1. Keep drafts across entitlements refreshes: lift drafts to the page, Vitest for the draft helpers, Playwright for "add a pass keeps the checked competitions".
 - [ ] 2. Block cash and complimentary confirmation while drafts are unsaved, with the hint and "Descartar cambios". Vitest for the unsaved-pass helper, Playwright for blocked, discard and save-then-confirm.
 - [ ] 3. Show included competitions on the registration page (confirmed and voided views, and the sale competitions section). Vitest for the mapping, Playwright for the view.
 - [ ] 4. Docs: `docs/frontend-architecture.md` (sale section), `docs/runbooks/event-day.md` step on competitions.
@@ -26,3 +26,4 @@ During the in-person sale, competitions checked but not yet saved survive any re
 ## Evidence
 
 - Exploration on 2026-10-20: `sale-competitions.tsx:99-104` resets the draft when the `pass.saved` array reference changes, and every read or write answer brings a new array. Drafts live in `PassCompetitions` local state, so `SaleCash` and `SaleComplimentary` cannot see them. `selectionSummary` (`sale-cash-model.ts:162`) lists only selections; `saleCompetitionPasses` already reads the pass types' `access` links.
+- Task 1 on 2026-10-20: RED Vitest 4 failures (`effectiveDraft`/`withDraft` missing) and the new Playwright test failed on the old component (Breaking unchecked after adding a pass); GREEN Vitest 557/557, `admin-registration-competitions.spec.ts` + `admin-event-sales.spec.ts` 12/12, lint and build pass. Drafts live in `RegistrationScreen` as `CompetitionDrafts` keyed by `registrationPassId`; `withDraft` drops an entry on save or when it matches the saved set. The rejected-selection test now expects the draft to survive "Recargar". Commit: 5dfc4fb; native review approved (lineage review-4d41cb90c59e46f3) with advisories: orphan drafts for passes no longer held, and reload keeping a rejected draft (task 2 handles both: unsaved passes are computed from held passes only, and "Descartar cambios" drops a draft).

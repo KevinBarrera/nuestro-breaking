@@ -8,6 +8,7 @@ import {
   themes,
   useTheme,
 } from './support/admin-mocks.ts';
+import { registrationSweepCases } from './support/registration-mocks.ts';
 import { selectTrigger } from './support/select.ts';
 
 type Rgba = [number, number, number, number];
@@ -355,6 +356,82 @@ for (const theme of themes) {
           (entry) => rgba(entry.bg)[3] !== 1 || contrast(rgba(entry.fg), rgba(entry.bg)) < 4.5,
         )
         .map((entry) => `${entry.text}: ${contrast(rgba(entry.fg), rgba(entry.bg)).toFixed(2)}`);
+      expect(failures).toEqual([]);
+    });
+  }
+}
+
+// The registration screen in each status and the search with a pending result (#105), in both
+// themes: every control keeps a 44px target, and every enabled text keeps 4.5:1 against what it
+// is painted on, including the confirmed folio panel. Text with no opaque background behind it
+// sits on the page gradient, so it is measured against each stop.
+for (const theme of themes) {
+  for (const sweep of registrationSweepCases) {
+    test(`${theme} theme ${sweep.name} keeps 44px targets and 4.5:1 text`, async ({ page }) => {
+      await useTheme(page, theme);
+      await mockAdminApi(page);
+      await sweep.mock(page);
+      await page.goto(sweep.path);
+      await sweep.ready(page);
+      await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
+      const { stops } = await readTokens(page, []);
+      const report = await page.getByRole('main').evaluate((root) => {
+        const painted = (node: Element) => {
+          let current: Element | null = node;
+          let bg = 'rgba(0, 0, 0, 0)';
+          while (current && /rgba\(.*, 0\)$/.test(bg)) {
+            bg = getComputedStyle(current).backgroundColor;
+            current = current.parentElement;
+          }
+          return bg;
+        };
+        const visible = (node: Element) =>
+          node.getClientRects().length > 0 && !node.closest('[aria-hidden="true"]');
+        const controls = [
+          ...root.querySelectorAll<HTMLElement>(
+            'a[href], button, input, textarea, select, [role="button"]',
+          ),
+        ]
+          .filter((node) => visible(node) && !(node.tagName === 'A' && node.closest('p')))
+          .map((node) => {
+            const target =
+              node instanceof HTMLInputElement && ['checkbox', 'radio'].includes(node.type)
+                ? (node.closest('label') ?? node)
+                : node;
+            return {
+              name: (node.getAttribute('aria-label') ?? node.textContent ?? node.tagName).trim(),
+              height: target.getBoundingClientRect().height,
+            };
+          });
+        // Disabled controls are exempt from contrast (WCAG 1.4.3 inactive components).
+        const texts = [...root.querySelectorAll<HTMLElement>('*')]
+          .filter(
+            (node) =>
+              visible(node) &&
+              !node.closest(':disabled, [aria-disabled="true"]') &&
+              !node.classList.contains('sr-only') &&
+              [...node.childNodes].some(
+                (child) => child.nodeType === Node.TEXT_NODE && child.textContent!.trim(),
+              ),
+          )
+          .map((node) => ({
+            text: node.textContent.trim().slice(0, 40),
+            fg: getComputedStyle(node).color,
+            bg: painted(node),
+          }));
+        return { controls, texts };
+      });
+      expect(report.controls.length).toBeGreaterThanOrEqual(1);
+      expect(report.controls.filter((control) => control.height < 44)).toEqual([]);
+      const rgba = (value: string) =>
+        [...value.match(/[\d.]+/g)!.map(Number), 1].slice(0, 4) as Rgba;
+      expect(report.texts.length).toBeGreaterThanOrEqual(3);
+      const failures = report.texts.flatMap((entry) => {
+        const bg = rgba(entry.bg);
+        const grounds = bg[3] === 1 ? [bg] : stops.map((stop) => over(bg, stop));
+        const ratio = Math.min(...grounds.map((ground) => contrast(rgba(entry.fg), ground)));
+        return ratio < 4.5 ? [`${entry.text}: ${ratio.toFixed(2)}`] : [];
+      });
       expect(failures).toEqual([]);
     });
   }

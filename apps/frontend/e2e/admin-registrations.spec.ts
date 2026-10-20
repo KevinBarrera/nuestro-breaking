@@ -1,5 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import {
+  catalogActivity,
+  catalogPassType,
   created,
   duplicateMatch,
   eventId,
@@ -11,6 +13,7 @@ import {
   registrationId,
   registrationPath,
   registrationsPath,
+  registrationSummary,
   searchPage,
   searchResult,
   thirdRegistrationId,
@@ -59,7 +62,18 @@ test('searches registrations and opens one from the results', async ({ page }) =
         searchResult(otherRegistrationId, 'Luis Ruiz'),
       ]),
     }),
-    entitlements: () => ({ json: { passes: [heldPass], accessibleActivityIds: [] } }),
+    entitlements: (id) => ({
+      json: {
+        registration: registrationSummary(id, {
+          fullName: 'Luz Rivera',
+          stageName: 'Luz',
+          folio: 'EV-7K3Q',
+          status: 'confirmed',
+        }),
+        passes: [heldPass],
+        accessibleActivityIds: [],
+      },
+    }),
   });
   await page.goto(`/admin/events/${eventId}`);
   await sideNav(page).getByRole('link', { name: 'Inscripciones' }).click();
@@ -101,6 +115,52 @@ test('searches registrations and opens one from the results', async ({ page }) =
   await page.goBack();
   await expect(searchBox(page)).toHaveValue('Lu');
   await expect(page.getByText('2 inscripciones')).toBeVisible();
+});
+
+test('resumes the sale of a pending registration from the search', async ({ page }) => {
+  const breaking = catalogActivity(
+    'a1b2c3d4-1234-4567-89ab-123456789abc',
+    'Breaking 1 vs 1',
+    '2026-11-14T18:00:00.000Z',
+  );
+  await mockRegistrations(page, {
+    search: () => ({
+      json: searchPage([
+        searchResult(registrationId, 'Luz Rivera', { folio: 'EV-7K3Q', status: 'confirmed' }),
+        searchResult(otherRegistrationId, 'Luis Ruiz'),
+      ]),
+    }),
+    entitlements: (id) => ({
+      json: {
+        registration: registrationSummary(id, { fullName: 'Luis Ruiz' }),
+        passes: [heldPass],
+        accessibleActivityIds: [],
+      },
+    }),
+    passTypes: () => ({
+      json: [
+        catalogPassType(heldPass.passTypeId, 'Pase completo', 'full', 150000, {
+          activities: [{ activityId: breaking.id, access: 'selectable' }],
+        }),
+      ],
+    }),
+    activities: () => ({ json: [breaking] }),
+  });
+  await page.goto(`${registrationsPath}?q=Lu`);
+  const results = page.getByRole('region', { name: 'Resultados' }).getByRole('listitem');
+  // Only the pending registration offers to continue its sale.
+  await expect(results.nth(0)).not.toContainText('Continuar venta');
+  await results
+    .nth(1)
+    .getByRole('link', { name: /Continuar venta/ })
+    .click();
+
+  await expect(page).toHaveURL(registrationPath(otherRegistrationId));
+  await expect(
+    page.getByRole('heading', { level: 1, name: 'Inscripción de Luis Ruiz' }),
+  ).toBeVisible();
+  for (const name of ['Pases', 'Agregar pase', 'Competencias', 'Pago en efectivo'])
+    await expect(page.getByRole('region', { name, exact: true })).toBeVisible();
 });
 
 test('pages through results 20 at a time', async ({ page }) => {
@@ -280,6 +340,13 @@ test('confirms possible duplicates and registers another person', async ({ page 
 test('continues with a pending duplicate instead of registering again', async ({ page }) => {
   const { creates } = await mockRegistrations(page, {
     create: () => possibleDuplicates([duplicateMatch(otherRegistrationId)]),
+    entitlements: (id) => ({
+      json: {
+        registration: registrationSummary(id, { fullName: 'Alex Rivera', stageName: 'Flash' }),
+        passes: [],
+        accessibleActivityIds: [],
+      },
+    }),
   });
   await page.goto(newRegistrationPath);
   await fillRequired(page);
@@ -293,6 +360,8 @@ test('continues with a pending duplicate instead of registering again', async ({
   await expect(
     page.getByRole('heading', { level: 1, name: 'Inscripción de Alex Rivera' }),
   ).toBeVisible();
+  // The same sale screen the search opens.
+  await expect(page.getByRole('region', { name: 'Agregar pase' })).toBeVisible();
   expect(creates).toHaveLength(1);
 });
 

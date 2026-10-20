@@ -196,6 +196,10 @@ function ResultCard({ eventId, row }: { eventId: string; row: RegistrationSearch
           </span>
         )}
         <span className="block text-sm break-words text-fg">{activitySummary(row.activities)}</span>
+        {/* A sale interrupted after the create left it pending: the card resumes it. */}
+        {row.registration.status === 'pending_payment' && (
+          <span className="block font-semibold text-link underline">Continuar venta</span>
+        )}
       </span>
       <span className="flex flex-wrap items-center gap-2">
         <span className="rounded bg-chip px-2 py-1 font-mono text-sm text-fg">

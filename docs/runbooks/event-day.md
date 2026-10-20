@@ -2,7 +2,8 @@
 
 This planning-only runbook describes safe future operator behavior for a
 connected event. It does not authorize a release, confirm live tooling, or
-claim operational readiness.
+claim operational readiness. The exception is "Venta en el lugar", which
+describes admin screens that are already built (#105).
 
 ## Prerequisites
 
@@ -45,6 +46,43 @@ decisions remain deferred.
 6. Record only minimum operational context for escalation. Do not place
    passwords, QR values, PINs, session identifiers, or sensitive participant
    details in general notes.
+
+## Venta en el lugar
+
+The in-person sale (#105) runs in the admin panel under "Operación ›
+Inscripciones". It needs an event administrator; the platform decides every
+outcome, and the screen only shows what it answered.
+
+1. Search first in "Buscar inscripción" (name, email, AKA, folio or cash
+   receipt number). If the person already has a registration marked "Pendiente
+   de pago", open its card ("Continuar venta") and continue from step 3.
+2. Otherwise choose "Nueva inscripción", fill in the participant (name, first
+   last name, email and phone are required) and press "Registrar". If "¿Es la
+   misma persona?" opens, compare the listed matches: "Continuar con esta
+   inscripción" (pending matches only) opens the existing registration; "Es
+   otra persona, registrar" creates a new one.
+3. In "Agregar pase", press "Agregar" on each pass and confirm the dialog. A
+   pass cannot be removed from this screen, so check the name and price before
+   confirming; corrections belong to #256. Passes that cannot be added show the
+   reason instead of the button.
+4. In "Competencias", check the competitions for each pass and press "Guardar
+   competencias".
+5. Take the cash for "Total a cobrar". The total is the sum of the passes,
+   read-only, with no service charge. Write the paper receipt number in
+   "Número de recibo" (optional "Nota") and press "Confirmar pago". A receipt
+   number already used in this event is rejected; check the paper receipt.
+6. Confirm the dialog, then read the folio shown (for example `LMP-7K3Q`) to
+   the participant. It is not the paper receipt number.
+
+If the screen says "No pudimos confirmar si el pago se registró", press
+"Recargar" and read the status. Never charge again or confirm a second time
+before reloading: the first payment may already be recorded. The same applies
+when adding a pass or saving competitions cannot be confirmed.
+
+A registration whose passes are all free ($0) cannot be confirmed yet; the
+screen says so (#263). Judges can reach registration search today, but cannot
+sell or read a registration's passes; whether search stays open to them is
+undecided (#262).
 
 ## Safe stop conditions
 

@@ -27,7 +27,11 @@ import {
   type ProviderPayment,
 } from '@/payments/mercado-pago-client';
 import { MERCADO_PAGO_CONFIG, type MercadoPagoConfig } from '@/payments/mercado-pago-config';
-import { ConfirmationEmailDispatcher, enqueueConfirmationEmail } from '@/notifications';
+import {
+  ConfirmationEmailDispatcher,
+  dispatchAfterCommit,
+  enqueueConfirmationEmail,
+} from '@/notifications';
 import { decidePayment } from './payment-decision';
 
 type Database = DatabaseService['db'];
@@ -116,7 +120,8 @@ export class PaymentWebhookService {
       return result;
     });
     this.logger.log(`Mercado Pago payment ${paymentId} notification ${claimId}: ${outcome}`);
-    if (confirmedRegistrationId) this.sendConfirmationEmail(confirmedRegistrationId);
+    if (confirmedRegistrationId)
+      dispatchAfterCommit(this.confirmationEmails, confirmedRegistrationId, this.logger);
     return outcome;
   }
 
@@ -149,17 +154,9 @@ export class PaymentWebhookService {
       return result;
     });
     this.logger.log(`Mercado Pago payment ${paymentId} reconciliation: ${outcome}`);
-    if (confirmedRegistrationId) this.sendConfirmationEmail(confirmedRegistrationId);
+    if (confirmedRegistrationId)
+      dispatchAfterCommit(this.confirmationEmails, confirmedRegistrationId, this.logger);
     return outcome;
-  }
-
-  /** Fire and forget: the outbox row is committed, so the sweep retries whatever fails here. */
-  private sendConfirmationEmail(registrationId: string) {
-    this.confirmationEmails.dispatchRegistration(registrationId).catch((error: unknown) => {
-      this.logger.error(
-        `Confirmation email dispatch for registration ${registrationId} failed (${error instanceof Error ? error.name : 'unknown'}); the sweep will retry it.`,
-      );
-    });
   }
 
   private async isProcessed(db: Database | RegistrationTransaction, claimId: string, lock = false) {

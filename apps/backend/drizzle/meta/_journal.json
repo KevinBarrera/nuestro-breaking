@@ -211,6 +211,13 @@
       "when": 1791935710337,
       "tag": "0029_cash_receipt_unique",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1791935770337,
+      "tag": "0030_complimentary_confirmation",
+      "breakpoints": true
     }
   ]
 }

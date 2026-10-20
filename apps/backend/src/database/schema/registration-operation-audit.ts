@@ -41,6 +41,7 @@ export const registrationOperationAudit = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     amountCents: integer('amount_cents'),
     reference: text('reference'),
+    // Free text; the required reason of a complimentary confirmation (#263).
     note: text('note'),
     // Cash receipt number; required by the API for new cash confirmations, null on legacy rows.
     receipt: text('receipt'),
@@ -51,7 +52,7 @@ export const registrationOperationAudit = pgTable(
   (table) => [
     check(
       'registration_operation_audit_operation_type_check',
-      sql`${table.operationType} IN ('manual_registration', 'cash_confirmation', 'pass_assignment', 'pass_selection_change', 'online_registration', 'payment_approval', 'registration_expiry')`,
+      sql`${table.operationType} IN ('manual_registration', 'cash_confirmation', 'pass_assignment', 'pass_selection_change', 'online_registration', 'payment_approval', 'registration_expiry', 'complimentary_confirmation')`,
     ),
     check(
       'registration_operation_audit_actor_kind_check',

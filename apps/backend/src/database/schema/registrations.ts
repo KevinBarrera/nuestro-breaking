@@ -44,7 +44,7 @@ export const eventRegistrations = pgTable(
     ),
     check(
       'event_registrations_confirmation_source_ck',
-      sql`${table.confirmationSource} IS NULL OR ${table.confirmationSource} IN ('approved_payment', 'admin_cash')`,
+      sql`${table.confirmationSource} IS NULL OR ${table.confirmationSource} IN ('approved_payment', 'admin_cash', 'admin_complimentary')`,
     ),
     check(
       'event_registrations_confirmation_metadata_ck',

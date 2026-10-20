@@ -77,6 +77,27 @@ describe('admin registration commands (e2e)', () => {
     request(app.getHttpServer()).post(
       `/admin/events/${event}/registrations/${id}/cash-confirmation`,
     );
+  const complimentary = (event: string, id: string) =>
+    request(app.getHttpServer()).post(
+      `/admin/events/${event}/registrations/${id}/complimentary-confirmation`,
+    );
+  /** A pending registration of the event holding one pass per price snapshot, in cents. */
+  async function pendingWithPasses(event: string, snapshots: number[]) {
+    const [{ id }] = await client<{ id: string }[]>`
+      WITH participant AS (INSERT INTO participants (full_name) VALUES ('Guest') RETURNING id)
+      INSERT INTO event_registrations (event_id, participant_id)
+      SELECT ${event}, id FROM participant RETURNING id`;
+    for (const [index, priceCents] of snapshots.entries()) {
+      // The pass type is free today; only the snapshot taken when the pass was held counts.
+      const [{ id: passType }] = await client<{ id: string }[]>`
+        INSERT INTO event_pass_types (event_id, name, pass_class, price_cents, requires_pass_class, status)
+        VALUES (${event}, ${`Pass ${id}-${index}`}, ${index === 0 ? 'full' : 'add_on'}, 0,
+          ${index === 0 ? null : 'full'}, 'active') RETURNING id`;
+      await client`INSERT INTO event_registration_passes (event_id, event_registration_id, pass_type_id, price_cents)
+        VALUES (${event}, ${id}, ${passType}, ${priceCents})`;
+    }
+    return id;
+  }
   async function counts() {
     const [row] = await client<{ participants: number; registrations: number; facts: number }[]>`
       SELECT (SELECT count(*)::int FROM participants) AS participants,
@@ -596,5 +617,175 @@ describe('admin registration commands (e2e)', () => {
     expect(
       await client`SELECT count(*)::int AS n FROM registration_operation_audit WHERE receipt IS NULL`,
     ).toEqual([{ n: 2 }]);
+  });
+
+  it('requires an active event-admin session and session CSRF for complimentary confirmation', async () => {
+    const { event, other } = await fixture();
+    const admin = await session('admin', event);
+    const judge = await session('judge', event);
+    const id = await pendingWithPasses(event, [0]);
+    const body = { reason: 'Golden ticket' };
+    await complimentary(event, id).set('Origin', trustedOrigin).send(body).expect(401);
+    await complimentary(event, id).set(headers(judge.cookie)).send(body).expect(401);
+    await complimentary(other, id).set(headers(admin.cookie)).send(body).expect(401);
+    await complimentary(event, id)
+      .set('Cookie', admin.cookie)
+      .set('X-CSRF-Token', headers(admin.cookie)['X-CSRF-Token'])
+      .send(body)
+      .expect(403);
+    await complimentary(event, id)
+      .set(headers(admin.cookie))
+      .set('Origin', 'https://untrusted.example')
+      .send(body)
+      .expect(403);
+    await complimentary(event, id)
+      .set('Cookie', admin.cookie)
+      .set('Origin', trustedOrigin)
+      .send(body)
+      .expect(403);
+    await complimentary(event, id)
+      .set(headers(admin.cookie))
+      .set('X-CSRF-Token', '0'.repeat(64))
+      .send(body)
+      .expect(403);
+    expect(await client`SELECT status FROM event_registrations WHERE id = ${id}`).toEqual([
+      { status: 'pending_payment' },
+    ]);
+    expect(await counts()).toMatchObject({ facts: 0 });
+  });
+
+  it('confirms a $0 registration without payment, with the reason in an attributed audit fact (#263)', async () => {
+    const { event } = await fixture();
+    const { cookie, userId, sessionId } = await session('admin', event);
+    const id = await pendingWithPasses(event, [0, 0]);
+    const result = await complimentary(event, id)
+      .set(headers(cookie))
+      .send({ reason: '  Golden ticket, winner of the cypher  ' })
+      .expect(201);
+    const body = result.body as { auditId: string; folio: string };
+    expect(body).toEqual({
+      registrationId: id,
+      eventId: event,
+      status: 'confirmed',
+      folio: expect.stringMatching(/^EV-[23456789ABCDEFGHJKMNPQRSTUVWXYZ]{4}$/) as string,
+      auditId: expect.any(String) as string,
+    });
+    expect(
+      await client`SELECT status, confirmation_source, folio FROM event_registrations WHERE id = ${id}`,
+    ).toEqual([
+      { status: 'confirmed', confirmation_source: 'admin_complimentary', folio: body.folio },
+    ]);
+    const facts = await client`
+      SELECT id, operation_type, actor_kind, actor_user_id, session_id, amount_cents, reference,
+        note, receipt, before_state, after_state
+      FROM registration_operation_audit`;
+    expect(facts).toEqual([
+      {
+        id: body.auditId,
+        operation_type: 'complimentary_confirmation',
+        actor_kind: 'admin',
+        actor_user_id: userId,
+        session_id: sessionId,
+        amount_cents: null,
+        reference: null,
+        note: 'Golden ticket, winner of the cypher',
+        receipt: null,
+        before_state: {
+          status: 'pending_payment',
+          confirmationSource: null,
+          confirmedAt: null,
+          folio: null,
+        },
+        after_state: {
+          status: 'confirmed',
+          confirmationSource: 'admin_complimentary',
+          confirmedAt: expect.any(String) as string,
+          folio: body.folio,
+        },
+      },
+    ]);
+    expect(await client`SELECT registration_id FROM registration_confirmation_emails`).toEqual([
+      { registration_id: id },
+    ]);
+  });
+
+  it('requires a reason of 1 to 500 characters for complimentary confirmation', async () => {
+    const { event } = await fixture();
+    const { cookie } = await session('admin', event);
+    const id = await pendingWithPasses(event, [0]);
+    for (const body of [
+      {},
+      { reason: null },
+      { reason: '' },
+      { reason: '   ' },
+      { reason: 7 },
+      { reason: 'x'.repeat(501) },
+    ]) {
+      const response = await complimentary(event, id).set(headers(cookie)).send(body).expect(400);
+      expect((response.body as { message: string }).message).toBe(
+        'Reason is required and must be 1 to 500 characters',
+      );
+    }
+    expect(await counts()).toMatchObject({ facts: 0 });
+    await complimentary(event, id)
+      .set(headers(cookie))
+      .send({ reason: ` ${'r'.repeat(500)} ` })
+      .expect(201);
+  });
+
+  it('rejects complimentary confirmation of a registration without passes or with a paid snapshot, writing nothing', async () => {
+    const { event } = await fixture();
+    const { cookie } = await session('admin', event);
+    const paid = await pendingWithPasses(event, [0, 30000]);
+    const empty = await pendingWithPasses(event, []);
+    const notZero = await complimentary(event, paid)
+      .set(headers(cookie))
+      .send({ reason: 'Guest' })
+      .expect(409);
+    expect(notZero.body).toEqual({
+      statusCode: 409,
+      code: 'not_zero_total',
+      message: 'Registration passes do not total zero',
+    });
+    const noPasses = await complimentary(event, empty)
+      .set(headers(cookie))
+      .send({ reason: 'Guest' })
+      .expect(409);
+    expect(noPasses.body).toEqual({
+      statusCode: 409,
+      code: 'no_passes',
+      message: 'Registration holds no passes',
+    });
+    expect(
+      await client`SELECT status, confirmation_source, folio FROM event_registrations ORDER BY status`,
+    ).toEqual([
+      { status: 'pending_payment', confirmation_source: null, folio: null },
+      { status: 'pending_payment', confirmation_source: null, folio: null },
+    ]);
+    expect(await counts()).toMatchObject({ facts: 0 });
+    expect(await client`SELECT id FROM registration_confirmation_emails`).toEqual([]);
+  });
+
+  it('rejects complimentary confirmation of a registration that is not pending in the event', async () => {
+    const { event, other } = await fixture();
+    const { cookie } = await session('admin', event);
+    const confirmed = await pendingWithPasses(event, [0]);
+    await complimentary(event, confirmed)
+      .set(headers(cookie))
+      .send({ reason: 'Guest' })
+      .expect(201);
+    const voided = await pendingWithPasses(event, [0]);
+    await client`UPDATE event_registrations SET status = 'voided' WHERE id = ${voided}`;
+    const foreign = await pendingWithPasses(other, [0]);
+    for (const id of [confirmed, voided, foreign]) {
+      const response = await complimentary(event, id)
+        .set(headers(cookie))
+        .send({ reason: 'Guest' })
+        .expect(400);
+      expect((response.body as { message: string }).message).toBe(
+        'Registration is not pending in this event',
+      );
+    }
+    expect(await counts()).toMatchObject({ facts: 1 });
   });
 });

@@ -2,8 +2,8 @@ import type { Page } from '@playwright/test';
 import { activeEventId, eventSummary, mockSession } from './event-mocks.ts';
 
 // Mocked admin registration API (#105): search, entitlements, the manual registration, the
-// event's pass types and activities, adding a pass, replacing a pass's selections and confirming
-// a cash payment.
+// event's pass types and activities, adding a pass, replacing a pass's selections, confirming
+// a cash payment and confirming without payment (#263).
 // Each handler answers per request, and the helper returns what the screens sent.
 const api = (url: URL) => url.port === '3000';
 
@@ -164,12 +164,15 @@ export type RegistrationMocks = {
   selections?: (attempt: number) => Answer;
   // `attempt` counts the POSTs, starting at 1.
   cash?: (attempt: number) => Answer;
+  // `attempt` counts the POSTs, starting at 1.
+  complimentary?: (attempt: number) => Answer;
 };
 
 export type SentCreate = { body: Record<string, unknown>; csrf: string | null };
 export type SentPass = { registrationId: string; body: unknown; csrf: string | null };
 export type SentSelections = SentPass & { registrationPassId: string };
 export type SentCash = SentPass;
+export type SentComplimentary = SentPass;
 
 // The answer of a recorded cash payment.
 export const cashConfirmed = (id: string, folio: string) => ({
@@ -180,12 +183,23 @@ export const cashConfirmed = (id: string, folio: string) => ({
   auditId: 'audit-cash-1',
 });
 
+// A held pass the registration got for free, such as a golden ticket.
+export const freeHeldPass = {
+  registrationPassId: 'f8b2c3d4-1234-4567-89ab-123456789abc',
+  passTypeId: 'f2b2c3d4-1234-4567-89ab-123456789abc',
+  name: 'Golden ticket',
+  passClass: 'full',
+  priceCents: 0,
+  selections: [],
+};
+
 export async function mockRegistrations(page: Page, mocks: RegistrationMocks = {}) {
   const searches: URL[] = [];
   const creates: SentCreate[] = [];
   const addedPasses: SentPass[] = [];
   const selections: SentSelections[] = [];
   const cash: SentCash[] = [];
+  const complimentary: SentComplimentary[] = [];
   await mockSession(page);
   await page.route(
     (url) => api(url) && url.pathname === '/admin/events',
@@ -282,19 +296,37 @@ export async function mockRegistrations(page: Page, mocks: RegistrationMocks = {
       return fulfill(route, mocks.cash?.(cash.length) ?? { status: 500, json: {} });
     },
   );
-  return { searches, creates, addedPasses, selections, cash };
+  await page.route(
+    (url) =>
+      api(url) &&
+      /^\/admin\/events\/[^/]+\/registrations\/[^/]+\/complimentary-confirmation$/.test(
+        url.pathname,
+      ),
+    (route) => {
+      const request = route.request();
+      const id = new URL(request.url()).pathname.split('/')[5];
+      complimentary.push({
+        registrationId: id,
+        body: request.postDataJSON(),
+        csrf: request.headers()['x-csrf-token'] ?? null,
+      });
+      const answer = mocks.complimentary?.(complimentary.length) ?? { status: 500, json: {} };
+      return fulfill(route, answer);
+    },
+  );
+  return { searches, creates, addedPasses, selections, cash, complimentary };
 }
 
 // The registration screen in each status, and the search with a pending result, for the
 // accessibility and phone-width sweeps. Each case layers its answers over `mockAdminApi`.
-const sweepEntitlements = (status: string, folio: string | null) => ({
+const sweepEntitlements = (status: string, folio: string | null, passes = [heldPass]) => ({
   json: {
     registration: registrationSummary(registrationId, {
       status,
       folio,
       fullName: 'Persona con un nombre muy largo para pantallas angostas',
     }),
-    passes: [heldPass],
+    passes,
     accessibleActivityIds: [],
   },
 });
@@ -319,6 +351,17 @@ export const registrationSweepCases: {
     mock: (page) =>
       overrideRoute(page, '/entitlements', sweepEntitlements('pending_payment', null).json),
     ready: (page) => page.getByRole('region', { name: 'Pago en efectivo' }).waitFor(),
+  },
+  {
+    name: 'Inscripción pendiente sin cobro',
+    path: registrationPath(registrationId),
+    mock: (page) =>
+      overrideRoute(
+        page,
+        '/entitlements',
+        sweepEntitlements('pending_payment', null, [freeHeldPass]).json,
+      ),
+    ready: (page) => page.getByRole('region', { name: 'Confirmación sin cobro' }).waitFor(),
   },
   {
     name: 'Inscripción confirmada',

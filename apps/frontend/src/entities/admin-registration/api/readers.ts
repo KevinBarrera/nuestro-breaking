@@ -82,7 +82,8 @@ export function readManualRegistration(value: unknown, eventId: string): ManualR
   return { registrationId, participantId, eventId, status, auditId };
 }
 
-export function readCashConfirmation(
+// The answer of a cash or complimentary confirmation, which share their shape.
+export function readConfirmation(
   value: unknown,
   eventId: string,
   registrationId: string,
@@ -150,11 +151,20 @@ const ruleMessages: Record<string, AdminRegistrationRuleCode> = {
   'Invalid activity selection': 'invalid_activity_selection',
 };
 
-// Cash confirmation reports its invalid fields only by message; they map to the input names.
+// Cash and complimentary confirmation report their invalid fields only by message; they map to
+// the input names.
 const fieldMessages: Record<string, Record<string, string>> = {
   'Invalid amount in cents': { amountCents: 'invalid' },
   'Receipt number is required and must be 1 to 50 characters': { receipt: 'invalid' },
+  'Reason is required and must be 1 to 500 characters': { reason: 'invalid' },
 };
+
+// 409 answers that carry a stable backend `code`.
+const ruleCodes: readonly AdminRegistrationRuleCode[] = [
+  'receipt_taken',
+  'no_passes',
+  'not_zero_total',
+];
 
 const messageOf = (body: unknown) =>
   isRecord(body) && typeof body.message === 'string' ? body.message : '';
@@ -180,7 +190,8 @@ export function readRegistrationFailure(status: number, body: unknown): AdminReg
     return { kind: 'invalid', fieldErrors };
   }
   if (status === 409 && isRecord(body)) {
-    if (body.code === 'receipt_taken') return { kind: 'rule', code: 'receipt_taken' };
+    const code = ruleCodes.find((known) => known === body.code);
+    if (code) return { kind: 'rule', code };
     // Every match must be readable, so no registration is confirmed without being shown.
     if (body.code === 'possible_duplicates') {
       const matches = every(body.matches, readPossibleDuplicate);

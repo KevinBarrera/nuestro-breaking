@@ -53,9 +53,9 @@ describe('cashUnavailableReason', () => {
     expect(cashUnavailableReason([])).toBe('Agrega al menos un pase antes de registrar el pago.');
   });
 
-  it('blocks a zero total, which the backend rejects as an amount (#263)', () => {
+  it('blocks a zero total, which is confirmed without payment instead (#263)', () => {
     expect(cashUnavailableReason([pass('a', 0), pass('b', 0)])).toBe(
-      'Esta inscripción no tiene monto a cobrar. La confirmación sin pago todavía no está disponible.',
+      'Esta inscripción no tiene monto a cobrar: confírmala sin cobro.',
     );
   });
 

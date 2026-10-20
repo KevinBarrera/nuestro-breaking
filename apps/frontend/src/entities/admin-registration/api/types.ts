@@ -108,10 +108,19 @@ export type CashConfirmation = {
   auditId: string;
 };
 
-// Stable codes for the 400 and 409 rule answers of these writes. Only `receipt_taken` is a
-// backend `code`; the rest are read from the backend message.
+// Confirms a $0 registration without payment (#263). `reason` is the required evidence: 1 to
+// 500 characters once trimmed.
+export type ComplimentaryConfirmationInput = { reason: string };
+
+// The same answer as a cash confirmation.
+export type ComplimentaryConfirmation = CashConfirmation;
+
+// Stable codes for the 400 and 409 rule answers of these writes. `receipt_taken`, `no_passes`
+// and `not_zero_total` are backend `code`s; the rest are read from the backend message.
 export const adminRegistrationRuleCodes = [
   'receipt_taken',
+  'no_passes',
+  'not_zero_total',
   'registration_not_pending',
   'registration_voided',
   'pass_type_archived',

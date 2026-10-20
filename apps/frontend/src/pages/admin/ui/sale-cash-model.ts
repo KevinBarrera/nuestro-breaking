@@ -16,12 +16,12 @@ import { formatMxn, type CatalogActivity } from '@/entities/event-catalog';
 export const cashTotalCents = (passes: readonly HeldPass[]): number =>
   passes.reduce((total, pass) => total + pass.priceCents, 0);
 
-// Why the payment cannot be recorded yet, or null. The backend requires an amount above zero, so
-// a registration holding only free passes cannot be confirmed until #263 decides how.
+// Why the payment cannot be recorded yet, or null. The backend requires an amount above zero; a
+// registration holding only free passes is confirmed without payment instead (#263).
 export function cashUnavailableReason(passes: readonly HeldPass[]): string | null {
   if (passes.length === 0) return 'Agrega al menos un pase antes de registrar el pago.';
   if (cashTotalCents(passes) <= 0)
-    return 'Esta inscripción no tiene monto a cobrar. La confirmación sin pago todavía no está disponible.';
+    return 'Esta inscripción no tiene monto a cobrar: confírmala sin cobro.';
   return null;
 }
 
@@ -133,8 +133,8 @@ export function confirmCashFailure(failure: AdminRegistrationFailure): CashFailu
   }
 }
 
-// Confirming changes only the status and the folio, which the answer carries, so the screen
-// switches to the confirmed view without another read.
+// Confirming, in cash or without payment, changes only the status and the folio, which the answer
+// carries, so the screen switches to the confirmed view without another read.
 export const confirmedEntitlements = (
   entitlements: RegistrationEntitlements,
   confirmation: CashConfirmation,

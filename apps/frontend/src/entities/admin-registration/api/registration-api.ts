@@ -1,6 +1,6 @@
 import { apiUrl } from '@/shared/api';
 import {
-  readCashConfirmation,
+  readConfirmation,
   readEntitlements,
   readManualRegistration,
   readRegistrationFailure,
@@ -10,6 +10,8 @@ import type {
   AdminRegistrationFailure,
   CashConfirmation,
   CashPaymentInput,
+  ComplimentaryConfirmation,
+  ComplimentaryConfirmationInput,
   ManualRegistration,
   ManualRegistrationInput,
   RegistrationEntitlements,
@@ -191,5 +193,16 @@ export async function confirmCashPayment(
   if (reference !== undefined) body.reference = reference;
   if (note !== undefined) body.note = note;
   const path = registrationPath(eventId, registrationId, '/cash-confirmation');
-  return written(readCashConfirmation(await mutate(path, 'POST', body), eventId, registrationId));
+  return written(readConfirmation(await mutate(path, 'POST', body), eventId, registrationId));
+}
+
+// Confirms a pending registration whose passes total $0 without payment (#263); it gets its folio
+// and the confirmation email.
+export async function confirmComplimentary(
+  eventId: string,
+  registrationId: string,
+  { reason }: ComplimentaryConfirmationInput,
+): Promise<ComplimentaryConfirmation> {
+  const path = registrationPath(eventId, registrationId, '/complimentary-confirmation');
+  return written(readConfirmation(await mutate(path, 'POST', { reason }), eventId, registrationId));
 }

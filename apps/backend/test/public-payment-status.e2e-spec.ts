@@ -68,8 +68,8 @@ describe('public payment status (e2e)', () => {
       VALUES (${org}, ${event.id}, ${venue})`;
     const [breaking, popping] = await client<{ id: string }[]>`
       INSERT INTO activities (event_id, venue_id, kind, name, starts_at, ends_at)
-      VALUES (${event.id}, ${venue}, 'battle', 'Breaking 1v1', '2026-11-20T18:00:00Z', '2026-11-20T20:00:00Z'),
-        (${event.id}, ${venue}, 'battle', 'Popping 1v1', '2026-11-20T15:00:00Z', '2026-11-20T17:00:00Z')
+      VALUES (${event.id}, ${venue}, 'competition', 'Breaking 1v1', '2026-11-20T18:00:00Z', '2026-11-20T20:00:00Z'),
+        (${event.id}, ${venue}, 'competition', 'Popping 1v1', '2026-11-20T15:00:00Z', '2026-11-20T17:00:00Z')
       RETURNING id`;
     const [full, addOn, foreign] = await client<{ id: string }[]>`
       INSERT INTO event_pass_types (event_id, name, pass_class, price_cents, requires_pass_class, status)

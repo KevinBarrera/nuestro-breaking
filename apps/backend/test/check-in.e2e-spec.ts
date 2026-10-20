@@ -79,7 +79,7 @@ describe('event check-in (e2e)', () => {
       INSERT INTO activities (event_id, venue_id, kind, name, starts_at, ends_at)
       VALUES (${registrations.event}, ${venue}, 'workshop', 'Workshop', now(), now() + interval '1 hour'),
         (${registrations.event}, ${venue}, 'competition', 'Competition', now(), now() + interval '1 hour'),
-        (${registrations.event}, ${venue}, 'battle', 'Battle', now(), now() + interval '1 hour'),
+        (${registrations.event}, ${venue}, 'competition', 'Battle', now(), now() + interval '1 hour'),
         (${registrations.event}, ${venue}, 'social', 'Unenrolled', now(), now() + interval '1 hour')
       RETURNING id`;
     const [{ id: foreignActivity }] = await client<{ id: string }[]>`

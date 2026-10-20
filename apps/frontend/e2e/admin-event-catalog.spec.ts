@@ -45,7 +45,7 @@ const activity = (overrides: Partial<Activity> = {}): Activity => ({
   id: battleId,
   eventId,
   venueId,
-  kind: 'battle',
+  kind: 'competition',
   name: 'Batalla de crews',
   startsAt: '2026-11-14T16:00:00.000Z',
   endsAt: '2026-11-14T18:00:00.000Z',
@@ -153,7 +153,7 @@ test('lists activities with kind, venue, schedule in event time and status', asy
   ]);
   await page.goto(activitiesPath);
   const battle = page.getByRole('listitem').filter({ hasText: 'Batalla de crews' });
-  await expect(battle).toContainText('Batalla');
+  await expect(battle).toContainText('Competencia');
   await expect(battle).toContainText('Centro cultural');
   await expect(battle).toContainText('10:00');
   await expect(battle).toContainText('Activa');
@@ -248,7 +248,7 @@ test('edits an activity with its expected version', async ({ page }) => {
   expect(body).toEqual({
     expectedVersion: 3,
     name: 'Batalla 2 vs 2',
-    kind: 'battle',
+    kind: 'competition',
     venueId,
     startsAt: '2026-11-14T16:00:00.000Z',
     endsAt: '2026-11-14T18:00:00.000Z',
@@ -277,7 +277,7 @@ test('picks the type from the list: editing preselects it and a new activity req
     .click();
   await expectSelected(
     selectTrigger(page.getByRole('form', { name: 'Editar actividad' }), 'Tipo'),
-    'Batalla',
+    'Competencia',
   );
   await page.getByRole('dialog').getByRole('button', { name: 'Cancelar' }).click();
 
@@ -646,7 +646,7 @@ test('keeps the success message when the refresh after a write fails', async ({ 
   await page.getByRole('button', { name: 'Nueva actividad' }).click();
   const form = page.getByRole('form', { name: 'Nueva actividad' });
   await form.getByLabel('Nombre').fill('Taller de toprock');
-  await chooseOption(selectTrigger(form, 'Tipo'), 'Batalla');
+  await chooseOption(selectTrigger(form, 'Tipo'), 'Competencia');
   await form.getByLabel('Inicio').fill('2026-11-14T12:00');
   await form.getByLabel('Fin').fill('2026-11-14T13:30');
   await saveActivity(page);

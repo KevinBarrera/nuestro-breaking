@@ -15,7 +15,7 @@ const timeZone = 'America/Mexico_City';
 const activity = (overrides: Partial<CatalogActivity> & Pick<CatalogActivity, 'id'>) => ({
   eventId: 'event',
   venueId: 'venue',
-  kind: 'battle',
+  kind: 'competition',
   name: 'Actividad',
   startsAt: '2026-11-21T22:00:00.000Z',
   endsAt: '2026-11-22T00:00:00.000Z',
@@ -27,7 +27,7 @@ const activity = (overrides: Partial<CatalogActivity> & Pick<CatalogActivity, 'i
 // The list order is deliberately not chronological.
 const crews = activity({
   id: 'crews',
-  kind: 'battle',
+  kind: 'competition',
   name: 'Batalla de crews',
   startsAt: '2026-11-21T22:00:00.000Z', // Saturday 16:00 local
   endsAt: '2026-11-22T00:00:00.000Z',
@@ -49,7 +49,7 @@ const bgirl = activity({
 });
 const finale = activity({
   id: 'finale',
-  kind: 'battle',
+  kind: 'competition',
   name: 'Exhibición final',
   startsAt: '2026-11-22T20:00:00.000Z', // Sunday 14:00 local
   endsAt: '2026-11-22T21:00:00.000Z',
@@ -100,8 +100,8 @@ describe('agendaDays', () => {
   });
 
   it('filters by kind', () => {
-    expect(names({ kind: 'battle' })).toEqual([
-      ['Sábado 21 de noviembre', ['Batalla de crews']],
+    expect(names({ kind: 'competition' })).toEqual([
+      ['Sábado 21 de noviembre', ['Bgirl 1v1', 'Batalla de crews']],
       ['Domingo 22 de noviembre', ['Exhibición final']],
     ]);
   });
@@ -133,12 +133,7 @@ describe('kindOptions', () => {
     kindOptions(rows, showArchived, selected).map(({ label, count }) => `${label} · ${count}`);
 
   it('counts the visible kinds, sorted by Spanish label, with workshops always listed', () => {
-    expect(options(false, null)).toEqual([
-      'Batalla · 2',
-      'Competencia · 1',
-      'Social · 1',
-      'Taller · 0',
-    ]);
+    expect(options(false, null)).toEqual(['Competencia · 3', 'Social · 1', 'Taller · 0']);
   });
 
   it('counts archived activities only when they are shown', () => {
@@ -146,12 +141,12 @@ describe('kindOptions', () => {
   });
 
   it('keeps the selected kind with a zero count when none of it is visible', () => {
-    const archivedBgirl = activities.map((entry) =>
-      entry === bgirl ? { ...entry, status: 'archived' as const } : entry,
+    const archivedCompetitions = activities.map((entry) =>
+      entry.kind === 'competition' ? { ...entry, status: 'archived' as const } : entry,
     );
-    expect(options(false, null, archivedBgirl)).not.toContain('Competencia · 0');
-    expect(options(false, 'competition', archivedBgirl)).toContain('Competencia · 0');
-    expect(options(true, 'competition', archivedBgirl)).toContain('Competencia · 1');
+    expect(options(false, null, archivedCompetitions)).not.toContain('Competencia · 0');
+    expect(options(false, 'competition', archivedCompetitions)).toContain('Competencia · 0');
+    expect(options(true, 'competition', archivedCompetitions)).toContain('Competencia · 3');
   });
 
   it('labels an unknown kind as stored', () => {

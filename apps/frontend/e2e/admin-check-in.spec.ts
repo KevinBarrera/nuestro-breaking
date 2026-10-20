@@ -11,7 +11,7 @@ const participant = (checkedInAt: string | null = null) => ({
   participant: { id: 'person', fullName: 'Luz Rivera', email: 'luz@example.org', stageName: 'Luz' },
   registration: { id: registrationId, eventId, folio: 'NB-42', status: 'confirmed', checkedInAt },
   activities: [
-    { id: activityId, name: 'Batalla', kind: 'battle', checkedInAt: null as string | null },
+    { id: activityId, name: 'Batalla', kind: 'competition', checkedInAt: null as string | null },
     { id: 'other', name: 'Fiesta', kind: 'social', checkedInAt: null as string | null },
   ],
 });

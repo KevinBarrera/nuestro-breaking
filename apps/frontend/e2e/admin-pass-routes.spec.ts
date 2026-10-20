@@ -62,7 +62,7 @@ async function mockCatalog(page: Page, rows: () => unknown[]) {
             id: battleId,
             eventId,
             venueId: 'e1b2c3d4-1234-4567-89ab-123456789abc',
-            kind: 'battle',
+            kind: 'competition',
             name: 'Batalla de crews',
             startsAt: '2026-11-14T16:00:00.000Z',
             endsAt: '2026-11-14T18:00:00.000Z',

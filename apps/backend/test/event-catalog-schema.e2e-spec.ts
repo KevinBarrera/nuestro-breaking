@@ -78,8 +78,8 @@ describe('event catalog schema (e2e)', () => {
     await client`INSERT INTO event_venues (organization_id, event_id, venue_id) VALUES (${org}, ${event.id}, ${venue}), (${org}, ${other.id}, ${venue})`;
     const [activity, foreign] = await client<{ id: string }[]>`
       INSERT INTO activities (event_id, venue_id, kind, name, starts_at, ends_at)
-      VALUES (${event.id}, ${venue}, 'battle', 'Breaking 1v1', now(), now() + interval '1 hour'),
-        (${other.id}, ${venue}, 'battle', 'Other battle', now(), now() + interval '1 hour')
+      VALUES (${event.id}, ${venue}, 'competition', 'Breaking 1v1', now(), now() + interval '1 hour'),
+        (${other.id}, ${venue}, 'competition', 'Other battle', now(), now() + interval '1 hour')
       RETURNING id`;
     return { event: event.id, other: other.id, activity: activity.id, foreign: foreign.id };
   }
@@ -149,7 +149,7 @@ describe('event catalog schema (e2e)', () => {
     const { event, activity } = await insertContainers();
     const [{ venue_id: venue }] = await client<{ venue_id: string }[]>`
       SELECT venue_id FROM activities WHERE id = ${activity}`;
-    for (const kind of ['party', 'Taller', ' workshop '])
+    for (const kind of ['party', 'battle', 'Taller', ' workshop '])
       await expect(
         client`INSERT INTO activities (event_id, venue_id, kind, name, starts_at, ends_at)
           VALUES (${event}, ${venue}, ${kind}, 'Party', now(), now() + interval '1 hour')`,
@@ -161,9 +161,13 @@ describe('event catalog schema (e2e)', () => {
 
   it('normalizes existing activity kinds to the closed list without touching versions', async () => {
     await migrateUpTo(kindListMigrationTag);
-    const { activity, foreign } = await insertContainers();
+    const { event, activity, foreign } = await insertContainers();
     await client`UPDATE activities SET kind = ' Taller ' WHERE id = ${activity}`;
     await client`UPDATE activities SET kind = 'BATTLE' WHERE id = ${foreign}`;
+    const [{ id: spanish }] = await client<{ id: string }[]>`
+      INSERT INTO activities (event_id, venue_id, kind, name, starts_at, ends_at)
+      SELECT event_id, venue_id, 'Batalla', 'Batalla de crews', starts_at, ends_at
+      FROM activities WHERE event_id = ${event} RETURNING id`;
 
     await migrate(drizzle(client), { migrationsFolder });
 
@@ -172,7 +176,8 @@ describe('event catalog schema (e2e)', () => {
     expect(rows).toEqual(
       expect.arrayContaining([
         { id: activity, kind: 'workshop', version: 1 },
-        { id: foreign, kind: 'battle', version: 1 },
+        { id: foreign, kind: 'competition', version: 1 },
+        { id: spanish, kind: 'competition', version: 1 },
       ]),
     );
     expect(await client`SELECT 1 FROM event_catalog_audit`).toHaveLength(0);
@@ -189,7 +194,7 @@ describe('event catalog schema (e2e)', () => {
     );
 
     expect(describeMigrationError(error)).toBe(
-      `[P0001] activities with a kind outside battle, competition, workshop and social: ${activity} (fiesta). Set each to one of those codes and run the migration again.`,
+      `[P0001] activities with a kind outside competition, workshop and social: ${activity} (fiesta). Set each to one of those codes and run the migration again.`,
     );
     const [{ kind }] = await client<{ kind: string }[]>`
       SELECT kind FROM activities WHERE id = ${activity}`;

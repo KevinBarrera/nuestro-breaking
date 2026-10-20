@@ -56,7 +56,7 @@ const activity = (id: string, kind: string, name: string, startsAt: string, ends
 const activities = [
   activity(
     battleId,
-    'battle',
+    'competition',
     'Batalla de crews con nombre largo para pantallas angostas',
     '2026-11-21T22:00:00.000Z',
     '2026-11-22T00:00:00.000Z',
@@ -173,7 +173,7 @@ const registration = {
     status: 'confirmed',
     checkedInAt: null,
   },
-  activities: [{ id: battleId, name: 'Batalla de crews', kind: 'battle', checkedInAt: null }],
+  activities: [{ id: battleId, name: 'Batalla de crews', kind: 'competition', checkedInAt: null }],
 };
 
 // One flagged payment per reason with the longest copy, so sweeps measure every card.

@@ -60,7 +60,7 @@ The current backend route is implemented in `apps/backend/src/events/foundation/
     {
       "id": "act_123",
       "name": "Batalla individual",
-      "kind": "battle",
+      "kind": "competition",
       "venueId": "ven_123",
       "startsAt": "2026-11-14T10:00:00-05:00",
       "endsAt": "2026-11-14T12:00:00-05:00",
@@ -82,7 +82,7 @@ The current backend route is implemented in `apps/backend/src/events/foundation/
 | `event.windowStatus`                           | Derived                                      | `unbounded` when both event endpoints are absent; `bounded` when both exist. |
 | `venues[].id`, `venues[].name`                 | `venues` joined through `event_venues`       | Only venues attached to the requested event.                                 |
 | `activities[].id`                              | `activities.id`                              | Server-owned identifier.                                                     |
-| `activities[].kind`                            | `activities.kind`                            | One of `battle`, `competition`, `workshop` or `social` (#249).               |
+| `activities[].kind`                            | `activities.kind`                            | One of `competition`, `workshop` or `social` (#249).                         |
 | `activities[].venueId`                         | `activities.venue_id`                        | Must reference a venue attached to the same event.                           |
 | `activities[].startsAt`, `activities[].endsAt` | `activities.starts_at`, `activities.ends_at` | Ordered instants; overlapping activities are allowed.                        |
 | `activities[].planningStatus`                  | API derivation                               | Use `draft` until publication/workflow semantics exist.                      |

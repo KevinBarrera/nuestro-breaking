@@ -7,7 +7,7 @@ describe('changedRows', () => {
   it('keeps only the fields whose displayed value changed, in order', () => {
     const fields: ChangeField[] = [
       { key: 'name', label: 'Nombre', before: 'Batalla', after: 'Batalla final' },
-      { key: 'kind', label: 'Tipo', before: 'battle', after: 'battle' },
+      { key: 'kind', label: 'Tipo', before: 'competition', after: 'competition' },
       { key: 'capacity', label: 'Cupo', before: 20, after: 32 },
     ];
 

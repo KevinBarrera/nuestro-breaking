@@ -75,10 +75,10 @@ describe('admin pass type catalog (e2e)', () => {
       VALUES (${org}, ${event.id}, ${venue}), (${org}, ${other.id}, ${venue})`;
     const [battle, workshop, retired, foreign] = await client<{ id: string }[]>`
       INSERT INTO activities (event_id, venue_id, kind, name, starts_at, ends_at, status)
-      VALUES (${event.id}, ${venue}, 'battle', 'Breaking 1v1', '2026-11-20T18:00:00Z', '2026-11-20T20:00:00Z', 'active'),
+      VALUES (${event.id}, ${venue}, 'competition', 'Breaking 1v1', '2026-11-20T18:00:00Z', '2026-11-20T20:00:00Z', 'active'),
         (${event.id}, ${venue}, 'workshop', 'Toprock', '2026-11-20T10:00:00Z', '2026-11-20T12:00:00Z', 'active'),
-        (${event.id}, ${venue}, 'battle', 'Retired', '2026-11-20T13:00:00Z', '2026-11-20T14:00:00Z', 'archived'),
-        (${other.id}, ${venue}, 'battle', 'Foreign', '2026-11-20T10:00:00Z', '2026-11-20T12:00:00Z', 'active')
+        (${event.id}, ${venue}, 'competition', 'Retired', '2026-11-20T13:00:00Z', '2026-11-20T14:00:00Z', 'archived'),
+        (${other.id}, ${venue}, 'competition', 'Foreign', '2026-11-20T10:00:00Z', '2026-11-20T12:00:00Z', 'active')
       RETURNING id`;
     return {
       event: event.id,

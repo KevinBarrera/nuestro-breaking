@@ -69,9 +69,9 @@ describe('GET /admin/events/:eventId/participants (e2e)', () => {
     `;
     const [battle, workshop, privateActivity] = await client<{ id: string }[]>`
       INSERT INTO activities (event_id, venue_id, kind, name, starts_at, ends_at)
-      VALUES (${event.id}, ${venueId}, 'battle', 'Battle', now(), now() + interval '1 hour'),
+      VALUES (${event.id}, ${venueId}, 'competition', 'Battle', now(), now() + interval '1 hour'),
         (${event.id}, ${venueId}, 'workshop', 'Workshop', now(), now() + interval '1 hour'),
-        (${other.id}, ${venueId}, 'battle', 'Private battle', now(), now() + interval '1 hour')
+        (${other.id}, ${venueId}, 'competition', 'Private battle', now(), now() + interval '1 hour')
       RETURNING id
     `;
     await client`
@@ -160,7 +160,7 @@ describe('GET /admin/events/:eventId/participants (e2e)', () => {
             checkedInAt: null,
           },
           activities: [
-            { id: battle.id, name: 'Battle', kind: 'battle', checkedInAt: null },
+            { id: battle.id, name: 'Battle', kind: 'competition', checkedInAt: null },
             { id: workshop.id, name: 'Workshop', kind: 'workshop', checkedInAt: null },
           ].sort((a, b) => a.id.localeCompare(b.id)),
         },
@@ -290,7 +290,7 @@ describe('GET /admin/events/:eventId/participants (e2e)', () => {
         {
           id: battle.id,
           name: 'Battle',
-          kind: 'battle',
+          kind: 'competition',
           checkedInAt: new Date(activityAdmission.checkedInAt).toISOString(),
         },
         { id: workshop.id, name: 'Workshop', kind: 'workshop', checkedInAt: null },

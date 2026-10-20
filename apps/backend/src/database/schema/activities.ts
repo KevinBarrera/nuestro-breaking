@@ -16,7 +16,7 @@ import { eventVenues } from './event-venues';
  * The closed list of activity kinds (#249, migration 0031); `activities_kind_ck` allows exactly
  * these. The admin shows them with Spanish labels, but the stored code is always one of these.
  */
-export const ACTIVITY_KINDS = ['battle', 'competition', 'workshop', 'social'] as const;
+export const ACTIVITY_KINDS = ['competition', 'workshop', 'social'] as const;
 export type ActivityKind = (typeof ACTIVITY_KINDS)[number];
 
 const activityKindList = sql.raw(ACTIVITY_KINDS.map((kind) => `'${kind}'`).join(', '));

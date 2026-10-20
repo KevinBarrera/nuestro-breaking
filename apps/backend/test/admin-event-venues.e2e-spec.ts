@@ -320,7 +320,7 @@ describe('admin event venues (e2e)', () => {
       .set(headers(cookie))
       .send({
         venueId,
-        kind: 'battle',
+        kind: 'competition',
         name: 'Breaking 1v1',
         startsAt: '2026-11-14T18:00:00Z',
         endsAt: '2026-11-14T20:00:00Z',

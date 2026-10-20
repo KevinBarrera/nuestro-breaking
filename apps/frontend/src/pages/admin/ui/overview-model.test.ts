@@ -28,12 +28,12 @@ const passType = (overrides: Partial<CatalogPassType>): CatalogPassType => ({
   ...overrides,
 });
 
-const battle = activity('battle', 'battle', 'Batalla de crews');
-const final = activity('final', 'battle', 'Final 1 vs 1');
+const battle = activity('battle', 'competition', 'Batalla de crews');
+const final = activity('final', 'competition', 'Final 1 vs 1');
 const footwork = activity('footwork', 'workshop', 'Taller de footwork');
 const toprock = activity('toprock', 'workshop', 'Taller de toprock');
 const power = activity('power', 'workshop', 'Taller de power');
-const old = activity('old', 'battle', 'Batalla cancelada', 'archived');
+const old = activity('old', 'competition', 'Batalla cancelada', 'archived');
 const activityById = new Map(
   [battle, final, footwork, toprock, power, old].map((entry) => [entry.id, entry]),
 );
@@ -49,7 +49,7 @@ describe('catalogStats', () => {
     ];
     expect(catalogStats([battle, final, footwork, old], passes)).toEqual([
       { label: 'pases activos', count: 3 },
-      { label: 'batallas', count: 2 },
+      { label: 'competencias', count: 2 },
       { label: 'talleres', count: 1 },
     ]);
   });
@@ -59,7 +59,7 @@ describe('catalogStats', () => {
     expect(catalogStats(rows, [])).toEqual([
       { label: 'pases activos', count: 0 },
       { label: 'talleres', count: 3 },
-      { label: 'batallas', count: 1 },
+      { label: 'competencias', count: 1 },
       { label: 'cypher', count: 1 },
     ]);
   });

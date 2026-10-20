@@ -29,10 +29,10 @@ const activity = (id: string, kind: string, name: string, status = 'active') => 
 });
 
 const activities = [
-  activity(battleId, 'battle', 'Batalla de crews'),
-  activity(finalId, 'battle', 'Final 1 vs 1'),
+  activity(battleId, 'competition', 'Batalla de crews'),
+  activity(finalId, 'competition', 'Final 1 vs 1'),
   activity(workshopId, 'workshop', 'Taller de footwork'),
-  activity(oldId, 'battle', 'Batalla cancelada', 'archived'),
+  activity(oldId, 'competition', 'Batalla cancelada', 'archived'),
 ];
 
 const passType = (overrides: Record<string, unknown>) => ({
@@ -146,7 +146,7 @@ test('renders catalog counts and the pass types on sale', async ({ page }) => {
   const catalog = page.getByRole('region', { name: 'Catálogo' });
   const stat = (label: string) => catalog.getByRole('listitem').filter({ hasText: label });
   await expect(stat('pases activos')).toContainText('3');
-  await expect(stat('batallas')).toContainText('2');
+  await expect(stat('competencias')).toContainText('2');
   await expect(stat('talleres')).toContainText('1');
   await expect(catalog.getByRole('listitem')).toHaveCount(3);
   await expect(catalog.getByRole('link', { name: 'Editar' })).toHaveAttribute(

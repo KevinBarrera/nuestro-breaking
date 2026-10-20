@@ -28,7 +28,7 @@ const battle = {
   id: battleId,
   eventId,
   venueId,
-  kind: 'battle',
+  kind: 'competition',
   name: 'Batalla de crews',
   startsAt: '2026-11-14T16:00:00.000Z',
   endsAt: '2026-11-14T18:00:00.000Z',

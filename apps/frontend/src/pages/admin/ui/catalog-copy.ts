@@ -51,7 +51,6 @@ export const accessLabels: Record<ActivityAccess, string> = {
 };
 
 const activityKindLabels: Record<ActivityKind, string> = {
-  battle: 'Batalla',
   competition: 'Competencia',
   workshop: 'Taller',
   social: 'Social',

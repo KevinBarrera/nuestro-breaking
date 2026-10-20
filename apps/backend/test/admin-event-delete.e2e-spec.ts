@@ -196,7 +196,7 @@ describe('admin event delete (e2e)', () => {
         'activities',
         ({ event, venue }) => client`
           INSERT INTO activities (event_id, venue_id, kind, name, starts_at, ends_at)
-          VALUES (${event}, ${venue}, 'battle', 'Breaking 1v1', '2026-11-20T18:00:00Z',
+          VALUES (${event}, ${venue}, 'competition', 'Breaking 1v1', '2026-11-20T18:00:00Z',
             '2026-11-20T20:00:00Z')`,
       ],
       [

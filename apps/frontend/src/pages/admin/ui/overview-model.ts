@@ -2,7 +2,6 @@ import type { CatalogActivity, CatalogPassType, RequiredPassClass } from '@/enti
 
 // Pure derivations for the event overview, computed only from the catalog API responses.
 const kindLabels: Record<string, string> = {
-  battle: 'batallas',
   competition: 'competencias',
   workshop: 'talleres',
   social: 'sociales',

@@ -48,8 +48,8 @@ describe('admin registration commands (e2e)', () => {
     await client`INSERT INTO event_venues (organization_id, event_id, venue_id) VALUES (${org}, ${event.id}, ${venue}), (${org}, ${other.id}, ${venue})`;
     const [activity, foreign] = await client<{ id: string }[]>`
       INSERT INTO activities (event_id, venue_id, kind, name, starts_at, ends_at)
-      VALUES (${event.id}, ${venue}, 'battle', 'A', now(), now() + interval '1 hour'),
-        (${other.id}, ${venue}, 'battle', 'B', now(), now() + interval '1 hour') RETURNING id`;
+      VALUES (${event.id}, ${venue}, 'competition', 'A', now(), now() + interval '1 hour'),
+        (${other.id}, ${venue}, 'competition', 'B', now(), now() + interval '1 hour') RETURNING id`;
     return { event: event.id, other: other.id, activity: activity.id, foreign: foreign.id };
   }
   async function session(role: string, eventId: string) {

@@ -31,17 +31,17 @@ const activity = (
 
 const activities = [
   activity('footwork', 'workshop', 'Taller de footwork', '2026-11-14T16:00:00.000Z'),
-  activity('crews', 'battle', 'Batalla de crews', '2026-11-14T20:00:00.000Z'),
+  activity('crews', 'competition', 'Batalla de crews', '2026-11-14T20:00:00.000Z'),
   activity('old', 'workshop', 'Taller viejo', '2026-11-14T10:00:00.000Z', 'archived'),
-  activity('duo', 'battle', 'Batalla 2 vs 2', '2026-11-14T18:00:00.000Z'),
-  activity('kids', 'battle', 'Batalla kids', '2026-11-14T18:00:00.000Z'),
+  activity('duo', 'competition', 'Batalla 2 vs 2', '2026-11-14T18:00:00.000Z'),
+  activity('kids', 'competition', 'Batalla kids', '2026-11-14T18:00:00.000Z'),
   activity('jam', 'custom-jam', 'Jam libre', '2026-11-14T12:00:00.000Z'),
 ];
 
 describe('accessGroups', () => {
   it('groups active activities by kind label, sorted by start time then name', () => {
     const groups = accessGroups(activities);
-    expect(groups.map((group) => group.label)).toEqual(['Batalla', 'custom-jam', 'Taller']);
+    expect(groups.map((group) => group.label)).toEqual(['Competencia', 'custom-jam', 'Taller']);
     expect(groups.map((group) => group.activities.map((entry) => entry.id))).toEqual([
       ['duo', 'kids', 'crews'],
       ['jam'],

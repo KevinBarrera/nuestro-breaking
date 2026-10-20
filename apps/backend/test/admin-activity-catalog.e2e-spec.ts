@@ -70,9 +70,9 @@ describe('admin activity catalog (e2e)', () => {
       VALUES (${org}, ${event.id}, ${venue.id}), (${org}, ${other.id}, ${venue.id}), (${org}, ${other.id}, ${foreignVenue.id})`;
     const [late, early, foreign] = await client<{ id: string }[]>`
       INSERT INTO activities (event_id, venue_id, kind, name, starts_at, ends_at)
-      VALUES (${event.id}, ${venue.id}, 'battle', 'Late', '2026-11-20T18:00:00Z', '2026-11-20T20:00:00Z'),
+      VALUES (${event.id}, ${venue.id}, 'competition', 'Late', '2026-11-20T18:00:00Z', '2026-11-20T20:00:00Z'),
         (${event.id}, ${venue.id}, 'workshop', 'Early', '2026-11-20T10:00:00Z', '2026-11-20T12:00:00Z'),
-        (${other.id}, ${venue.id}, 'battle', 'Foreign', '2026-11-20T10:00:00Z', '2026-11-20T12:00:00Z')
+        (${other.id}, ${venue.id}, 'competition', 'Foreign', '2026-11-20T10:00:00Z', '2026-11-20T12:00:00Z')
       RETURNING id`;
     return {
       event: event.id,

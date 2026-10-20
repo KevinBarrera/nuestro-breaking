@@ -14,6 +14,7 @@ import type { Request, Response } from 'express';
 import { SessionAccessService } from '@/identity-access/session-access.service';
 import { ActivityAdminService } from './activity-admin.service';
 import type { ActivityChanges, ActivityDraft, AdminActivity } from './activity-admin.types';
+import { type ActivityKind, isActivityKind } from './activity-kind';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ISO_INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d{1,6})?)?(Z|[+-]\d{2}:\d{2})$/;
@@ -27,6 +28,11 @@ function text(value: unknown, max: number, field: string): string {
   if (typeof value !== 'string' || !value.trim() || value.trim().length > max)
     throw new BadRequestException(`Invalid ${field}`);
   return value.trim();
+}
+function kind(value: unknown): ActivityKind {
+  const trimmed = typeof value === 'string' ? value.trim() : value;
+  if (!isActivityKind(trimmed)) throw new BadRequestException('Invalid kind');
+  return trimmed;
 }
 function venue(value: unknown): string {
   if (typeof value !== 'string' || !UUID.test(value))
@@ -46,7 +52,7 @@ function version(value: unknown): number {
 
 const fields = {
   venueId: (value: unknown) => venue(value),
-  kind: (value: unknown) => text(value, 100, 'kind'),
+  kind: (value: unknown) => kind(value),
   name: (value: unknown) => text(value, 200, 'name'),
   startsAt: (value: unknown) => instant(value, 'start'),
   endsAt: (value: unknown) => instant(value, 'end'),

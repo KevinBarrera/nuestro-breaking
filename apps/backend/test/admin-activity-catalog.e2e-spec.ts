@@ -208,6 +208,8 @@ describe('admin activity catalog (e2e)', () => {
       { ...draft(venue), name: '  ' },
       { ...draft(venue), kind: '' },
       { ...draft(venue), kind: 'x'.repeat(101) },
+      { ...draft(venue), kind: 'party' },
+      { ...draft(venue), kind: 'Taller' },
       { ...draft(venue), name: 7 },
       { ...draft(venue), startsAt: '2026-11-21T11:00:00Z' },
       { ...draft(venue), endsAt: '2026-11-21T09:00:00Z' },
@@ -270,6 +272,8 @@ describe('admin activity catalog (e2e)', () => {
       { expectedVersion: '1', name: 'Bad version' },
       { expectedVersion: 1 },
       { expectedVersion: 1, name: ' ' },
+      { expectedVersion: 1, kind: 'party' },
+      { expectedVersion: 1, kind: 'Taller' },
       { expectedVersion: 1, startsAt: '2026-11-20T12:00:00Z' },
       { expectedVersion: 1, venueId: foreignVenue },
     ])

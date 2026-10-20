@@ -80,7 +80,7 @@ describe('event check-in (e2e)', () => {
       VALUES (${registrations.event}, ${venue}, 'workshop', 'Workshop', now(), now() + interval '1 hour'),
         (${registrations.event}, ${venue}, 'competition', 'Competition', now(), now() + interval '1 hour'),
         (${registrations.event}, ${venue}, 'battle', 'Battle', now(), now() + interval '1 hour'),
-        (${registrations.event}, ${venue}, 'open format', 'Unenrolled', now(), now() + interval '1 hour')
+        (${registrations.event}, ${venue}, 'social', 'Unenrolled', now(), now() + interval '1 hour')
       RETURNING id`;
     const [{ id: foreignActivity }] = await client<{ id: string }[]>`
       INSERT INTO activities (event_id, venue_id, kind, name, starts_at, ends_at)
@@ -207,7 +207,7 @@ describe('event check-in (e2e)', () => {
   it('denies enrolled non-workshop/competition kinds after event admission without mutation', async () => {
     const f = await activityFixture();
     const { cookie } = await session('admin', f.event);
-    const kinds = ['general entry', 'party'];
+    const kinds = ['social'];
     const activities = [f.unenrolled];
     for (const kind of kinds) {
       const [{ id }] = await client<{ id: string }[]>`
@@ -274,16 +274,16 @@ describe('event check-in (e2e)', () => {
     expect(await activityRows()).toHaveLength(1);
   });
 
-  it('rejects direct SQL check-in for an enrolled party after valid event admission', async () => {
+  it('rejects direct SQL check-in for an enrolled social activity after valid event admission', async () => {
     const f = await activityFixture();
     const { cookie, userId, sessionId } = await session('admin', f.event);
-    const [{ id: party }] = await client<{ id: string }[]>`
+    const [{ id: social }] = await client<{ id: string }[]>`
       INSERT INTO activities (event_id, venue_id, kind, name, starts_at, ends_at)
-      SELECT ${f.event}, venue_id, 'party', 'Party', now(), now() + interval '1 hour'
+      SELECT ${f.event}, venue_id, 'social', 'Social', now(), now() + interval '1 hour'
       FROM activities WHERE id = ${f.workshop} RETURNING id`;
     const [{ id: enrollmentId }] = await client<{ id: string }[]>`
       INSERT INTO event_activity_registrations (event_id, event_registration_id, activity_id)
-      VALUES (${f.event}, ${f.confirmed}, ${party}) RETURNING id`;
+      VALUES (${f.event}, ${f.confirmed}, ${social}) RETURNING id`;
     const admission = await checkIn(f.event, f.confirmed).set(headers(cookie)).send({}).expect(201);
     const eventFactId = (admission.body as { id: string }).id;
     const registrations = await client`SELECT * FROM event_registrations ORDER BY id`;
@@ -291,7 +291,7 @@ describe('event check-in (e2e)', () => {
     await expect(client`
       INSERT INTO activity_check_ins (event_id, event_registration_id, activity_id,
         enrollment_id, event_check_in_id, actor_user_id, session_id)
-      VALUES (${f.event}, ${f.confirmed}, ${party}, ${enrollmentId}, ${eventFactId},
+      VALUES (${f.event}, ${f.confirmed}, ${social}, ${enrollmentId}, ${eventFactId},
         ${userId}, ${sessionId})
     `).rejects.toThrow('activity check-in requires a workshop or competition');
     expect(await activityRows()).toHaveLength(0);

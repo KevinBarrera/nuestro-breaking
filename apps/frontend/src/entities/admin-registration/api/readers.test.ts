@@ -106,6 +106,7 @@ describe('readEntitlements', () => {
     id: registrationId,
     status: 'pending_payment',
     folio: null,
+    channel: 'in_person',
     participant: { fullName: 'Alex Rivera', stageName: 'Flash' },
   };
   const entitlements = {
@@ -120,6 +121,7 @@ describe('readEntitlements', () => {
       ...registration,
       status: 'confirmed',
       folio: 'LMP-7K3Q',
+      channel: 'online',
       participant: { fullName: 'Alex Rivera', stageName: null },
     };
     expect(
@@ -150,6 +152,8 @@ describe('readEntitlements', () => {
       { ...registration, id: participantId },
       { ...registration, status: 'paid' },
       { ...registration, folio: '' },
+      { ...registration, channel: undefined },
+      { ...registration, channel: 'phone' },
       { ...registration, participant: null },
       { ...registration, participant: { fullName: '', stageName: null } },
       { ...registration, participant: { fullName: 'Alex Rivera' } },
@@ -219,6 +223,24 @@ describe('readRegistrationFailure', () => {
         message: 'Reason is required and must be 1 to 500 characters',
       }),
     ).toEqual({ kind: 'invalid', fieldErrors: { reason: 'invalid' } });
+  });
+
+  it('maps a rejected void reason to the reason field by its code (#104)', () => {
+    expect(
+      readRegistrationFailure(400, {
+        message: 'A reason is required',
+        code: 'void_reason_required',
+      }),
+    ).toEqual({ kind: 'invalid', fieldErrors: { reason: 'invalid' } });
+  });
+
+  it('maps a void of an online registration by its code (#104)', () => {
+    expect(
+      readRegistrationFailure(409, {
+        message: 'Online registrations cannot be voided',
+        code: 'online_registration_void_locked',
+      }),
+    ).toEqual({ kind: 'rule', code: 'online_registration_void_locked' });
   });
 
   it('maps a confirmed selection change without reason to the reason field (#170)', () => {

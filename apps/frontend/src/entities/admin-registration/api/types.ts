@@ -4,6 +4,10 @@
 export const registrationStatuses = ['pending_payment', 'confirmed', 'voided'] as const;
 export type RegistrationStatus = (typeof registrationStatuses)[number];
 
+// `online` is a public checkout, which expires on its own; `in_person` an admin registration.
+export const registrationChannels = ['in_person', 'online'] as const;
+export type RegistrationChannel = (typeof registrationChannels)[number];
+
 export const heldPassClasses = ['full', 'general', 'add_on'] as const;
 export type HeldPassClass = (typeof heldPassClasses)[number];
 
@@ -77,11 +81,13 @@ export type HeldPass = {
 };
 
 // Who holds the registration and its state, so the sale screen works after a reload (#105).
-// `folio` is null until confirmation. It carries no contact data.
+// `folio` is null until confirmation. Only an in-person pending registration can be voided (#104).
+// It carries no contact data.
 export type RegistrationSummary = {
   id: string;
   status: RegistrationStatus;
   folio: string | null;
+  channel: RegistrationChannel;
   participant: { fullName: string; stageName: string | null };
 };
 
@@ -116,8 +122,8 @@ export type ComplimentaryConfirmationInput = { reason: string };
 export type ComplimentaryConfirmation = CashConfirmation;
 
 // Stable codes for the 400 and 409 rule answers of these writes. `receipt_taken`, `no_passes`,
-// `not_zero_total` and `pass_required_by_add_on` are backend `code`s; the rest are read from the
-// backend message.
+// `not_zero_total`, `pass_required_by_add_on` and `online_registration_void_locked` are backend
+// `code`s; the rest are read from the backend message.
 export const adminRegistrationRuleCodes = [
   'receipt_taken',
   'no_passes',
@@ -132,6 +138,7 @@ export const adminRegistrationRuleCodes = [
   'invalid_activity_selection',
   'online_registration_pass_locked',
   'pass_required_by_add_on',
+  'online_registration_void_locked',
 ] as const;
 export type AdminRegistrationRuleCode = (typeof adminRegistrationRuleCodes)[number];
 

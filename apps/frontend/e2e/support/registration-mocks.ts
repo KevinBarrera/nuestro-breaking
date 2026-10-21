@@ -123,12 +123,14 @@ export const possibleDuplicates = (matches: ReturnType<typeof duplicateMatch>[])
   },
 });
 
-// The summary every entitlements answer carries: pending, no folio, the created participant.
+// The summary every entitlements answer carries: pending, no folio, in person, the created
+// participant.
 export const registrationSummary = (
   id: string,
   overrides: {
     status?: string;
     folio?: string | null;
+    channel?: 'in_person' | 'online';
     fullName?: string;
     stageName?: string | null;
   } = {},
@@ -136,6 +138,7 @@ export const registrationSummary = (
   id,
   status: overrides.status ?? 'pending_payment',
   folio: overrides.folio ?? null,
+  channel: overrides.channel ?? 'in_person',
   participant: {
     fullName: overrides.fullName ?? 'Ana López',
     stageName: overrides.stageName ?? null,
@@ -169,6 +172,8 @@ export type RegistrationMocks = {
   cash?: (attempt: number) => Answer;
   // `attempt` counts the POSTs, starting at 1.
   complimentary?: (attempt: number) => Answer;
+  // `attempt` counts the POSTs, starting at 1.
+  void?: (attempt: number) => Answer;
 };
 
 export type SentCreate = { body: Record<string, unknown>; csrf: string | null };
@@ -181,6 +186,7 @@ export type SentRemoval = {
 };
 export type SentCash = SentPass;
 export type SentComplimentary = SentPass;
+export type SentVoid = SentPass;
 
 // The answer of a recorded cash payment.
 export const cashConfirmed = (id: string, folio: string) => ({
@@ -209,6 +215,7 @@ export async function mockRegistrations(page: Page, mocks: RegistrationMocks = {
   const removedPasses: SentRemoval[] = [];
   const cash: SentCash[] = [];
   const complimentary: SentComplimentary[] = [];
+  const voids: SentVoid[] = [];
   await mockSession(page);
   await page.route(
     (url) => api(url) && url.pathname === '/admin/events',
@@ -340,7 +347,21 @@ export async function mockRegistrations(page: Page, mocks: RegistrationMocks = {
       return fulfill(route, answer);
     },
   );
-  return { searches, creates, addedPasses, selections, removedPasses, cash, complimentary };
+  await page.route(
+    (url) => api(url) && /^\/admin\/events\/[^/]+\/registrations\/[^/]+\/void$/.test(url.pathname),
+    (route) => {
+      const request = route.request();
+      const id = new URL(request.url()).pathname.split('/')[5];
+      voids.push({
+        registrationId: id,
+        body: request.postDataJSON(),
+        csrf: request.headers()['x-csrf-token'] ?? null,
+      });
+      const answer = mocks.void?.(voids.length) ?? { status: 500, json: {} };
+      return fulfill(route, withSummary(id, answer));
+    },
+  );
+  return { searches, creates, addedPasses, selections, removedPasses, cash, complimentary, voids };
 }
 
 // The registration screen in each status, and the search with a pending result, for the
@@ -417,6 +438,17 @@ export const registrationSweepCases: {
     ready: async (page) => {
       await page.getByRole('button', { name: /^Editar competencias de/ }).click();
       await page.getByRole('textbox', { name: 'Motivo del cambio' }).waitFor();
+    },
+  },
+  {
+    // The void dialog of a pending in-person registration (#104), open with its reason field.
+    name: 'Inscripción pendiente anulando',
+    path: registrationPath(registrationId),
+    mock: (page) =>
+      overrideRoute(page, '/entitlements', sweepEntitlements('pending_payment', null).json),
+    ready: async (page) => {
+      await page.getByRole('button', { name: 'Anular inscripción' }).click();
+      await page.getByRole('alertdialog').getByRole('textbox', { name: 'Motivo' }).waitFor();
     },
   },
   {

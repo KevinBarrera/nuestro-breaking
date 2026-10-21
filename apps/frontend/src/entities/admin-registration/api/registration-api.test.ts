@@ -9,6 +9,7 @@ import {
   removeRegistrationPass,
   searchRegistrations,
   setPassSelections,
+  voidRegistration,
 } from './registration-api';
 import type { ManualRegistrationInput } from './types';
 
@@ -33,6 +34,7 @@ const entitlements = {
     id: registrationId,
     status: 'pending_payment',
     folio: null,
+    channel: 'in_person',
     participant: { fullName: 'Alex Rivera', stageName: 'Flash' },
   },
   passes: [
@@ -408,6 +410,67 @@ describe('confirmComplimentary', () => {
     expect(
       await failureOf(confirmComplimentary(eventId, registrationId, { reason: 'Invitado' })),
     ).toEqual({ kind: 'unknown' });
+  });
+});
+
+describe('voidRegistration', () => {
+  const voided = {
+    ...entitlements,
+    registration: { ...entitlements.registration, status: 'voided' },
+  };
+
+  it('posts the reason with the CSRF token and reads the voided registration (#104)', async () => {
+    const fetchMock = stubFetch(() => Response.json(voided));
+    expect(await voidRegistration(eventId, registrationId, 'Registro duplicado')).toEqual(voided);
+    const [url, init] = call(fetchMock, 1);
+    expect(url).toMatch(new RegExp(`${base}/registrations/${registrationId}/void$`));
+    expect(init.method).toBe('POST');
+    expect((init.headers as Record<string, string>)['X-CSRF-Token']).toBe('csrf-token');
+    expect(JSON.parse(init.body as string)).toEqual({ reason: 'Registro duplicado' });
+  });
+
+  it('maps a rejected reason to the reason field and an online registration to its rule', async () => {
+    stubFetch(() =>
+      Response.json(
+        {
+          statusCode: 400,
+          message: 'Reason is required and must be 1 to 500 characters',
+          code: 'void_reason_required',
+        },
+        { status: 400 },
+      ),
+    );
+    expect(await failureOf(voidRegistration(eventId, registrationId, 'x'))).toEqual({
+      kind: 'invalid',
+      fieldErrors: { reason: 'invalid' },
+    });
+    stubFetch(() =>
+      Response.json(
+        {
+          statusCode: 409,
+          message: 'Online registrations cannot be voided',
+          code: 'online_registration_void_locked',
+        },
+        { status: 409 },
+      ),
+    );
+    expect(await failureOf(voidRegistration(eventId, registrationId, 'x'))).toEqual({
+      kind: 'rule',
+      code: 'online_registration_void_locked',
+    });
+  });
+
+  it('reports an unknown outcome when the answer is lost or is not this registration', async () => {
+    stubFetch(() => Promise.reject(new TypeError('Failed to fetch')));
+    expect(await failureOf(voidRegistration(eventId, registrationId, 'x'))).toEqual({
+      kind: 'unknown',
+    });
+    stubFetch(() =>
+      Response.json({ ...voided, registration: { ...voided.registration, id: participantId } }),
+    );
+    expect(await failureOf(voidRegistration(eventId, registrationId, 'x'))).toEqual({
+      kind: 'unknown',
+    });
   });
 });
 

@@ -221,6 +221,17 @@ export async function confirmCashPayment(
   return written(readConfirmation(await mutate(path, 'POST', body), eventId, registrationId));
 }
 
+// Voids an in-person `pending_payment` registration (#104). The `reason` (1 to 500 characters once
+// trimmed) goes to the audit; the held passes stay as history.
+export async function voidRegistration(
+  eventId: string,
+  registrationId: string,
+  reason: string,
+): Promise<RegistrationEntitlements> {
+  const path = registrationPath(eventId, registrationId, '/void');
+  return written(readEntitlements(await mutate(path, 'POST', { reason }), registrationId));
+}
+
 // Confirms a pending registration whose passes total $0 without payment (#263); it gets its folio
 // and the confirmation email.
 export async function confirmComplimentary(

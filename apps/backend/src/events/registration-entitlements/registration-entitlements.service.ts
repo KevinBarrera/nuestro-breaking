@@ -5,7 +5,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { and, asc, eq, inArray } from 'drizzle-orm';
+import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import { DATABASE_CLIENT } from '@/database/database.constants';
 import type { DatabaseService } from '@/database/database.service';
 import {
@@ -370,6 +370,53 @@ export class RegistrationEntitlementsService {
     });
   }
 
+  // Voids a mistaken in-person registration before payment (#104). Online checkouts expire on their
+  // own, so a void never leaves a live payment behind; passes and selections stay as history.
+  async voidRegistration(
+    eventId: string,
+    registrationId: string,
+    reason: string | null,
+    actor: AdminRegistrationAuditActor,
+  ): Promise<RegistrationEntitlements> {
+    return this.db.transaction(async (tx) => {
+      const registration = await this.lockRegistration(tx, eventId, registrationId);
+      if (!reason)
+        throw new BadRequestException({
+          statusCode: 400,
+          message: REASON_MESSAGE,
+          code: 'void_reason_required',
+        });
+      if (registration.status !== 'pending_payment')
+        throw new ConflictException('Registration is not pending payment');
+      if (registration.expiresAt !== null)
+        throw new ConflictException({
+          statusCode: 409,
+          message: 'Online registrations cannot be voided',
+          code: 'online_registration_void_locked',
+        });
+      const activityIds = await this.accessibleActivityIds(tx, eventId, registrationId);
+      await tx
+        .update(eventRegistrations)
+        .set({ status: 'voided', updatedAt: sql`now()` })
+        .where(eq(eventRegistrations.id, registrationId));
+      await this.audit(tx, actor, registration, {
+        operationType: 'registration_void',
+        affectedActivityIds: activityIds,
+        beforeState: {
+          status: 'pending_payment',
+          confirmationSource: null,
+          confirmedAt: null,
+          participantId: registration.participantId,
+          activityIds,
+        },
+        afterState: { status: 'voided', confirmationSource: null, confirmedAt: null },
+        facts: {},
+        note: reason,
+      });
+      return this.entitlements(tx, eventId, registrationId);
+    });
+  }
+
   // Row lock serializes entitlement writes per registration (duplicate and class checks included).
   private async lockRegistration(
     tx: Transaction,
@@ -508,7 +555,8 @@ export class RegistrationEntitlementsService {
     actor: RegistrationAuditActor,
     registration: RegistrationRow,
     fact: {
-      operationType: 'pass_assignment' | 'pass_selection_change' | 'pass_removal';
+      operationType:
+        'pass_assignment' | 'pass_selection_change' | 'pass_removal' | 'registration_void';
       affectedActivityIds: string[];
       beforeState: Record<string, unknown>;
       afterState: Record<string, unknown>;

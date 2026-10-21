@@ -178,6 +178,12 @@ describe('admin registration entitlements (e2e)', () => {
     server().put(`${base(event, registrationId)}/passes/${registrationPassId}/selections`);
   const removePass = (event: string, registrationId: string, registrationPassId: string) =>
     server().delete(`${base(event, registrationId)}/passes/${registrationPassId}`);
+  const voidRegistration = (event: string, registrationId: string) =>
+    server().post(`${base(event, registrationId)}/void`);
+  async function statuses() {
+    return client`SELECT id, status, confirmation_source, confirmed_at, updated_at
+      FROM event_registrations ORDER BY id`;
+  }
   async function audits() {
     return client<AuditRow[]>`
       SELECT operation_type, actor_user_id, session_id, event_id, registration_id, participant_id,
@@ -834,6 +840,117 @@ describe('admin registration entitlements (e2e)', () => {
     }
   });
 
+  it('voids a pending in-person registration with a reason, keeping its passes as history (#104)', async () => {
+    const f = await fixture();
+    const { cookie, userId, sessionId } = await session('admin', f.event);
+    const reg = await registration(f.event);
+    const full = await holdPass(f.event, reg.id, f.fullBreaking);
+    await client`INSERT INTO event_registration_pass_selections (event_id, registration_pass_id, activity_id)
+      VALUES (${f.event}, ${full}, ${f.breaking})`;
+    const before = await snapshot();
+    const response = await voidRegistration(f.event, reg.id)
+      .set(headers(cookie))
+      .send({ reason: '  Duplicated by mistake  ' })
+      .expect(200);
+    const body = response.body as Entitlements;
+    expect(body.registration).toEqual({
+      id: reg.id,
+      status: 'voided',
+      folio: null,
+      participant: { fullName: 'Dancer', stageName: null },
+    });
+    expect(body.passes.map((pass) => pass.registrationPassId)).toEqual([full]);
+    expect(await snapshot()).toEqual(before);
+    expect(
+      await client`SELECT status, updated_at > created_at AS touched
+        FROM event_registrations WHERE id = ${reg.id}`,
+    ).toEqual([{ status: 'voided', touched: true }]);
+    const activityIds = sorted([f.breaking, f.workshop]);
+    expect(
+      await client`SELECT operation_type, actor_kind, actor_user_id, session_id, event_id,
+          registration_id, participant_id, affected_activity_ids, amount_cents, note,
+          before_state, after_state, facts
+        FROM registration_operation_audit`,
+    ).toEqual([
+      {
+        operation_type: 'registration_void',
+        actor_kind: 'admin',
+        actor_user_id: userId,
+        session_id: sessionId,
+        event_id: f.event,
+        registration_id: reg.id,
+        participant_id: reg.participantId,
+        affected_activity_ids: activityIds,
+        amount_cents: null,
+        note: 'Duplicated by mistake',
+        before_state: {
+          status: 'pending_payment',
+          confirmationSource: null,
+          confirmedAt: null,
+          participantId: reg.participantId,
+          activityIds,
+        },
+        after_state: { status: 'voided', confirmationSource: null, confirmedAt: null },
+        facts: {},
+      },
+    ]);
+  });
+
+  it('rejects a void without a valid reason, of a closed or online registration and of another event without writes (#104)', async () => {
+    const f = await fixture();
+    const { cookie } = await session('admin', f.event);
+    const reg = await registration(f.event);
+    const confirmed = await registration(f.event, 'confirmed');
+    const voided = await registration(f.event, 'voided');
+    // An online checkout expires on its own; voiding it could leave a live payment behind.
+    const online = await registration(f.event);
+    await client`UPDATE event_registrations SET expires_at = now() + interval '1 hour'
+      WHERE id = ${online.id}`;
+    const foreign = await registration(f.other);
+    const before = { ...(await snapshot()), statuses: await statuses() };
+    const valid = { reason: 'Mistaken sale' };
+    const reasonRequired = {
+      statusCode: 400,
+      message: 'Reason is required and must be 1 to 500 characters',
+      code: 'void_reason_required',
+    };
+    for (const body of [{}, { reason: null }, { reason: '   ' }, { reason: 'x'.repeat(501) }]) {
+      const response = await voidRegistration(f.event, reg.id)
+        .set(headers(cookie))
+        .send(body)
+        .expect(400);
+      expect(response.body).toEqual(reasonRequired);
+    }
+    for (const closed of [confirmed, voided]) {
+      const response = await voidRegistration(f.event, closed.id)
+        .set(headers(cookie))
+        .send(valid)
+        .expect(409);
+      expect(response.body).toMatchObject({ message: 'Registration is not pending payment' });
+    }
+    const onlineResponse = await voidRegistration(f.event, online.id)
+      .set(headers(cookie))
+      .send(valid)
+      .expect(409);
+    expect(onlineResponse.body).toEqual({
+      statusCode: 409,
+      message: 'Online registrations cannot be voided',
+      code: 'online_registration_void_locked',
+    });
+    for (const id of [foreign.id, '00000000-0000-4000-8000-000000000000']) {
+      const missing = await voidRegistration(f.event, id)
+        .set(headers(cookie))
+        .send(valid)
+        .expect(404);
+      expect(missing.body).toMatchObject({ message: 'Registration not found' });
+    }
+    // The registration is found before the reason is checked.
+    await voidRegistration(f.event, foreign.id).set(headers(cookie)).send({}).expect(404);
+    await voidRegistration(f.event, 'nope').set(headers(cookie)).send(valid).expect(400);
+    expect({ ...(await snapshot()), statuses: await statuses() }).toEqual(before);
+    expect(await audits()).toHaveLength(0);
+  });
+
   it('rejects writes from judges, unauthenticated callers, other-event admins and missing CSRF or origin', async () => {
     const f = await fixture();
     const admin = await session('admin', f.event);
@@ -846,6 +963,7 @@ describe('admin registration entitlements (e2e)', () => {
       () => addPass(f.event, reg.id).send({ passTypeId: f.general }),
       () => select(f.event, reg.id, full).send({ activityIds: [f.breaking] }),
       () => removePass(f.event, reg.id, full),
+      () => voidRegistration(f.event, reg.id).send({ reason: 'Mistaken sale' }),
     ];
     for (const command of commands) {
       await command().set('Origin', trustedOrigin).expect(401);
@@ -871,9 +989,9 @@ describe('admin registration entitlements (e2e)', () => {
     const { cookie } = await session('admin', f.event);
     const reg = await registration(f.event);
     const full = await holdPass(f.event, reg.id, f.fullBreaking);
-    const before = await snapshot();
+    const before = { ...(await snapshot()), statuses: await statuses() };
     await client`ALTER TABLE registration_operation_audit ADD CONSTRAINT reject_entitlement_test
-      CHECK (operation_type NOT IN ('pass_assignment', 'pass_selection_change', 'pass_removal')) NOT VALID`;
+      CHECK (operation_type NOT IN ('pass_assignment', 'pass_selection_change', 'pass_removal', 'registration_void')) NOT VALID`;
     try {
       await addPass(f.event, reg.id)
         .set(headers(cookie))
@@ -884,10 +1002,14 @@ describe('admin registration entitlements (e2e)', () => {
         .send({ activityIds: [f.breaking] })
         .expect(500);
       await removePass(f.event, reg.id, full).set(headers(cookie)).expect(500);
+      await voidRegistration(f.event, reg.id)
+        .set(headers(cookie))
+        .send({ reason: 'Mistaken sale' })
+        .expect(500);
     } finally {
       await client`ALTER TABLE registration_operation_audit DROP CONSTRAINT reject_entitlement_test`;
     }
-    expect(await snapshot()).toEqual(before);
+    expect({ ...(await snapshot()), statuses: await statuses() }).toEqual(before);
     expect(await audits()).toHaveLength(0);
   });
 });

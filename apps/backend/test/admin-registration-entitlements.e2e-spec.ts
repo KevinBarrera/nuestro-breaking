@@ -27,7 +27,13 @@ type RegistrationSummary = {
   status: string;
   folio: string | null;
   channel: string;
-  participant: { fullName: string; stageName: string | null };
+  participant: {
+    fullName: string;
+    firstName: string | null;
+    firstLastName: string | null;
+    secondLastName: string | null;
+    stageName: string | null;
+  };
 };
 type Entitlements = {
   registration: RegistrationSummary;
@@ -775,7 +781,13 @@ describe('admin registration entitlements (e2e)', () => {
         status: 'pending_payment',
         folio: null,
         channel: 'in_person',
-        participant: { fullName: 'Dancer', stageName: null },
+        participant: {
+          fullName: 'Dancer',
+          firstName: null,
+          firstLastName: null,
+          secondLastName: null,
+          stageName: null,
+        },
       },
       passes: [
         {
@@ -835,7 +847,13 @@ describe('admin registration entitlements (e2e)', () => {
       status: 'pending_payment',
       folio: null,
       channel: 'in_person',
-      participant: { fullName: 'Dancer', stageName: 'Flash' },
+      participant: {
+        fullName: 'Dancer',
+        firstName: null,
+        firstLastName: null,
+        secondLastName: null,
+        stageName: 'Flash',
+      },
     };
     const bodies: Entitlements[] = [];
     const before = await read(f.event, pending.id).set(headers(cookie)).expect(200);
@@ -864,7 +882,13 @@ describe('admin registration entitlements (e2e)', () => {
       status: 'confirmed',
       folio,
       channel: 'in_person',
-      participant: { fullName: 'Dancer', stageName: null },
+      participant: {
+        fullName: 'Dancer',
+        firstName: null,
+        firstLastName: null,
+        secondLastName: null,
+        stageName: null,
+      },
     };
     const confirmedRead = await read(f.event, confirmed.id).set(headers(cookie)).expect(200);
     bodies.push(confirmedRead.body as Entitlements);
@@ -890,7 +914,13 @@ describe('admin registration entitlements (e2e)', () => {
     expect(bodies[6].registration).toMatchObject({ id: online.id, channel: 'online' });
 
     for (const body of bodies) {
-      expect(Object.keys(body.registration.participant).sort()).toEqual(['fullName', 'stageName']);
+      expect(Object.keys(body.registration.participant).sort()).toEqual([
+        'firstLastName',
+        'firstName',
+        'fullName',
+        'secondLastName',
+        'stageName',
+      ]);
       expect(JSON.stringify(body)).not.toMatch(/example\.com|5512344567/);
     }
   });
@@ -913,7 +943,13 @@ describe('admin registration entitlements (e2e)', () => {
       status: 'voided',
       folio: null,
       channel: 'in_person',
-      participant: { fullName: 'Dancer', stageName: null },
+      participant: {
+        fullName: 'Dancer',
+        firstName: null,
+        firstLastName: null,
+        secondLastName: null,
+        stageName: null,
+      },
     });
     expect(body.passes.map((pass) => pass.registrationPassId)).toEqual([full]);
     expect(await snapshot()).toEqual(before);
@@ -1032,7 +1068,13 @@ describe('admin registration entitlements (e2e)', () => {
       status: 'pending_payment',
       folio: null,
       channel: 'in_person',
-      participant: { fullName: 'Ana María Lopez Ruiz', stageName: 'Bgirl Ana' },
+      participant: {
+        fullName: 'Ana María Lopez Ruiz',
+        firstName: 'Ana María',
+        firstLastName: 'Lopez',
+        secondLastName: 'Ruiz',
+        stageName: 'Bgirl Ana',
+      },
     });
     expect(body.passes).toEqual([]);
     expect(await participant(pending.participantId)).toEqual({
@@ -1052,7 +1094,13 @@ describe('admin registration entitlements (e2e)', () => {
       .expect(200);
     expect((cleared.body as Entitlements).registration).toMatchObject({
       status: 'confirmed',
-      participant: { fullName: 'Ana López', stageName: null },
+      participant: {
+        fullName: 'Ana López',
+        firstName: 'Ana',
+        firstLastName: 'López',
+        secondLastName: null,
+        stageName: null,
+      },
     });
     expect(await participant(confirmed.participantId)).toMatchObject({
       full_name: 'Ana López',

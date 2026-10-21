@@ -559,7 +559,7 @@ export class RegistrationEntitlementsService {
     return rows.map((row) => row.activityId).sort(byId);
   }
 
-  // Only the name and AKA of the participant: the sale screen needs no contact data.
+  // Only the name, its parts and the AKA of the participant: the sale screen needs no contact data.
   private async summary(
     executor: Executor,
     eventId: string,
@@ -572,6 +572,9 @@ export class RegistrationEntitlementsService {
         folio: eventRegistrations.folio,
         expiresAt: eventRegistrations.expiresAt,
         fullName: participants.fullName,
+        firstName: participants.firstName,
+        firstLastName: participants.firstLastName,
+        secondLastName: participants.secondLastName,
         stageName: participants.stageName,
       })
       .from(eventRegistrations)
@@ -580,13 +583,13 @@ export class RegistrationEntitlementsService {
         and(eq(eventRegistrations.id, registrationId), eq(eventRegistrations.eventId, eventId)),
       );
     if (!row) throw new NotFoundException('Registration not found');
-    const { id, status, folio, expiresAt, fullName, stageName } = row;
+    const { id, status, folio, expiresAt, ...participant } = row;
     return {
       id,
       status: status as RegistrationStatus,
       folio,
       channel: expiresAt === null ? 'in_person' : 'online',
-      participant: { fullName, stageName },
+      participant,
     };
   }
 

@@ -3,7 +3,7 @@
 ## Tracking
 
 - GitHub issues: #104 (third slice: discipline swap) and #256 (its UI action)
-- Branch: `feat/104-discipline-swap` → `dev` (base `8756848`), one commit per task. Split into chained PRs if the diff passes ~400 lines.
+- Branch: `feat/104-discipline-swap` → `dev` (base `8756848`), one commit per task. Split into chained PRs: `feat/104-05-discipline-swap-backend` (task 1) → `dev`, and `feat/104-06-discipline-swap-screen` (tasks 2 and 3, the screen and the docs) → the first.
 
 ## Goal
 

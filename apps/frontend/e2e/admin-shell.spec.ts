@@ -27,9 +27,7 @@ test.beforeEach(async ({ page }) => {
 
 const sideNav = (page: Page) => page.getByRole('navigation', { name: 'Navegación administrativa' });
 
-test('renders the shell with grouped navigation and unavailable sections disabled', async ({
-  page,
-}) => {
+test('renders the shell with grouped navigation and event sections disabled', async ({ page }) => {
   await page.goto('/admin');
   const header = page.getByRole('banner', { name: 'Espacio de administración' });
   await expect(header.getByText('LOS MÁS PESADOS')).toBeVisible();
@@ -42,14 +40,20 @@ test('renders the shell with grouped navigation and unavailable sections disable
   await expect(allEvents).toHaveAttribute('href', '/admin');
   await expect(allEvents).toHaveAttribute('aria-current', 'page');
   await expect(nav.locator('[aria-current="page"]')).toHaveCount(1);
-  const backup = nav.getByRole('link', { name: /Listas de respaldo/ });
-  await expect(backup).toHaveAttribute('aria-disabled', 'true');
-  await expect(backup).not.toHaveAttribute('href');
-  await expect(backup).toContainText('Próximamente');
   // Without an event in the URL, event-scoped sections cannot be reached yet.
-  for (const name of ['Resumen', 'Check-in', 'Inscripciones', 'Actividades', 'Pases']) {
-    await expect(nav.getByRole('link', { name })).toHaveAttribute('aria-disabled', 'true');
+  for (const name of [
+    'Resumen',
+    'Check-in',
+    'Inscripciones',
+    'Listas de respaldo',
+    'Actividades',
+    'Pases',
+  ]) {
+    const link = nav.getByRole('link', { name });
+    await expect(link).toHaveAttribute('aria-disabled', 'true');
+    await expect(link).not.toHaveAttribute('href');
   }
+  await expect(nav).not.toContainText('Próximamente');
 });
 
 test('links event sections, marks the active one and switches events in place', async ({
@@ -71,6 +75,10 @@ test('links event sections, marks the active one and switches events in place', 
   const registrations = nav.getByRole('link', { name: 'Inscripciones' });
   await expect(registrations).toHaveAttribute('href', `/admin/events/${firstId}/registrations`);
   await expect(registrations).not.toContainText('Próximamente');
+  await expect(nav.getByRole('link', { name: 'Listas de respaldo' })).toHaveAttribute(
+    'href',
+    `/admin/events/${firstId}/lists`,
+  );
   await expect(nav.getByRole('link', { name: 'Resumen' })).not.toHaveAttribute('aria-current');
 
   const selector = selectTrigger(page, 'Evento');

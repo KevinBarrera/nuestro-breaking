@@ -185,3 +185,34 @@ html:has(.bg-page) {
 html:has(.bg-page) body {
   background: none;
 }
+
+/*
+ * Print (#65 Listas de respaldo): black text on white paper in both themes. The tokens are
+ * swapped rather than each screen's classes, so anything printed follows the same rule.
+ */
+@media print {
+  :root,
+  :root[data-theme] {
+    --nb-page: #ffffff;
+    --nb-surface: #ffffff;
+    --nb-surface-inner: #ffffff;
+    --nb-chip: #ffffff;
+    --nb-row: #000000;
+    --nb-line: #000000;
+    --nb-fg: #000000;
+    --nb-heading: #000000;
+    --nb-muted: #000000;
+    --nb-link: #000000;
+    color-scheme: light;
+  }
+
+  html,
+  body {
+    background: #ffffff;
+    color: #000000;
+  }
+
+  @page {
+    margin: 12mm;
+  }
+}

@@ -74,9 +74,6 @@ const actionCard =
 
 function QuickActions({ eventId }: { eventId: string }) {
   const titleId = useId();
-  const upcoming = [
-    { eyebrow: 'RESPALDO', title: 'Imprimir listas', hint: 'Por pase y actividad, sin contactos' },
-  ];
   return (
     <section aria-labelledby={titleId}>
       <h2 id={titleId} className="sr-only">
@@ -102,24 +99,15 @@ function QuickActions({ eventId }: { eventId: string }) {
           </span>
           <span className="text-sm text-muted">Con número de recibo foliado</span>
         </Link>
-        {upcoming.map((action) => (
-          // Not wired yet: visibly unavailable and announced as disabled, never a link.
-          <button
-            key={action.title}
-            type="button"
-            aria-disabled="true"
-            className={`${actionCard} cursor-not-allowed border border-line bg-surface text-muted`}
-          >
-            <span className="flex flex-wrap items-center gap-2 text-xs font-bold tracking-[0.08em]">
-              {action.eyebrow}
-              <span className="rounded bg-chip px-1.5 py-0.5 font-medium tracking-normal">
-                Próximamente
-              </span>
-            </span>
-            <span className="text-xl leading-tight font-extrabold">{action.title}</span>
-            <span className="text-sm">{action.hint}</span>
-          </button>
-        ))}
+        {/* The printable fallback lists (#65). */}
+        <Link
+          to={eventPath(routes.adminEventLists, eventId)}
+          className={`${actionCard} border border-line bg-surface text-fg hover:bg-row`}
+        >
+          <span className="text-xs font-bold tracking-[0.08em] text-muted">RESPALDO</span>
+          <span className="text-xl leading-tight font-extrabold text-heading">Imprimir listas</span>
+          <span className="text-sm text-muted">Por pase y actividad, sin contactos</span>
+        </Link>
       </div>
     </section>
   );

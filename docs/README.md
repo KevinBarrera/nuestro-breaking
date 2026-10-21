@@ -19,6 +19,7 @@ Choose a path by purpose. The November 2026 MVP proposal is **DRAFT pending orga
 - [Admin bootstrap runbook](runbooks/admin-bootstrap.md) — create the first global administrator of a hosted environment, once per environment.
 - [Managing the team](runbooks/support.md#managing-the-team) — invite administrators, recover access with a new link, change access, deactivate and reactivate.
 - [Setting up an event](runbooks/admin-bootstrap.md#setting-up-an-event) and [archiving and deleting events](runbooks/support.md#archiving-and-deleting-events) — create an event without scripts, then retire or remove it; the API is in the [admin event lifecycle contract](contracts/admin-event-lifecycle.md).
+- [Paper fallback](runbooks/event-day.md#listas-de-respaldo-y-contingencia-en-papel) — print contact-free attendee lists ahead of the event and work on paper during an outage; the API is in the [attendee lists contract](contracts/attendee-lists.md).
 - [OpenSpec change guide](../openspec/README.md) — change artifacts and their boundaries, including the reusable event activity foundation.
 
 ## Historical and provisional context

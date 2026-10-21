@@ -3,7 +3,7 @@ import { Link } from 'react-router';
 import { eventSectionPath, type AdminLocation, type EventSection } from './admin-location';
 import { eventListRequest } from './event-list-request';
 
-type NavItem = { label: string; section?: EventSection; upcoming?: boolean };
+type NavItem = { label: string; section: EventSection };
 
 const groups: { title: string; items: NavItem[] }[] = [
   {
@@ -13,7 +13,7 @@ const groups: { title: string; items: NavItem[] }[] = [
       { label: 'Check-in', section: 'check-in' },
       { label: 'Pagos por revisar', section: 'payments-review' },
       { label: 'Inscripciones', section: 'registrations' },
-      { label: 'Listas de respaldo', upcoming: true },
+      { label: 'Listas de respaldo', section: 'lists' },
     ],
   },
   {
@@ -45,10 +45,7 @@ export function AdminSideNav({ location, onLanding, showTeam, onTeam }: AdminSid
   function renderItem(item: NavItem) {
     // Event sections, Resumen included, need an event in the URL; the event list itself is
     // "Todos los eventos" at the top.
-    const target =
-      item.section && location.eventId
-        ? eventSectionPath(location.eventId, item.section)
-        : undefined;
+    const target = location.eventId ? eventSectionPath(location.eventId, item.section) : undefined;
     if (!target)
       return (
         <a
@@ -57,9 +54,6 @@ export function AdminSideNav({ location, onLanding, showTeam, onTeam }: AdminSid
           className={`${itemClass} cursor-not-allowed text-muted`}
         >
           {item.label}
-          {item.upcoming && (
-            <span className="rounded bg-chip px-1.5 py-0.5 text-xs font-medium">Próximamente</span>
-          )}
         </a>
       );
     return (
@@ -76,7 +70,7 @@ export function AdminSideNav({ location, onLanding, showTeam, onTeam }: AdminSid
   return (
     <nav
       aria-label="Navegación administrativa"
-      className="border-b border-sidenav-line bg-sidenav px-4 py-5 md:w-64 md:shrink-0 md:overflow-y-auto md:border-r md:border-b-0 md:py-6"
+      className="border-b border-sidenav-line bg-sidenav px-4 py-5 md:w-64 md:shrink-0 md:overflow-y-auto md:border-r md:border-b-0 md:py-6 print:hidden"
     >
       {/* The way back to the event list (Crear evento, Archivados) from any screen, for every
           admin; its state keeps the one-event redirect from bouncing them straight back. */}

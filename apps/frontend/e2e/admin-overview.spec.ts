@@ -130,10 +130,12 @@ test('shows the event overview with quick actions and Resumen as the current pag
     'href',
     `${overviewPath}/registrations/new`,
   );
-  const print = actions.getByRole('button', { name: /Imprimir listas/ });
-  await expect(print).toHaveAttribute('aria-disabled', 'true');
-  await expect(print).toContainText('Próximamente');
-  await expect(actions.getByRole('link', { name: /Imprimir listas/ })).toHaveCount(0);
+  // The printable fallback lists (#65).
+  await expect(actions.getByRole('link', { name: /Imprimir listas/ })).toHaveAttribute(
+    'href',
+    `${overviewPath}/lists`,
+  );
+  await expect(actions).not.toContainText('Próximamente');
   const box = await actions.getByRole('link', { name: /Abrir check-in/ }).boundingBox();
   expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
 });

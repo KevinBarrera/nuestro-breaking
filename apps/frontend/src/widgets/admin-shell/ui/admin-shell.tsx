@@ -34,10 +34,11 @@ export function AdminShell({ signingOut, signOutFailed, onSignOut, children }: A
   return (
     // From md up the shell fills the viewport: the header, brand bar and side navigation stay
     // in place and only the content column scrolls. Below md the page scrolls as one column.
-    <div className="flex min-h-dvh flex-col bg-page font-sans text-fg md:h-dvh md:overflow-hidden">
+    // Printing keeps only the page content, flowing across as many sheets as it needs.
+    <div className="flex min-h-dvh flex-col bg-page font-sans text-fg md:h-dvh md:overflow-hidden print:block print:h-auto print:min-h-0 print:overflow-visible">
       <header
         aria-label="Espacio de administración"
-        className="shrink-0 bg-header px-4 py-3 sm:px-7"
+        className="shrink-0 bg-header px-4 py-3 sm:px-7 print:hidden"
       >
         <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-header-fg">
@@ -76,15 +77,15 @@ export function AdminShell({ signingOut, signOutFailed, onSignOut, children }: A
           </p>
         )}
       </header>
-      <div aria-hidden="true" className="h-[5px] shrink-0 bg-brand-bar" />
-      <div className="flex flex-1 flex-col md:min-h-0 md:flex-row">
+      <div aria-hidden="true" className="h-[5px] shrink-0 bg-brand-bar print:hidden" />
+      <div className="flex flex-1 flex-col md:min-h-0 md:flex-row print:block">
         <AdminSideNav
           location={location}
           onLanding={pathname === routes.admin || pathname === routes.adminEventNew}
           showTeam={globalAdmin}
           onTeam={pathname === routes.adminTeam || pathname.startsWith(`${routes.adminTeam}/`)}
         />
-        <div ref={content} className="min-w-0 flex-1 md:overflow-y-auto">
+        <div ref={content} className="min-w-0 flex-1 md:overflow-y-auto print:overflow-visible">
           {children}
         </div>
       </div>

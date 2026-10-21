@@ -26,6 +26,7 @@ type RegistrationSummary = {
   id: string;
   status: string;
   folio: string | null;
+  channel: string;
   participant: { fullName: string; stageName: string | null };
 };
 type Entitlements = {
@@ -730,6 +731,7 @@ describe('admin registration entitlements (e2e)', () => {
         id: generalOnly.id,
         status: 'pending_payment',
         folio: null,
+        channel: 'in_person',
         participant: { fullName: 'Dancer', stageName: null },
       },
       passes: [
@@ -789,6 +791,7 @@ describe('admin registration entitlements (e2e)', () => {
       id: pending.id,
       status: 'pending_payment',
       folio: null,
+      channel: 'in_person',
       participant: { fullName: 'Dancer', stageName: 'Flash' },
     };
     const bodies: Entitlements[] = [];
@@ -817,6 +820,7 @@ describe('admin registration entitlements (e2e)', () => {
       id: confirmed.id,
       status: 'confirmed',
       folio,
+      channel: 'in_person',
       participant: { fullName: 'Dancer', stageName: null },
     };
     const confirmedRead = await read(f.event, confirmed.id).set(headers(cookie)).expect(200);
@@ -833,6 +837,14 @@ describe('admin registration entitlements (e2e)', () => {
     const voidedRead = await read(f.event, voided.id).set(headers(cookie)).expect(200);
     bodies.push(voidedRead.body as Entitlements);
     expect(bodies[5].registration).toMatchObject({ id: voided.id, status: 'voided', folio: null });
+
+    // An online checkout has an expiry, which the summary reports as its channel.
+    const online = await registration(f.event);
+    await client`UPDATE event_registrations SET expires_at = now() + interval '1 hour'
+      WHERE id = ${online.id}`;
+    const onlineRead = await read(f.event, online.id).set(headers(cookie)).expect(200);
+    bodies.push(onlineRead.body as Entitlements);
+    expect(bodies[6].registration).toMatchObject({ id: online.id, channel: 'online' });
 
     for (const body of bodies) {
       expect(Object.keys(body.registration.participant).sort()).toEqual(['fullName', 'stageName']);
@@ -857,6 +869,7 @@ describe('admin registration entitlements (e2e)', () => {
       id: reg.id,
       status: 'voided',
       folio: null,
+      channel: 'in_person',
       participant: { fullName: 'Dancer', stageName: null },
     });
     expect(body.passes.map((pass) => pass.registrationPassId)).toEqual([full]);

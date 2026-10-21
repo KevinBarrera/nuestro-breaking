@@ -316,7 +316,8 @@ Slice 1 for pass grouping. Slices 2 and 3 for recovery writes. Slice 5 for the o
 ### Delivered (current behavior)
 
 - An append-only operation audit table exists for `manual_registration` and `cash_confirmation`, written in the same transaction as the mutation. Evidence: `apps/backend/src/database/schema/registration-operation-audit.ts`; `odd/tasks/admin-manual-registration-cash.md`.
-- The audit and correction policy is a design contract; correction and void commands do not exist. Evidence: `docs/contracts/admin-registration-audit-policy.md:3, 10`.
+- The audit and correction policy is a design contract; correction commands do not exist. Evidence: `docs/contracts/admin-registration-audit-policy.md:3, 10`.
+- The justified pending void is delivered for in-person registrations (#104, `registration_void`, 2026-10-20); see `docs/contracts/admin-registration-operations.md` and `odd/tasks/void-pending-registration.md`. The rest of #104 remains.
 - No history reader API or UI exists. Evidence: `odd/tasks/admin-manual-registration-cash.md` (Constraints: no audit-reader UI/API).
 
 ### Proposed design

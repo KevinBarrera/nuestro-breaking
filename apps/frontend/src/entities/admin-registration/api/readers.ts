@@ -1,5 +1,6 @@
 import {
   heldPassClasses,
+  registrationChannels,
   registrationStatuses,
   type AdminRegistrationFailure,
   type AdminRegistrationRuleCode,
@@ -107,11 +108,12 @@ function readHeldPass(value: unknown): HeldPass | null {
 // Keeps only the participant's name and AKA, even if the answer carries more.
 function readSummary(value: unknown, registrationId: string): RegistrationSummary | null {
   if (!isRecord(value) || value.id !== registrationId || !isRecord(value.participant)) return null;
-  const { status, folio } = value;
+  const { status, folio, channel } = value;
   const { fullName, stageName } = value.participant;
   if (!oneOf(registrationStatuses, status) || !isTextOrNull(folio)) return null;
+  if (!oneOf(registrationChannels, channel)) return null;
   if (!isText(fullName) || !isTextOrNull(stageName)) return null;
-  return { id: registrationId, status, folio, participant: { fullName, stageName } };
+  return { id: registrationId, status, folio, channel, participant: { fullName, stageName } };
 }
 
 export function readEntitlements(
@@ -152,6 +154,10 @@ const ruleMessages: Record<string, AdminRegistrationRuleCode> = {
   'Online registrations cannot lose a pass': 'online_registration_pass_locked',
 };
 
+// Reason rejections that carry a stable backend `code`: the confirmed selection change (#170) and
+// the void (#104).
+const reasonCodes = ['selection_change_reason_required', 'void_reason_required'];
+
 // Cash and complimentary confirmation and the selection change reason (#170) report their invalid
 // fields only by message; they map to the input names.
 const fieldMessages: Record<string, Record<string, string>> = {
@@ -166,6 +172,7 @@ const ruleCodes: readonly AdminRegistrationRuleCode[] = [
   'no_passes',
   'not_zero_total',
   'pass_required_by_add_on',
+  'online_registration_void_locked',
 ];
 
 const messageOf = (body: unknown) =>
@@ -181,8 +188,7 @@ export function readRegistrationFailure(status: number, body: unknown): AdminReg
   const ruleCode = Object.hasOwn(ruleMessages, message) ? ruleMessages[message] : undefined;
   if ((status === 400 || status === 409) && ruleCode) return { kind: 'rule', code: ruleCode };
   if (status === 400) {
-    // A confirmed registration's selections change only with a reason (#170).
-    if (isRecord(body) && body.code === 'selection_change_reason_required')
+    if (isRecord(body) && reasonCodes.some((code) => code === body.code))
       return { kind: 'invalid', fieldErrors: { reason: 'invalid' } };
     if (Object.hasOwn(fieldMessages, message))
       return { kind: 'invalid', fieldErrors: fieldMessages[message] };

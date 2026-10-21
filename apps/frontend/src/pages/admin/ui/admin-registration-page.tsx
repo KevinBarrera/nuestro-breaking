@@ -13,11 +13,13 @@ import {
 } from '@/entities/event-catalog';
 import { routes } from '@/shared/config';
 import { Breadcrumbs, Notice } from '@/shared/ui';
-import { useEffect, useId, useState, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { generatePath, useLocation, useParams } from 'react-router';
 import { passClassLabels, styles } from './catalog-copy';
 import { ConfirmedCompetitions } from './confirmed-competitions';
 import { readRegistrationContext, registrationStatusLabel } from './registration-model';
+import { RegistrationVoid } from './registration-void';
+import { canVoidRegistration } from './registration-void-model';
 import { SaleCash } from './sale-cash';
 import { registrationViewMode } from './sale-cash-model';
 import { SaleComplimentary } from './sale-complimentary';
@@ -65,7 +67,8 @@ export function AdminRegistrationPage() {
 
 // One registration (#105): what it holds and, while it is pending payment, the passes it can
 // still get, the competitions of each held pass and the cash payment, or the confirmation without
-// payment when its passes total $0 (#263). A confirmed registration, led by its folio, only lets
+// payment when its passes total $0 (#263); an in-person one can also be voided with a reason (#104).
+// A confirmed registration, led by its folio, only lets
 // the operator change a pass's competitions with a reason (#170); a voided one is read-only. The
 // name and status come from the entitlements read, so a reload keeps them; the screen that linked
 // here passes them along to show before that read answers.
@@ -120,6 +123,13 @@ function RegistrationScreen({
   const reloading = state.status === 'ready' && answered !== revision;
   // What this screen just recorded, announced over the folio.
   const [confirmedBy, setConfirmedBy] = useState<ConfirmedBy | null>(null);
+  // Set when this screen voided the registration, whose void action is then gone (#104).
+  const [voidedHere, setVoidedHere] = useState(false);
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  // The action that opened the void dialog is gone once it renders, so the heading takes focus.
+  useEffect(() => {
+    if (voidedHere) headingRef.current?.focus();
+  }, [voidedHere]);
   // Unsaved competition checks by held pass; refreshes and reloads leave them untouched (#277).
   const [drafts, setDrafts] = useState<CompetitionDrafts>({});
   const changeDraft = (pass: SaleCompetitionPass, next: readonly string[] | null) =>
@@ -155,7 +165,11 @@ function RegistrationScreen({
           ]}
         />
         <header className="space-y-2">
-          <h1 className="text-3xl font-extrabold tracking-tight break-words text-heading">
+          <h1
+            ref={headingRef}
+            tabIndex={-1}
+            className="text-3xl font-extrabold tracking-tight break-words text-heading focus:outline-none"
+          >
             {participantName ? `Inscripción de ${participantName}` : 'Inscripción'}
           </h1>
           {status && (
@@ -180,7 +194,9 @@ function RegistrationScreen({
             )}
             {mode === 'voided' && (
               <Notice title="Inscripción anulada">
-                Esta inscripción está anulada: no admite pases, competencias ni pagos.
+                {voidedHere
+                  ? 'Se anuló la inscripción. Sus pases quedan como historial y ya no admite pases, competencias ni pagos.'
+                  : 'Esta inscripción está anulada: no admite pases, competencias ni pagos.'}
               </Notice>
             )}
             <section aria-labelledby={passesTitleId} className={`${styles.card} space-y-3`}>
@@ -260,6 +276,17 @@ function RegistrationScreen({
                     onConfirmed={(entitlements) => {
                       updateEntitlements(entitlements);
                       setConfirmedBy('cash');
+                    }}
+                    onReload={reload}
+                  />
+                )}
+                {canVoidRegistration(state.entitlements.registration) && (
+                  <RegistrationVoid
+                    eventId={eventId}
+                    entitlements={state.entitlements}
+                    onVoided={(entitlements) => {
+                      updateEntitlements(entitlements);
+                      setVoidedHere(true);
                     }}
                     onReload={reload}
                   />

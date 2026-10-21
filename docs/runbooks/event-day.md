@@ -81,6 +81,14 @@ outcome, and the screen only shows what it answered.
    "Motivo del cambio" (required, up to 500 characters) and press "Guardar
    cambios". Check the before and after in the dialog and press "Cambiar
    competencias". The reason stays in the registration audit.
+8. To void an in-person registration made by mistake (for example, the same
+   person registered twice) while it is still "Pendiente de pago", press
+   "Anular inscripción" at the end of the sale, write why in "Motivo"
+   (required, up to 500 characters) and confirm. It cannot be undone; register
+   the person again if needed. Online pending registrations have no such
+   action: they are voided on their own when the payment window ends. A
+   confirmed registration cannot be voided; escalate paid cases to the
+   principal organizer.
 
 If the screen says "No pudimos confirmar si el pago se registró", press
 "Recargar" and read the status. Never charge again or confirm a second time

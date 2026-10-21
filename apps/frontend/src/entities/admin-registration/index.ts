@@ -9,8 +9,14 @@ export {
   removeRegistrationPass,
   searchRegistrations,
   setPassSelections,
+  voidRegistration,
 } from './api/registration-api';
-export { adminRegistrationRuleCodes, heldPassClasses, registrationStatuses } from './api/types';
+export {
+  adminRegistrationRuleCodes,
+  heldPassClasses,
+  registrationChannels,
+  registrationStatuses,
+} from './api/types';
 export type {
   AdminRegistrationFailure,
   AdminRegistrationRuleCode,
@@ -23,6 +29,7 @@ export type {
   ManualRegistration,
   ManualRegistrationInput,
   PossibleDuplicate,
+  RegistrationChannel,
   RegistrationEntitlements,
   RegistrationSearchPage,
   RegistrationSearchQuery,

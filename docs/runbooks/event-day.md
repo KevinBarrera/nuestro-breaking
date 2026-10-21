@@ -58,8 +58,8 @@ outcome, and the screen only shows what it answered.
    Passes that cannot be added show the reason instead of the button. A pass
    added by mistake can be removed with "Quitar" next to it, before the payment
    is confirmed; remove an add-on before the pass it requires. After
-   confirmation, passes cannot change (#256); competitions can, with a reason
-   (step 7).
+   confirmation, passes cannot change (#256), except a same-price discipline
+   swap (step 10); competitions can, with a reason (step 7).
 4. In "Competencias", check the competitions for each pass and press "Guardar
    competencias". Checks you have not saved stay while you add passes, but the
    payment cannot be confirmed until each pass is saved or "Descartar cambios"
@@ -96,6 +96,16 @@ outcome, and the screen only shows what it answered.
    it is the right person and press "Confirmar corrección": only this
    registration changes, never the other events. A voided registration cannot
    be corrected. The reason stays in the registration audit.
+10. To move a pending or confirmed registration from one discipline to another
+    of the same price (for example Breaking to Popping), press "Cambiar
+    disciplina", choose the pass in "Pase nuevo", check its competitions,
+    write why in "Motivo" (required, up to 500 characters), press "Revisar
+    cambio" and confirm with "Cambiar disciplina". The amount paid does not
+    change. It only works when the registration has exactly one full pass and
+    the person has not entered the event yet: after the entry check-in the
+    swap is blocked ("Esta persona ya registró su entrada al evento…"), and
+    swaps with several full passes or a different price are not supported.
+    The reason stays in the registration audit.
 
 If the screen says "No pudimos confirmar si el pago se registró", press
 "Recargar" and read the status. Never charge again or confirm a second time
@@ -181,8 +191,8 @@ status, or audit is uncertain.
 
 Only event-authorized administrators, not judges, may perform bounded audited
 name/AKA corrections after confirming shared cross-event identity impact;
-equal-price Breaking/Popping/Locking/Dancehall swaps; or justified pending
-voids. All event-scoped administrators may use those bounded corrections and
+equal-price Breaking/Popping/Locking/Dancehall swaps of a single full pass
+before entry check-in; or justified pending voids. All event-scoped administrators may use those bounded corrections and
 read their event's operation history, never judges; access mechanics remain
 pending. A separate bounded cash correction is approved in principle, requiring
 coordination staff verification, reason, minimum evidence and preserved original

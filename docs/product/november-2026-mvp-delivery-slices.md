@@ -28,7 +28,7 @@ Source shorthand:
 | 1   | Pass entitlements and optional activities      | Delivered via #124; see the [event catalog contract](../contracts/event-catalog.md).     | 1st                                  |
 | 2   | Manual registration, duplicates, cash receipt  | Backend delivered via #125; admin UI (#105) pending.                                     | 2nd (parallel with 1 where possible) |
 | 3   | One-action check-in with on-arrival enrollment | Two visible actions; activity check-in needs prior event fact and prior enrollment.      | 3rd                                  |
-| 4   | Paper lists and paper contingency              | No list or print view exists; contingency is a runbook only.                             | 4th (can start after 1)              |
+| 4   | Paper lists and paper contingency              | Delivered via #65; printer distribution and the recovery audit marker remain open.       | 4th (can start after 1)              |
 | 5   | Audit, identity warnings, cash corrections     | Audit facts exist for manual/cash writes only; no correction commands or history reader. | 5th                                  |
 
 ---
@@ -253,9 +253,12 @@ Slice 1 (entitlements). Slice 5 audit fact shape for enrollment-on-arrival.
 
 ### Delivered (current behavior)
 
-- No list, print or PDF view exists. Evidence: no print/list screen under `apps/frontend/src`; `odd/tasks/november-mvp-organizer-alignment.md` ("does not deliver printable lists").
-- The paper contingency exists only as procedure. Evidence: `docs/runbooks/event-day.md:29-38, 62`.
-- Protected, paginated, event-scoped registration search with attendance projection exists and can be a data source. Evidence: `apps/backend/src/events/registration-search/`; `odd/tasks/event-day-check-in.md` (T1).
+Delivered by #65 (2026-10-20); see `docs/contracts/attendee-lists.md` and `odd/tasks/attendee-lists.md`.
+
+- `GET /admin/events/:eventId/attendee-lists` returns one contact-free snapshot with `generatedAt`: confirmed and pending-payment registrations (voided excluded) with folio, name, AKA, status, held passes, accessible competitions and workshops, and their check-in times. Event or global administrators only; judges, other-event admins and anonymous requests get the same `401`. Evidence: `apps/backend/src/events/attendee-lists/`, `apps/backend/test/admin-attendee-lists.e2e-spec.ts`.
+- Groupings are generic, read from the event's catalog: the whole event, one list per held pass type (full → general → add-on) and one per competition or workshop. For the November catalog that gives general entry, each discipline's full pass, Open Styles and each activity.
+- "Listas de respaldo" (`/admin/events/:eventId/lists`, side navigation and the overview's "Imprimir listas") shows the lists with a selector and "Imprimir o guardar PDF". The print layout hides the shell, starts each list on a new page and repeats the event, list and generation time on every printed page. Evidence: `apps/frontend/src/pages/admin/ui/admin-lists-page.tsx`, `attendee-lists-model.ts`, `apps/frontend/e2e/admin-attendee-lists.spec.ts`.
+- The event-day runbook covers printing ahead, provisional cash and access during an outage, and the manual post-recovery checklist. Evidence: `docs/runbooks/event-day.md` ("Listas de respaldo y contingencia en papel").
 
 ### Proposed design
 
@@ -280,11 +283,11 @@ Slice 1 for pass grouping. Slices 2 and 3 for recovery writes. Slice 5 for the o
 
 ### Acceptance criteria
 
-- [ ] An authorized administrator can produce each list type listed above for one event.
-- [ ] The list response contains no email, phone or other contact field.
-- [ ] A judge or wrong-event session receives a safe denial and no data.
-- [ ] Each printed page shows the event and the generation time.
-- [ ] The runbook describes provisional cash/access and the manual post-recovery verification, with no automatic sync.
+- [x] An authorized administrator can produce each list type listed above for one event.
+- [x] The list response contains no email, phone or other contact field.
+- [x] A judge or wrong-event session receives a safe denial and no data.
+- [x] Each printed page shows the event and the generation time.
+- [x] The runbook describes provisional cash/access and the manual post-recovery verification, with no automatic sync.
 
 ### Related issues (local references)
 

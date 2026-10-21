@@ -2,8 +2,9 @@
 
 This planning-only runbook describes safe future operator behavior for a
 connected event. It does not authorize a release, confirm live tooling, or
-claim operational readiness. The exception is "Venta en el lugar", which
-describes admin screens that are already built (#105).
+claim operational readiness. The exceptions are "Venta en el lugar" and
+"Listas de respaldo y contingencia en papel", which describe admin screens that
+are already built (#105, #65).
 
 ## Prerequisites
 
@@ -26,17 +27,9 @@ decisions remain deferred.
 2. Use only the future server-authoritative workflow; treat safe denials,
    stale-version outcomes, and duplicate outcomes as instructions to obtain the
    current authoritative state.
-3. On the event day, designate a specific event-authorized administrator and
-   record when that person takes ownership of the paper fallback. Before each
-   activity, that administrator may print the current list from the browser or
-   save it as PDF. Include name, AKA, pass, activity, registration and
-   attendance status (event and activity where relevant) only; exclude contact
-   information. A print/PDF is a
-   snapshot and may already be stale; check current authoritative state before
-   any permitted connected write. If connectivity fails, the designated
-   administrator records day-of incidents on paper, then checks for duplicates
-   and manually reconciles each case against current authoritative state.
-   Paper is not an offline platform or a queued command; never blindly replay
+3. Prepare the paper fallback before the event and follow it during an outage
+   as described in "Listas de respaldo y contingencia en papel". Paper is not
+   an offline platform or a queued command; never blindly replay
    registrations, payments, or check-ins.
 4. For a completed check-in, score, assignment, or incident update, rely on
    the returned current status rather than a remembered or cached result.
@@ -100,6 +93,58 @@ changed its passes, and a priced registration goes back to the cash payment.
 No account gets the judge role for now. Registration search would still admit
 a judge, so reopen #262 before creating one.
 
+## Listas de respaldo y contingencia en papel
+
+The lists (#65) need an event administrator; judges get no data. See the
+[attendee lists contract](../contracts/attendee-lists.md).
+
+### Before the event
+
+1. Open "Listas de respaldo" from the side navigation ("Operación") or the
+   overview card "Imprimir listas". The page reads one snapshot: press
+   "Actualizar" for a fresh one.
+2. In "Lista", choose "Todas las listas" or one list: "Evento completo", one
+   per pass ("Pase · …") and one per competition or workshop. Press "Imprimir
+   o guardar PDF" and print or save each one. Each list starts on a new page.
+3. Every printed page shows the event, the list and "Generada el …". Note
+   that time: a list does not show anything that changed after it. Lists
+   include confirmed and pending-payment registrations with their status;
+   voided ones are left out. They carry no contact data.
+4. The empty "Marca" column is for handwritten attendance during an outage.
+
+Only the main studio has a guaranteed printer, so print or save the PDFs
+there ahead of time. How copies are distributed across venues and who owns the
+paper on each shift are still open decisions; record the owner and the time
+they take over on the day.
+
+### During an outage
+
+1. Use the printed lists: check people against them and write in "Marca".
+2. Any administrator may take cash from a new person: hand over the numbered
+   receipt in duplicate (the copy goes to the person, the original stays with
+   the team), write a temporary paper entry and grant provisional access. The
+   entry's fields are not an organizer decision yet; we suggest name, AKA,
+   pass, receipt number, amount, time and administrator.
+3. Record other incidents on paper. Nothing on paper changes the platform: no
+   registration, payment or check-in exists until it is entered after
+   recovery.
+
+### After recovery
+
+Work through the paper one case at a time, connected, with the normal
+screens. There is no automatic sync or bulk replay.
+
+- [ ] Check each paper case against the current state in "Buscar
+      inscripción" (name, AKA, folio or receipt number).
+- [ ] Look for possible duplicates before creating anything; the sale shows
+      "¿Es la misma persona?" when it finds matches.
+- [ ] Register each new cash person with "Venta en el lugar" and write the
+      paper receipt number in "Número de recibo", so the cash record is linked
+      to it.
+- [ ] Record the check-ins marked on paper on the check-in screen.
+- [ ] Escalate every ambiguous case (unclear person, receipt, amount or
+      access) to main coordination instead of writing it.
+
 ## Safe stop conditions
 
 - Connectivity, authorization, event scope, or current recovery state is
@@ -113,8 +158,9 @@ a judge, so reopen #262 before creating one.
 
 Stop the affected action, preserve the current safe status, and escalate. Do
 not use offline platform writes, local queues, automatic sync, or blind manual
-replay. Paper may keep the event moving, but does not authorize a platform write
-when connectivity, scope, status, or audit is uncertain.
+replay. Paper may keep the event moving (see "Listas de respaldo y contingencia
+en papel"), but does not authorize a platform write when connectivity, scope,
+status, or audit is uncertain.
 
 ## Registration correction boundary
 

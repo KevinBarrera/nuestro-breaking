@@ -1,0 +1,28 @@
+# Audited reason for competition selection changes
+
+## Tracking
+
+- GitHub issue: #170 — Require an audited reason when an administrator changes competition selections
+- Branch: `feat/170-selection-change-reason` → `dev` (base `a61ed95`), one commit per task. Planned split into chained PRs: backend (task 1) → `dev`, then frontend and docs (tasks 2-3) → the backend PR.
+
+## Goal
+
+An administrator changes a confirmed registration's competition selections only with a stated reason, stored in the `pass_selection_change` audit fact, from an action on the registration page. The in-person sale keeps editing pending selections without a reason.
+
+## Decisions
+
+- **When the reason is required (2026-10-20):** only when the registration is `confirmed`. The backend enforces it from the locked registration status, not from the UI. For pending registrations the reason is optional; when sent, it is validated the same way and stored. Precedent: `pass_removal` needs no reason because nothing has been charged.
+- **Where the reason is stored (2026-10-20):** the existing `note` column of `registration_operation_audit`, like the complimentary confirmation reason. No migration.
+- **Reason rules:** trimmed, 1 to 500 characters, matching `REASON_MAX` in `manual-registration.controller.ts`.
+- **Out of scope:** name/AKA and discipline corrections and voids (#104, #256), voided registrations (still rejected).
+
+## Tasks
+
+- [x] 1. Backend: `PUT …/passes/:registrationPassId/selections` accepts an optional `reason` (trimmed, 1-500, 400 when invalid); `replaceSelections` rejects a confirmed registration without a reason with 400 and writes nothing; the audit fact stores the reason in `note`. PostgreSQL e2e first (missing, blank, too long, confirmed success with `note`, pending without reason still allowed).
+- [ ] 2. Frontend: `setPassSelections` sends an optional reason; the confirmed registration page offers "Editar competencias" per full pass with a reason field and the shared `ConfirmDialog`, mapping the 400 back to the reason field. Model logic in Vitest; Playwright for a successful change, the missing-reason block and a backend rejection.
+- [ ] 3. Docs: `event-catalog.md` (PUT body and 400, audit row), `admin-registration-audit-policy.md` (`pass_selection_change` with reason), `admin-registration-operations.md` if it lists reason rules, `frontend-architecture.md` (registration page), comment in `sale-competitions.tsx`.
+
+## Evidence
+
+- Exploration on 2026-10-20: controller body parsed by hand (`registration-entitlements.controller.ts:23-45,92-111`); `replaceSelections` (`registration-entitlements.service.ts:309-360`) only rejects `voided` and writes the audit through `audit()` (`:495-512`), which has no `note` yet. Audit table has `note text` (`schema/registration-operation-audit.ts:45`). Only frontend caller: `pages/admin/ui/sale-competitions.tsx:119`, rendered only in pending sale mode (`admin-registration-page.tsx:221`); confirmed mode is read-only. Reason UI pattern: `sale-complimentary.tsx:176` + `sale-complimentary-model.ts`, 400 mapping in `entities/admin-registration/api/readers.ts:160`. Backend e2e: `test/admin-registration-entitlements.e2e-spec.ts` (PUT helper `:178`), audit `note` assertions to copy in `admin-manual-registration.e2e-spec.ts:470,680-691`.
+- Task 1 on 2026-10-20: RED entitlements e2e 2 failed / 16 passed (confirmed without reason and a pending 501-char reason both returned 200); GREEN 18/18, backend unit 604/604, lint and build clean. Contract in check order: 400 `Invalid body`; 400 activity errors; 400 `Reason is required and must be 1 to 500 characters` (controller: not a string or over 500 after trim, no `code`); 404 `Registration not found`; 409 `Registration is voided`; 400 same message with `code: 'selection_change_reason_required'` for a confirmed registration without reason (before the pass lookup); 404 `Registration pass not found`; 400 non-selectable activities. A blank reason counts as missing (pending → 200 with `note` null). Audit `note` = trimmed reason or null. `REASON_MESSAGE` exported from the service. Commit: 696979f; native review approved (lineage review-0ccaa72a94faabbe), one informational suggestion on the e2e audit ordering at line 561.

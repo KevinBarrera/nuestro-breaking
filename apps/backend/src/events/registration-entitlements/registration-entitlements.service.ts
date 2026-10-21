@@ -44,6 +44,8 @@ type RegistrationRow = typeof eventRegistrations.$inferSelect;
 
 const byId = (left: string, right: string) => (left < right ? -1 : left > right ? 1 : 0);
 
+export const REASON_MESSAGE = 'Reason is required and must be 1 to 500 characters';
+
 @Injectable()
 export class RegistrationEntitlementsService {
   constructor(@Inject(DATABASE_CLIENT) private readonly db: Database) {}
@@ -311,11 +313,19 @@ export class RegistrationEntitlementsService {
     registrationId: string,
     registrationPassId: string,
     activityIds: string[],
+    reason: string | null,
     actor: AdminRegistrationAuditActor,
   ): Promise<RegistrationEntitlements> {
     return this.db.transaction(async (tx) => {
       const registration = await this.lockRegistration(tx, eventId, registrationId);
       if (registration.status === 'voided') throw new ConflictException('Registration is voided');
+      // A confirmed registration was already charged, so changing what it covers needs evidence (#170).
+      if (registration.status === 'confirmed' && !reason)
+        throw new BadRequestException({
+          statusCode: 400,
+          message: REASON_MESSAGE,
+          code: 'selection_change_reason_required',
+        });
       const [held] = await tx
         .select({ id: eventRegistrationPasses.id, passTypeId: eventRegistrationPasses.passTypeId })
         .from(eventRegistrationPasses)
@@ -354,6 +364,7 @@ export class RegistrationEntitlementsService {
         beforeState: { registrationPassId, selections: previous },
         afterState: { registrationPassId, selections: next },
         facts: { registrationPassId, passTypeId: held.passTypeId },
+        note: reason,
       });
       return this.entitlements(tx, eventId, registrationId);
     });
@@ -502,6 +513,7 @@ export class RegistrationEntitlementsService {
       beforeState: Record<string, unknown>;
       afterState: Record<string, unknown>;
       facts: Record<string, unknown>;
+      note?: string | null;
     },
   ) {
     await tx.insert(registrationOperationAudit).values({

@@ -13,12 +13,16 @@ import {
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { SessionAccessService } from '@/identity-access/session-access.service';
-import { RegistrationEntitlementsService } from './registration-entitlements.service';
+import {
+  REASON_MESSAGE,
+  RegistrationEntitlementsService,
+} from './registration-entitlements.service';
 import type { RegistrationEntitlements } from './registration-entitlements.types';
 import type { AdminRegistrationAuditActor } from '@/events/registration-audit/registration-audit-actor';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MAX_SELECTIONS = 500;
+const REASON_MAX = 500;
 
 function object(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value))
@@ -42,6 +46,13 @@ function activityIds(value: unknown): string[] {
     seen.add(id);
   }
   return [...seen];
+}
+// A blank reason counts as missing; the service decides whether one is required.
+function reason(value: unknown): string | null {
+  if (value === undefined || value === null) return null;
+  if (typeof value !== 'string' || value.trim().length > REASON_MAX)
+    throw new BadRequestException(REASON_MESSAGE);
+  return value.trim() || null;
 }
 
 @Controller('admin/events')
@@ -100,12 +111,14 @@ export class RegistrationEntitlementsController {
   ): Promise<RegistrationEntitlements> {
     const session = await this.sessions.authorizeEventAdminMutation(request, response, eventId);
     const actor: AdminRegistrationAuditActor = { kind: 'admin', ...session };
-    const ids = activityIds(object(body).activityIds);
+    const input = object(body);
+    const ids = activityIds(input.activityIds);
     return this.entitlements.replaceSelections(
       eventId,
       registrationId,
       registrationPassId,
       ids,
+      reason(input.reason),
       actor,
     );
   }

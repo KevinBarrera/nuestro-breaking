@@ -3,7 +3,7 @@
 ## Tracking
 
 - GitHub issues: #104 (second slice: name/AKA correction) and #256 (its UI action)
-- Branch: `feat/104-participant-correction` → `dev` (base `d956a7d`), one commit per task.
+- Branch: `feat/104-participant-correction` → `dev` (base `d956a7d`), one commit per task. Split into chained PRs: `feat/104-03-correction-backend` (task 1) → `dev`, and `feat/104-04-correction-screen` (tasks 2 and 3, the summary name parts and the focus fix) → the first.
 
 ## Goal
 

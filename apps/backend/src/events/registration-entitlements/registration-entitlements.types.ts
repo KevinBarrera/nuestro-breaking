@@ -3,11 +3,15 @@ import type { PassClass } from '@/events/pass-type-admin/pass-type-admin.types';
 export type RegistrationStatus = 'pending_payment' | 'confirmed' | 'voided';
 
 // Who holds the registration and its lifecycle state, so the admin sale screen survives a reload
-// (#105). `folio` is null until confirmation. Deliberately no contact data.
+// (#105). `folio` is null until confirmation. `channel` is `online` for a public checkout, which
+// has an expiry, and `in_person` for an admin registration (#104). Deliberately no contact data.
+export type RegistrationChannel = 'in_person' | 'online';
+
 export type RegistrationSummary = {
   id: string;
   status: RegistrationStatus;
   folio: string | null;
+  channel: RegistrationChannel;
   participant: { fullName: string; stageName: string | null };
 };
 

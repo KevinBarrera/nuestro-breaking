@@ -472,6 +472,7 @@ export class RegistrationEntitlementsService {
         id: eventRegistrations.id,
         status: eventRegistrations.status,
         folio: eventRegistrations.folio,
+        expiresAt: eventRegistrations.expiresAt,
         fullName: participants.fullName,
         stageName: participants.stageName,
       })
@@ -481,11 +482,12 @@ export class RegistrationEntitlementsService {
         and(eq(eventRegistrations.id, registrationId), eq(eventRegistrations.eventId, eventId)),
       );
     if (!row) throw new NotFoundException('Registration not found');
-    const { id, status, folio, fullName, stageName } = row;
+    const { id, status, folio, expiresAt, fullName, stageName } = row;
     return {
       id,
       status: status as RegistrationStatus,
       folio,
+      channel: expiresAt === null ? 'in_person' : 'online',
       participant: { fullName, stageName },
     };
   }

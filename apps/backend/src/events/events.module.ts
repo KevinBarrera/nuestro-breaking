@@ -5,6 +5,8 @@ import { PublicRateLimitModule } from '@/http';
 import { NotificationsModule } from '@/notifications';
 import { AdminEventsController } from './admin-events/admin-events.controller';
 import { AdminEventsService } from './admin-events/admin-events.service';
+import { AttendeeListsController } from './attendee-lists/attendee-lists.controller';
+import { AttendeeListsService } from './attendee-lists/attendee-lists.service';
 import { EventFoundationGuard } from './foundation/event-foundation.guard';
 import { EventFoundationController } from './foundation/event-foundation.controller';
 import { EventFoundationService } from './foundation/event-foundation.service';
@@ -42,6 +44,7 @@ import { VenueAdminService } from './venue-admin/venue-admin.service';
   imports: [DatabaseModule, IdentityAccessModule, NotificationsModule, PublicRateLimitModule],
   controllers: [
     AdminEventsController,
+    AttendeeListsController,
     EventFoundationController,
     RegistrationSearchController,
     ManualRegistrationController,
@@ -57,6 +60,7 @@ import { VenueAdminService } from './venue-admin/venue-admin.service';
   ],
   providers: [
     AdminEventsService,
+    AttendeeListsService,
     EventFoundationService,
     EventFoundationGuard,
     RegistrationSearchService,

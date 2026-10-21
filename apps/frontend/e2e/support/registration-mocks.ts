@@ -397,6 +397,29 @@ export const registrationSweepCases: {
     ready: (page) => page.getByRole('region', { name: 'Folio' }).waitFor(),
   },
   {
+    // The competition editor of a confirmed registration (#170), open with its reason field.
+    name: 'Inscripción confirmada editando competencias',
+    path: registrationPath(registrationId),
+    mock: async (page) => {
+      const activity = catalogActivity(
+        'b1b2c3d4-1234-4567-89ab-123456789abc',
+        'Competencia con un nombre largo para pantallas angostas',
+        '2026-11-14T16:00:00Z',
+      );
+      await overrideRoute(page, '/entitlements', sweepEntitlements('confirmed', 'EB-7K3Q').json);
+      await overrideRoute(page, '/pass-types', [
+        catalogPassType(heldPass.passTypeId, heldPass.name, 'full', heldPass.priceCents, {
+          activities: [{ activityId: activity.id, access: 'selectable' }],
+        }),
+      ]);
+      await overrideRoute(page, '/activities', [activity]);
+    },
+    ready: async (page) => {
+      await page.getByRole('button', { name: /^Editar competencias de/ }).click();
+      await page.getByRole('textbox', { name: 'Motivo del cambio' }).waitFor();
+    },
+  },
+  {
     name: 'Inscripción anulada',
     path: registrationPath(registrationId),
     mock: (page) => overrideRoute(page, '/entitlements', sweepEntitlements('voided', null).json),

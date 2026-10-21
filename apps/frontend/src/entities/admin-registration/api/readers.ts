@@ -152,8 +152,8 @@ const ruleMessages: Record<string, AdminRegistrationRuleCode> = {
   'Online registrations cannot lose a pass': 'online_registration_pass_locked',
 };
 
-// Cash and complimentary confirmation report their invalid fields only by message; they map to
-// the input names.
+// Cash and complimentary confirmation and the selection change reason (#170) report their invalid
+// fields only by message; they map to the input names.
 const fieldMessages: Record<string, Record<string, string>> = {
   'Invalid amount in cents': { amountCents: 'invalid' },
   'Receipt number is required and must be 1 to 50 characters': { receipt: 'invalid' },
@@ -181,6 +181,9 @@ export function readRegistrationFailure(status: number, body: unknown): AdminReg
   const ruleCode = Object.hasOwn(ruleMessages, message) ? ruleMessages[message] : undefined;
   if ((status === 400 || status === 409) && ruleCode) return { kind: 'rule', code: ruleCode };
   if (status === 400) {
+    // A confirmed registration's selections change only with a reason (#170).
+    if (isRecord(body) && body.code === 'selection_change_reason_required')
+      return { kind: 'invalid', fieldErrors: { reason: 'invalid' } };
     if (Object.hasOwn(fieldMessages, message))
       return { kind: 'invalid', fieldErrors: fieldMessages[message] };
     const raw = isRecord(body) && isRecord(body.fieldErrors) ? body.fieldErrors : {};

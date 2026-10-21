@@ -86,7 +86,8 @@ test('confirms the cash payment after restating it and shows the folio', async (
     },
   ]);
 
-  // The confirmed view is read-only: the passes and competitions stay, no controls remain.
+  // The passes and competitions stay and the sale controls are gone. This pass type is unknown to
+  // the catalog, so it has no competitions left to choose and no "Editar competencias" action.
   await expect(page.getByRole('main')).toContainText('Confirmada');
   await expect(page.getByRole('region', { name: 'Pases' })).toContainText(
     'Competencias elegidas: Breaking 1 vs 1',

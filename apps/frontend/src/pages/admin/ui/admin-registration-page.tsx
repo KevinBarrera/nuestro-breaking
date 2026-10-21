@@ -16,6 +16,7 @@ import { Breadcrumbs, Notice } from '@/shared/ui';
 import { useEffect, useId, useState, type ReactNode } from 'react';
 import { generatePath, useLocation, useParams } from 'react-router';
 import { passClassLabels, styles } from './catalog-copy';
+import { ConfirmedCompetitions } from './confirmed-competitions';
 import { readRegistrationContext, registrationStatusLabel } from './registration-model';
 import { SaleCash } from './sale-cash';
 import { registrationViewMode } from './sale-cash-model';
@@ -64,9 +65,10 @@ export function AdminRegistrationPage() {
 
 // One registration (#105): what it holds and, while it is pending payment, the passes it can
 // still get, the competitions of each held pass and the cash payment, or the confirmation without
-// payment when its passes total $0 (#263). Confirmed and voided
-// registrations are read-only, the confirmed one led by its folio. The name and status come from the entitlements read, so a reload keeps them; the
-// screen that linked here passes them along to show before that read answers.
+// payment when its passes total $0 (#263). A confirmed registration, led by its folio, only lets
+// the operator change a pass's competitions with a reason (#170); a voided one is read-only. The
+// name and status come from the entitlements read, so a reload keeps them; the screen that linked
+// here passes them along to show before that read answers.
 function RegistrationScreen({
   eventId,
   registrationId,
@@ -205,6 +207,17 @@ function RegistrationScreen({
                     />
                   )}
                 </SalePassRemoval>
+              ) : mode === 'confirmed' ? (
+                <ConfirmedCompetitions
+                  eventId={eventId}
+                  entitlements={state.entitlements}
+                  passTypes={state.passTypes}
+                  activities={state.activities}
+                  onSaved={updateEntitlements}
+                  onReload={reload}
+                >
+                  {(editAction) => <HeldPassList ready={state} showSelected action={editAction} />}
+                </ConfirmedCompetitions>
               ) : (
                 <HeldPassList ready={state} showSelected />
               )}
@@ -290,7 +303,9 @@ function ConfirmedNotice({
       <p className="font-mono text-3xl font-extrabold tracking-wider break-all">
         {folio ?? 'Sin folio'}
       </p>
-      <p className="mt-1 text-sm">Inscripción confirmada: ya no admite cambios.</p>
+      <p className="mt-1 text-sm">
+        Inscripción confirmada: sus competencias solo cambian con un motivo.
+      </p>
     </section>
   );
 }

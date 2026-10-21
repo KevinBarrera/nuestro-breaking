@@ -174,19 +174,24 @@ export async function addRegistrationPass(
   return written(readEntitlements(await mutate(path, 'POST', { passTypeId }), registrationId));
 }
 
-// Replaces the selected activities of a held pass; an empty list clears them.
+// Replaces the selected activities of a held pass; an empty list clears them. A confirmed
+// registration needs the change `reason` (1 to 500 characters once trimmed, #170); it is sent only
+// when given, so the pending sale keeps saving without one.
 export async function setPassSelections(
   eventId: string,
   registrationId: string,
   registrationPassId: string,
   activityIds: string[],
+  { reason }: { reason?: string } = {},
 ): Promise<RegistrationEntitlements> {
   const path = registrationPath(
     eventId,
     registrationId,
     `/passes/${encodeURIComponent(registrationPassId)}/selections`,
   );
-  return written(readEntitlements(await mutate(path, 'PUT', { activityIds }), registrationId));
+  const body: Record<string, unknown> = { activityIds };
+  if (reason !== undefined) body.reason = reason;
+  return written(readEntitlements(await mutate(path, 'PUT', body), registrationId));
 }
 
 // Removes a held pass and its selections from an in-person `pending_payment` registration (#282).

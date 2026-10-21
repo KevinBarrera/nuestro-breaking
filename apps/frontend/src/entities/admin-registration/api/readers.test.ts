@@ -221,6 +221,22 @@ describe('readRegistrationFailure', () => {
     ).toEqual({ kind: 'invalid', fieldErrors: { reason: 'invalid' } });
   });
 
+  it('maps a confirmed selection change without reason to the reason field (#170)', () => {
+    expect(
+      readRegistrationFailure(400, {
+        message: 'Reason is required and must be 1 to 500 characters',
+        code: 'selection_change_reason_required',
+      }),
+    ).toEqual({ kind: 'invalid', fieldErrors: { reason: 'invalid' } });
+    // The code is the contract, so a reworded message still reaches the field.
+    expect(
+      readRegistrationFailure(400, {
+        message: 'A reason is required',
+        code: 'selection_change_reason_required',
+      }),
+    ).toEqual({ kind: 'invalid', fieldErrors: { reason: 'invalid' } });
+  });
+
   it('maps the known entitlement and cash rule messages to stable codes', () => {
     for (const [status, message, code] of [
       [409, 'Pass type is archived', 'pass_type_archived'],

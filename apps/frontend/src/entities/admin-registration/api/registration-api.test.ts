@@ -266,6 +266,19 @@ describe('registration passes', () => {
     expect(JSON.parse(init.body as string)).toEqual({ activityIds: ['act-1'] });
   });
 
+  it('sends the change reason with the selections only when one is given (#170)', async () => {
+    const fetchMock = stubFetch(() => Response.json(entitlements));
+    await setPassSelections(eventId, registrationId, registrationPassId, ['act-2'], {
+      reason: 'Cambio pedido en mesa',
+    });
+    expect(JSON.parse(call(fetchMock, 1)[1].body as string)).toEqual({
+      activityIds: ['act-2'],
+      reason: 'Cambio pedido en mesa',
+    });
+    await setPassSelections(eventId, registrationId, registrationPassId, [], {});
+    expect(JSON.parse(call(fetchMock, 3)[1].body as string)).toEqual({ activityIds: [] });
+  });
+
   it('removes a held pass with DELETE and the CSRF token, and reads the entitlements', async () => {
     const fetchMock = stubFetch(() => Response.json(entitlements));
     expect(await removeRegistrationPass(eventId, registrationId, registrationPassId)).toEqual(

@@ -65,7 +65,8 @@ outcome, and the screen only shows what it answered.
    Passes that cannot be added show the reason instead of the button. A pass
    added by mistake can be removed with "Quitar" next to it, before the payment
    is confirmed; remove an add-on before the pass it requires. After
-   confirmation, corrections belong to #256.
+   confirmation, passes cannot change (#256); competitions can, with a reason
+   (step 7).
 4. In "Competencias", check the competitions for each pass and press "Guardar
    competencias". Checks you have not saved stay while you add passes, but the
    payment cannot be confirmed until each pass is saved or "Descartar cambios"
@@ -82,6 +83,11 @@ outcome, and the screen only shows what it answered.
    the participant. It is not the paper receipt number. Both the cash and the
    without-payment confirmation send the participant the confirmation email
    with the folio.
+7. To change the competitions of a confirmed registration, open it, press
+   "Editar competencias" on the pass, check the new competitions, write why in
+   "Motivo del cambio" (required, up to 500 characters) and press "Guardar
+   cambios". Check the before and after in the dialog and press "Cambiar
+   competencias". The reason stays in the registration audit.
 
 If the screen says "No pudimos confirmar si el pago se registró", press
 "Recargar" and read the status. Never charge again or confirm a second time

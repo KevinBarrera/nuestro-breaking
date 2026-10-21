@@ -10,13 +10,10 @@ import {
   participants,
   registrationOperationAudit,
 } from '@/database/schema';
-import { type ActivityKind } from '@/events/activity-admin/activity-kind';
 import { holdsGeneralEntryOnly } from '@/events/registration-entitlements/pass-class-rules';
 import { RegistrationEntitlementsService } from '@/events/registration-entitlements/registration-entitlements.service';
+import { CHECK_IN_KINDS } from '@/events/shared/check-in-kinds';
 import { type RegistrationSearchPage } from './registration-search.types';
-
-// Kinds staff check in at an activity entrance; the same set the check-in command accepts.
-const CHECK_IN_KINDS: readonly ActivityKind[] = ['workshop', 'competition'];
 
 @Injectable()
 export class RegistrationSearchService {

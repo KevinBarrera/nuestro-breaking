@@ -14,16 +14,29 @@ import {
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { SessionAccessService } from '@/identity-access/session-access.service';
+import type { FieldErrorCode } from '@/events/public-registration/public-registration.types';
 import {
   REASON_MESSAGE,
   RegistrationEntitlementsService,
 } from './registration-entitlements.service';
-import type { RegistrationEntitlements } from './registration-entitlements.types';
+import type {
+  ParticipantCorrection,
+  RegistrationEntitlements,
+} from './registration-entitlements.types';
 import type { AdminRegistrationAuditActor } from '@/events/registration-audit/registration-audit-actor';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MAX_SELECTIONS = 500;
 const REASON_MAX = 500;
+const NAME_MAX = 100;
+const CORRECTION_KEYS = new Set([
+  'firstName',
+  'firstLastName',
+  'secondLastName',
+  'stageName',
+  'reason',
+  'confirmCrossEvent',
+]);
 
 function object(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value))
@@ -60,6 +73,48 @@ function requiredReason(value: unknown): string | null {
   if (typeof value !== 'string') return null;
   const trimmed = value.trim();
   return trimmed.length <= REASON_MAX ? trimmed || null : null;
+}
+
+// The name parts and AKA of a correction (#104), trimmed and with inner whitespace collapsed before
+// the 100-character bound. Absent, null or blank optional parts clear them. The reason is checked
+// by the service once the registration is found.
+function participantCorrection(input: Record<string, unknown>): ParticipantCorrection {
+  const errors: Record<string, FieldErrorCode> = {};
+  for (const key of Object.keys(input))
+    if (!CORRECTION_KEYS.has(key)) errors[key] = 'unknown_field';
+  const name = (key: string, required: boolean): string | null => {
+    const value = input[key];
+    if (typeof value !== 'string' && value !== undefined && value !== null) {
+      errors[key] = 'invalid';
+      return null;
+    }
+    const collapsed = (typeof value === 'string' ? value : '').trim().replace(/\s+/g, ' ');
+    if (!collapsed) {
+      if (required) errors[key] = 'required';
+      return null;
+    }
+    if (collapsed.length > NAME_MAX) errors[key] = 'too_long';
+    return collapsed;
+  };
+  const firstName = name('firstName', true);
+  const firstLastName = name('firstLastName', true);
+  const secondLastName = name('secondLastName', false);
+  const stageName = name('stageName', false);
+  const confirm = input.confirmCrossEvent;
+  if (confirm !== undefined && typeof confirm !== 'boolean') errors.confirmCrossEvent = 'invalid';
+  if (Object.keys(errors).length > 0 || !firstName || !firstLastName)
+    throw new BadRequestException({
+      statusCode: 400,
+      message: 'Invalid participant correction',
+      fieldErrors: errors,
+    });
+  return {
+    firstName,
+    firstLastName,
+    secondLastName,
+    stageName,
+    confirmCrossEvent: confirm === true,
+  };
 }
 
 @Controller('admin/events')
@@ -120,6 +175,23 @@ export class RegistrationEntitlementsController {
     const actor: AdminRegistrationAuditActor = { kind: 'admin', ...session };
     const reason = requiredReason(object(body).reason);
     return this.entitlements.voidRegistration(eventId, registrationId, reason, actor);
+  }
+
+  @Post(':eventId/registrations/:registrationId/participant-correction')
+  @HttpCode(200)
+  async correctParticipant(
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+    @Param('registrationId', ParseUUIDPipe) registrationId: string,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+    @Body() body: unknown,
+  ): Promise<RegistrationEntitlements> {
+    const session = await this.sessions.authorizeEventAdminMutation(request, response, eventId);
+    const actor: AdminRegistrationAuditActor = { kind: 'admin', ...session };
+    const input = object(body);
+    const correction = participantCorrection(input);
+    const reason = requiredReason(input.reason);
+    return this.entitlements.correctParticipant(eventId, registrationId, correction, reason, actor);
   }
 
   @Put(':eventId/registrations/:registrationId/passes/:registrationPassId/selections')

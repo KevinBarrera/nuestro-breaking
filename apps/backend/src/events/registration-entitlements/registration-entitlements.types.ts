@@ -31,3 +31,13 @@ export type RegistrationEntitlements = {
   passes: HeldPass[];
   accessibleActivityIds: string[];
 };
+
+// A participant name correction (#104): the normalized name parts and AKA that replace the stored
+// ones, null to clear an optional part. `confirmCrossEvent` acknowledges other events of the person.
+export type ParticipantCorrection = {
+  firstName: string;
+  firstLastName: string;
+  secondLastName: string | null;
+  stageName: string | null;
+  confirmCrossEvent: boolean;
+};

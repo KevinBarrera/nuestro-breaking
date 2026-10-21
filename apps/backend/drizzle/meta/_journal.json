@@ -239,6 +239,13 @@
       "when": 1791935950337,
       "tag": "0033_registration_void_audit",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1791936010337,
+      "tag": "0034_registration_correction_audit",
+      "breakpoints": true
     }
   ]
 }

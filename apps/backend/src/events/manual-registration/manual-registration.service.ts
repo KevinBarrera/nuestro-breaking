@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, Inject, Injectable, Logger } from '@nestjs/common';
-import { and, asc, eq, inArray, ne, or, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, ne, or, type SQL, sql } from 'drizzle-orm';
 import { DATABASE_CLIENT } from '@/database/database.constants';
 import type { DatabaseService } from '@/database/database.service';
 import {
@@ -14,6 +14,7 @@ import { isUniqueViolation } from '@/events/admin-events/unique-violation';
 import { phoneMatchKeySql } from '@/events/participant-profile/participant-match-sql';
 import {
   buildFullName,
+  normalizeEmail,
   phoneMatchKey,
 } from '@/events/participant-profile/participant-normalization';
 import type { PublicRegistrationBuyer } from '@/events/public-registration/public-registration.types';
@@ -75,6 +76,23 @@ function receiptTaken() {
     message: 'Receipt number already used in this event',
     code: 'receipt_taken',
   });
+}
+
+/**
+ * The duplicate rule (#125, #174 D5): a stored participant is the same person when its email,
+ * lowercased and trimmed, or its phone match key equals this contact's. A missing email or phone
+ * never matches; undefined when the contact has neither.
+ */
+export function participantContactMatch(contact: {
+  email: string | null;
+  phone: string | null;
+}): SQL | undefined {
+  const email = contact.email === null ? '' : normalizeEmail(contact.email);
+  const phone = contact.phone === null ? '' : phoneMatchKey(contact.phone);
+  return or(
+    email ? sql`lower(btrim(${participants.email})) = ${email}::text` : undefined,
+    phone ? sql`${phoneMatchKeySql(participants.phone)} = ${phone}` : undefined,
+  );
 }
 
 function notPending() {
@@ -347,10 +365,7 @@ export class ManualRegistrationService {
         and(
           eq(eventRegistrations.eventId, eventId),
           ne(eventRegistrations.status, 'voided'),
-          or(
-            sql`lower(btrim(${participants.email})) = ${participant.email}::text`,
-            sql`${phoneMatchKeySql(participants.phone)} = ${phoneMatchKey(participant.phone)}`,
-          ),
+          participantContactMatch(participant),
         ),
       )
       .orderBy(asc(eventRegistrations.createdAt), asc(eventRegistrations.id));

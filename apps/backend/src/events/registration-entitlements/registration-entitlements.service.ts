@@ -5,7 +5,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { and, asc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, ne, sql } from 'drizzle-orm';
 import { DATABASE_CLIENT } from '@/database/database.constants';
 import type { DatabaseService } from '@/database/database.service';
 import {
@@ -18,7 +18,9 @@ import {
   participants,
   registrationOperationAudit,
 } from '@/database/schema';
+import { participantContactMatch } from '@/events/manual-registration/manual-registration.service';
 import type { PassClass } from '@/events/pass-type-admin/pass-type-admin.types';
+import { buildFullName } from '@/events/participant-profile/participant-normalization';
 import {
   type AdminRegistrationAuditActor,
   type RegistrationAuditActor,
@@ -32,6 +34,7 @@ import {
 import { areSelectableActivities } from './selectable-activities';
 import type {
   HeldPass,
+  ParticipantCorrection,
   RegistrationEntitlements,
   RegistrationStatus,
   RegistrationSummary,
@@ -45,6 +48,8 @@ type RegistrationRow = typeof eventRegistrations.$inferSelect;
 const byId = (left: string, right: string) => (left < right ? -1 : left > right ? 1 : 0);
 
 export const REASON_MESSAGE = 'Reason is required and must be 1 to 500 characters';
+
+const CORRECTED_FIELDS = ['firstName', 'firstLastName', 'secondLastName', 'stageName'] as const;
 
 @Injectable()
 export class RegistrationEntitlementsService {
@@ -417,6 +422,99 @@ export class RegistrationEntitlementsService {
     });
   }
 
+  // Corrects the name parts and AKA of the registration's own participant (#104). Participants are
+  // not shared across events, so other events never change; when the same person (email or phone)
+  // holds registrations there, the administrator must confirm the count first. The audit keeps
+  // which fields changed, never the names.
+  async correctParticipant(
+    eventId: string,
+    registrationId: string,
+    correction: ParticipantCorrection,
+    reason: string | null,
+    actor: AdminRegistrationAuditActor,
+  ): Promise<RegistrationEntitlements> {
+    return this.db.transaction(async (tx) => {
+      const registration = await this.lockRegistration(tx, eventId, registrationId);
+      if (!reason)
+        throw new BadRequestException({
+          statusCode: 400,
+          message: REASON_MESSAGE,
+          code: 'correction_reason_required',
+        });
+      if (registration.status === 'voided')
+        throw new ConflictException({
+          statusCode: 409,
+          message: 'Registration is voided',
+          code: 'registration_voided',
+        });
+      const [current] = await tx
+        .select()
+        .from(participants)
+        .where(eq(participants.id, registration.participantId));
+      const changedFields = CORRECTED_FIELDS.filter(
+        (field) => current[field] !== correction[field],
+      );
+      if (changedFields.length === 0)
+        throw new BadRequestException({
+          statusCode: 400,
+          message: 'The correction changes nothing',
+          code: 'correction_no_changes',
+        });
+      const otherEventCount = await this.otherEventCount(tx, eventId, current);
+      if (otherEventCount > 0 && !correction.confirmCrossEvent)
+        throw new ConflictException({
+          statusCode: 409,
+          message: 'The participant is registered in other events',
+          code: 'cross_event_confirmation_required',
+          otherEventCount,
+        });
+      const { firstName, firstLastName, secondLastName, stageName } = correction;
+      await tx
+        .update(participants)
+        .set({
+          firstName,
+          firstLastName,
+          secondLastName,
+          stageName,
+          fullName: buildFullName(firstName, firstLastName, secondLastName),
+          updatedAt: sql`now()`,
+        })
+        .where(eq(participants.id, current.id));
+      const state = { status: registration.status, participantId: registration.participantId };
+      await this.audit(tx, actor, registration, {
+        operationType: 'registration_correction',
+        affectedActivityIds: [],
+        beforeState: state,
+        afterState: state,
+        facts: { changedFields, otherEventCount, crossEventConfirmed: otherEventCount > 0 },
+        note: reason,
+      });
+      return this.entitlements(tx, eventId, registrationId);
+    });
+  }
+
+  // Other events with a registration, not voided, of the same person by the duplicate rule.
+  private async otherEventCount(
+    tx: Transaction,
+    eventId: string,
+    contact: { email: string | null; phone: string | null },
+  ): Promise<number> {
+    const match = participantContactMatch(contact);
+    if (!match) return 0;
+    const [row] = await tx
+      .select({ count: sql<number>`count(DISTINCT ${eventRegistrations.eventId})::int` })
+      .from(eventRegistrations)
+      .innerJoin(participants, eq(participants.id, eventRegistrations.participantId))
+      .where(
+        and(
+          ne(eventRegistrations.eventId, eventId),
+          ne(eventRegistrations.status, 'voided'),
+          match,
+        ),
+      );
+    return row.count;
+  }
+
   // Row lock serializes entitlement writes per registration (duplicate and class checks included).
   private async lockRegistration(
     tx: Transaction,
@@ -558,7 +656,11 @@ export class RegistrationEntitlementsService {
     registration: RegistrationRow,
     fact: {
       operationType:
-        'pass_assignment' | 'pass_selection_change' | 'pass_removal' | 'registration_void';
+        | 'pass_assignment'
+        | 'pass_selection_change'
+        | 'pass_removal'
+        | 'registration_void'
+        | 'registration_correction';
       affectedActivityIds: string[];
       beforeState: Record<string, unknown>;
       afterState: Record<string, unknown>;

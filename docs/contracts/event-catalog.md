@@ -127,6 +127,13 @@ Each audit row is written in the same transaction as its mutation; an audit fail
 
 Pages `/admin/events/:eventId/activities` and `/admin/events/:eventId/pass-types` (`apps/frontend/src/pages/admin/ui/admin-event-activities-page.tsx`, `admin-event-pass-types-page.tsx`, API client in `apps/frontend/src/entities/event-catalog/`). Prices are entered in pesos and sent as integer cents; activity times and a pass's optional online sales close time (#240, "Cierre de venta en línea", cleared with "Quitar") are entered in the event time zone, and the pass list shows that close time. Registration entitlements have no UI yet.
 
+Activity "Inicio" and "Fin" follow the event window (#295). The window comes from the foundation response (`event.startsAt`, `event.endsAt`) into `CatalogEventContext.eventWindow`, `null` unless both dates are set and ordered.
+
+- **Bounded event:** the pickers take `min` and `max` on the event clock, rounded inward to the minute, and "Fin" never goes below the chosen "Inicio". A hint states the event dates ("El evento va del 21 al 22 de noviembre de 2026.", with same-day, cross-month and cross-year forms).
+- **Submit:** with the backend precedence, only the offending field gets `aria-invalid`, the danger border and its own message through `aria-describedby` ("El inicio debe estar dentro de las fechas del evento.", "El fin debe estar dentro de las fechas del evento.", "El fin debe ser posterior al inicio."). Focus moves to the first invalid field and nothing is sent.
+- **Server answer:** an `Invalid activity window` 400 with `fieldErrors` marks the same fields and replaces the form's window with `eventWindow`, so the limits and the hint update without another request. Without `fieldErrors`, the generic form error stays.
+- **Unbounded event:** no limits and no hint; only "El fin debe ser posterior al inicio." applies.
+
 ## Local seed
 
 Local-only bootstrap for the November event (organization, venue, event, 15 competition activities, 6 pass types and their access links). Code: `apps/backend/src/events/catalog-seed/`, CLI `apps/backend/scripts/seed-november-catalog.ts`.

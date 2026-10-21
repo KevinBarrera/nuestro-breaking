@@ -269,7 +269,13 @@ const entitlements = {
     status: 'pending_payment',
     folio: null,
     channel: 'in_person',
-    participant: { fullName: 'Ana López', stageName: null },
+    participant: {
+      fullName: 'Ana López',
+      firstName: 'Ana',
+      firstLastName: 'López',
+      secondLastName: null,
+      stageName: null,
+    },
   },
   passes: [
     {

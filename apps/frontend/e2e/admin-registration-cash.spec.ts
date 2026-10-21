@@ -88,12 +88,13 @@ test('confirms the cash payment after restating it and shows the folio', async (
 
   // The passes and competitions stay and the sale controls are gone. This pass type is unknown to
   // the catalog, so it has no competitions left to choose and no "Editar competencias" action.
+  // Only the collapsed name correction (#104) remains.
   await expect(page.getByRole('main')).toContainText('Confirmada');
   await expect(page.getByRole('region', { name: 'Pases' })).toContainText(
     'Competencias elegidas: Breaking 1 vs 1',
   );
   await expect(cashSection(page)).toHaveCount(0);
-  await expect(page.getByRole('main').getByRole('button')).toHaveCount(0);
+  await expect(page.getByRole('main').getByRole('button')).toHaveText(['Corregir nombre o AKA']);
   await expect(page.getByRole('main').getByRole('textbox')).toHaveCount(0);
 });
 

@@ -9,6 +9,7 @@ import {
   removeRegistrationPass,
   searchRegistrations,
   setPassSelections,
+  correctParticipant,
   voidRegistration,
 } from './registration-api';
 import type { ManualRegistrationInput } from './types';
@@ -35,7 +36,13 @@ const entitlements = {
     status: 'pending_payment',
     folio: null,
     channel: 'in_person',
-    participant: { fullName: 'Alex Rivera', stageName: 'Flash' },
+    participant: {
+      fullName: 'Alex Rivera',
+      firstName: 'Alex',
+      firstLastName: 'Rivera',
+      secondLastName: null,
+      stageName: 'Flash',
+    },
   },
   passes: [
     {
@@ -469,6 +476,70 @@ describe('voidRegistration', () => {
       Response.json({ ...voided, registration: { ...voided.registration, id: participantId } }),
     );
     expect(await failureOf(voidRegistration(eventId, registrationId, 'x'))).toEqual({
+      kind: 'unknown',
+    });
+  });
+});
+
+describe('correctParticipant', () => {
+  const correction = {
+    firstName: 'Alexa',
+    firstLastName: 'Rivera',
+    secondLastName: '',
+    stageName: 'Flash',
+    reason: 'Error de captura',
+  };
+  const corrected = {
+    ...entitlements,
+    registration: {
+      ...entitlements.registration,
+      participant: { ...entitlements.registration.participant, fullName: 'Alexa Rivera' },
+    },
+  };
+
+  it('posts all four name fields and the reason with the CSRF token (#104)', async () => {
+    const fetchMock = stubFetch(() => Response.json(corrected));
+    expect(await correctParticipant(eventId, registrationId, correction)).toEqual(corrected);
+    const [url, init] = call(fetchMock, 1);
+    expect(url).toMatch(
+      new RegExp(`${base}/registrations/${registrationId}/participant-correction$`),
+    );
+    expect(init.method).toBe('POST');
+    expect((init.headers as Record<string, string>)['X-CSRF-Token']).toBe('csrf-token');
+    // A blank optional part is sent, not omitted, so the stored one is cleared on purpose.
+    expect(JSON.parse(init.body as string)).toEqual(correction);
+  });
+
+  it('sends the cross-event confirmation only when given', async () => {
+    const fetchMock = stubFetch(() => Response.json(corrected));
+    await correctParticipant(eventId, registrationId, correction, { confirmCrossEvent: true });
+    expect(JSON.parse(call(fetchMock, 1)[1].body as string)).toEqual({
+      ...correction,
+      confirmCrossEvent: true,
+    });
+  });
+
+  it('reports the other event count of a cross-event conflict', async () => {
+    stubFetch(() =>
+      Response.json(
+        {
+          statusCode: 409,
+          message: 'The participant is registered in other events',
+          code: 'cross_event_confirmation_required',
+          otherEventCount: 1,
+        },
+        { status: 409 },
+      ),
+    );
+    expect(await failureOf(correctParticipant(eventId, registrationId, correction))).toEqual({
+      kind: 'cross_event',
+      otherEventCount: 1,
+    });
+  });
+
+  it('reports an unknown outcome when the answer is lost', async () => {
+    stubFetch(() => Promise.reject(new TypeError('Failed to fetch')));
+    expect(await failureOf(correctParticipant(eventId, registrationId, correction))).toEqual({
       kind: 'unknown',
     });
   });

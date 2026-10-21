@@ -82,13 +82,20 @@ export type HeldPass = {
 
 // Who holds the registration and its state, so the sale screen works after a reload (#105).
 // `folio` is null until confirmation. Only an in-person pending registration can be voided (#104).
+// The name parts prefill the participant correction (#104); a legacy participant has them as null.
 // It carries no contact data.
 export type RegistrationSummary = {
   id: string;
   status: RegistrationStatus;
   folio: string | null;
   channel: RegistrationChannel;
-  participant: { fullName: string; stageName: string | null };
+  participant: {
+    fullName: string;
+    firstName: string | null;
+    firstLastName: string | null;
+    secondLastName: string | null;
+    stageName: string | null;
+  };
 };
 
 export type RegistrationEntitlements = {
@@ -121,9 +128,20 @@ export type ComplimentaryConfirmationInput = { reason: string };
 // The same answer as a cash confirmation.
 export type ComplimentaryConfirmation = CashConfirmation;
 
+// The participant correction (#104). All four name parts are always sent, because an omitted or
+// blank optional part clears the stored one. `reason` goes to the audit: 1 to 500 characters once
+// trimmed.
+export type ParticipantCorrectionInput = {
+  firstName: string;
+  firstLastName: string;
+  secondLastName: string;
+  stageName: string;
+  reason: string;
+};
+
 // Stable codes for the 400 and 409 rule answers of these writes. `receipt_taken`, `no_passes`,
-// `not_zero_total`, `pass_required_by_add_on` and `online_registration_void_locked` are backend
-// `code`s; the rest are read from the backend message.
+// `not_zero_total`, `pass_required_by_add_on`, `online_registration_void_locked` and
+// `correction_no_changes` are backend `code`s; the rest are read from the backend message.
 export const adminRegistrationRuleCodes = [
   'receipt_taken',
   'no_passes',
@@ -139,13 +157,16 @@ export const adminRegistrationRuleCodes = [
   'online_registration_pass_locked',
   'pass_required_by_add_on',
   'online_registration_void_locked',
+  'correction_no_changes',
 ] as const;
 export type AdminRegistrationRuleCode = (typeof adminRegistrationRuleCodes)[number];
 
 // `unauthorized` is a 401 (no session, a judge or an admin of another event, including the
 // CSRF prefetch); `forbidden` a 403 (origin or CSRF check). `invalid` carries the 400
 // `fieldErrors` codes (never the values). `possible_duplicates` is the 409 that asks to confirm
-// its `matches` before the registration is made. `not_found` is an unknown registration, pass
+// its `matches` before the registration is made. `cross_event` is the 409 of a participant
+// correction whose person has registrations in `otherEventCount` other events, to be confirmed
+// before it is saved (#104). `not_found` is an unknown registration, pass
 // type or held pass. `unknown` means the request was sent but its answer was lost or
 // unreadable, so a write may have been applied; `error` covers everything else.
 export type AdminRegistrationFailure =
@@ -154,6 +175,7 @@ export type AdminRegistrationFailure =
   | { kind: 'invalid'; fieldErrors: Record<string, string> }
   | { kind: 'rule'; code: AdminRegistrationRuleCode }
   | { kind: 'possible_duplicates'; matches: PossibleDuplicate[] }
+  | { kind: 'cross_event'; otherEventCount: number }
   | { kind: 'not_found' }
   | { kind: 'unknown' }
   | { kind: 'error' };

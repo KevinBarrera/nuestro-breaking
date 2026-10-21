@@ -124,7 +124,7 @@ export const possibleDuplicates = (matches: ReturnType<typeof duplicateMatch>[])
 });
 
 // The summary every entitlements answer carries: pending, no folio, in person, the created
-// participant.
+// participant. A name part given as null stays null, as on a legacy participant.
 export const registrationSummary = (
   id: string,
   overrides: {
@@ -132,6 +132,9 @@ export const registrationSummary = (
     folio?: string | null;
     channel?: 'in_person' | 'online';
     fullName?: string;
+    firstName?: string | null;
+    firstLastName?: string | null;
+    secondLastName?: string | null;
     stageName?: string | null;
   } = {},
 ) => ({
@@ -141,6 +144,9 @@ export const registrationSummary = (
   channel: overrides.channel ?? 'in_person',
   participant: {
     fullName: overrides.fullName ?? 'Ana López',
+    firstName: overrides.firstName === undefined ? 'Ana' : overrides.firstName,
+    firstLastName: overrides.firstLastName === undefined ? 'López' : overrides.firstLastName,
+    secondLastName: overrides.secondLastName ?? null,
     stageName: overrides.stageName ?? null,
   },
 });
@@ -174,6 +180,8 @@ export type RegistrationMocks = {
   complimentary?: (attempt: number) => Answer;
   // `attempt` counts the POSTs, starting at 1.
   void?: (attempt: number) => Answer;
+  // `attempt` counts the POSTs, starting at 1.
+  correction?: (attempt: number) => Answer;
 };
 
 export type SentCreate = { body: Record<string, unknown>; csrf: string | null };
@@ -187,6 +195,7 @@ export type SentRemoval = {
 export type SentCash = SentPass;
 export type SentComplimentary = SentPass;
 export type SentVoid = SentPass;
+export type SentCorrection = SentPass;
 
 // The answer of a recorded cash payment.
 export const cashConfirmed = (id: string, folio: string) => ({
@@ -216,6 +225,7 @@ export async function mockRegistrations(page: Page, mocks: RegistrationMocks = {
   const cash: SentCash[] = [];
   const complimentary: SentComplimentary[] = [];
   const voids: SentVoid[] = [];
+  const corrections: SentCorrection[] = [];
   await mockSession(page);
   await page.route(
     (url) => api(url) && url.pathname === '/admin/events',
@@ -361,7 +371,33 @@ export async function mockRegistrations(page: Page, mocks: RegistrationMocks = {
       return fulfill(route, withSummary(id, answer));
     },
   );
-  return { searches, creates, addedPasses, selections, removedPasses, cash, complimentary, voids };
+  await page.route(
+    (url) =>
+      api(url) &&
+      /^\/admin\/events\/[^/]+\/registrations\/[^/]+\/participant-correction$/.test(url.pathname),
+    (route) => {
+      const request = route.request();
+      const id = new URL(request.url()).pathname.split('/')[5];
+      corrections.push({
+        registrationId: id,
+        body: request.postDataJSON(),
+        csrf: request.headers()['x-csrf-token'] ?? null,
+      });
+      const answer = mocks.correction?.(corrections.length) ?? { status: 500, json: {} };
+      return fulfill(route, withSummary(id, answer));
+    },
+  );
+  return {
+    searches,
+    creates,
+    addedPasses,
+    selections,
+    removedPasses,
+    cash,
+    complimentary,
+    voids,
+    corrections,
+  };
 }
 
 // The registration screen in each status, and the search with a pending result, for the
@@ -372,6 +408,8 @@ const sweepEntitlements = (status: string, folio: string | null, passes = [heldP
       status,
       folio,
       fullName: 'Persona con un nombre muy largo para pantallas angostas',
+      firstName: 'Persona con un nombre muy largo',
+      firstLastName: 'para pantallas angostas',
     }),
     passes,
     accessibleActivityIds: [],
@@ -449,6 +487,17 @@ export const registrationSweepCases: {
     ready: async (page) => {
       await page.getByRole('button', { name: 'Anular inscripción' }).click();
       await page.getByRole('alertdialog').getByRole('textbox', { name: 'Motivo' }).waitFor();
+    },
+  },
+  {
+    // The name and AKA correction of a confirmed registration (#104), open with its reason field.
+    name: 'Inscripción confirmada corrigiendo nombre',
+    path: registrationPath(registrationId),
+    mock: (page) =>
+      overrideRoute(page, '/entitlements', sweepEntitlements('confirmed', 'EB-7K3Q').json),
+    ready: async (page) => {
+      await page.getByRole('button', { name: 'Corregir nombre o AKA' }).click();
+      await page.getByRole('textbox', { name: 'Motivo' }).waitFor();
     },
   },
   {

@@ -22,6 +22,8 @@ export const adminScreens = [
   { name: 'Nuevo pase', path: `/admin/events/${eventId}/passes/new` },
   { name: 'Datos del evento', path: `/admin/events/${eventId}/foundation` },
   { name: 'Pagos por revisar', path: `/admin/events/${eventId}/payments-review` },
+  // Listas de respaldo (#65): printable attendee lists.
+  { name: 'Listas de respaldo', path: `/admin/events/${eventId}/lists` },
   // Inscripciones (#105): the search with results, the in-person form and one registration.
   { name: 'Inscripciones', path: `/admin/events/${eventId}/registrations?q=Luz` },
   { name: 'Nueva inscripción', path: `/admin/events/${eventId}/registrations/new` },
@@ -198,6 +200,42 @@ const flaggedPayments = {
   })),
 };
 
+// Contact-free attendee lists (#65) with a long name and every list kind.
+const attendeeLists = {
+  event: { id: eventId, name: 'Encuentro del barrio' },
+  generatedAt: '2026-11-13T20:00:00.000Z',
+  passTypes: [{ id: fullPassId, name: 'Pase completo', passClass: 'full', status: 'active' }],
+  activities: [
+    {
+      id: battleId,
+      name: 'Batalla de crews',
+      kind: 'competition',
+      startsAt: '2026-11-14T18:00:00Z',
+    },
+    {
+      id: workshopId,
+      name: 'Taller de toprock',
+      kind: 'workshop',
+      startsAt: '2026-11-14T19:00:00Z',
+    },
+  ],
+  registrations: [
+    {
+      registrationId,
+      folio: 'EB-7K3Q',
+      fullName: 'Persona con un nombre muy largo para pantallas angostas',
+      stageName: 'Flash',
+      status: 'confirmed',
+      eventCheckedInAt: '2026-11-14T16:05:00.000Z',
+      passTypeIds: [fullPassId],
+      activities: [
+        { activityId: battleId, checkedInAt: null },
+        { activityId: workshopId, checkedInAt: '2026-11-14T19:05:00.000Z' },
+      ],
+    },
+  ],
+};
+
 // The in-person registration form gets possible duplicates, so the sweeps measure that dialog.
 const duplicateMatches = {
   statusCode: 409,
@@ -266,6 +304,7 @@ export async function mockAdminApi(page: Page) {
     [(url) => url.pathname.endsWith('/pass-types'), passTypes],
     [(url) => url.pathname.endsWith('/sales'), sales],
     [(url) => url.pathname.endsWith('/flagged-payments'), flaggedPayments],
+    [(url) => url.pathname.endsWith('/attendee-lists'), attendeeLists],
     [(url) => url.pathname.endsWith('/entitlements'), entitlements],
     [
       (url) => url.pathname.endsWith('/participants'),
@@ -350,6 +389,8 @@ export async function revealControls(page: Page, name: AdminScreenName) {
       .getByRole('cell')
       .first()
       .waitFor();
+  if (name === 'Listas de respaldo')
+    await page.getByRole('table', { name: 'Evento completo' }).getByRole('cell').first().waitFor();
   if (name === 'Pase' || name === 'Nuevo pase') await accessControls(page).first().waitFor();
   if (name === 'Actividades') await page.getByRole('button', { name: /^Todas/ }).waitFor();
   if (name === 'Equipo')

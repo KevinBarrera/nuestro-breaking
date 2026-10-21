@@ -7,6 +7,7 @@ export type EventSection =
   | 'check-in'
   | 'payments-review'
   | 'registrations'
+  | 'lists'
   | 'activities'
   | 'passes';
 
@@ -16,6 +17,7 @@ const sectionRoutes: Record<EventSection, string> = {
   'check-in': routes.adminEventCheckIn,
   'payments-review': routes.adminEventPaymentsReview,
   registrations: routes.adminEventRegistrations,
+  lists: routes.adminEventLists,
   activities: routes.adminEventActivities,
   passes: routes.adminEventPasses,
 };

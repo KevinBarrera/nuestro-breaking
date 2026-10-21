@@ -89,6 +89,13 @@ outcome, and the screen only shows what it answered.
    action: they are voided on their own when the payment window ends. A
    confirmed registration cannot be voided; escalate paid cases to the
    principal organizer.
+9. To fix a misspelled name or AKA on a pending or confirmed registration,
+   online or in person, press "Corregir nombre o AKA", fix the fields, write
+   why in "Motivo" (required, up to 500 characters) and press "Guardar
+   corrección". If the dialog says the person appears in other events, check
+   it is the right person and press "Confirmar corrección": only this
+   registration changes, never the other events. A voided registration cannot
+   be corrected. The reason stays in the registration audit.
 
 If the screen says "No pudimos confirmar si el pago se registró", press
 "Recargar" and read the status. Never charge again or confirm a second time

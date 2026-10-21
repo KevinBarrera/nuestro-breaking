@@ -17,6 +17,8 @@ import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { generatePath, useLocation, useParams } from 'react-router';
 import { passClassLabels, styles } from './catalog-copy';
 import { ConfirmedCompetitions } from './confirmed-competitions';
+import { ParticipantCorrection } from './participant-correction';
+import { canCorrectParticipant } from './participant-correction-model';
 import { readRegistrationContext, registrationStatusLabel } from './registration-model';
 import { RegistrationVoid } from './registration-void';
 import { canVoidRegistration } from './registration-void-model';
@@ -69,7 +71,8 @@ export function AdminRegistrationPage() {
 // still get, the competitions of each held pass and the cash payment, or the confirmation without
 // payment when its passes total $0 (#263); an in-person one can also be voided with a reason (#104).
 // A confirmed registration, led by its folio, only lets
-// the operator change a pass's competitions with a reason (#170); a voided one is read-only. The
+// the operator change a pass's competitions with a reason (#170). Both can have the participant's
+// name and AKA corrected with a reason (#104); a voided one is read-only. The
 // name and status come from the entitlements read, so a reload keeps them; the screen that linked
 // here passes them along to show before that read answers.
 function RegistrationScreen({
@@ -280,18 +283,26 @@ function RegistrationScreen({
                     onReload={reload}
                   />
                 )}
-                {canVoidRegistration(state.entitlements.registration) && (
-                  <RegistrationVoid
-                    eventId={eventId}
-                    entitlements={state.entitlements}
-                    onVoided={(entitlements) => {
-                      updateEntitlements(entitlements);
-                      setVoidedHere(true);
-                    }}
-                    onReload={reload}
-                  />
-                )}
               </>
+            )}
+            {canCorrectParticipant(state.entitlements.registration) && (
+              <ParticipantCorrection
+                eventId={eventId}
+                entitlements={state.entitlements}
+                onCorrected={updateEntitlements}
+                onReload={reload}
+              />
+            )}
+            {canVoidRegistration(state.entitlements.registration) && (
+              <RegistrationVoid
+                eventId={eventId}
+                entitlements={state.entitlements}
+                onVoided={(entitlements) => {
+                  updateEntitlements(entitlements);
+                  setVoidedHere(true);
+                }}
+                onReload={reload}
+              />
             )}
           </>
         )}

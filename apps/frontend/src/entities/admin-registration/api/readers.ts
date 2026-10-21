@@ -105,15 +105,23 @@ function readHeldPass(value: unknown): HeldPass | null {
   return selections && { registrationPassId, passTypeId, name, passClass, priceCents, selections };
 }
 
-// Keeps only the participant's name and AKA, even if the answer carries more.
+// Keeps only the participant's name, its parts and the AKA, even if the answer carries more.
 function readSummary(value: unknown, registrationId: string): RegistrationSummary | null {
   if (!isRecord(value) || value.id !== registrationId || !isRecord(value.participant)) return null;
   const { status, folio, channel } = value;
-  const { fullName, stageName } = value.participant;
+  const { fullName, firstName, firstLastName, secondLastName, stageName } = value.participant;
   if (!oneOf(registrationStatuses, status) || !isTextOrNull(folio)) return null;
   if (!oneOf(registrationChannels, channel)) return null;
   if (!isText(fullName) || !isTextOrNull(stageName)) return null;
-  return { id: registrationId, status, folio, channel, participant: { fullName, stageName } };
+  if (!isTextOrNull(firstName) || !isTextOrNull(firstLastName) || !isTextOrNull(secondLastName))
+    return null;
+  return {
+    id: registrationId,
+    status,
+    folio,
+    channel,
+    participant: { fullName, firstName, firstLastName, secondLastName, stageName },
+  };
 }
 
 export function readEntitlements(
@@ -154,9 +162,16 @@ const ruleMessages: Record<string, AdminRegistrationRuleCode> = {
   'Online registrations cannot lose a pass': 'online_registration_pass_locked',
 };
 
-// Reason rejections that carry a stable backend `code`: the confirmed selection change (#170) and
-// the void (#104).
-const reasonCodes = ['selection_change_reason_required', 'void_reason_required'];
+// Reason rejections that carry a stable backend `code`: the confirmed selection change (#170), the
+// void and the participant correction (#104).
+const reasonCodes = [
+  'selection_change_reason_required',
+  'void_reason_required',
+  'correction_reason_required',
+];
+
+// 400 rule answers that carry a stable backend `code`.
+const badRequestRuleCodes: readonly AdminRegistrationRuleCode[] = ['correction_no_changes'];
 
 // Cash and complimentary confirmation and the selection change reason (#170) report their invalid
 // fields only by message; they map to the input names.
@@ -190,6 +205,8 @@ export function readRegistrationFailure(status: number, body: unknown): AdminReg
   if (status === 400) {
     if (isRecord(body) && reasonCodes.some((code) => code === body.code))
       return { kind: 'invalid', fieldErrors: { reason: 'invalid' } };
+    const code = isRecord(body) ? badRequestRuleCodes.find((known) => known === body.code) : null;
+    if (code) return { kind: 'rule', code };
     if (Object.hasOwn(fieldMessages, message))
       return { kind: 'invalid', fieldErrors: fieldMessages[message] };
     const raw = isRecord(body) && isRecord(body.fieldErrors) ? body.fieldErrors : {};
@@ -208,6 +225,14 @@ export function readRegistrationFailure(status: number, body: unknown): AdminReg
       const matches = every(body.matches, readPossibleDuplicate);
       if (matches && matches.length > 0) return { kind: 'possible_duplicates', matches };
     }
+    // Without a readable count the other events could not be confirmed knowingly.
+    const { otherEventCount } = body;
+    if (
+      body.code === 'cross_event_confirmation_required' &&
+      isCount(otherEventCount) &&
+      otherEventCount > 0
+    )
+      return { kind: 'cross_event', otherEventCount };
   }
   return { kind: 'error' };
 }

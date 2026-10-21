@@ -4,7 +4,8 @@ export type RegistrationStatus = 'pending_payment' | 'confirmed' | 'voided';
 
 // Who holds the registration and its lifecycle state, so the admin sale screen survives a reload
 // (#105). `folio` is null until confirmation. `channel` is `online` for a public checkout, which
-// has an expiry, and `in_person` for an admin registration (#104). Deliberately no contact data.
+// has an expiry, and `in_person` for an admin registration (#104). The name parts prefill the
+// participant correction (#104); legacy rows may hold them as null. Deliberately no contact data.
 export type RegistrationChannel = 'in_person' | 'online';
 
 export type RegistrationSummary = {
@@ -12,7 +13,13 @@ export type RegistrationSummary = {
   status: RegistrationStatus;
   folio: string | null;
   channel: RegistrationChannel;
-  participant: { fullName: string; stageName: string | null };
+  participant: {
+    fullName: string;
+    firstName: string | null;
+    firstLastName: string | null;
+    secondLastName: string | null;
+    stageName: string | null;
+  };
 };
 
 // A purchased pass on a registration; `priceCents` is the price snapshot paid at assignment.

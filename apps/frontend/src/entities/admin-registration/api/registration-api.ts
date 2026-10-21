@@ -14,6 +14,7 @@ import type {
   ComplimentaryConfirmationInput,
   ManualRegistration,
   ManualRegistrationInput,
+  ParticipantCorrectionInput,
   RegistrationEntitlements,
   RegistrationSearchPage,
   RegistrationSearchQuery,
@@ -230,6 +231,27 @@ export async function voidRegistration(
 ): Promise<RegistrationEntitlements> {
   const path = registrationPath(eventId, registrationId, '/void');
   return written(readEntitlements(await mutate(path, 'POST', { reason }), registrationId));
+}
+
+// Corrects the name parts and AKA of the registration's participant (#104), only in this event.
+// When the person has registrations in other events the answer is `cross_event`; send the same
+// input again with `confirmCrossEvent` to go ahead. Those other registrations never change.
+export async function correctParticipant(
+  eventId: string,
+  registrationId: string,
+  { firstName, firstLastName, secondLastName, stageName, reason }: ParticipantCorrectionInput,
+  { confirmCrossEvent }: { confirmCrossEvent?: boolean } = {},
+): Promise<RegistrationEntitlements> {
+  const body: Record<string, unknown> = {
+    firstName,
+    firstLastName,
+    secondLastName,
+    stageName,
+    reason,
+  };
+  if (confirmCrossEvent !== undefined) body.confirmCrossEvent = confirmCrossEvent;
+  const path = registrationPath(eventId, registrationId, '/participant-correction');
+  return written(readEntitlements(await mutate(path, 'POST', body), registrationId));
 }
 
 // Confirms a pending registration whose passes total $0 without payment (#263); it gets its folio

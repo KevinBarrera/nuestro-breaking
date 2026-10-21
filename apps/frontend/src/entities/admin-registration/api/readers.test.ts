@@ -107,7 +107,13 @@ describe('readEntitlements', () => {
     status: 'pending_payment',
     folio: null,
     channel: 'in_person',
-    participant: { fullName: 'Alex Rivera', stageName: 'Flash' },
+    participant: {
+      fullName: 'Alex Rivera',
+      firstName: 'Alex',
+      firstLastName: 'Rivera',
+      secondLastName: 'Soto',
+      stageName: 'Flash',
+    },
   };
   const entitlements = {
     registration,
@@ -122,7 +128,14 @@ describe('readEntitlements', () => {
       status: 'confirmed',
       folio: 'LMP-7K3Q',
       channel: 'online',
-      participant: { fullName: 'Alex Rivera', stageName: null },
+      // A legacy participant has no name parts (#104).
+      participant: {
+        fullName: 'Alex Rivera',
+        firstName: null,
+        firstLastName: null,
+        secondLastName: null,
+        stageName: null,
+      },
     };
     expect(
       readEntitlements(
@@ -132,7 +145,7 @@ describe('readEntitlements', () => {
     ).toEqual({ registration: confirmed, passes: [], accessibleActivityIds: [] });
   });
 
-  it('keeps only the name and AKA of the participant', () => {
+  it('keeps only the name, its parts and the AKA of the participant', () => {
     const extra = {
       ...entitlements,
       registration: {
@@ -155,8 +168,11 @@ describe('readEntitlements', () => {
       { ...registration, channel: undefined },
       { ...registration, channel: 'phone' },
       { ...registration, participant: null },
-      { ...registration, participant: { fullName: '', stageName: null } },
-      { ...registration, participant: { fullName: 'Alex Rivera' } },
+      { ...registration, participant: { ...registration.participant, fullName: '' } },
+      { ...registration, participant: { fullName: 'Alex Rivera', stageName: null } },
+      { ...registration, participant: { ...registration.participant, firstName: undefined } },
+      { ...registration, participant: { ...registration.participant, firstLastName: 3 } },
+      { ...registration, participant: { ...registration.participant, secondLastName: ' ' } },
     ])
       expect(readEntitlements({ ...entitlements, registration: bad }, registrationId)).toBeNull();
   });
@@ -241,6 +257,49 @@ describe('readRegistrationFailure', () => {
         code: 'online_registration_void_locked',
       }),
     ).toEqual({ kind: 'rule', code: 'online_registration_void_locked' });
+  });
+
+  it('maps the participant correction answers by their codes (#104)', () => {
+    expect(
+      readRegistrationFailure(400, {
+        message: 'Reason is required and must be 1 to 500 characters',
+        code: 'correction_reason_required',
+      }),
+    ).toEqual({ kind: 'invalid', fieldErrors: { reason: 'invalid' } });
+    expect(
+      readRegistrationFailure(400, {
+        message: 'Invalid participant correction',
+        fieldErrors: { firstName: 'required', stageName: 'too_long' },
+      }),
+    ).toEqual({ kind: 'invalid', fieldErrors: { firstName: 'required', stageName: 'too_long' } });
+    expect(
+      readRegistrationFailure(400, {
+        message: 'The correction changes nothing',
+        code: 'correction_no_changes',
+      }),
+    ).toEqual({ kind: 'rule', code: 'correction_no_changes' });
+    expect(
+      readRegistrationFailure(409, {
+        message: 'Registration is voided',
+        code: 'registration_voided',
+      }),
+    ).toEqual({ kind: 'rule', code: 'registration_voided' });
+  });
+
+  it('carries the other event count of a cross-event confirmation (#104)', () => {
+    const conflict = {
+      message: 'The participant is registered in other events',
+      code: 'cross_event_confirmation_required',
+    };
+    expect(readRegistrationFailure(409, { ...conflict, otherEventCount: 2 })).toEqual({
+      kind: 'cross_event',
+      otherEventCount: 2,
+    });
+    // Without a readable positive count nothing could be confirmed knowingly.
+    for (const otherEventCount of [undefined, 0, -1, 1.5, '2'])
+      expect(readRegistrationFailure(409, { ...conflict, otherEventCount })).toEqual({
+        kind: 'error',
+      });
   });
 
   it('maps a confirmed selection change without reason to the reason field (#170)', () => {

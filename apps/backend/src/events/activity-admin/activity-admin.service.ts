@@ -9,6 +9,7 @@ import { and, asc, eq } from 'drizzle-orm';
 import { DATABASE_CLIENT } from '@/database/database.constants';
 import type { DatabaseService } from '@/database/database.service';
 import { activities, eventCatalogAudit, events, eventVenues } from '@/database/schema';
+import { activityWindowErrors, type ActivityWindowErrors } from './activity-window';
 import type {
   ActivityChanges,
   ActivityDraft,
@@ -20,6 +21,14 @@ import type {
 type Database = DatabaseService['db'];
 type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0];
 type ActivityRow = typeof activities.$inferSelect;
+// A rejected placement: the message, plus the field errors and event window of a window failure.
+type PlacementProblem = {
+  message: string;
+  window?: {
+    fieldErrors: ActivityWindowErrors;
+    eventWindow: { startsAt: string; endsAt: string } | null;
+  };
+};
 
 function toActivity(row: ActivityRow): AdminActivity {
   return {
@@ -139,31 +148,42 @@ export class ActivityAdminService {
   // Database constraints remain the backstop; these checks turn expected input errors into 400s.
   private async assertPlacement(tx: Transaction, eventId: string, draft: ActivityDraft) {
     const problem = await this.placementProblem(tx, eventId, draft);
-    if (problem) throw new BadRequestException(problem);
+    if (!problem) return;
+    if (!problem.window) throw new BadRequestException(problem.message);
+    throw new BadRequestException({ statusCode: 400, message: problem.message, ...problem.window });
   }
 
+  // An end that is not after its start is reported before the venue, as before; an event-window
+  // failure is reported after it. Both carry every failing field and the event window read here.
   private async placementProblem(
     tx: Transaction,
     eventId: string,
     draft: ActivityDraft,
-  ): Promise<string | null> {
-    if (draft.startsAt.getTime() >= draft.endsAt.getTime()) return 'Invalid activity window';
-    const [venue] = await tx
-      .select({ venueId: eventVenues.venueId })
-      .from(eventVenues)
-      .where(and(eq(eventVenues.eventId, eventId), eq(eventVenues.venueId, draft.venueId)));
-    if (!venue) return 'Invalid venue';
+  ): Promise<PlacementProblem | null> {
     const [event] = await tx
       .select({ startsAt: events.startsAt, endsAt: events.endsAt })
       .from(events)
       .where(eq(events.id, eventId));
-    if (
-      event?.startsAt &&
-      event.endsAt &&
-      (draft.startsAt < event.startsAt || draft.endsAt > event.endsAt)
-    )
-      return 'Invalid activity window';
-    return null;
+    const bounds =
+      event?.startsAt && event.endsAt ? { startsAt: event.startsAt, endsAt: event.endsAt } : null;
+    const fieldErrors = activityWindowErrors(draft, bounds);
+    const windowProblem: PlacementProblem = {
+      message: 'Invalid activity window',
+      window: {
+        fieldErrors,
+        eventWindow: bounds && {
+          startsAt: bounds.startsAt.toISOString(),
+          endsAt: bounds.endsAt.toISOString(),
+        },
+      },
+    };
+    if (draft.startsAt.getTime() >= draft.endsAt.getTime()) return windowProblem;
+    const [venue] = await tx
+      .select({ venueId: eventVenues.venueId })
+      .from(eventVenues)
+      .where(and(eq(eventVenues.eventId, eventId), eq(eventVenues.venueId, draft.venueId)));
+    if (!venue) return { message: 'Invalid venue' };
+    return Object.keys(fieldErrors).length > 0 ? windowProblem : null;
   }
 
   private async audit(

@@ -1,4 +1,5 @@
 export {
+  activityWindowProblem,
   archiveActivity,
   archivePassType,
   catalogFailure,
@@ -19,6 +20,7 @@ export { passClasses, requiredPassClasses } from './api/types';
 export type {
   ActivityAccess,
   ActivityInput,
+  ActivityWindowProblem,
   CatalogActivity,
   CatalogEventContext,
   CatalogEventSummary,
@@ -26,13 +28,24 @@ export type {
   CatalogPassType,
   CatalogStatus,
   CatalogVenue,
+  EventWindow,
   NewPassTypeInput,
   PassClass,
   PassTypeActivity,
   PassTypeInput,
   RequiredPassClass,
+  WindowCode,
+  WindowField,
+  WindowFieldErrors,
 } from './api/types';
 export { activityKinds, isActivityKind, type ActivityKind } from './model/activity-kind';
+export {
+  activityWindowErrors,
+  endInputMin,
+  formatEventWindow,
+  windowErrorMessages,
+  windowInputBounds,
+} from './model/activity-window';
 export { centsToInput, formatMxn, parseMxnToCents } from './model/money';
 export {
   eventDayKey,

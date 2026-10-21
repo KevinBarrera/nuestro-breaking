@@ -3,6 +3,7 @@ import {
   isCatalogActivity,
   isCatalogEventSummary,
   isCatalogPassType,
+  readActivityWindowProblem,
   readEventContext,
 } from './readers';
 
@@ -128,7 +129,35 @@ describe('readEventContext', () => {
     expect(readEventContext(foundation)).toEqual({
       timeZone: 'America/Mexico_City',
       venues: [{ id: activity.venueId, name: 'Centro cultural' }],
+      eventWindow: null,
     });
+  });
+
+  it('reads the event dates of a bounded event as its window', () => {
+    const event = {
+      ...foundation.event,
+      startsAt: '2026-11-21T15:00:00.000Z',
+      endsAt: '2026-11-23T05:00:00.000Z',
+      windowStatus: 'bounded',
+    };
+    expect(readEventContext({ ...foundation, event })?.eventWindow).toEqual({
+      startsAt: '2026-11-21T15:00:00.000Z',
+      endsAt: '2026-11-23T05:00:00.000Z',
+    });
+  });
+
+  it.each([
+    ['no dates', { startsAt: null, endsAt: null }],
+    ['only a start', { startsAt: '2026-11-21T15:00:00.000Z', endsAt: null }],
+    ['only an end', { startsAt: null, endsAt: '2026-11-23T05:00:00.000Z' }],
+    ['a date that is not a date', { startsAt: 'soon', endsAt: '2026-11-23T05:00:00.000Z' }],
+    [
+      'an end before the start',
+      { startsAt: '2026-11-23T05:00:00.000Z', endsAt: '2026-11-21T15:00:00.000Z' },
+    ],
+  ])('treats an event with %s as unbounded', (_, dates) => {
+    const event = { ...foundation.event, ...dates };
+    expect(readEventContext({ ...foundation, event })?.eventWindow).toBeNull();
   });
 
   it('keeps only the venue id and name', () => {
@@ -148,5 +177,53 @@ describe('readEventContext', () => {
     ['a payload that is not an object', 'foundation'],
   ])('rejects a foundation with %s', (_, value) => {
     expect(readEventContext(value)).toBeNull();
+  });
+});
+
+describe('readActivityWindowProblem', () => {
+  const body = {
+    statusCode: 400,
+    message: 'Invalid activity window',
+    fieldErrors: { startsAt: 'outside_event_window', endsAt: 'not_after_start' },
+    eventWindow: { startsAt: '2026-11-21T15:00:00.000Z', endsAt: '2026-11-23T05:00:00.000Z' },
+  };
+
+  it('reads the failing fields and the current event window', () => {
+    expect(readActivityWindowProblem(body)).toEqual({
+      fieldErrors: { startsAt: 'outside_event_window', endsAt: 'not_after_start' },
+      eventWindow: body.eventWindow,
+    });
+  });
+
+  it('reads an unbounded event as a null window', () => {
+    const problem = readActivityWindowProblem({
+      ...body,
+      fieldErrors: { endsAt: 'not_after_start' },
+      eventWindow: null,
+    });
+    expect(problem).toEqual({ fieldErrors: { endsAt: 'not_after_start' }, eventWindow: null });
+  });
+
+  it('drops unknown fields and codes but keeps the known ones', () => {
+    const fieldErrors = { startsAt: 'outside_event_window', name: 'required', endsAt: 'later' };
+    expect(readActivityWindowProblem({ ...body, fieldErrors })?.fieldErrors).toEqual({
+      startsAt: 'outside_event_window',
+    });
+  });
+
+  it.each([
+    ['another message', { message: 'Invalid venue' }],
+    ['no fieldErrors', { fieldErrors: undefined }],
+    ['empty fieldErrors', { fieldErrors: {} }],
+    ['only unknown codes', { fieldErrors: { endsAt: 'later' } }],
+    ['fieldErrors that are not an object', { fieldErrors: 'startsAt' }],
+    ['no eventWindow', { eventWindow: undefined }],
+    ['an eventWindow with a bad date', { eventWindow: { startsAt: 'soon', endsAt: 'later' } }],
+  ])('returns null for a body with %s', (_, change) => {
+    expect(readActivityWindowProblem({ ...body, ...change })).toBeNull();
+  });
+
+  it('returns null for a body that is not an object', () => {
+    expect(readActivityWindowProblem('Invalid activity window')).toBeNull();
   });
 });

@@ -1,4 +1,5 @@
 import {
+  activityWindowProblem,
   archiveActivity,
   catalogFailure,
   createActivity,
@@ -7,6 +8,7 @@ import {
   restoreActivity,
   updateActivity,
   type ActivityInput,
+  type ActivityWindowProblem,
   type CatalogActivity,
   type CatalogFailure,
 } from '@/entities/event-catalog';
@@ -79,6 +81,8 @@ function EventActivities({ eventId }: { eventId: string }) {
   const [archiving, setArchiving] = useState<CatalogActivity | null>(null);
   const [restoring, setRestoring] = useState<CatalogActivity | null>(null);
   const [busy, setBusy] = useState(false);
+  // The last server answer that named the failing fields of an activity window (#295).
+  const [windowProblem, setWindowProblem] = useState<ActivityWindowProblem | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [filters, setFilters] = useState<AgendaFilters>({
     kind: null,
@@ -121,6 +125,17 @@ function EventActivities({ eventId }: { eventId: string }) {
       onSuccess?.(result);
       reload();
     } catch (error) {
+      const problem = activityWindowProblem(error);
+      if (problem) {
+        // The form marks the fields and its limits follow the event dates the server just read.
+        setWindowProblem(problem);
+        update((current) => ({
+          ...current,
+          context: { ...current.context, eventWindow: problem.eventWindow },
+        }));
+        setReview(null);
+        return;
+      }
       const failure = catalogFailure(error);
       const text = failure === 'conflict' ? conflict : undefined;
       setNotice({ kind: 'failure', failure, ...(text && { text }) });
@@ -156,6 +171,7 @@ function EventActivities({ eventId }: { eventId: string }) {
 
   function openEditor(next: Editor) {
     setNotice(null);
+    setWindowProblem(null);
     setEditor(next);
   }
 
@@ -240,6 +256,8 @@ function EventActivities({ eventId }: { eventId: string }) {
                     activity={editor.mode === 'edit' ? editor.activity : undefined}
                     venues={data.context.venues}
                     timeZone={data.context.timeZone}
+                    eventWindow={data.context.eventWindow}
+                    windowProblem={windowProblem}
                     busy={busy}
                     onReview={(input, rows) => {
                       setNotice(null);

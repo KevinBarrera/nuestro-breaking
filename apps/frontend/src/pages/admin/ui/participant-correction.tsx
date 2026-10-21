@@ -63,7 +63,9 @@ export function ParticipantCorrection({
   // State updates land on the next render; the ref blocks a second POST from a fast double click.
   const sending = useRef(false);
   const toggleRef = useRef<HTMLButtonElement>(null);
-  // Set when the form closes, so focus goes back to the button that opened it.
+  const reloadRef = useRef<HTMLButtonElement>(null);
+  // Set when the form closes, so focus goes back to the button that opened it, or to "Recargar"
+  // when a stale screen has disabled that button.
   const restoreFocus = useRef(false);
   const locked = failure?.reload ?? false;
   const fieldId = (field: CorrectionField | 'reason') => `${formId}-${field}`;
@@ -74,7 +76,7 @@ export function ParticipantCorrection({
     if (open) focusField('firstName');
     else if (restoreFocus.current) {
       restoreFocus.current = false;
-      toggleRef.current?.focus();
+      (locked ? reloadRef : toggleRef).current?.focus();
     }
     // `focusField` only reads the stable form id.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -184,7 +186,12 @@ export function ParticipantCorrection({
           className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-danger-fg bg-danger px-4 py-3 text-sm text-danger-fg"
         >
           <p>{failure.message}</p>
-          <button type="button" className={buttonClass('secondary')} onClick={reload}>
+          <button
+            ref={reloadRef}
+            type="button"
+            className={buttonClass('secondary')}
+            onClick={reload}
+          >
             Recargar
           </button>
         </div>

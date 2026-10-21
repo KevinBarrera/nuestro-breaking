@@ -142,6 +142,27 @@ test('asks to confirm when the person is in other events', async ({ page }) => {
   ]);
 });
 
+test('locks the correction after a rejection and focuses the reload action', async ({ page }) => {
+  const { corrections } = await mockRegistrations(page, {
+    entitlements: () => entitlements(confirmed),
+    correction: () => ({
+      status: 409,
+      json: { statusCode: 409, message: 'Registration is voided', code: 'registration_voided' },
+    }),
+  });
+  await page.goto(registrationPath(registrationId));
+
+  await openButton(page).click();
+  await field(page, 'Nombre(s)').fill('Ana María');
+  await field(page, 'Motivo').fill('Error de captura');
+  await saveButton(page).click();
+
+  const reload = section(page).getByRole('alert').getByRole('button', { name: 'Recargar' });
+  await expect(reload).toBeFocused();
+  await expect(openButton(page)).toBeDisabled();
+  expect(corrections).toHaveLength(1);
+});
+
 test('offers no correction for a voided registration', async ({ page }) => {
   await mockRegistrations(page, { entitlements: () => entitlements({ status: 'voided' }) });
   await page.goto(registrationPath(registrationId));

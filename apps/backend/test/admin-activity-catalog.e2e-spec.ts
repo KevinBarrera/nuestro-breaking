@@ -226,6 +226,130 @@ describe('admin activity catalog (e2e)', () => {
     expect(await audits()).toHaveLength(0);
   });
 
+  describe('event window failures', () => {
+    const windowStart = '2026-11-21T00:00:00.000Z';
+    const windowEnd = '2026-11-22T00:00:00.000Z';
+    // The fixture activities sit outside the window, so the containment trigger is bypassed.
+    async function bound(event: string) {
+      await client`ALTER TABLE events DISABLE TRIGGER events_activities_window_ck`;
+      await client`UPDATE events SET starts_at = ${windowStart}, ends_at = ${windowEnd} WHERE id = ${event}`;
+    }
+    type WindowBody = {
+      message: string;
+      fieldErrors: Record<string, string>;
+      eventWindow: { startsAt: string; endsAt: string } | null;
+    };
+    const eventWindow = { startsAt: windowStart, endsAt: windowEnd };
+
+    it('names each failing field and returns the event window on create without writes', async () => {
+      const { event, venue } = await fixture();
+      const { cookie } = await session('admin', event);
+      await bound(event);
+      const before = await snapshot();
+      const cases: [Record<string, string>, Record<string, string>][] = [
+        [{ startsAt: '2026-11-20T23:59:00Z' }, { startsAt: 'outside_event_window' }],
+        [{ endsAt: '2026-11-22T00:01:00Z' }, { endsAt: 'outside_event_window' }],
+        [
+          { startsAt: '2026-11-20T09:00:00Z', endsAt: '2026-11-23T09:00:00Z' },
+          { startsAt: 'outside_event_window', endsAt: 'outside_event_window' },
+        ],
+        [{ endsAt: '2026-11-21T09:00:00Z' }, { endsAt: 'not_after_start' }],
+        [{ endsAt: '2026-11-21T08:00:00Z' }, { endsAt: 'not_after_start' }],
+        [{ endsAt: '2026-11-20T09:00:00Z' }, { endsAt: 'outside_event_window' }],
+      ];
+      for (const [fields, fieldErrors] of cases) {
+        const response = await create(event)
+          .set(headers(cookie))
+          .send({ ...draft(venue), ...fields })
+          .expect(400);
+        expect(response.body).toEqual({
+          statusCode: 400,
+          message: 'Invalid activity window',
+          fieldErrors,
+          eventWindow,
+        });
+      }
+      expect(await snapshot()).toEqual(before);
+      expect(await audits()).toHaveLength(0);
+    });
+
+    it('accepts activities that touch the exact event boundaries', async () => {
+      const { event, venue } = await fixture();
+      const { cookie } = await session('admin', event);
+      await bound(event);
+      await create(event)
+        .set(headers(cookie))
+        .send({ ...draft(venue), startsAt: windowStart, endsAt: windowEnd })
+        .expect(201);
+    });
+
+    it('names each failing field and returns the event window on update without writes', async () => {
+      const { event, early } = await fixture();
+      const { cookie } = await session('admin', event);
+      await bound(event);
+      const before = await snapshot();
+      const response = await update(event, early)
+        .set(headers(cookie))
+        .send({
+          expectedVersion: 1,
+          startsAt: '2026-11-20T23:00:00Z',
+          endsAt: '2026-11-22T00:30:00Z',
+        })
+        .expect(400);
+      expect(response.body).toEqual({
+        statusCode: 400,
+        message: 'Invalid activity window',
+        fieldErrors: { startsAt: 'outside_event_window', endsAt: 'outside_event_window' },
+        eventWindow,
+      });
+      const order = await update(event, early)
+        .set(headers(cookie))
+        .send({
+          expectedVersion: 1,
+          startsAt: '2026-11-21T12:00:00Z',
+          endsAt: '2026-11-21T11:00:00Z',
+        })
+        .expect(400);
+      expect((order.body as WindowBody).fieldErrors).toEqual({ endsAt: 'not_after_start' });
+      expect(await snapshot()).toEqual(before);
+      expect(await audits()).toHaveLength(0);
+    });
+
+    it('returns a null event window for an unbounded event and keeps accepting any time', async () => {
+      const { event, venue } = await fixture();
+      const { cookie } = await session('admin', event);
+      const response = await create(event)
+        .set(headers(cookie))
+        .send({ ...draft(venue), endsAt: draft(venue).startsAt })
+        .expect(400);
+      expect(response.body).toEqual({
+        statusCode: 400,
+        message: 'Invalid activity window',
+        fieldErrors: { endsAt: 'not_after_start' },
+        eventWindow: null,
+      });
+      await create(event)
+        .set(headers(cookie))
+        .send({ ...draft(venue), startsAt: '2001-01-01T00:00:00Z', endsAt: '2099-01-01T00:00:00Z' })
+        .expect(201);
+    });
+
+    it('keeps the plain venue error without window details', async () => {
+      const { event, foreignVenue } = await fixture();
+      const { cookie } = await session('admin', event);
+      await bound(event);
+      const response = await create(event)
+        .set(headers(cookie))
+        .send(draft(foreignVenue))
+        .expect(400);
+      expect(response.body).toEqual({
+        statusCode: 400,
+        message: 'Invalid venue',
+        error: 'Bad Request',
+      });
+    });
+  });
+
   it('updates with the expected version, increments it and audits before and after', async () => {
     const { event, early, venue } = await fixture();
     const { cookie, userId, sessionId } = await session('admin', event);

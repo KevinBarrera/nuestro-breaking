@@ -66,6 +66,9 @@ export const activityKindOptions = activityKinds.map((kind) => ({
 export const activityKindLabel = (kind: string) =>
   isActivityKind(kind) ? activityKindLabels[kind] : kind;
 
+const fieldClass =
+  'mt-1 block min-h-11 w-full rounded-lg border bg-input px-3 py-2 text-base text-fg focus-visible:border-focus focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus';
+
 export const styles = {
   primary:
     'min-h-11 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-fg hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus disabled:cursor-wait disabled:opacity-50',
@@ -73,8 +76,9 @@ export const styles = {
     'min-h-11 rounded-lg border border-line px-4 py-2 text-sm font-semibold text-fg hover:bg-row focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus disabled:cursor-wait disabled:opacity-50',
   danger:
     'min-h-11 rounded-lg border border-danger-fg px-4 py-2 text-sm font-semibold text-danger-fg hover:bg-danger focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus disabled:cursor-wait disabled:opacity-50',
-  field:
-    'mt-1 block min-h-11 w-full rounded-lg border border-input-line bg-input px-3 py-2 text-base text-fg focus-visible:border-focus focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus',
+  field: `${fieldClass} border-input-line`,
+  // A control whose value is wrong: the danger border replaces the neutral one.
+  fieldInvalid: `${fieldClass} border-danger-fg`,
   label: 'block text-sm font-semibold text-fg',
   card: 'rounded-xl border border-line bg-surface p-5',
   // A segmented radio control: the frame holds one label per option, and each label wraps a

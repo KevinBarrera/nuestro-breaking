@@ -3,11 +3,15 @@ import {
   catalogStatuses,
   passClasses,
   requiredPassClasses,
+  type ActivityWindowProblem,
   type CatalogActivity,
   type CatalogEventContext,
   type CatalogEventSummary,
   type CatalogPassType,
+  type EventWindow,
   type PassTypeActivity,
+  type WindowCode,
+  type WindowField,
 } from './types';
 
 // Manual response validation: a malformed payload is treated as a failed request, never shown.
@@ -98,5 +102,37 @@ export function readEventContext(value: unknown): CatalogEventContext | null {
     return row && text(row.id) && text(row.name) ? { id: row.id, name: row.name } : null;
   });
   if (parsed.some((venue) => venue === null)) return null;
-  return { timeZone: event.timeZone, venues: parsed as CatalogEventContext['venues'] };
+  return {
+    timeZone: event.timeZone,
+    venues: parsed as CatalogEventContext['venues'],
+    eventWindow: readWindow(event.startsAt, event.endsAt),
+  };
+}
+
+// A bounded event has both dates, in order; anything else counts as unbounded.
+function readWindow(startsAt: unknown, endsAt: unknown): EventWindow | null {
+  if (!instant(startsAt) || !instant(endsAt) || Date.parse(startsAt) > Date.parse(endsAt))
+    return null;
+  return { startsAt, endsAt };
+}
+
+const windowFields: readonly WindowField[] = ['startsAt', 'endsAt'];
+const windowCodes: readonly WindowCode[] = ['outside_event_window', 'not_after_start'];
+
+// Reads the 400 body of a rejected activity window (#295). Null when the body is anything else
+// or names no known failing field, so the caller falls back to its generic error.
+export function readActivityWindowProblem(value: unknown): ActivityWindowProblem | null {
+  const body = record(value);
+  const fieldErrors = record(body?.fieldErrors);
+  if (!body || !fieldErrors || body.message !== 'Invalid activity window') return null;
+  const known: ActivityWindowProblem['fieldErrors'] = {};
+  for (const field of windowFields) {
+    const code = fieldErrors[field];
+    if (oneOf(windowCodes, code)) known[field] = code;
+  }
+  if (Object.keys(known).length === 0) return null;
+  if (body.eventWindow === null) return { fieldErrors: known, eventWindow: null };
+  const eventWindow = record(body.eventWindow);
+  const bounds = eventWindow && readWindow(eventWindow.startsAt, eventWindow.endsAt);
+  return bounds ? { fieldErrors: known, eventWindow: bounds } : null;
 }

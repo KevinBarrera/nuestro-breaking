@@ -4,6 +4,7 @@ import {
   Controller,
   Delete,
   Get,
+  HttpCode,
   Param,
   ParseUUIDPipe,
   Post,
@@ -54,6 +55,12 @@ function reason(value: unknown): string | null {
     throw new BadRequestException(REASON_MESSAGE);
   return value.trim() || null;
 }
+// Any invalid reason counts as missing, so the service rejects it once the registration is found.
+function requiredReason(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return trimmed.length <= REASON_MAX ? trimmed || null : null;
+}
 
 @Controller('admin/events')
 export class RegistrationEntitlementsController {
@@ -98,6 +105,21 @@ export class RegistrationEntitlementsController {
     const session = await this.sessions.authorizeEventAdminMutation(request, response, eventId);
     const actor: AdminRegistrationAuditActor = { kind: 'admin', ...session };
     return this.entitlements.removePass(eventId, registrationId, registrationPassId, actor);
+  }
+
+  @Post(':eventId/registrations/:registrationId/void')
+  @HttpCode(200)
+  async voidRegistration(
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+    @Param('registrationId', ParseUUIDPipe) registrationId: string,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+    @Body() body: unknown,
+  ): Promise<RegistrationEntitlements> {
+    const session = await this.sessions.authorizeEventAdminMutation(request, response, eventId);
+    const actor: AdminRegistrationAuditActor = { kind: 'admin', ...session };
+    const reason = requiredReason(object(body).reason);
+    return this.entitlements.voidRegistration(eventId, registrationId, reason, actor);
   }
 
   @Put(':eventId/registrations/:registrationId/passes/:registrationPassId/selections')

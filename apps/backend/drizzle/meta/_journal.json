@@ -232,6 +232,13 @@
       "when": 1791935890337,
       "tag": "0032_pass_removal_audit",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1791935950337,
+      "tag": "0033_registration_void_audit",
+      "breakpoints": true
     }
   ]
 }

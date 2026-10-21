@@ -355,6 +355,19 @@ describe('admin attendee lists (e2e)', () => {
     await read('not-a-uuid').set('Cookie', cookie).expect(400);
   });
 
+  // Lists are prepared ahead of time, possibly before anyone registers.
+  it('returns empty lists for an event without registrations', async () => {
+    const f = await fixture();
+    const cookie = await session('admin', f.event);
+
+    const body = (await read(f.event).set('Cookie', cookie).expect(200)).body as AttendeeLists;
+
+    expect(body.event.id).toBe(f.event);
+    expect(body.passTypes).toEqual([]);
+    expect(body.activities).toEqual([]);
+    expect(body.registrations).toEqual([]);
+  });
+
   it('answers judges, other-event admins and anonymous callers with the same safe 401', async () => {
     const f = await attendees();
     const judge = await session('judge', f.event);

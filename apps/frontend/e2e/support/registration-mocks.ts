@@ -3,7 +3,8 @@ import { activeEventId, eventSummary, mockSession } from './event-mocks.ts';
 
 // Mocked admin registration API (#105): search, entitlements, the manual registration, the
 // event's pass types and activities, adding a pass, replacing a pass's selections, confirming
-// a cash payment and confirming without payment (#263).
+// a cash payment and confirming without payment (#263), and the #104 void, participant correction
+// and discipline swap.
 // Each handler answers per request, and the helper returns what the screens sent.
 const api = (url: URL) => url.port === '3000';
 
@@ -182,6 +183,8 @@ export type RegistrationMocks = {
   void?: (attempt: number) => Answer;
   // `attempt` counts the POSTs, starting at 1.
   correction?: (attempt: number) => Answer;
+  // `attempt` counts the POSTs, starting at 1.
+  swap?: (attempt: number) => Answer;
 };
 
 export type SentCreate = { body: Record<string, unknown>; csrf: string | null };
@@ -196,6 +199,7 @@ export type SentCash = SentPass;
 export type SentComplimentary = SentPass;
 export type SentVoid = SentPass;
 export type SentCorrection = SentPass;
+export type SentSwap = SentPass;
 
 // The answer of a recorded cash payment.
 export const cashConfirmed = (id: string, folio: string) => ({
@@ -226,6 +230,7 @@ export async function mockRegistrations(page: Page, mocks: RegistrationMocks = {
   const complimentary: SentComplimentary[] = [];
   const voids: SentVoid[] = [];
   const corrections: SentCorrection[] = [];
+  const swaps: SentSwap[] = [];
   await mockSession(page);
   await page.route(
     (url) => api(url) && url.pathname === '/admin/events',
@@ -387,6 +392,22 @@ export async function mockRegistrations(page: Page, mocks: RegistrationMocks = {
       return fulfill(route, withSummary(id, answer));
     },
   );
+  await page.route(
+    (url) =>
+      api(url) &&
+      /^\/admin\/events\/[^/]+\/registrations\/[^/]+\/discipline-swap$/.test(url.pathname),
+    (route) => {
+      const request = route.request();
+      const id = new URL(request.url()).pathname.split('/')[5];
+      swaps.push({
+        registrationId: id,
+        body: request.postDataJSON(),
+        csrf: request.headers()['x-csrf-token'] ?? null,
+      });
+      const answer = mocks.swap?.(swaps.length) ?? { status: 500, json: {} };
+      return fulfill(route, withSummary(id, answer));
+    },
+  );
   return {
     searches,
     creates,
@@ -397,6 +418,7 @@ export async function mockRegistrations(page: Page, mocks: RegistrationMocks = {
     complimentary,
     voids,
     corrections,
+    swaps,
   };
 }
 
@@ -498,6 +520,35 @@ export const registrationSweepCases: {
     ready: async (page) => {
       await page.getByRole('button', { name: 'Corregir nombre o AKA' }).click();
       await page.getByRole('textbox', { name: 'Motivo' }).waitFor();
+    },
+  },
+  {
+    // The discipline swap of a confirmed registration (#104), open with a target and its reason.
+    name: 'Inscripción confirmada cambiando disciplina',
+    path: registrationPath(registrationId),
+    mock: async (page) => {
+      const activity = catalogActivity(
+        'b1b2c3d4-1234-4567-89ab-123456789abc',
+        'Competencia con un nombre largo para pantallas angostas',
+        '2026-11-14T16:00:00Z',
+      );
+      await overrideRoute(page, '/entitlements', sweepEntitlements('confirmed', 'EB-7K3Q').json);
+      await overrideRoute(page, '/pass-types', [
+        catalogPassType(heldPass.passTypeId, heldPass.name, 'full', heldPass.priceCents),
+        catalogPassType(
+          'f3b2c3d4-1234-4567-89ab-123456789abc',
+          'Pase completo de una disciplina con nombre largo',
+          'full',
+          heldPass.priceCents,
+          { activities: [{ activityId: activity.id, access: 'selectable' }] },
+        ),
+      ]);
+      await overrideRoute(page, '/activities', [activity]);
+    },
+    ready: async (page) => {
+      await page.getByRole('button', { name: 'Cambiar disciplina' }).click();
+      await page.getByRole('radio', { name: /^Pase completo de una disciplina/ }).check();
+      await page.getByRole('checkbox', { name: /^Competencia con un nombre largo/ }).waitFor();
     },
   },
   {

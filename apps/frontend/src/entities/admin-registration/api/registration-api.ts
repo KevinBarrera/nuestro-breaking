@@ -12,6 +12,7 @@ import type {
   CashPaymentInput,
   ComplimentaryConfirmation,
   ComplimentaryConfirmationInput,
+  DisciplineSwapInput,
   ManualRegistration,
   ManualRegistrationInput,
   ParticipantCorrectionInput,
@@ -251,6 +252,19 @@ export async function correctParticipant(
   };
   if (confirmCrossEvent !== undefined) body.confirmCrossEvent = confirmCrossEvent;
   const path = registrationPath(eventId, registrationId, '/participant-correction');
+  return written(readEntitlements(await mutate(path, 'POST', body), registrationId));
+}
+
+// Moves the registration's only full pass to another full pass of the same current price (#104),
+// replacing its competitions with `activityIds`. The amount and any payment stay as they were; the
+// backend rejects the swap once the person checked in.
+export async function swapDiscipline(
+  eventId: string,
+  registrationId: string,
+  { toPassTypeId, activityIds, reason }: DisciplineSwapInput,
+): Promise<RegistrationEntitlements> {
+  const path = registrationPath(eventId, registrationId, '/discipline-swap');
+  const body = { toPassTypeId, activityIds, reason };
   return written(readEntitlements(await mutate(path, 'POST', body), registrationId));
 }
 

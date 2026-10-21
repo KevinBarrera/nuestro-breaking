@@ -10,6 +10,7 @@ import {
   searchRegistrations,
   setPassSelections,
   correctParticipant,
+  swapDiscipline,
   voidRegistration,
 } from './registration-api';
 import type { ManualRegistrationInput } from './types';
@@ -540,6 +541,98 @@ describe('correctParticipant', () => {
   it('reports an unknown outcome when the answer is lost', async () => {
     stubFetch(() => Promise.reject(new TypeError('Failed to fetch')));
     expect(await failureOf(correctParticipant(eventId, registrationId, correction))).toEqual({
+      kind: 'unknown',
+    });
+  });
+});
+
+describe('swapDiscipline', () => {
+  const targetPassTypeId = 'a2b2c3d4-1234-4567-89ab-123456789abc';
+  const activityId = 'b2b2c3d4-1234-4567-89ab-123456789abc';
+  const swap = { toPassTypeId: targetPassTypeId, activityIds: [activityId], reason: 'Cambio' };
+  const swapped = {
+    ...entitlements,
+    passes: [{ ...entitlements.passes[0], passTypeId: targetPassTypeId, name: 'Popping' }],
+  };
+  const reject = (status: number, body: Record<string, unknown>) =>
+    stubFetch(() => Response.json({ statusCode: status, ...body }, { status }));
+
+  it('posts the target pass, its competitions and the reason with the CSRF token (#104)', async () => {
+    const fetchMock = stubFetch(() => Response.json(swapped));
+    expect(await swapDiscipline(eventId, registrationId, swap)).toEqual(swapped);
+    const [url, init] = call(fetchMock, 1);
+    expect(url).toMatch(new RegExp(`${base}/registrations/${registrationId}/discipline-swap$`));
+    expect(init.method).toBe('POST');
+    expect((init.headers as Record<string, string>)['X-CSRF-Token']).toBe('csrf-token');
+    expect(JSON.parse(init.body as string)).toEqual(swap);
+  });
+
+  it('maps a rejected reason and invalid fields to field errors', async () => {
+    reject(400, { message: 'Reason is required', code: 'correction_reason_required' });
+    expect(await failureOf(swapDiscipline(eventId, registrationId, swap))).toEqual({
+      kind: 'invalid',
+      fieldErrors: { reason: 'invalid' },
+    });
+    reject(400, {
+      message: 'Invalid discipline swap',
+      fieldErrors: { toPassTypeId: 'required', 'activityIds[0]': 'duplicate' },
+    });
+    expect(await failureOf(swapDiscipline(eventId, registrationId, swap))).toEqual({
+      kind: 'invalid',
+      fieldErrors: { toPassTypeId: 'required', 'activityIds[0]': 'duplicate' },
+    });
+  });
+
+  it('maps each swap rule to its code', async () => {
+    const rules = [
+      [
+        409,
+        { message: 'Registration is voided', code: 'registration_voided' },
+        'registration_voided',
+      ],
+      [
+        409,
+        {
+          message: 'Registration must hold exactly one full pass',
+          code: 'discipline_swap_single_full_pass_required',
+        },
+        'discipline_swap_single_full_pass_required',
+      ],
+      [
+        409,
+        { message: 'Registration is already checked in', code: 'discipline_swap_checked_in' },
+        'discipline_swap_checked_in',
+      ],
+      [
+        409,
+        {
+          message: 'Both passes must have the same current price',
+          code: 'discipline_swap_price_mismatch',
+        },
+        'discipline_swap_price_mismatch',
+      ],
+      [
+        400,
+        {
+          message: 'Target must be another active full pass of this event',
+          code: 'discipline_swap_invalid_target',
+        },
+        'discipline_swap_invalid_target',
+      ],
+      [400, { message: 'Invalid activity selection' }, 'invalid_activity_selection'],
+    ] as const;
+    for (const [status, body, code] of rules) {
+      reject(status, body);
+      expect(await failureOf(swapDiscipline(eventId, registrationId, swap))).toEqual({
+        kind: 'rule',
+        code,
+      });
+    }
+  });
+
+  it('reports an unknown outcome when the answer is lost', async () => {
+    stubFetch(() => Promise.reject(new TypeError('Failed to fetch')));
+    expect(await failureOf(swapDiscipline(eventId, registrationId, swap))).toEqual({
       kind: 'unknown',
     });
   });

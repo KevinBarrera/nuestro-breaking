@@ -32,8 +32,9 @@ type SaleCompetitionsProps = {
 
 // Competitions of each held pass while the registration is pending (#105). The page keeps
 // each pass's draft so a refresh of the entitlements, such as adding a pass, keeps the unsaved
-// checks (#277); saving replaces the pass's whole list, and selections can change again later,
-// so no confirmation is asked. Discarding drops the draft back to the saved list.
+// checks (#277); saving replaces the pass's whole list, and selections can change again before
+// payment, so no confirmation or reason is asked. Once confirmed, changes need a reason and go
+// through `ConfirmedCompetitions` (#170). Discarding drops the draft back to the saved list.
 export function SaleCompetitions({
   eventId,
   entitlements,

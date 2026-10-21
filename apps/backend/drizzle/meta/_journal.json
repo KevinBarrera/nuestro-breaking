@@ -246,6 +246,13 @@
       "when": 1791936010337,
       "tag": "0034_registration_correction_audit",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1791936070337,
+      "tag": "0035_registration_discipline_swap_audit",
+      "breakpoints": true
     }
   ]
 }

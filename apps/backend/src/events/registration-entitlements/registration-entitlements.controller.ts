@@ -20,6 +20,7 @@ import {
   RegistrationEntitlementsService,
 } from './registration-entitlements.service';
 import type {
+  DisciplineSwap,
   ParticipantCorrection,
   RegistrationEntitlements,
 } from './registration-entitlements.types';
@@ -37,6 +38,7 @@ const CORRECTION_KEYS = new Set([
   'reason',
   'confirmCrossEvent',
 ]);
+const SWAP_KEYS = new Set(['toPassTypeId', 'activityIds', 'reason']);
 
 function object(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value))
@@ -117,6 +119,35 @@ function participantCorrection(input: Record<string, unknown>): ParticipantCorre
   };
 }
 
+// The target pass type and competitions of a discipline swap (#104), with field errors in the
+// public registration codes. The reason is checked by the service once the registration is found.
+function disciplineSwap(input: Record<string, unknown>): DisciplineSwap {
+  const errors: Record<string, FieldErrorCode> = {};
+  for (const key of Object.keys(input)) if (!SWAP_KEYS.has(key)) errors[key] = 'unknown_field';
+  const target = input.toPassTypeId;
+  if (target === undefined || target === null) errors.toPassTypeId = 'required';
+  else if (typeof target !== 'string' || !UUID.test(target)) errors.toPassTypeId = 'invalid';
+  const ids: string[] = [];
+  const chosen = input.activityIds;
+  if (chosen === undefined || chosen === null) errors.activityIds = 'required';
+  else if (!Array.isArray(chosen)) errors.activityIds = 'invalid';
+  else if (chosen.length > MAX_SELECTIONS) errors.activityIds = 'too_many';
+  else
+    chosen.forEach((entry: unknown, index) => {
+      if (typeof entry !== 'string' || !UUID.test(entry))
+        errors[`activityIds[${index}]`] = 'invalid';
+      else if (ids.includes(entry.toLowerCase())) errors[`activityIds[${index}]`] = 'duplicate';
+      else ids.push(entry.toLowerCase());
+    });
+  if (Object.keys(errors).length > 0 || typeof target !== 'string')
+    throw new BadRequestException({
+      statusCode: 400,
+      message: 'Invalid discipline swap',
+      fieldErrors: errors,
+    });
+  return { toPassTypeId: target.toLowerCase(), activityIds: ids };
+}
+
 @Controller('admin/events')
 export class RegistrationEntitlementsController {
   constructor(
@@ -192,6 +223,23 @@ export class RegistrationEntitlementsController {
     const correction = participantCorrection(input);
     const reason = requiredReason(input.reason);
     return this.entitlements.correctParticipant(eventId, registrationId, correction, reason, actor);
+  }
+
+  @Post(':eventId/registrations/:registrationId/discipline-swap')
+  @HttpCode(200)
+  async swapDiscipline(
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+    @Param('registrationId', ParseUUIDPipe) registrationId: string,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+    @Body() body: unknown,
+  ): Promise<RegistrationEntitlements> {
+    const session = await this.sessions.authorizeEventAdminMutation(request, response, eventId);
+    const actor: AdminRegistrationAuditActor = { kind: 'admin', ...session };
+    const input = object(body);
+    const swap = disciplineSwap(input);
+    const reason = requiredReason(input.reason);
+    return this.entitlements.swapDiscipline(eventId, registrationId, swap, reason, actor);
   }
 
   @Put(':eventId/registrations/:registrationId/passes/:registrationPassId/selections')

@@ -85,6 +85,7 @@ const appRoutes: RouteObject[] = [
       { path: routes.adminEventCheckIn, ...adminPage('AdminCheckInPage') },
       { path: routes.adminEventPaymentsReview, ...adminPage('AdminPaymentsReviewPage') },
       { path: routes.adminEventLists, ...adminPage('AdminListsPage') },
+      { path: routes.adminEventHistory, ...adminPage('AdminHistoryPage') },
       { path: routes.adminEventRegistrations, ...adminPage('AdminRegistrationsPage') },
       { path: routes.adminEventRegistrationNew, ...adminPage('AdminRegistrationNewPage') },
       { path: routes.adminEventRegistration, ...adminPage('AdminRegistrationPage') },

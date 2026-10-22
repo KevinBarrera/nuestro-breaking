@@ -28,6 +28,8 @@ describe('readAdminLocation', () => {
     });
     expect(readAdminLocation(`${base}/lists`)).toEqual({ eventId, section: 'lists' });
     expect(readAdminLocation(`${base}/lists/extra`)).toEqual({});
+    expect(readAdminLocation(`${base}/history`)).toEqual({ eventId, section: 'history' });
+    expect(readAdminLocation(`${base}/history/extra`)).toEqual({});
     expect(readAdminLocation(`${base}/activities/extra`)).toEqual({});
     expect(readAdminLocation(`${base}/passes-archive`)).toEqual({});
     expect(readAdminLocation('/admin')).toEqual({});
@@ -40,5 +42,6 @@ describe('eventSectionPath', () => {
     expect(eventSectionPath(eventId, 'passes')).toBe(`${base}/passes`);
     expect(eventSectionPath(eventId, 'registrations')).toBe(`${base}/registrations`);
     expect(eventSectionPath(eventId, 'lists')).toBe(`${base}/lists`);
+    expect(eventSectionPath(eventId, 'history')).toBe(`${base}/history`);
   });
 });

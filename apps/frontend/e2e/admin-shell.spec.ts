@@ -45,6 +45,7 @@ test('renders the shell with grouped navigation and event sections disabled', as
     'Resumen',
     'Check-in',
     'Inscripciones',
+    'Historial',
     'Listas de respaldo',
     'Actividades',
     'Pases',
@@ -75,6 +76,10 @@ test('links event sections, marks the active one and switches events in place', 
   const registrations = nav.getByRole('link', { name: 'Inscripciones' });
   await expect(registrations).toHaveAttribute('href', `/admin/events/${firstId}/registrations`);
   await expect(registrations).not.toContainText('Próximamente');
+  await expect(nav.getByRole('link', { name: 'Historial' })).toHaveAttribute(
+    'href',
+    `/admin/events/${firstId}/history`,
+  );
   await expect(nav.getByRole('link', { name: 'Listas de respaldo' })).toHaveAttribute(
     'href',
     `/admin/events/${firstId}/lists`,

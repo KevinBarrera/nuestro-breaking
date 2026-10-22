@@ -1,5 +1,6 @@
 import type { Locator, Page } from '@playwright/test';
 import { archivedEvent, eventSummary } from './event-mocks.ts';
+import { sweepHistory } from './history-mocks.ts';
 import { teamMembers } from './team-mocks.ts';
 
 // Shared mocked admin API for specs that sweep every admin screen (contrast, targets, phone
@@ -24,6 +25,8 @@ export const adminScreens = [
   { name: 'Pagos por revisar', path: `/admin/events/${eventId}/payments-review` },
   // Listas de respaldo (#65): printable attendee lists.
   { name: 'Listas de respaldo', path: `/admin/events/${eventId}/lists` },
+  // Historial (#104): the event's registration operations.
+  { name: 'Historial', path: `/admin/events/${eventId}/history` },
   // Inscripciones (#105): the search with results, the in-person form and one registration.
   { name: 'Inscripciones', path: `/admin/events/${eventId}/registrations?q=Luz` },
   { name: 'Nueva inscripción', path: `/admin/events/${eventId}/registrations/new` },
@@ -313,6 +316,7 @@ export async function mockAdminApi(page: Page) {
     [(url) => url.pathname.endsWith('/sales'), sales],
     [(url) => url.pathname.endsWith('/flagged-payments'), flaggedPayments],
     [(url) => url.pathname.endsWith('/attendee-lists'), attendeeLists],
+    [(url) => url.pathname.endsWith('/registration-history'), sweepHistory],
     [(url) => url.pathname.endsWith('/entitlements'), entitlements],
     [
       (url) => url.pathname.endsWith('/participants'),
@@ -399,6 +403,7 @@ export async function revealControls(page: Page, name: AdminScreenName) {
       .waitFor();
   if (name === 'Listas de respaldo')
     await page.getByRole('table', { name: 'Evento completo' }).getByRole('cell').first().waitFor();
+  if (name === 'Historial') await page.getByRole('button', { name: 'Cargar más' }).waitFor();
   if (name === 'Pase' || name === 'Nuevo pase') await accessControls(page).first().waitFor();
   if (name === 'Actividades') await page.getByRole('button', { name: /^Todas/ }).waitFor();
   if (name === 'Equipo')

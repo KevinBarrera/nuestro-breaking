@@ -1,6 +1,6 @@
 # Admin registration operation audit and correction policy (#101)
 
-This is the audit and correction contract for admin registration writes under [issue #63](admin-registration-operations.md). The delivered commands and the history reader are described below; anything still marked as proposed is not implemented. The November 2026 MVP proposal remains **DRAFT pending organizer validation**.
+This is the audit and correction contract for admin registration writes under [issue #63](admin-registration-operations.md). The delivered commands and the history reader are described below; anything still marked as proposed is not implemented. The [November 2026 MVP proposal](../product/november-2026-mvp-proposal.md) has its general MVP scope approved; operational details are still to be confirmed with the organizers.
 
 ## Current persistence vs proposed behavior
 

@@ -10,7 +10,7 @@ Choose a path by purpose. The November 2026 MVP proposal is **DRAFT pending orga
 ## Proposal in validation
 
 - [November 2026 MVP proposal (Markdown)](product/november-2026-mvp-proposal.md) — **DRAFT pending organizer validation**; proposed scope, not an approved delivery plan.
-- [November 2026 MVP proposal (browser version)](product/november-2026-mvp-proposal.html) — same proposal in a browser-friendly format.
+- [November 2026 MVP proposal (published client version)](https://kevinbarrera.github.io/november-2026-mvp-proposal/) — the client-facing page, published from the separate [`november-2026-mvp-proposal`](https://github.com/KevinBarrera/november-2026-mvp-proposal) repository. The Markdown proposal in this repository is the internal source and may be newer.
 
 ## Reusable references
 

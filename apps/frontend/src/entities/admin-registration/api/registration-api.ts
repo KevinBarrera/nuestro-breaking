@@ -9,6 +9,7 @@ import {
 import type {
   AdminRegistrationFailure,
   CashConfirmation,
+  CashCorrectionInput,
   CashPaymentInput,
   ComplimentaryConfirmation,
   ComplimentaryConfirmationInput,
@@ -265,6 +266,19 @@ export async function swapDiscipline(
 ): Promise<RegistrationEntitlements> {
   const path = registrationPath(eventId, registrationId, '/discipline-swap');
   const body = { toPassTypeId, activityIds, reason };
+  return written(readEntitlements(await mutate(path, 'POST', body), registrationId));
+}
+
+// Corrects the amount and/or paper receipt number of a confirmed cash payment (#104). The backend
+// requires the reason and `receiptChecked: true`, and rejects a receipt another registration of the
+// event holds (`receipt_taken`). The original confirmation stays in the audit.
+export async function correctCash(
+  eventId: string,
+  registrationId: string,
+  { amountCents, receipt, reason, receiptChecked }: CashCorrectionInput,
+): Promise<RegistrationEntitlements> {
+  const path = registrationPath(eventId, registrationId, '/cash-correction');
+  const body = { amountCents, receipt, reason, receiptChecked };
   return written(readEntitlements(await mutate(path, 'POST', body), registrationId));
 }
 

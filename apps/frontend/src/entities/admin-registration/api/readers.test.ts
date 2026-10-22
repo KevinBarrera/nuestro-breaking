@@ -107,6 +107,7 @@ describe('readEntitlements', () => {
     status: 'pending_payment',
     folio: null,
     channel: 'in_person',
+    cash: null,
     participant: {
       fullName: 'Alex Rivera',
       firstName: 'Alex',
@@ -128,6 +129,7 @@ describe('readEntitlements', () => {
       status: 'confirmed',
       folio: 'LMP-7K3Q',
       channel: 'online',
+      cash: { amountCents: 80000, receipt: 'A-17' },
       // A legacy participant has no name parts (#104).
       participant: {
         fullName: 'Alex Rivera',
@@ -143,6 +145,18 @@ describe('readEntitlements', () => {
         registrationId,
       ),
     ).toEqual({ registration: confirmed, passes: [], accessibleActivityIds: [] });
+  });
+
+  it('reads the current cash payment, with a null receipt on a legacy confirmation (#104)', () => {
+    const legacy = { ...registration, cash: { amountCents: 80000, receipt: null } };
+    expect(readEntitlements({ ...entitlements, registration: legacy }, registrationId)).toEqual({
+      ...entitlements,
+      registration: legacy,
+    });
+    const extra = { ...registration, cash: { amountCents: 1, receipt: 'B-2', id: 'x' } };
+    expect(
+      readEntitlements({ ...entitlements, registration: extra }, registrationId)?.registration.cash,
+    ).toEqual({ amountCents: 1, receipt: 'B-2' });
   });
 
   it('keeps only the name, its parts and the AKA of the participant', () => {
@@ -167,6 +181,12 @@ describe('readEntitlements', () => {
       { ...registration, folio: '' },
       { ...registration, channel: undefined },
       { ...registration, channel: 'phone' },
+      { ...registration, cash: undefined },
+      { ...registration, cash: 'A-17' },
+      { ...registration, cash: { amountCents: 0, receipt: 'A-17' } },
+      { ...registration, cash: { amountCents: 1.5, receipt: 'A-17' } },
+      { ...registration, cash: { amountCents: 100, receipt: '' } },
+      { ...registration, cash: { amountCents: 100 } },
       { ...registration, participant: null },
       { ...registration, participant: { ...registration.participant, fullName: '' } },
       { ...registration, participant: { fullName: 'Alex Rivera', stageName: null } },
@@ -284,6 +304,27 @@ describe('readRegistrationFailure', () => {
         code: 'registration_voided',
       }),
     ).toEqual({ kind: 'rule', code: 'registration_voided' });
+  });
+
+  it('maps the cash correction answers by their codes (#104)', () => {
+    expect(
+      readRegistrationFailure(400, {
+        message: 'Invalid cash correction',
+        fieldErrors: { amountCents: 'invalid', receipt: 'too_long' },
+      }),
+    ).toEqual({ kind: 'invalid', fieldErrors: { amountCents: 'invalid', receipt: 'too_long' } });
+    expect(
+      readRegistrationFailure(400, {
+        message: 'The original receipt must be checked',
+        code: 'cash_receipt_check_required',
+      }),
+    ).toEqual({ kind: 'invalid', fieldErrors: { receiptChecked: 'required' } });
+    expect(
+      readRegistrationFailure(409, {
+        message: 'Registration was not confirmed in cash',
+        code: 'cash_correction_not_cash',
+      }),
+    ).toEqual({ kind: 'rule', code: 'cash_correction_not_cash' });
   });
 
   it('carries the other event count of a cross-event confirmation (#104)', () => {

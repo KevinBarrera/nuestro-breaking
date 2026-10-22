@@ -5,6 +5,7 @@ import {
   type AdminRegistrationFailure,
   type AdminRegistrationRuleCode,
   type CashConfirmation,
+  type CashPayment,
   type HeldPass,
   type ManualRegistration,
   type PossibleDuplicate,
@@ -105,6 +106,15 @@ function readHeldPass(value: unknown): HeldPass | null {
   return selections && { registrationPassId, passTypeId, name, passClass, priceCents, selections };
 }
 
+// The current cash payment, or null; `undefined` (a missing field) is malformed.
+function readCash(value: unknown): CashPayment | null | undefined {
+  if (value === null) return null;
+  if (!isRecord(value)) return undefined;
+  const { amountCents, receipt } = value;
+  if (!isCount(amountCents) || amountCents === 0 || !isTextOrNull(receipt)) return undefined;
+  return { amountCents, receipt };
+}
+
 // Keeps only the participant's name, its parts and the AKA, even if the answer carries more.
 function readSummary(value: unknown, registrationId: string): RegistrationSummary | null {
   if (!isRecord(value) || value.id !== registrationId || !isRecord(value.participant)) return null;
@@ -112,6 +122,8 @@ function readSummary(value: unknown, registrationId: string): RegistrationSummar
   const { fullName, firstName, firstLastName, secondLastName, stageName } = value.participant;
   if (!oneOf(registrationStatuses, status) || !isTextOrNull(folio)) return null;
   if (!oneOf(registrationChannels, channel)) return null;
+  const cash = readCash(value.cash);
+  if (cash === undefined) return null;
   if (!isText(fullName) || !isTextOrNull(stageName)) return null;
   if (!isTextOrNull(firstName) || !isTextOrNull(firstLastName) || !isTextOrNull(secondLastName))
     return null;
@@ -120,6 +132,7 @@ function readSummary(value: unknown, registrationId: string): RegistrationSummar
     status,
     folio,
     channel,
+    cash,
     participant: { fullName, firstName, firstLastName, secondLastName, stageName },
   };
 }
@@ -170,6 +183,12 @@ const reasonCodes = [
   'correction_reason_required',
 ];
 
+// Field rejections that carry a stable backend `code`: the unchecked original receipt of a cash
+// correction (#104).
+const fieldCodes: Record<string, Record<string, string>> = {
+  cash_receipt_check_required: { receiptChecked: 'required' },
+};
+
 // 400 rule answers that carry a stable backend `code`.
 const badRequestRuleCodes: readonly AdminRegistrationRuleCode[] = [
   'correction_no_changes',
@@ -194,6 +213,7 @@ const ruleCodes: readonly AdminRegistrationRuleCode[] = [
   'discipline_swap_single_full_pass_required',
   'discipline_swap_checked_in',
   'discipline_swap_price_mismatch',
+  'cash_correction_not_cash',
 ];
 
 const messageOf = (body: unknown) =>
@@ -211,6 +231,8 @@ export function readRegistrationFailure(status: number, body: unknown): AdminReg
   if (status === 400) {
     if (isRecord(body) && reasonCodes.some((code) => code === body.code))
       return { kind: 'invalid', fieldErrors: { reason: 'invalid' } };
+    if (isRecord(body) && typeof body.code === 'string' && Object.hasOwn(fieldCodes, body.code))
+      return { kind: 'invalid', fieldErrors: fieldCodes[body.code] };
     const code = isRecord(body) ? badRequestRuleCodes.find((known) => known === body.code) : null;
     if (code) return { kind: 'rule', code };
     if (Object.hasOwn(fieldMessages, message))

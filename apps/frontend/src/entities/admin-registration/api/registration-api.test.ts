@@ -9,6 +9,7 @@ import {
   removeRegistrationPass,
   searchRegistrations,
   setPassSelections,
+  correctCash,
   correctParticipant,
   swapDiscipline,
   voidRegistration,
@@ -37,6 +38,7 @@ const entitlements = {
     status: 'pending_payment',
     folio: null,
     channel: 'in_person',
+    cash: null,
     participant: {
       fullName: 'Alex Rivera',
       firstName: 'Alex',
@@ -635,6 +637,87 @@ describe('swapDiscipline', () => {
     expect(await failureOf(swapDiscipline(eventId, registrationId, swap))).toEqual({
       kind: 'unknown',
     });
+  });
+});
+
+describe('correctCash', () => {
+  const correction = { amountCents: 75000, receipt: 'A-18', reason: 'Recibo mal capturado' };
+  const corrected = {
+    ...entitlements,
+    registration: {
+      ...entitlements.registration,
+      status: 'confirmed',
+      folio: 'LMP-7K3Q',
+      cash: { amountCents: 75000, receipt: 'A-18' },
+    },
+  };
+  const reject = (status: number, body: Record<string, unknown>) =>
+    stubFetch(() => Response.json({ statusCode: status, ...body }, { status }));
+
+  it('posts the amount, receipt, reason and receipt check with the CSRF token (#104)', async () => {
+    const fetchMock = stubFetch(() => Response.json(corrected));
+    expect(
+      await correctCash(eventId, registrationId, { ...correction, receiptChecked: true }),
+    ).toEqual(corrected);
+    const [url, init] = call(fetchMock, 1);
+    expect(url).toMatch(new RegExp(`${base}/registrations/${registrationId}/cash-correction$`));
+    expect(init.method).toBe('POST');
+    expect((init.headers as Record<string, string>)['X-CSRF-Token']).toBe('csrf-token');
+    expect(JSON.parse(init.body as string)).toEqual({ ...correction, receiptChecked: true });
+  });
+
+  it('maps each rejection in the backend order', async () => {
+    const input = { ...correction, receiptChecked: true };
+    const answers = [
+      [
+        400,
+        { message: 'Invalid cash correction', fieldErrors: { amountCents: 'invalid' } },
+        { kind: 'invalid', fieldErrors: { amountCents: 'invalid' } },
+      ],
+      [
+        400,
+        { message: 'Reason is required', code: 'correction_reason_required' },
+        { kind: 'invalid', fieldErrors: { reason: 'invalid' } },
+      ],
+      [
+        400,
+        { message: 'The original receipt must be checked', code: 'cash_receipt_check_required' },
+        { kind: 'invalid', fieldErrors: { receiptChecked: 'required' } },
+      ],
+      [
+        409,
+        { message: 'Registration is voided', code: 'registration_voided' },
+        { kind: 'rule', code: 'registration_voided' },
+      ],
+      [
+        409,
+        { message: 'Registration was not confirmed in cash', code: 'cash_correction_not_cash' },
+        { kind: 'rule', code: 'cash_correction_not_cash' },
+      ],
+      [
+        400,
+        { message: 'The correction changes nothing', code: 'correction_no_changes' },
+        { kind: 'rule', code: 'correction_no_changes' },
+      ],
+      [
+        409,
+        { message: 'Receipt number already used in this event', code: 'receipt_taken' },
+        { kind: 'rule', code: 'receipt_taken' },
+      ],
+    ] as const;
+    for (const [status, body, failure] of answers) {
+      reject(status, body);
+      expect(await failureOf(correctCash(eventId, registrationId, input))).toEqual(failure);
+    }
+  });
+
+  it('reports an unknown outcome when the answer is lost', async () => {
+    stubFetch(() => Promise.reject(new TypeError('Failed to fetch')));
+    expect(
+      await failureOf(
+        correctCash(eventId, registrationId, { ...correction, receiptChecked: true }),
+      ),
+    ).toEqual({ kind: 'unknown' });
   });
 });
 

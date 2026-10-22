@@ -71,6 +71,9 @@ test('confirms the cash payment after restating it and shows the folio', async (
   await page.getByRole('textbox', { name: 'Nota (opcional)' }).fill('Billetes de 500');
   await confirmButton(page).click();
   await expect(confirmDialog(page)).toContainText('Recibo A-17 de Ana López.');
+  await expect(confirmDialog(page)).toContainText(
+    'Para corregir el monto o el recibo después hará falta el recibo original y un motivo.',
+  );
   expect(cash).toHaveLength(0);
   await confirmDialog(page).getByRole('button', { name: 'Confirmar pago' }).click();
 
@@ -88,13 +91,18 @@ test('confirms the cash payment after restating it and shows the folio', async (
 
   // The passes and competitions stay and the sale controls are gone. This pass type is unknown to
   // the catalog, so it has no competitions left to choose and no "Editar competencias" action.
-  // Only the collapsed name correction (#104) remains.
+  // The payment just recorded is shown, and only the collapsed cash and name corrections (#104)
+  // remain.
   await expect(page.getByRole('main')).toContainText('Confirmada');
   await expect(page.getByRole('region', { name: 'Pases' })).toContainText(
     'Competencias elegidas: Breaking 1 vs 1',
   );
-  await expect(cashSection(page)).toHaveCount(0);
-  await expect(page.getByRole('main').getByRole('button')).toHaveText(['Corregir nombre o AKA']);
+  await expect(cashSection(page)).toContainText('$1,700.00');
+  await expect(cashSection(page)).toContainText('A-17');
+  await expect(page.getByRole('main').getByRole('button')).toHaveText([
+    'Corregir pago en efectivo',
+    'Corregir nombre o AKA',
+  ]);
   await expect(page.getByRole('main').getByRole('textbox')).toHaveCount(0);
 });
 

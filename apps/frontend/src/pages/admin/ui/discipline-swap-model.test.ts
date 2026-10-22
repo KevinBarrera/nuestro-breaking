@@ -91,6 +91,7 @@ const entitlements = (
     status,
     folio: status === 'confirmed' ? 'LMP-7K3Q' : null,
     channel: 'online',
+    cash: null,
     participant: {
       fullName: 'Alex Rivera',
       firstName: 'Alex',

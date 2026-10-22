@@ -108,7 +108,7 @@ describe('cashConfirmation', () => {
     ).toEqual({
       title: '¿Confirmar el pago de $1,700.00?',
       consequence:
-        'Recibo A-17 de Ana López. La inscripción quedará confirmada con su folio y el pago no se podrá corregir desde esta pantalla.',
+        'Recibo A-17 de Ana López. La inscripción quedará confirmada con su folio. Para corregir el monto o el recibo después hará falta el recibo original y un motivo.',
     });
   });
 });
@@ -176,34 +176,46 @@ describe('confirmCashFailure', () => {
 });
 
 describe('confirmedEntitlements', () => {
-  it('takes the status and folio from the confirmation and keeps the passes', () => {
-    const entitlements: RegistrationEntitlements = {
-      registration: {
-        id: 'reg-1',
-        status: 'pending_payment',
-        folio: null,
-        channel: 'in_person',
-        participant: {
-          fullName: 'Ana López',
-          firstName: 'Ana',
-          firstLastName: 'López',
-          secondLastName: null,
-          stageName: null,
-        },
+  const entitlements: RegistrationEntitlements = {
+    registration: {
+      id: 'reg-1',
+      status: 'pending_payment',
+      folio: null,
+      channel: 'in_person',
+      cash: null,
+      participant: {
+        fullName: 'Ana López',
+        firstName: 'Ana',
+        firstLastName: 'López',
+        secondLastName: null,
+        stageName: null,
       },
-      passes: [pass('a', 30000, ['act-1'])],
-      accessibleActivityIds: ['act-1'],
-    };
-    const confirmation: CashConfirmation = {
-      registrationId: 'reg-1',
-      eventId: 'event-1',
-      status: 'confirmed',
-      folio: 'LMP-7K3Q',
-      auditId: 'audit-1',
-    };
+    },
+    passes: [pass('a', 30000, ['act-1'])],
+    accessibleActivityIds: ['act-1'],
+  };
+  const confirmation: CashConfirmation = {
+    registrationId: 'reg-1',
+    eventId: 'event-1',
+    status: 'confirmed',
+    folio: 'LMP-7K3Q',
+    auditId: 'audit-1',
+  };
+
+  it('takes the status and folio from the confirmation and keeps the passes', () => {
     expect(confirmedEntitlements(entitlements, confirmation)).toEqual({
       ...entitlements,
       registration: { ...entitlements.registration, status: 'confirmed', folio: 'LMP-7K3Q' },
+    });
+  });
+
+  it('records the cash just confirmed, so its correction is offered without a reload (#104)', () => {
+    const cash = { amountCents: 30000, receipt: 'A-17' };
+    expect(confirmedEntitlements(entitlements, confirmation, cash).registration).toEqual({
+      ...entitlements.registration,
+      status: 'confirmed',
+      folio: 'LMP-7K3Q',
+      cash,
     });
   });
 });

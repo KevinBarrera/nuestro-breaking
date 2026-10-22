@@ -124,14 +124,15 @@ export const possibleDuplicates = (matches: ReturnType<typeof duplicateMatch>[])
   },
 });
 
-// The summary every entitlements answer carries: pending, no folio, in person, the created
-// participant. A name part given as null stays null, as on a legacy participant.
+// The summary every entitlements answer carries: pending, no folio, in person, no cash payment,
+// the created participant. A name part given as null stays null, as on a legacy participant.
 export const registrationSummary = (
   id: string,
   overrides: {
     status?: string;
     folio?: string | null;
     channel?: 'in_person' | 'online';
+    cash?: { amountCents: number; receipt: string | null } | null;
     fullName?: string;
     firstName?: string | null;
     firstLastName?: string | null;
@@ -143,6 +144,7 @@ export const registrationSummary = (
   status: overrides.status ?? 'pending_payment',
   folio: overrides.folio ?? null,
   channel: overrides.channel ?? 'in_person',
+  cash: overrides.cash ?? null,
   participant: {
     fullName: overrides.fullName ?? 'Ana López',
     firstName: overrides.firstName === undefined ? 'Ana' : overrides.firstName,
@@ -185,6 +187,8 @@ export type RegistrationMocks = {
   correction?: (attempt: number) => Answer;
   // `attempt` counts the POSTs, starting at 1.
   swap?: (attempt: number) => Answer;
+  // `attempt` counts the POSTs, starting at 1.
+  cashCorrection?: (attempt: number) => Answer;
 };
 
 export type SentCreate = { body: Record<string, unknown>; csrf: string | null };
@@ -200,6 +204,7 @@ export type SentComplimentary = SentPass;
 export type SentVoid = SentPass;
 export type SentCorrection = SentPass;
 export type SentSwap = SentPass;
+export type SentCashCorrection = SentPass;
 
 // The answer of a recorded cash payment.
 export const cashConfirmed = (id: string, folio: string) => ({
@@ -231,6 +236,7 @@ export async function mockRegistrations(page: Page, mocks: RegistrationMocks = {
   const voids: SentVoid[] = [];
   const corrections: SentCorrection[] = [];
   const swaps: SentSwap[] = [];
+  const cashCorrections: SentCashCorrection[] = [];
   await mockSession(page);
   await page.route(
     (url) => api(url) && url.pathname === '/admin/events',
@@ -408,6 +414,22 @@ export async function mockRegistrations(page: Page, mocks: RegistrationMocks = {
       return fulfill(route, withSummary(id, answer));
     },
   );
+  await page.route(
+    (url) =>
+      api(url) &&
+      /^\/admin\/events\/[^/]+\/registrations\/[^/]+\/cash-correction$/.test(url.pathname),
+    (route) => {
+      const request = route.request();
+      const id = new URL(request.url()).pathname.split('/')[5];
+      cashCorrections.push({
+        registrationId: id,
+        body: request.postDataJSON(),
+        csrf: request.headers()['x-csrf-token'] ?? null,
+      });
+      const answer = mocks.cashCorrection?.(cashCorrections.length) ?? { status: 500, json: {} };
+      return fulfill(route, withSummary(id, answer));
+    },
+  );
   return {
     searches,
     creates,
@@ -419,16 +441,23 @@ export async function mockRegistrations(page: Page, mocks: RegistrationMocks = {
     voids,
     corrections,
     swaps,
+    cashCorrections,
   };
 }
 
 // The registration screen in each status, and the search with a pending result, for the
 // accessibility and phone-width sweeps. Each case layers its answers over `mockAdminApi`.
-const sweepEntitlements = (status: string, folio: string | null, passes = [heldPass]) => ({
+const sweepEntitlements = (
+  status: string,
+  folio: string | null,
+  passes = [heldPass],
+  cash: { amountCents: number; receipt: string | null } | null = null,
+) => ({
   json: {
     registration: registrationSummary(registrationId, {
       status,
       folio,
+      cash,
       fullName: 'Persona con un nombre muy largo para pantallas angostas',
       firstName: 'Persona con un nombre muy largo',
       firstLastName: 'para pantallas angostas',
@@ -549,6 +578,26 @@ export const registrationSweepCases: {
       await page.getByRole('button', { name: 'Cambiar disciplina' }).click();
       await page.getByRole('radio', { name: /^Pase completo de una disciplina/ }).check();
       await page.getByRole('checkbox', { name: /^Competencia con un nombre largo/ }).waitFor();
+    },
+  },
+  {
+    // The cash correction of a confirmed cash registration (#104), open with an amount that differs
+    // from the pass total, so its warning shows too.
+    name: 'Inscripción confirmada corrigiendo pago en efectivo',
+    path: registrationPath(registrationId),
+    mock: (page) =>
+      overrideRoute(
+        page,
+        '/entitlements',
+        sweepEntitlements('confirmed', 'EB-7K3Q', [heldPass], {
+          amountCents: 120000,
+          receipt: 'RECIBO-0000000000000000000000000000000000000000001',
+        }).json,
+      ),
+    ready: async (page) => {
+      await page.getByRole('button', { name: 'Corregir pago en efectivo' }).click();
+      await page.getByRole('checkbox', { name: 'Revisé el recibo original' }).waitFor();
+      await page.getByText(/^El monto no coincide con el total de los pases/).waitFor();
     },
   },
   {

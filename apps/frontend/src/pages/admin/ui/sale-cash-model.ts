@@ -2,6 +2,7 @@ import type {
   AdminRegistrationFailure,
   AdminRegistrationRuleCode,
   CashConfirmation,
+  CashPayment,
   CashPaymentInput,
   HeldPass,
   RegistrationEntitlements,
@@ -53,7 +54,8 @@ export function cashPaymentInput(passes: readonly HeldPass[], form: CashForm): C
   return input;
 }
 
-// The payment cannot be undone from the panel (#104), so the operator checks it first.
+// Correcting the payment later needs the original receipt and a reason (#104), so the operator
+// checks it first.
 export const cashConfirmation = ({
   totalCents,
   receipt,
@@ -64,7 +66,7 @@ export const cashConfirmation = ({
   participantName: string;
 }) => ({
   title: `¿Confirmar el pago de ${formatMxn(totalCents)}?`,
-  consequence: `Recibo ${receipt.trim()} de ${participantName}. La inscripción quedará confirmada con su folio y el pago no se podrá corregir desde esta pantalla.`,
+  consequence: `Recibo ${receipt.trim()} de ${participantName}. La inscripción quedará confirmada con su folio. Para corregir el monto o el recibo después hará falta el recibo original y un motivo.`,
 });
 
 const staleMessage = 'La inscripción cambió. Recarga para ver su estado.';
@@ -74,6 +76,9 @@ const ruleMessages: Partial<Record<AdminRegistrationRuleCode, string>> = {
     'Esta inscripción ya no está pendiente de pago. Recarga para ver su estado.',
   registration_voided: 'Esta inscripción está anulada. Recarga para ver su estado.',
 };
+
+export const receiptTakenMessage =
+  'Ese número de recibo ya está registrado en este evento. Revisa el recibo en papel.';
 
 export type CashFailure = { field: 'receipt' | null; message: string; reload: boolean };
 
@@ -99,8 +104,7 @@ export function confirmCashFailure(failure: AdminRegistrationFailure): CashFailu
       if (failure.code === 'receipt_taken')
         return {
           field: 'receipt',
-          message:
-            'Ese número de recibo ya está registrado en este evento. Revisa el recibo en papel.',
+          message: receiptTakenMessage,
           reload: false,
         };
       return { field: null, message: ruleMessages[failure.code] ?? staleMessage, reload: true };
@@ -134,16 +138,19 @@ export function confirmCashFailure(failure: AdminRegistrationFailure): CashFailu
 }
 
 // Confirming, in cash or without payment, changes only the status and the folio, which the answer
-// carries, so the screen switches to the confirmed view without another read.
+// carries, and in cash the payment just sent, so the screen switches to the confirmed view, with
+// its cash correction (#104), without another read.
 export const confirmedEntitlements = (
   entitlements: RegistrationEntitlements,
   confirmation: CashConfirmation,
+  cash: CashPayment | null = entitlements.registration.cash,
 ): RegistrationEntitlements => ({
   ...entitlements,
   registration: {
     ...entitlements.registration,
     status: confirmation.status,
     folio: confirmation.folio,
+    cash,
   },
 });
 

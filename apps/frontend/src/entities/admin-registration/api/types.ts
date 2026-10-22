@@ -83,12 +83,14 @@ export type HeldPass = {
 // Who holds the registration and its state, so the sale screen works after a reload (#105).
 // `folio` is null until confirmation. Only an in-person pending registration can be voided (#104).
 // The name parts prefill the participant correction (#104); a legacy participant has them as null.
+// `cash` is the current cash payment (#104), null when the registration was not confirmed in cash.
 // It carries no contact data.
 export type RegistrationSummary = {
   id: string;
   status: RegistrationStatus;
   folio: string | null;
   channel: RegistrationChannel;
+  cash: CashPayment | null;
   participant: {
     fullName: string;
     firstName: string | null;
@@ -103,6 +105,10 @@ export type RegistrationEntitlements = {
   passes: HeldPass[];
   accessibleActivityIds: string[];
 };
+
+// The current amount and paper receipt number of a cash confirmation, as corrected (#104). The
+// receipt is null on a confirmation recorded before receipts were required (#125).
+export type CashPayment = { amountCents: number; receipt: string | null };
 
 // `amountCents` is sent as `amount`. `receipt` is the paper receipt number: 1 to 50
 // characters once trimmed, unique within the event.
@@ -148,9 +154,20 @@ export type DisciplineSwapInput = {
   reason: string;
 };
 
+// The cash correction (#104): the amount and receipt replace the current ones (the receipt cannot be
+// cleared), after the administrator checked the original paper receipt (`receiptChecked`, which the
+// backend requires to be true). `reason` goes to the audit: 1 to 500 characters once trimmed.
+export type CashCorrectionInput = {
+  amountCents: number;
+  receipt: string;
+  reason: string;
+  receiptChecked: boolean;
+};
+
 // Stable codes for the 400 and 409 rule answers of these writes. `receipt_taken`, `no_passes`,
 // `not_zero_total`, `pass_required_by_add_on`, `online_registration_void_locked`,
-// `correction_no_changes` and the `discipline_swap_*` codes are backend `code`s; the rest are read
+// `correction_no_changes`, `cash_correction_not_cash` and the `discipline_swap_*` codes are backend
+// `code`s; the rest are read
 // from the backend message.
 export const adminRegistrationRuleCodes = [
   'receipt_taken',
@@ -168,6 +185,7 @@ export const adminRegistrationRuleCodes = [
   'pass_required_by_add_on',
   'online_registration_void_locked',
   'correction_no_changes',
+  'cash_correction_not_cash',
   'discipline_swap_single_full_pass_required',
   'discipline_swap_checked_in',
   'discipline_swap_invalid_target',

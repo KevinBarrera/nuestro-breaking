@@ -15,12 +15,12 @@ import {
   parseParticipantFields,
 } from '@/events/public-registration/public-registration-request';
 import type { FieldErrorCode } from '@/events/public-registration/public-registration.types';
+import { CASH_RECEIPT_MAX, isCashAmount } from './cash-payment-rules';
 import { ManualRegistrationService } from './manual-registration.service';
 import type { AdminRegistrationAuditActor } from '@/events/registration-audit/registration-audit-actor';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MAX_IDS = 100;
-const RECEIPT_MAX = 50;
 const REASON_MAX = 500;
 const BODY_KEYS = new Set([
   ...PARTICIPANT_FIELD_KEYS,
@@ -107,21 +107,16 @@ export class ManualRegistrationController {
     const session = await this.sessions.authorizeEventAdminMutation(request, response, eventId);
     const actor: AdminRegistrationAuditActor = { kind: 'admin', ...session };
     const input = object(body);
-    if (
-      !Number.isSafeInteger(input.amount) ||
-      (input.amount as number) <= 0 ||
-      (input.amount as number) > 2147483647
-    )
-      throw new BadRequestException('Invalid amount in cents');
+    if (!isCashAmount(input.amount)) throw new BadRequestException('Invalid amount in cents');
     // The paper receipt number (#125): required, stored trimmed and unique within the event.
     const receipt = typeof input.receipt === 'string' ? input.receipt.trim() : '';
-    if (!receipt || receipt.length > RECEIPT_MAX)
+    if (!receipt || receipt.length > CASH_RECEIPT_MAX)
       throw new BadRequestException('Receipt number is required and must be 1 to 50 characters');
     return this.operations.confirm(
       eventId,
       registrationId,
       {
-        amount: input.amount as number,
+        amount: input.amount,
         reference: optional(input.reference, 200),
         note: optional(input.note, 500),
         receipt,

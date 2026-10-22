@@ -15,11 +15,13 @@ import {
 import type { Request, Response } from 'express';
 import { SessionAccessService } from '@/identity-access/session-access.service';
 import type { FieldErrorCode } from '@/events/public-registration/public-registration.types';
+import { CASH_RECEIPT_MAX, isCashAmount } from '@/events/manual-registration/cash-payment-rules';
 import {
   REASON_MESSAGE,
   RegistrationEntitlementsService,
 } from './registration-entitlements.service';
 import type {
+  CashCorrection,
   DisciplineSwap,
   ParticipantCorrection,
   RegistrationEntitlements,
@@ -39,6 +41,7 @@ const CORRECTION_KEYS = new Set([
   'confirmCrossEvent',
 ]);
 const SWAP_KEYS = new Set(['toPassTypeId', 'activityIds', 'reason']);
+const CASH_KEYS = new Set(['amountCents', 'receipt', 'reason', 'receiptChecked']);
 
 function object(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value))
@@ -148,6 +151,35 @@ function disciplineSwap(input: Record<string, unknown>): DisciplineSwap {
   return { toPassTypeId: target.toLowerCase(), activityIds: ids };
 }
 
+// The amount and receipt of a cash correction (#104), with the bounds of cash confirmation; both
+// replace the current values, so the receipt cannot be cleared. The reason and the receipt check
+// are enforced by the service once the registration is found.
+function cashCorrection(input: Record<string, unknown>): CashCorrection {
+  const errors: Record<string, FieldErrorCode> = {};
+  for (const key of Object.keys(input)) if (!CASH_KEYS.has(key)) errors[key] = 'unknown_field';
+  const { amountCents, receipt, receiptChecked } = input;
+  if (amountCents === undefined || amountCents === null) errors.amountCents = 'required';
+  else if (!isCashAmount(amountCents)) errors.amountCents = 'invalid';
+  const trimmed = typeof receipt === 'string' ? receipt.trim() : '';
+  if (receipt !== undefined && receipt !== null && typeof receipt !== 'string')
+    errors.receipt = 'invalid';
+  else if (!trimmed) errors.receipt = 'required';
+  else if (trimmed.length > CASH_RECEIPT_MAX) errors.receipt = 'too_long';
+  if (receiptChecked === undefined || receiptChecked === null) errors.receiptChecked = 'required';
+  else if (typeof receiptChecked !== 'boolean') errors.receiptChecked = 'invalid';
+  if (
+    Object.keys(errors).length > 0 ||
+    !isCashAmount(amountCents) ||
+    typeof receiptChecked !== 'boolean'
+  )
+    throw new BadRequestException({
+      statusCode: 400,
+      message: 'Invalid cash correction',
+      fieldErrors: errors,
+    });
+  return { amountCents, receipt: trimmed, receiptChecked };
+}
+
 @Controller('admin/events')
 export class RegistrationEntitlementsController {
   constructor(
@@ -240,6 +272,23 @@ export class RegistrationEntitlementsController {
     const swap = disciplineSwap(input);
     const reason = requiredReason(input.reason);
     return this.entitlements.swapDiscipline(eventId, registrationId, swap, reason, actor);
+  }
+
+  @Post(':eventId/registrations/:registrationId/cash-correction')
+  @HttpCode(200)
+  async correctCash(
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+    @Param('registrationId', ParseUUIDPipe) registrationId: string,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+    @Body() body: unknown,
+  ): Promise<RegistrationEntitlements> {
+    const session = await this.sessions.authorizeEventAdminMutation(request, response, eventId);
+    const actor: AdminRegistrationAuditActor = { kind: 'admin', ...session };
+    const input = object(body);
+    const correction = cashCorrection(input);
+    const reason = requiredReason(input.reason);
+    return this.entitlements.correctCash(eventId, registrationId, correction, reason, actor);
   }
 
   @Put(':eventId/registrations/:registrationId/passes/:registrationPassId/selections')

@@ -1,14 +1,5 @@
 import { sql } from 'drizzle-orm';
-import {
-  check,
-  integer,
-  jsonb,
-  pgTable,
-  text,
-  timestamp,
-  uniqueIndex,
-  uuid,
-} from 'drizzle-orm/pg-core';
+import { check, integer, jsonb, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 import { authSessions } from './auth';
 import { events } from './events';
 import { participants } from './participants';
@@ -43,7 +34,8 @@ export const registrationOperationAudit = pgTable(
     reference: text('reference'),
     // Free text; the required reason of a complimentary confirmation (#263).
     note: text('note'),
-    // Cash receipt number; required by the API for new cash confirmations, null on legacy rows.
+    // Cash receipt number as confirmed; required by the API for new cash confirmations, null on
+    // legacy rows. The current receipt, and its uniqueness, live in `event_cash_payments` (0036).
     receipt: text('receipt'),
     beforeState: jsonb('before_state').notNull(),
     afterState: jsonb('after_state').notNull(),
@@ -52,7 +44,7 @@ export const registrationOperationAudit = pgTable(
   (table) => [
     check(
       'registration_operation_audit_operation_type_check',
-      sql`${table.operationType} IN ('manual_registration', 'cash_confirmation', 'pass_assignment', 'pass_selection_change', 'online_registration', 'payment_approval', 'registration_expiry', 'complimentary_confirmation', 'pass_removal', 'registration_void', 'registration_correction', 'registration_discipline_swap')`,
+      sql`${table.operationType} IN ('manual_registration', 'cash_confirmation', 'pass_assignment', 'pass_selection_change', 'online_registration', 'payment_approval', 'registration_expiry', 'complimentary_confirmation', 'pass_removal', 'registration_void', 'registration_correction', 'registration_discipline_swap', 'cash_correction')`,
     ),
     check(
       'registration_operation_audit_actor_kind_check',
@@ -71,9 +63,5 @@ export const registrationOperationAudit = pgTable(
       'registration_operation_audit_amount_ck',
       sql`(${table.operationType} IN ('cash_confirmation', 'payment_approval')) = (${table.amountCents} IS NOT NULL)`,
     ),
-    // A receipt number is used once per event among cash confirmations (#125).
-    uniqueIndex('registration_operation_audit_cash_receipt_uq')
-      .on(table.eventId, table.receipt)
-      .where(sql`${table.operationType} = 'cash_confirmation' AND ${table.receipt} IS NOT NULL`),
   ],
 );

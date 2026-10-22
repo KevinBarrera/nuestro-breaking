@@ -253,6 +253,20 @@
       "when": 1791936070337,
       "tag": "0035_registration_discipline_swap_audit",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1791936130337,
+      "tag": "0036_event_cash_payments",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1791936190337,
+      "tag": "0037_cash_correction_audit",
+      "breakpoints": true
     }
   ]
 }

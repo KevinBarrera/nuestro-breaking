@@ -5,14 +5,19 @@ export type RegistrationStatus = 'pending_payment' | 'confirmed' | 'voided';
 // Who holds the registration and its lifecycle state, so the admin sale screen survives a reload
 // (#105). `folio` is null until confirmation. `channel` is `online` for a public checkout, which
 // has an expiry, and `in_person` for an admin registration (#104). The name parts prefill the
-// participant correction (#104); legacy rows may hold them as null. Deliberately no contact data.
+// participant correction (#104); legacy rows may hold them as null. `cash` is the current cash
+// payment (#104), null when the registration was not confirmed in cash; its receipt is null on
+// confirmations before #125. Deliberately no contact data.
 export type RegistrationChannel = 'in_person' | 'online';
+
+export type CashPayment = { amountCents: number; receipt: string | null };
 
 export type RegistrationSummary = {
   id: string;
   status: RegistrationStatus;
   folio: string | null;
   channel: RegistrationChannel;
+  cash: CashPayment | null;
   participant: {
     fullName: string;
     firstName: string | null;
@@ -55,3 +60,7 @@ export type DisciplineSwap = {
   toPassTypeId: string;
   activityIds: string[];
 };
+
+// A cash correction (#104): the amount and trimmed receipt that replace the current ones, and
+// whether the administrator checked the original paper receipt.
+export type CashCorrection = { amountCents: number; receipt: string; receiptChecked: boolean };

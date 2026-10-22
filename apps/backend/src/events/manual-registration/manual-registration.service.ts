@@ -5,6 +5,7 @@ import type { DatabaseService } from '@/database/database.service';
 import {
   activities,
   eventActivityRegistrations,
+  eventCashPayments,
   eventRegistrationPasses,
   eventRegistrations,
   participants,
@@ -33,6 +34,7 @@ import {
   dispatchAfterCommit,
   enqueueConfirmationEmail,
 } from '@/notifications';
+import { CASH_RECEIPT_UNIQUE, receiptTaken } from './cash-payment-rules';
 import { maskEmail, maskPhone } from './mask-contact';
 
 type Manual = {
@@ -58,8 +60,6 @@ export type PossibleDuplicate = {
   maskedPhone: string | null;
 };
 
-const CASH_RECEIPT_UNIQUE = 'registration_operation_audit_cash_receipt_uq';
-
 /** 409 listing possible duplicates the administrator must confirm before the registration is made. */
 function possibleDuplicates(matches: PossibleDuplicate[]) {
   return new ConflictException({
@@ -67,14 +67,6 @@ function possibleDuplicates(matches: PossibleDuplicate[]) {
     message: 'Possible duplicate registrations need confirmation',
     code: 'possible_duplicates',
     matches,
-  });
-}
-
-function receiptTaken() {
-  return new ConflictException({
-    statusCode: 409,
-    message: 'Receipt number already used in this event',
-    code: 'receipt_taken',
   });
 }
 
@@ -283,13 +275,15 @@ export class ManualRegistrationService {
     registrationId: string,
     source: Extract<ConfirmationSource, 'admin_cash' | 'admin_complimentary'>,
     actor: AdminRegistrationAuditActor,
-    fact: {
-      operationType: 'cash_confirmation' | 'complimentary_confirmation';
-      amountCents?: number;
-      reference?: string | null;
-      note: string | null;
-      receipt?: string;
-    },
+    fact:
+      | {
+          operationType: 'cash_confirmation';
+          amountCents: number;
+          reference: string | null;
+          note: string | null;
+          receipt: string;
+        }
+      | { operationType: 'complimentary_confirmation'; note: string },
   ) {
     const registration = await confirmRegistration(tx, {
       eventId,
@@ -297,6 +291,14 @@ export class ManualRegistrationService {
       source,
     });
     if (!registration) throw notPending();
+    // The current cash payment; the audit fact below keeps the values as confirmed (#104).
+    if (fact.operationType === 'cash_confirmation')
+      await tx.insert(eventCashPayments).values({
+        eventId,
+        eventRegistrationId: registrationId,
+        amountCents: fact.amountCents,
+        receipt: fact.receipt,
+      });
     const links = await tx
       .select({ id: eventActivityRegistrations.activityId })
       .from(eventActivityRegistrations)

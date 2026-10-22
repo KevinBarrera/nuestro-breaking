@@ -10,6 +10,7 @@ import { DATABASE_CLIENT } from '@/database/database.constants';
 import type { DatabaseService } from '@/database/database.service';
 import {
   activities,
+  eventCashPayments,
   eventCheckIns,
   eventPassTypeActivities,
   eventPassTypes,
@@ -19,6 +20,8 @@ import {
   participants,
   registrationOperationAudit,
 } from '@/database/schema';
+import { isUniqueViolation } from '@/events/admin-events/unique-violation';
+import { CASH_RECEIPT_UNIQUE, receiptTaken } from '@/events/manual-registration/cash-payment-rules';
 import { participantContactMatch } from '@/events/manual-registration/manual-registration.service';
 import type { PassClass } from '@/events/pass-type-admin/pass-type-admin.types';
 import { buildFullName } from '@/events/participant-profile/participant-normalization';
@@ -34,6 +37,7 @@ import {
 } from './pass-class-rules';
 import { areSelectableActivities } from './selectable-activities';
 import type {
+  CashCorrection,
   DisciplineSwap,
   HeldPass,
   ParticipantCorrection,
@@ -633,6 +637,90 @@ export class RegistrationEntitlementsService {
     });
   }
 
+  // Corrects the amount and/or receipt of a confirmed cash payment (#104) after the administrator
+  // checked the paper receipt. Only the current row in `event_cash_payments` changes; the original
+  // `cash_confirmation` fact keeps the values as confirmed, and this fact the previous and new ones.
+  async correctCash(
+    eventId: string,
+    registrationId: string,
+    correction: CashCorrection,
+    reason: string | null,
+    actor: AdminRegistrationAuditActor,
+  ): Promise<RegistrationEntitlements> {
+    try {
+      return await this.db.transaction(async (tx) => {
+        const registration = await this.lockRegistration(tx, eventId, registrationId);
+        if (!reason)
+          throw new BadRequestException({
+            statusCode: 400,
+            message: REASON_MESSAGE,
+            code: 'correction_reason_required',
+          });
+        if (!correction.receiptChecked)
+          throw new BadRequestException({
+            statusCode: 400,
+            message: 'The original receipt must be checked',
+            code: 'cash_receipt_check_required',
+          });
+        if (registration.status === 'voided')
+          throw new ConflictException({
+            statusCode: 409,
+            message: 'Registration is voided',
+            code: 'registration_voided',
+          });
+        const [current] = await tx
+          .select({
+            id: eventCashPayments.id,
+            amountCents: eventCashPayments.amountCents,
+            receipt: eventCashPayments.receipt,
+          })
+          .from(eventCashPayments)
+          .where(
+            and(
+              eq(eventCashPayments.eventId, eventId),
+              eq(eventCashPayments.eventRegistrationId, registrationId),
+            ),
+          );
+        if (!current)
+          throw new ConflictException({
+            statusCode: 409,
+            message: 'Registration was not confirmed in cash',
+            code: 'cash_correction_not_cash',
+          });
+        const { amountCents, receipt } = correction;
+        const changedFields = [
+          ...(current.amountCents !== amountCents ? ['amountCents'] : []),
+          ...(current.receipt !== receipt ? ['receipt'] : []),
+        ];
+        if (changedFields.length === 0)
+          throw new BadRequestException({
+            statusCode: 400,
+            message: 'The correction changes nothing',
+            code: 'correction_no_changes',
+          });
+        await tx
+          .update(eventCashPayments)
+          .set({ amountCents, receipt, updatedAt: sql`now()` })
+          .where(eq(eventCashPayments.id, current.id));
+        const { status } = registration;
+        await this.audit(tx, actor, registration, {
+          operationType: 'cash_correction',
+          affectedActivityIds: [],
+          beforeState: { status, amountCents: current.amountCents, receipt: current.receipt },
+          afterState: { status, amountCents, receipt },
+          facts: { changedFields, receiptChecked: true },
+          note: reason,
+        });
+        return this.entitlements(tx, eventId, registrationId);
+      });
+    } catch (error) {
+      // The unique index rejects a receipt held by another registration of the event, even under
+      // concurrent requests; the transaction rolls back, so nothing is written.
+      if (isUniqueViolation(error, CASH_RECEIPT_UNIQUE)) throw receiptTaken();
+      throw error;
+    }
+  }
+
   // Other events with a registration, not voided, of the same person by the duplicate rule.
   private async otherEventCount(
     tx: Transaction,
@@ -700,6 +788,7 @@ export class RegistrationEntitlementsService {
   }
 
   // Only the name, its parts and the AKA of the participant: the sale screen needs no contact data.
+  // The current cash payment, when there is one, is shown on the confirmed registration (#104).
   private async summary(
     executor: Executor,
     eventId: string,
@@ -716,19 +805,30 @@ export class RegistrationEntitlementsService {
         firstLastName: participants.firstLastName,
         secondLastName: participants.secondLastName,
         stageName: participants.stageName,
+        cashAmountCents: eventCashPayments.amountCents,
+        cashReceipt: eventCashPayments.receipt,
       })
       .from(eventRegistrations)
       .innerJoin(participants, eq(participants.id, eventRegistrations.participantId))
+      .leftJoin(
+        eventCashPayments,
+        and(
+          eq(eventCashPayments.eventId, eventRegistrations.eventId),
+          eq(eventCashPayments.eventRegistrationId, eventRegistrations.id),
+        ),
+      )
       .where(
         and(eq(eventRegistrations.id, registrationId), eq(eventRegistrations.eventId, eventId)),
       );
     if (!row) throw new NotFoundException('Registration not found');
-    const { id, status, folio, expiresAt, ...participant } = row;
+    const { id, status, folio, expiresAt, cashAmountCents, cashReceipt, ...participant } = row;
     return {
       id,
       status: status as RegistrationStatus,
       folio,
       channel: expiresAt === null ? 'in_person' : 'online',
+      cash:
+        cashAmountCents === null ? null : { amountCents: cashAmountCents, receipt: cashReceipt },
       participant,
     };
   }
@@ -804,7 +904,8 @@ export class RegistrationEntitlementsService {
         | 'pass_removal'
         | 'registration_void'
         | 'registration_correction'
-        | 'registration_discipline_swap';
+        | 'registration_discipline_swap'
+        | 'cash_correction';
       affectedActivityIds: string[];
       beforeState: Record<string, unknown>;
       afterState: Record<string, unknown>;

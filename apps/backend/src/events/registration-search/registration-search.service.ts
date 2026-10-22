@@ -5,10 +5,10 @@ import { type DatabaseService } from '@/database/database.service';
 import {
   activities,
   activityCheckIns,
+  eventCashPayments,
   eventCheckIns,
   eventRegistrations,
   participants,
-  registrationOperationAudit,
 } from '@/database/schema';
 import { holdsGeneralEntryOnly } from '@/events/registration-entitlements/pass-class-rules';
 import { RegistrationEntitlementsService } from '@/events/registration-entitlements/registration-entitlements.service';
@@ -37,17 +37,16 @@ export class RegistrationSearchService {
         ilike(participants.email, pattern),
         ilike(participants.stageName, pattern),
         ilike(eventRegistrations.folio, pattern),
-        // The paper receipt number of the registration's cash confirmation (#125).
+        // The current paper receipt number of the registration's cash payment (#125, #104).
         exists(
           this.db
-            .select({ id: registrationOperationAudit.id })
-            .from(registrationOperationAudit)
+            .select({ id: eventCashPayments.id })
+            .from(eventCashPayments)
             .where(
               and(
-                eq(registrationOperationAudit.eventId, eventRegistrations.eventId),
-                eq(registrationOperationAudit.registrationId, eventRegistrations.id),
-                eq(registrationOperationAudit.operationType, 'cash_confirmation'),
-                ilike(registrationOperationAudit.receipt, pattern),
+                eq(eventCashPayments.eventId, eventRegistrations.eventId),
+                eq(eventCashPayments.eventRegistrationId, eventRegistrations.id),
+                ilike(eventCashPayments.receipt, pattern),
               ),
             ),
         ),

@@ -3,7 +3,7 @@
 ## Tracking
 
 - GitHub issues: #104 (last slice: correction history view)
-- Branch: `feat/104-correction-history` → `dev` (base `cb608f4`), one commit per task. Split into chained PRs if the diff passes ~400 lines.
+- Branch: `feat/104-correction-history` → `dev` (base `cb608f4`), one commit per task. Split into chained PRs: `feat/104-09-history-backend` (task 1) → `dev`, and `feat/104-10-history-screen` (tasks 2 and 3, the page and the docs) → the first.
 
 ## Goal
 

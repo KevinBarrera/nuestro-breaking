@@ -3,7 +3,7 @@
 ## Tracking
 
 - GitHub issues: #104 (fourth slice: cash correction) and #256 (its UI action)
-- Branch: `feat/104-cash-correction` → `dev` (base `cff009e`), one commit per task. Split into chained PRs if the diff passes ~400 lines.
+- Branch: `feat/104-cash-correction` → `dev` (base `cff009e`), one commit per task. Split into chained PRs: `feat/104-07-cash-payment-backend` (tasks 1 and 2) → `dev`, and `feat/104-08-cash-correction-screen` (tasks 3 and 4, the screen and the docs) → the first.
 
 ## Goal
 

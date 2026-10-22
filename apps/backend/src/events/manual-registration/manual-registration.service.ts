@@ -34,6 +34,7 @@ import {
   dispatchAfterCommit,
   enqueueConfirmationEmail,
 } from '@/notifications';
+import { CASH_RECEIPT_UNIQUE, receiptTaken } from './cash-payment-rules';
 import { maskEmail, maskPhone } from './mask-contact';
 
 type Manual = {
@@ -59,8 +60,6 @@ export type PossibleDuplicate = {
   maskedPhone: string | null;
 };
 
-const CASH_RECEIPT_UNIQUE = 'event_cash_payments_event_receipt_uq';
-
 /** 409 listing possible duplicates the administrator must confirm before the registration is made. */
 function possibleDuplicates(matches: PossibleDuplicate[]) {
   return new ConflictException({
@@ -68,14 +67,6 @@ function possibleDuplicates(matches: PossibleDuplicate[]) {
     message: 'Possible duplicate registrations need confirmation',
     code: 'possible_duplicates',
     matches,
-  });
-}
-
-function receiptTaken() {
-  return new ConflictException({
-    statusCode: 409,
-    message: 'Receipt number already used in this event',
-    code: 'receipt_taken',
   });
 }
 

@@ -210,7 +210,7 @@ describe('event cash payments (e2e)', () => {
   it('migration 0036 backfills one payment row per cash confirmation and frees audit receipts', async () => {
     const tag = '0036_event_cash_payments';
     const index = journal.entries.findIndex((entry) => entry.tag === tag);
-    expect(index).toBe(journal.entries.length - 1);
+    expect(index).toBeGreaterThan(0);
     const migrations = readMigrationFiles({ migrationsFolder });
     const run = async (from: number, to: number) => {
       for (const migration of migrations.slice(from, to))

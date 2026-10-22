@@ -1378,7 +1378,7 @@ describe('admin registration entitlements (e2e)', () => {
     const full = await holdPass(f.event, reg.id, f.fullBreaking);
     const before = { ...(await snapshot()), statuses: await statuses(), people: await people() };
     await client`ALTER TABLE registration_operation_audit ADD CONSTRAINT reject_entitlement_test
-      CHECK (operation_type NOT IN ('pass_assignment', 'pass_selection_change', 'pass_removal', 'registration_void', 'registration_correction')) NOT VALID`;
+      CHECK (operation_type NOT IN ('pass_assignment', 'pass_selection_change', 'pass_removal', 'registration_void', 'registration_correction', 'registration_discipline_swap')) NOT VALID`;
     try {
       await addPass(f.event, reg.id)
         .set(headers(cookie))

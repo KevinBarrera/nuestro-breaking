@@ -10,6 +10,7 @@ import { DATABASE_CLIENT } from '@/database/database.constants';
 import type { DatabaseService } from '@/database/database.service';
 import {
   activities,
+  eventCheckIns,
   eventPassTypeActivities,
   eventPassTypes,
   eventRegistrationPassSelections,
@@ -33,6 +34,7 @@ import {
 } from './pass-class-rules';
 import { areSelectableActivities } from './selectable-activities';
 import type {
+  DisciplineSwap,
   HeldPass,
   ParticipantCorrection,
   RegistrationEntitlements,
@@ -493,6 +495,144 @@ export class RegistrationEntitlementsService {
     });
   }
 
+  // Moves the registration's single full pass to another active full pass of the same current
+  // price (#104), replacing its competitions. The stored price snapshot stays (what was charged),
+  // so no amount, checkout or payment fact changes. Rejected once the person entered the event.
+  async swapDiscipline(
+    eventId: string,
+    registrationId: string,
+    swap: DisciplineSwap,
+    reason: string | null,
+    actor: AdminRegistrationAuditActor,
+  ): Promise<RegistrationEntitlements> {
+    return this.db.transaction(async (tx) => {
+      const registration = await this.lockRegistration(tx, eventId, registrationId);
+      if (!reason)
+        throw new BadRequestException({
+          statusCode: 400,
+          message: REASON_MESSAGE,
+          code: 'correction_reason_required',
+        });
+      if (registration.status === 'voided')
+        throw new ConflictException({
+          statusCode: 409,
+          message: 'Registration is voided',
+          code: 'registration_voided',
+        });
+      // Archived pass types still count: the requirement is about what was purchased.
+      const fullPasses = await tx
+        .select({ id: eventRegistrationPasses.id, passTypeId: eventRegistrationPasses.passTypeId })
+        .from(eventRegistrationPasses)
+        .innerJoin(
+          eventPassTypes,
+          and(
+            eq(eventPassTypes.eventId, eventRegistrationPasses.eventId),
+            eq(eventPassTypes.id, eventRegistrationPasses.passTypeId),
+          ),
+        )
+        .where(
+          and(
+            eq(eventRegistrationPasses.eventId, eventId),
+            eq(eventRegistrationPasses.eventRegistrationId, registrationId),
+            eq(eventPassTypes.passClass, 'full'),
+          ),
+        );
+      if (fullPasses.length !== 1)
+        throw new ConflictException({
+          statusCode: 409,
+          message: 'Registration must hold exactly one full pass',
+          code: 'discipline_swap_single_full_pass_required',
+        });
+      const [held] = fullPasses;
+      const [checkIn] = await tx
+        .select({ id: eventCheckIns.id })
+        .from(eventCheckIns)
+        .where(
+          and(
+            eq(eventCheckIns.eventId, eventId),
+            eq(eventCheckIns.eventRegistrationId, registrationId),
+          ),
+        );
+      if (checkIn)
+        throw new ConflictException({
+          statusCode: 409,
+          message: 'Registration is already checked in',
+          code: 'discipline_swap_checked_in',
+        });
+      // Share locks keep a concurrent archive, price or access edit from interleaving.
+      const [target] = await tx
+        .select()
+        .from(eventPassTypes)
+        .where(and(eq(eventPassTypes.id, swap.toPassTypeId), eq(eventPassTypes.eventId, eventId)))
+        .for('share');
+      if (
+        !target ||
+        target.passClass !== 'full' ||
+        target.status !== 'active' ||
+        target.id === held.passTypeId
+      )
+        throw new BadRequestException({
+          statusCode: 400,
+          message: 'Target must be another active full pass of this event',
+          code: 'discipline_swap_invalid_target',
+        });
+      const [current] = await tx
+        .select({ priceCents: eventPassTypes.priceCents })
+        .from(eventPassTypes)
+        .where(and(eq(eventPassTypes.id, held.passTypeId), eq(eventPassTypes.eventId, eventId)))
+        .for('share');
+      if (current.priceCents !== target.priceCents)
+        throw new ConflictException({
+          statusCode: 409,
+          message: 'Both passes must have the same current price',
+          code: 'discipline_swap_price_mismatch',
+        });
+      await this.assertSelectable(tx, eventId, target.id, swap.activityIds);
+      const previous = await this.selections(tx, eventId, held.id);
+      await tx
+        .delete(eventRegistrationPassSelections)
+        .where(
+          and(
+            eq(eventRegistrationPassSelections.eventId, eventId),
+            eq(eventRegistrationPassSelections.registrationPassId, held.id),
+          ),
+        );
+      await tx
+        .update(eventRegistrationPasses)
+        .set({ passTypeId: target.id })
+        .where(
+          and(
+            eq(eventRegistrationPasses.id, held.id),
+            eq(eventRegistrationPasses.eventId, eventId),
+          ),
+        );
+      if (swap.activityIds.length > 0)
+        await tx.insert(eventRegistrationPassSelections).values(
+          swap.activityIds.map((activityId) => ({
+            eventId,
+            registrationPassId: held.id,
+            activityId,
+          })),
+        );
+      const next = [...swap.activityIds].sort(byId);
+      const { status } = registration;
+      await this.audit(tx, actor, registration, {
+        operationType: 'registration_discipline_swap',
+        affectedActivityIds: [...new Set([...previous, ...next])].sort(byId),
+        beforeState: { status, passTypeId: held.passTypeId },
+        afterState: { status, passTypeId: target.id },
+        facts: {
+          fromPassTypeId: held.passTypeId,
+          toPassTypeId: target.id,
+          fromActivityIds: previous,
+          toActivityIds: next,
+        },
+        note: reason,
+      });
+      return this.entitlements(tx, eventId, registrationId);
+    });
+  }
+
   // Other events with a registration, not voided, of the same person by the duplicate rule.
   private async otherEventCount(
     tx: Transaction,
@@ -663,7 +803,8 @@ export class RegistrationEntitlementsService {
         | 'pass_selection_change'
         | 'pass_removal'
         | 'registration_void'
-        | 'registration_correction';
+        | 'registration_correction'
+        | 'registration_discipline_swap';
       affectedActivityIds: string[];
       beforeState: Record<string, unknown>;
       afterState: Record<string, unknown>;

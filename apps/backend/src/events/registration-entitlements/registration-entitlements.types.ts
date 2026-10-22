@@ -48,3 +48,10 @@ export type ParticipantCorrection = {
   stageName: string | null;
   confirmCrossEvent: boolean;
 };
+
+// A discipline swap (#104): the full pass type that replaces the held one and its competitions,
+// lowercased and unique.
+export type DisciplineSwap = {
+  toPassTypeId: string;
+  activityIds: string[];
+};

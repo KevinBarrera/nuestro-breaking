@@ -67,7 +67,8 @@ outcome, and the screen only shows what it answered.
 5. Take the cash for "Total a cobrar". The total is the sum of the passes,
    read-only, with no service charge. Write the paper receipt number in
    "Número de recibo" (optional "Nota") and press "Confirmar pago". A receipt
-   number already used in this event is rejected; check the paper receipt.
+   number already used in this event is rejected; check the paper receipt. A
+   wrong amount or receipt can be corrected later (step 11).
    If the passes total $0 (golden tickets and guests, #263), there is no cash
    section: write why it is free in "Motivo" (for example "Golden ticket,
    ganador de …"; required, up to 500 characters) and press "Confirmar sin
@@ -106,6 +107,19 @@ outcome, and the screen only shows what it answered.
     swap is blocked ("Esta persona ya registró su entrada al evento…"), and
     swaps with several full passes or a different price are not supported.
     The reason stays in the registration audit.
+11. To correct the amount or the receipt number of a confirmed cash payment,
+    first find and check the original paper receipt. Then, in "Pago en
+    efectivo", press "Corregir pago en efectivo", fix "Monto (MXN)" or
+    "Número de recibo", write why in "Motivo" (required, up to 500
+    characters), check "Revisé el recibo original", press "Revisar
+    corrección" and confirm with "Corregir pago". An amount different from
+    the passes' total is allowed after the warning. A receipt number already
+    used in this event is rejected. A payment recorded before receipts were
+    required ("Sin número de recibo") can get one. The previous values and the
+    reason stay in the registration audit. Do not use it, and escalate to the
+    principal organizer instead, when the cash was recorded on the wrong
+    registration, was recorded without money received, or the original
+    receipt is missing or disputed.
 
 If the screen says "No pudimos confirmar si el pago se registró", press
 "Recargar" and read the status. Never charge again or confirm a second time
@@ -194,10 +208,11 @@ name/AKA corrections after confirming shared cross-event identity impact;
 equal-price Breaking/Popping/Locking/Dancehall swaps of a single full pass
 before entry check-in; or justified pending voids. All event-scoped administrators may use those bounded corrections and
 read their event's operation history, never judges; access mechanics remain
-pending. A separate bounded cash correction is approved in principle, requiring
-coordination staff verification, reason, minimum evidence and preserved original
-confirmation/payment facts; its allowed transitions and guards must be defined
-before use. Escalate paid cases requiring reversal to the principal organizer
+pending. The amount or receipt number of a confirmed cash payment may be
+corrected after checking the original paper receipt, with a reason; the
+original confirmation and the previous values stay in the audit (step 11).
+Cash on the wrong registration, cash recorded without money and a missing or
+disputed receipt are not corrected in the platform. Escalate paid cases requiring reversal to the principal organizer
 outside automated MVP correction; no generic confirmed-state edit or void,
 Mercado Pago payment edit or refund is authorized.
 Transfers, general-to-participant upgrades and folio edits are excluded.

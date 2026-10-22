@@ -139,9 +139,19 @@ export type ParticipantCorrectionInput = {
   reason: string;
 };
 
+// The discipline swap (#104): the registration's only full pass moves to `toPassTypeId`, another
+// active full pass of the event with the same current price, with that pass's selectable
+// `activityIds`. `reason` goes to the audit: 1 to 500 characters once trimmed.
+export type DisciplineSwapInput = {
+  toPassTypeId: string;
+  activityIds: string[];
+  reason: string;
+};
+
 // Stable codes for the 400 and 409 rule answers of these writes. `receipt_taken`, `no_passes`,
-// `not_zero_total`, `pass_required_by_add_on`, `online_registration_void_locked` and
-// `correction_no_changes` are backend `code`s; the rest are read from the backend message.
+// `not_zero_total`, `pass_required_by_add_on`, `online_registration_void_locked`,
+// `correction_no_changes` and the `discipline_swap_*` codes are backend `code`s; the rest are read
+// from the backend message.
 export const adminRegistrationRuleCodes = [
   'receipt_taken',
   'no_passes',
@@ -158,6 +168,10 @@ export const adminRegistrationRuleCodes = [
   'pass_required_by_add_on',
   'online_registration_void_locked',
   'correction_no_changes',
+  'discipline_swap_single_full_pass_required',
+  'discipline_swap_checked_in',
+  'discipline_swap_invalid_target',
+  'discipline_swap_price_mismatch',
 ] as const;
 export type AdminRegistrationRuleCode = (typeof adminRegistrationRuleCodes)[number];
 

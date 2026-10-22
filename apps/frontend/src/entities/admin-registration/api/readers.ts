@@ -171,7 +171,10 @@ const reasonCodes = [
 ];
 
 // 400 rule answers that carry a stable backend `code`.
-const badRequestRuleCodes: readonly AdminRegistrationRuleCode[] = ['correction_no_changes'];
+const badRequestRuleCodes: readonly AdminRegistrationRuleCode[] = [
+  'correction_no_changes',
+  'discipline_swap_invalid_target',
+];
 
 // Cash and complimentary confirmation and the selection change reason (#170) report their invalid
 // fields only by message; they map to the input names.
@@ -188,6 +191,9 @@ const ruleCodes: readonly AdminRegistrationRuleCode[] = [
   'not_zero_total',
   'pass_required_by_add_on',
   'online_registration_void_locked',
+  'discipline_swap_single_full_pass_required',
+  'discipline_swap_checked_in',
+  'discipline_swap_price_mismatch',
 ];
 
 const messageOf = (body: unknown) =>

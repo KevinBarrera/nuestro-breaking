@@ -10,6 +10,7 @@ export {
   removeRegistrationPass,
   searchRegistrations,
   setPassSelections,
+  swapDiscipline,
   voidRegistration,
 } from './api/registration-api';
 export {
@@ -25,6 +26,7 @@ export type {
   CashPaymentInput,
   ComplimentaryConfirmation,
   ComplimentaryConfirmationInput,
+  DisciplineSwapInput,
   HeldPass,
   HeldPassClass,
   ManualRegistration,

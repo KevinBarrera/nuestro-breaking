@@ -19,6 +19,7 @@ const summary = (overrides: Partial<RegistrationSummary> = {}): RegistrationSumm
   status: 'confirmed',
   folio: 'LMP-7K3Q',
   channel: 'in_person',
+  cash: null,
   participant: {
     fullName: 'Ana López Ruiz',
     firstName: 'Ana',

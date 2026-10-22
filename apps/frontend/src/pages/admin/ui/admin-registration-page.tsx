@@ -15,6 +15,8 @@ import { routes } from '@/shared/config';
 import { Breadcrumbs, Notice } from '@/shared/ui';
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { generatePath, useLocation, useParams } from 'react-router';
+import { CashCorrection } from './cash-correction';
+import { canCorrectCash } from './cash-correction-model';
 import { passClassLabels, styles } from './catalog-copy';
 import { ConfirmedCompetitions } from './confirmed-competitions';
 import { DisciplineSwap } from './discipline-swap';
@@ -73,7 +75,8 @@ export function AdminRegistrationPage() {
 // still get, the competitions of each held pass and the cash payment, or the confirmation without
 // payment when its passes total $0 (#263); an in-person one can also be voided with a reason (#104).
 // A confirmed registration, led by its folio, only lets
-// the operator change a pass's competitions with a reason (#170). Both can have the participant's
+// the operator change a pass's competitions with a reason (#170) and, when paid in cash, shows
+// the amount and receipt and corrects them with a reason after checking the receipt (#104). Both can have the participant's
 // name and AKA corrected with a reason (#104), and their only full pass swapped for another
 // discipline of the same price with a reason (#104); a voided one is read-only. The
 // name and status come from the entitlements read, so a reload keeps them; the screen that linked
@@ -289,6 +292,16 @@ function RegistrationScreen({
                 )}
               </>
             )}
+            {canCorrectCash(state.entitlements.registration) &&
+              state.entitlements.registration.cash && (
+                <CashCorrection
+                  eventId={eventId}
+                  entitlements={state.entitlements}
+                  cash={state.entitlements.registration.cash}
+                  onCorrected={updateEntitlements}
+                  onReload={reload}
+                />
+              )}
             {canSwapDiscipline(state.entitlements) && swapSource && (
               <DisciplineSwap
                 eventId={eventId}

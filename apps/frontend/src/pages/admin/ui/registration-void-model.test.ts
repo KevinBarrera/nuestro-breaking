@@ -16,6 +16,7 @@ const summary = (overrides: Partial<RegistrationSummary> = {}): RegistrationSumm
   status: 'pending_payment',
   folio: null,
   channel: 'in_person',
+  cash: null,
   participant: {
     fullName: 'Ana López',
     firstName: 'Ana',

@@ -87,7 +87,14 @@ export function SaleCash({
     sending.current = true;
     setPending(true);
     confirmCashPayment(eventId, registration.id, input)
-      .then((confirmation) => onConfirmed(confirmedEntitlements(entitlements, confirmation)))
+      .then((confirmation) =>
+        onConfirmed(
+          confirmedEntitlements(entitlements, confirmation, {
+            amountCents: input.amountCents,
+            receipt: input.receipt,
+          }),
+        ),
+      )
       .catch((error: unknown) => {
         const next = confirmCashFailure(adminRegistrationFailure(error));
         if (next.field) setErrors({ [next.field]: next.message });

@@ -10,6 +10,8 @@ import { AttendeeListsService } from './attendee-lists/attendee-lists.service';
 import { EventFoundationGuard } from './foundation/event-foundation.guard';
 import { EventFoundationController } from './foundation/event-foundation.controller';
 import { EventFoundationService } from './foundation/event-foundation.service';
+import { RegistrationHistoryController } from './registration-history/registration-history.controller';
+import { RegistrationHistoryService } from './registration-history/registration-history.service';
 import { RegistrationSearchController } from './registration-search/registration-search.controller';
 import { RegistrationSearchService } from './registration-search/registration-search.service';
 import { ManualRegistrationController } from './manual-registration/manual-registration.controller';
@@ -47,6 +49,7 @@ import { VenueAdminService } from './venue-admin/venue-admin.service';
     AttendeeListsController,
     EventFoundationController,
     RegistrationSearchController,
+    RegistrationHistoryController,
     ManualRegistrationController,
     CheckInController,
     CheckInEventListController,
@@ -64,6 +67,7 @@ import { VenueAdminService } from './venue-admin/venue-admin.service';
     EventFoundationService,
     EventFoundationGuard,
     RegistrationSearchService,
+    RegistrationHistoryService,
     ManualRegistrationService,
     CheckInService,
     CheckInEventListService,

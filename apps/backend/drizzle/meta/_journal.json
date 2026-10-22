@@ -267,6 +267,13 @@
       "when": 1791936190337,
       "tag": "0037_cash_correction_audit",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1791936250337,
+      "tag": "0038_registration_history_index",
+      "breakpoints": true
     }
   ]
 }

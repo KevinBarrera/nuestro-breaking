@@ -386,7 +386,7 @@ These are documentation follow-ups, not code claims:
 - Resolved by #127: `docs/contracts/admin-registration-audit-policy.md`, `docs/contracts/admin-registration-operations.md` and `docs/contracts/event-activity-api-boundary.md` no longer describe the proposal as "DRAFT pending organizer validation"; they follow the proposal: general MVP scope approved, operational details still to confirm with the organizers.
 - Resolved by #126: `docs/contracts/operational-check-in.md` now keeps the visible event check-in only for general-entry-only registrations, which have no activity to check in to.
 - Resolved by #104 (PR #305): the cash-correction wording in the audit contract now follows the confirmed "original receipt check and reason" rule.
-- `docs/product/november-2026-mvp-proposal.html` may not match the updated Markdown proposal.
+- Resolved by #127: the in-repository `docs/product/november-2026-mvp-proposal.html` was retired. The client-facing proposal is the page published from the separate `november-2026-mvp-proposal` repository (https://kevinbarrera.github.io/november-2026-mvp-proposal/); `docs/product/november-2026-mvp-proposal.md` stays as the internal source.
 
 ## Issue matrix
 

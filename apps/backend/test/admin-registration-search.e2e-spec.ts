@@ -234,7 +234,7 @@ describe('GET /admin/events/:eventId/participants (e2e)', () => {
     );
   });
 
-  it('finds a registration by the receipt number of its cash confirmation, only in that event', async () => {
+  it('finds a registration by the current receipt number of its cash payment, only in that event', async () => {
     const { event, other, first, third, one, two, hidden } = await fixture();
     const { cookie, userId, sessionId } = await session();
     await client`
@@ -244,6 +244,9 @@ describe('GET /admin/events/:eventId/participants (e2e)', () => {
           ${first.id}, 100, 'RC-0042', '{}', '{}'),
         ('cash_confirmation', 'admin', ${userId}, ${sessionId}, ${other.id}, ${hidden.id},
           ${third.id}, 100, 'RC-0099', '{}', '{}')`;
+    await client`
+      INSERT INTO event_cash_payments (event_id, event_registration_id, amount_cents, receipt)
+      VALUES (${event.id}, ${one.id}, 100, 'RC-0042'), (${other.id}, ${hidden.id}, 100, 'RC-0099')`;
     const get = (q: string, id = event.id) =>
       search(id, q).set('Cookie', cookie).expect(200) as unknown as Promise<{
         body: RegistrationSearchPage;
@@ -262,6 +265,10 @@ describe('GET /admin/events/:eventId/participants (e2e)', () => {
       one.id,
       two.id,
     ]);
+    // The current receipt is the payment row's; the audit fact keeps the original as history.
+    await client`UPDATE event_cash_payments SET receipt = 'RC-0777' WHERE event_registration_id = ${one.id}`;
+    expect((await get('RC-0042')).body.total).toBe(0);
+    expect((await get('rc-07')).body.results.map((r) => r.registration.id)).toEqual([one.id]);
   });
 
   it('lists check-in activities from pass entitlements and flags general-entry-only registrations', async () => {

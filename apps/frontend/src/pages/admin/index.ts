@@ -4,6 +4,7 @@ export { AdminEventDetailsPage } from './ui/admin-event-details-page';
 export { AdminCheckInPage } from './ui/admin-check-in-page';
 export { AdminPaymentsReviewPage } from './ui/admin-payments-review-page';
 export { AdminListsPage } from './ui/admin-lists-page';
+export { AdminHistoryPage } from './ui/admin-history-page';
 export { AdminRegistrationsPage } from './ui/admin-registrations-page';
 export { AdminRegistrationNewPage } from './ui/admin-registration-new-page';
 export { AdminRegistrationPage } from './ui/admin-registration-page';

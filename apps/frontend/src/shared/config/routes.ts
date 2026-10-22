@@ -20,6 +20,8 @@ export const routes = {
   adminEventPaymentsReview: '/admin/events/:eventId/payments-review',
   // Listas de respaldo (#65): printable, contact-free attendee lists.
   adminEventLists: '/admin/events/:eventId/lists',
+  // Historial (#104): the event's registration operations, read only.
+  adminEventHistory: '/admin/events/:eventId/history',
   // Inscripciones (#105): search, the in-person registration and one registration's screen.
   adminEventRegistrations: '/admin/events/:eventId/registrations',
   adminEventRegistrationNew: '/admin/events/:eventId/registrations/new',

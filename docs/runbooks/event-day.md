@@ -120,6 +120,14 @@ outcome, and the screen only shows what it answered.
     principal organizer instead, when the cash was recorded on the wrong
     registration, was recorded without money received, or the original
     receipt is missing or disputed.
+12. To check a correction afterwards, open "Historial" in the side navigation
+    ("Operación", right after "Inscripciones"). It lists every operation of
+    the event, newest first, with when it happened, who did it ("Por …"),
+    what changed and "Motivo: …". Check "Solo correcciones" to keep voids,
+    name/AKA, discipline and cash corrections and competition changes on
+    confirmed registrations. Press "Cargar más" for older entries, and the
+    participant's name to open the registration. Historial is read only: to
+    fix something, go back to the registration. Judges cannot open it.
 
 If the screen says "No pudimos confirmar si el pago se registró", press
 "Recargar" and read the status. Never charge again or confirm a second time
@@ -207,8 +215,8 @@ Only event-authorized administrators, not judges, may perform bounded audited
 name/AKA corrections after confirming shared cross-event identity impact;
 equal-price Breaking/Popping/Locking/Dancehall swaps of a single full pass
 before entry check-in; or justified pending voids. All event-scoped administrators may use those bounded corrections and
-read their event's operation history, never judges; access mechanics remain
-pending. The amount or receipt number of a confirmed cash payment may be
+read their event's operation history ("Historial", step 12), never judges.
+The amount or receipt number of a confirmed cash payment may be
 corrected after checking the original paper receipt, with a reason; the
 original confirmation and the previous values stay in the audit (step 11).
 Cash on the wrong registration, cash recorded without money and a missing or

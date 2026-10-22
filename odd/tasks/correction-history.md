@@ -1,0 +1,32 @@
+# Event registration history for administrators
+
+## Tracking
+
+- GitHub issues: #104 (last slice: correction history view)
+- Branch: `feat/104-correction-history` → `dev` (base `cb608f4`), one commit per task. Split into chained PRs if the diff passes ~400 lines.
+
+## Goal
+
+An event administrator opens "Historial" for an event and reads every registration operation of that event, newest first, with who did it, when, what changed and the reason. Each entry links to its registration. Judges and other events' administrators cannot read it. The response is a redacted projection: no contact data, no session identifiers, no raw request bodies.
+
+## Decisions
+
+- **Placement (2026-10-21):** an event-level page, not a section of the registration page.
+- **Scope (2026-10-21):** every operation type of `registration_operation_audit`, with a "Solo correcciones" filter. Corrections are `registration_void`, `registration_correction`, `registration_discipline_swap`, `cash_correction`, and `pass_selection_change` on a confirmed registration (it requires a reason since #170).
+- **Reasons (2026-10-21):** the stored reason (`note`) is shown to event administrators only; it is already limited to 500 characters.
+- **Retention (2026-10-21):** deferred to a separate issue linked to the legal checklist. Nothing is deleted today (an immutability trigger blocks it), which exceeds the desired two years. #104 closes with that note.
+- **Actor label:** admin rows show the user's `displayName`, or "Administrador" when it is empty; never the email or the session. Public rows show "Compra en línea"; system rows show "Sistema".
+- **Listing:** newest first, cursor pagination by `(created_at, id)`, 50 per page, "Cargar más". Each row shows the participant's full name and the folio when the registration has one, linking to the registration page. A new index on `(event_id, created_at, id)` serves the read.
+- **Redaction:** the server returns a whitelisted projection per operation type (amounts, receipts, pass and activity names resolved server-side, changed field names), never `before_state`/`after_state`/`facts` as stored, never `reference` of `payment_approval` beyond what is needed to recognize it.
+- **Out of scope:** retention or deletion, exports, search inside the history, per-registration history section, filters beyond "Solo correcciones".
+
+## Tasks
+
+- [x] 1. Backend: migration `0038` adds an index on `registration_operation_audit (event_id, created_at, id)` (bump the migration count in `test/event-activity-foundation.e2e-spec.ts`). An admin, event-scoped `GET` route returns the redacted, cursor-paginated history with an optional corrections filter; rejects judges, other events, malformed cursors and limits. PostgreSQL e2e first, including a redaction test over every operation type.
+- [ ] 2. Frontend: the history API in a new or existing entity, the "Historial" route and side-nav entry, the page with Spanish descriptions per operation type in a model with Vitest, "Solo correcciones", "Cargar más", links to registrations; Playwright for the list, the filter, pagination and a denied access.
+- [ ] 3. Docs and follow-up: `admin-registration-audit-policy.md` (who reads, what is shown, retention deferred), `admin-registration-operations.md`, `event-catalog.md`, `frontend-architecture.md`, `runbooks/event-day.md`, Slice 5 in `product/november-2026-mvp-delivery-slices.md`; open the retention issue.
+
+## Evidence
+
+- Exploration on 2026-10-21: audit columns `schema/registration-operation-audit.ts` (actor kind `:16,49-51`, `actorUserId`/`sessionId` admin only `:17-18,53-55`, `affectedActivityIds` `:27`, `createdAt` `:31`, amount, reference, note, receipt, jsonb before/after/facts `:40-42`, operation types `:47`); no secondary index (the `0029` receipt index was dropped in `0036`); immutability trigger `drizzle/0007_admin_registration_operations.sql:24`. No admin audit reader exists (internal reads only: `payment-webhook.service.ts:312-318`, `late-approval.ts:31-36`, `event-delete-blockers.ts:28`). Auth: `authorizeEventAdmin` (`registration-entitlements.controller.ts:190-198`, `session-access.service.ts:86-101`). Users: `email` not null, `displayName` nullable (`schema/users.ts:7-9`). Docs: Slice 5 history design and criteria `november-2026-mvp-delivery-slices.md:323,330,353-355`; audit policy readers and redaction `admin-registration-audit-policy.md:9,29,48,60,69`; operations `admin-registration-operations.md:124-125`; retention open `docs/legal/mexico-readiness-checklist.md:9,37`. Frontend helpers: `formatEventTime` (`entities/event-catalog/model/zoned-time.ts:43`), `formatMxn` (`money.ts:4`); side nav `widgets/admin-shell/ui/admin-side-nav.tsx`.
+- Task 1 on 2026-10-21: migration `0038_registration_history_index` adds `registration_operation_audit_event_created_idx` on `(event_id, created_at DESC, id DESC)`, mirrored in `schema/registration-operation-audit.ts`; migration count 39 in `test/event-activity-foundation.e2e-spec.ts`. `GET /admin/events/:eventId/registration-history?limit=&cursor=&filter=` (`src/events/registration-history/`, `authorizeEventAdmin`): `limit` 1..100 (default 50), `filter` `all` or `corrections`, opaque base64url cursor of `(created_at with microseconds, id)`; malformed values return 400 `Invalid history query` with `fieldErrors`. One page query (audit, registration, participant, user) plus at most one name lookup each for pass types and activities (archived included). Items carry `id, occurredAt, operationType, actor { kind, name }, registration { id, folio, participantName }, reason, details`, with `details` per type and `{ kind: 'other' }` for unknown types. `pass_selection_change` stores no status (#170), so the corrections filter counts it when the registration's `confirmed_at` is at or before the fact (confirmation is never undone). `reason` is `note` only for the types where it is the administrator's reason; the optional `cash_confirmation` note is not shown. RED: the 8 history e2e tests failed with 404 and the migration count with 38. GREEN: `test/admin-registration-history.e2e-spec.ts` 8/8 and the projection unit spec 4/4; backend lint and build clean, `test` 618/618, full `test:e2e` 520/520, `pnpm format` clean.

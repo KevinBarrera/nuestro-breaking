@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { check, integer, jsonb, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { check, index, integer, jsonb, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 import { authSessions } from './auth';
 import { events } from './events';
 import { participants } from './participants';
@@ -62,6 +62,12 @@ export const registrationOperationAudit = pgTable(
     check(
       'registration_operation_audit_amount_ck',
       sql`(${table.operationType} IN ('cash_confirmation', 'payment_approval')) = (${table.amountCents} IS NOT NULL)`,
+    ),
+    // Serves the event history, newest first by the `(created_at, id)` keyset (#104, 0038).
+    index('registration_operation_audit_event_created_idx').on(
+      table.eventId,
+      table.createdAt.desc(),
+      table.id.desc(),
     ),
   ],
 );

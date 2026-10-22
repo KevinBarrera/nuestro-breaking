@@ -119,4 +119,4 @@ This boundary closes the read API gap from the foundation contract: the model no
 - [Event catalog contract](event-catalog.md)
 - [API and event versioning contract](api-event-versioning.md)
 - [Admin authentication boundary](admin-auth-boundary.md)
-- [November 2026 MVP proposal](../product/november-2026-mvp-proposal.md) — draft pending organizer validation
+- [November 2026 MVP proposal](../product/november-2026-mvp-proposal.md) — general MVP scope approved; operational details still to confirm with the organizers

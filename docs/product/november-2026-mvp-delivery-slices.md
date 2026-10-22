@@ -383,9 +383,9 @@ flowchart LR
 
 These are documentation follow-ups, not code claims:
 
-- `docs/contracts/admin-registration-audit-policy.md:3` and `docs/contracts/admin-registration-operations.md:3` still describe the proposal as "DRAFT pending organizer validation"; the working-tree proposal now states the general MVP scope is approved.
+- Resolved by #127: `docs/contracts/admin-registration-audit-policy.md`, `docs/contracts/admin-registration-operations.md` and `docs/contracts/event-activity-api-boundary.md` no longer describe the proposal as "DRAFT pending organizer validation"; they follow the proposal: general MVP scope approved, operational details still to confirm with the organizers.
 - Resolved by #126: `docs/contracts/operational-check-in.md` now keeps the visible event check-in only for general-entry-only registrations, which have no activity to check in to.
-- Cash-correction wording in the audit contract (coordination verification, minimum evidence) predates the confirmed "original receipt check and reason" rule.
+- Resolved by #104 (PR #305): the cash-correction wording in the audit contract now follows the confirmed "original receipt check and reason" rule.
 - `docs/product/november-2026-mvp-proposal.html` may not match the updated Markdown proposal.
 
 ## Issue matrix

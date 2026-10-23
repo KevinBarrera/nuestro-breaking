@@ -221,6 +221,7 @@ export function DeactivateDialog({
           id={fieldId}
           label="Motivo"
           hint="Queda en el historial junto con tu nombre."
+          hintPlacement="below"
           placeholder="Ej. Ya no forma parte del staff"
           value={reason}
           maxLength={500}

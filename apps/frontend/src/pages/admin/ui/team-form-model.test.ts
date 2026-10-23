@@ -93,8 +93,8 @@ describe('validateInvite', () => {
         access: { scope: 'events', eventIds: [] },
       }),
     ).toEqual({
-      displayName: 'Escribe el nombre.',
-      email: 'Escribe un correo válido, por ejemplo nombre@dominio.com.',
+      displayName: 'Escribe su nombre.',
+      email: 'Escribe un correo válido.',
       access: 'Elige al menos un evento.',
     });
     expect(validateInvite({ ...valid, displayName: 'a'.repeat(201) })).toEqual({
@@ -110,7 +110,7 @@ describe('serverFieldErrors', () => {
       serverFieldErrors({ displayName: 'invalid', email: 'invalid', access: 'unknown_event' }),
     ).toEqual({
       displayName: 'Revisa el nombre.',
-      email: 'Escribe un correo válido, por ejemplo nombre@dominio.com.',
+      email: 'Escribe un correo válido.',
       access: 'Uno de los eventos elegidos ya no existe. Recarga la página.',
     });
     expect(serverFieldErrors({ access: 'invalid', reason: 'invalid' })).toEqual({

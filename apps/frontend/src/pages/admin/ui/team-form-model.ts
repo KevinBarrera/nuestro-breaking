@@ -53,6 +53,22 @@ export function accessDraftFrom(access: TeamAccess): AccessDraft {
   return { scope: 'events', eventIds: access.events.map((event) => event.id) };
 }
 
+// Cambiar acceso keeps "Guardar acceso" off until the draft differs. Someone without access has
+// nothing to keep, so any choice counts as a change and an empty one shows the error.
+export function accessUnchanged(draft: AccessDraft, access: TeamAccess): boolean {
+  if (access.kind === 'none') return false;
+  if (access.kind === 'global') return draft.scope === 'global';
+  if (draft.scope === 'global') return false;
+  const current = new Set(access.events.map((event) => event.id));
+  return draft.eventIds.length === current.size && draft.eventIds.every((id) => current.has(id));
+}
+
+export function currentAccessText(access: TeamAccess): string {
+  if (access.kind === 'global') return 'Ahora: todos los eventos.';
+  if (access.kind === 'none') return 'Ahora: sin acceso.';
+  return `Ahora: ${access.events.map((event) => event.name).join(', ')}.`;
+}
+
 export type InviteDraft = { displayName: string; email: string; access: AccessDraft };
 export type InviteErrors = Partial<Record<'displayName' | 'email' | 'access', string>>;
 
@@ -96,7 +112,7 @@ export function serverFieldErrors(fieldErrors: Record<string, string>): ServerFi
 
 export function reasonError(reason: string): string | null {
   const trimmed = reason.trim();
-  if (!trimmed) return 'Escribe el motivo.';
+  if (!trimmed) return 'Escribe el motivo para dejarlo en el historial.';
   if (trimmed.length > 500 || hasControlCharacters(trimmed)) return reasonMessage;
   return null;
 }

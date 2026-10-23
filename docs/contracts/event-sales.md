@@ -74,9 +74,9 @@ Dates are ISO 8601 in UTC, or `null`.
 
 The event overview (`/admin/events/:eventId`) has a "Venta en línea" section. Code: `apps/frontend/src/pages/admin/ui/sales-section.tsx` and `sales-model.ts`; the API client is `apps/frontend/src/entities/event-sales`.
 
-- It shows the state as "Abierta" or "Cerrada" with the reason: "La venta está apagada" (`disabled`), "Abre el <fecha>" (`not_yet_open`) or "Cerró el <fecha>" (`ended`). While open with a closing date it adds "Cierra el <fecha>".
-- It shows the public address `/e/<slug>` and the slug, read-only (D3). The public route itself is built in #176.
-- The form has the switch, optional opening and closing date-times (each can be cleared with "Quitar") and one "Guardar" that sends all three keys.
+- It shows the state as a "Venta abierta" or "Venta cerrada" pill with the reason: "La venta está apagada" (`disabled`), "Abre el <fecha>" (`not_yet_open`) or "Cerró el <fecha>" (`ended`). While open with a closing date it adds "Cierra el <fecha>".
+- It shows the public address `/e/<slug>` read-only (D3), with "Copiar" (copies the full URL on the current origin, then reads "Copiada" and announces "Dirección copiada."; without clipboard access it says "No se pudo copiar. Selecciona la dirección y cópiala a mano.") and "Abrir" (opens the public page in a new tab). The public route itself is built in #176.
+- The form has the "Venta en línea activa" switch (a native checkbox with `role="switch"`, described by "El público puede comprar dentro del periodo de venta." or "Apagada, la venta queda cerrada aunque las fechas estén dentro del periodo." for its position), "Periodo de venta" with optional opening and closing date-times (each can be cleared with "Quitar") and one "Guardar cambios" in the card footer that sends all three keys (#317).
 - Dates are entered and shown as wall-clock times in the event time zone (read from the event foundation), the same rule as the activity form. They are sent as UTC instants (`Z`). If the time zone cannot be read, the browser zone is used and the label says so.
 - The client blocks a closing date at or before the opening date with a field message, and rejects values that do not exist on that clock. A server 400 still shows a safe notice; backend messages are never echoed.
 

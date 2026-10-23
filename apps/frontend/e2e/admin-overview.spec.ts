@@ -13,7 +13,10 @@ const overviewPath = `/admin/events/${eventId}`;
 const api = (url: URL) => url.port === '3000';
 
 const events = [
-  eventSummary(eventId, 'Encuentro del barrio'),
+  eventSummary(eventId, 'Encuentro del barrio', {
+    startsAt: '2026-11-21T16:00:00.000Z',
+    endsAt: '2026-11-23T03:00:00.000Z',
+  }),
   eventSummary(otherId, 'Batalla de otoño'),
 ];
 
@@ -119,7 +122,7 @@ test('shows the event overview with its dates and city and Resumen as the curren
     .getByRole('main')
     .getByRole('paragraph')
     .filter({ hasText: 'Encuentro del barrio' });
-  await expect(facts).toContainText(/\d+–\d+ de \w+ de \d{4}|Fechas por definir/);
+  await expect(facts).toContainText('21–22 de noviembre de 2026');
   await expect(facts).toContainText('Ciudad de México');
   await expect(page.getByText('por confirmar', { exact: false })).toHaveCount(0);
 

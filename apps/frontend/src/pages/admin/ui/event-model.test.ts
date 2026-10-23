@@ -4,12 +4,12 @@ import {
   eventDates,
   eventFailureMessage,
   eventZoneName,
-  folioPattern,
   landingRedirect,
   restoredNotice,
   salesChip,
   splitEvents,
   eventLocation,
+  eventDateTile,
 } from './event-model';
 import { slugTakenMessage } from './event-form-model';
 
@@ -44,12 +44,6 @@ describe('landingRedirect', () => {
 
   it('never redirects a global admin, who needs the list to create and restore', () => {
     expect(landingRedirect([event('a')], true)).toBeNull();
-  });
-});
-
-describe('folioPattern', () => {
-  it('shows the prefix with a hidden code', () => {
-    expect(folioPattern('LMP')).toBe('LMP-····');
   });
 });
 
@@ -107,6 +101,36 @@ describe('eventZoneName', () => {
   it('names a listed zone by its city and falls back to the zone id', () => {
     expect(eventZoneName('America/Mexico_City')).toBe('Ciudad de México');
     expect(eventZoneName('Europe/Madrid')).toBe('Europe/Madrid');
+  });
+});
+
+describe('eventDateTile', () => {
+  const dated = (startsAt: string, endsAt: string) => ({
+    ...event('a'),
+    startsAt,
+    endsAt,
+  });
+
+  it('shows the month and the days on the event clock', () => {
+    expect(eventDateTile(dated('2026-11-21T16:00:00.000Z', '2026-11-23T04:00:00.000Z'))).toEqual({
+      month: 'Nov 2026',
+      days: '21–22',
+    });
+  });
+
+  it('shows one day for a one-day event and both months across a month change', () => {
+    expect(eventDateTile(dated('2026-11-21T16:00:00.000Z', '2026-11-22T04:00:00.000Z'))).toEqual({
+      month: 'Nov 2026',
+      days: '21',
+    });
+    expect(eventDateTile(dated('2026-11-30T16:00:00.000Z', '2026-12-02T04:00:00.000Z'))).toEqual({
+      month: 'Nov–Dic 2026',
+      days: '30–1',
+    });
+  });
+
+  it('is empty while the dates are not set', () => {
+    expect(eventDateTile(event('a'))).toBeNull();
   });
 });
 

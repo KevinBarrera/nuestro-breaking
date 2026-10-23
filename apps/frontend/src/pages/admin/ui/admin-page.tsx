@@ -3,14 +3,14 @@ import { useSessionStore } from '@/entities/session';
 import { isEventListRequest } from '@/widgets/admin-shell';
 import { routes } from '@/shared/config';
 import { Notice } from '@/shared/ui';
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router';
 import { styles } from './catalog-copy';
 import {
   eventDates,
+  eventDateTile,
   eventFailureMessage,
   eventLocation,
-  folioPattern,
   landingRedirect,
   restoredNotice,
   salesChip,
@@ -21,33 +21,38 @@ import { useEventList } from './use-event-list';
 
 const eventPath = (pattern: string, eventId: string) => pattern.replace(':eventId', eventId);
 
-const createLink = `${styles.primary} inline-flex items-center justify-center gap-2 px-5 text-base font-bold`;
+const createLink = `${styles.primary} inline-flex items-center justify-center gap-2 px-[18px]`;
 
 function PlusIcon() {
   return (
     <svg
-      width="18"
-      height="18"
-      viewBox="0 0 24 24"
+      width="16"
+      height="16"
+      viewBox="0 0 20 20"
       fill="none"
       stroke="currentColor"
-      strokeWidth="2.5"
+      strokeWidth="2"
       strokeLinecap="round"
       aria-hidden="true"
     >
-      <path d="M12 5v14M5 12h14" />
+      <path d="M10 4v12M4 10h12" />
     </svg>
   );
 }
 
-function CreateEventLink() {
+function CreateEventLink({ large = false }: { large?: boolean }) {
   return (
-    <Link to={routes.adminEventNew} className={createLink}>
+    <Link
+      to={routes.adminEventNew}
+      className={large ? `${createLink} min-h-12 px-6 text-[15px]` : createLink}
+    >
       <PlusIcon />
       Crear evento
     </Link>
   );
 }
+
+type Tab = 'active' | 'archived';
 
 type Message = { tone: 'info' | 'danger'; text: string };
 
@@ -58,7 +63,7 @@ type Message = { tone: 'info' | 'danger'; text: string };
 export function AdminPage() {
   const globalAdmin = useSessionStore((state) => state.session.user?.globalAdmin === true);
   const { state, reload } = useEventList(globalAdmin);
-  const [showArchived, setShowArchived] = useState(false);
+  const [tab, setTab] = useState<Tab>('active');
   const [restoring, setRestoring] = useState<string | null>(null);
   const location = useLocation();
   const navigate = useNavigate();
@@ -68,7 +73,7 @@ export function AdminPage() {
     arrivalNotice ? { tone: 'info', text: arrivalNotice } : null,
   );
   const heading = useRef<HTMLHeadingElement>(null);
-  const archivedId = useId();
+  const tabsId = useId();
 
   // The notice is shown once: it is dropped from the history entry, so a reload does not
   // repeat it.
@@ -93,7 +98,8 @@ export function AdminPage() {
     try {
       await restoreEvent(event.id);
       setMessage({ tone: 'info', text: restoredNotice(event.name) });
-      // The restored card leaves the archived list, so focus moves to a stable target.
+      // The restored event is active again: show it there, and move focus to a stable target.
+      setTab('active');
       heading.current?.focus();
     } catch (error) {
       setMessage({ tone: 'danger', text: eventFailureMessage(adminEventFailure(error)) });
@@ -107,10 +113,7 @@ export function AdminPage() {
     <main className="px-4 py-8 text-fg sm:px-8 lg:py-12">
       <div className="mx-auto max-w-5xl space-y-6">
         <header className="flex flex-wrap items-end justify-between gap-4">
-          <div className="space-y-1">
-            <p className="text-xs font-bold tracking-[0.08em] text-muted uppercase">
-              Administración
-            </p>
+          <div className="space-y-1.5">
             <h1
               ref={heading}
               tabIndex={-1}
@@ -159,92 +162,211 @@ export function AdminPage() {
             </div>
           ))}
         {state.status === 'ready' &&
-          (empty ? (
-            globalAdmin ? (
-              <FirstEvent hasArchived={archived.length > 0} />
-            ) : (
-              <div className="space-y-1 text-muted">
-                <p>No hay eventos disponibles para tu cuenta.</p>
-                <p>Pide a una persona con acceso a todos los eventos que te dé acceso.</p>
-              </div>
-            )
-          ) : (
-            <ul aria-label="Eventos" className="flex flex-col gap-3.5">
-              {active.map((event) => (
-                <li key={event.id}>
-                  <EventCard event={event} />
-                </li>
-              ))}
-            </ul>
-          ))}
-        {state.status === 'ready' && globalAdmin && archived.length > 0 && (
-          <div className="space-y-3.5">
-            <button
-              type="button"
-              aria-expanded={showArchived}
-              aria-controls={archivedId}
-              onClick={() => setShowArchived((value) => !value)}
-              className={`${styles.secondary} inline-flex items-center gap-2 bg-surface`}
+          (globalAdmin && (archived.length > 0 || !empty) ? (
+            <EventTabs
+              id={tabsId}
+              tab={tab}
+              onTab={setTab}
+              counts={{ active: active.length, archived: archived.length }}
             >
-              <ArchiveIcon />
-              Archivados ({archived.length})
-            </button>
-            {showArchived && (
-              <ul id={archivedId} aria-label="Eventos archivados" className="flex flex-col gap-3.5">
-                {archived.map((event) => (
-                  <li key={event.id}>
-                    <ArchivedEventCard
-                      event={event}
-                      restoring={restoring === event.id}
-                      disabled={restoring !== null}
-                      onRestore={() => void restore(event)}
-                    />
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        )}
+              {tab === 'active' ? (
+                <ActiveEvents events={active} globalAdmin hasArchived={archived.length > 0} />
+              ) : (
+                <ArchivedEvents
+                  events={archived}
+                  restoring={restoring}
+                  onRestore={(event) => void restore(event)}
+                />
+              )}
+            </EventTabs>
+          ) : (
+            <ActiveEvents events={active} globalAdmin={globalAdmin} hasArchived={false} />
+          ))}
       </div>
     </main>
   );
 }
 
-const steps = [
-  'Agregar competencias y workshops',
-  'Crear los pases y sus precios',
-  'Abrir la venta en línea y operar el check-in',
+const tabs: { id: Tab; label: string }[] = [
+  { id: 'active', label: 'Activos' },
+  { id: 'archived', label: 'Archivados' },
 ];
 
-// First run: no event yet, so the next step is creating one.
+type EventTabsProps = {
+  id: string;
+  tab: Tab;
+  onTab: (tab: Tab) => void;
+  counts: Record<Tab, number>;
+  children: ReactNode;
+};
+
+// "Activos" / "Archivados" (#323), for global admins: only they see archived events. Arrow
+// keys move between the two tabs, as in the WAI-ARIA tabs pattern.
+function EventTabs({ id, tab, onTab, counts, children }: EventTabsProps) {
+  const tabRefs = useRef<Partial<Record<Tab, HTMLButtonElement | null>>>({});
+
+  function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+    event.preventDefault();
+    const next: Tab = tab === 'active' ? 'archived' : 'active';
+    onTab(next);
+    tabRefs.current[next]?.focus();
+  }
+
+  return (
+    <div className="space-y-6">
+      <div
+        role="tablist"
+        aria-label="Filtrar eventos"
+        onKeyDown={onKeyDown}
+        className="flex gap-6 border-b border-line"
+      >
+        {tabs.map(({ id: tabId, label }) => {
+          const selected = tab === tabId;
+          return (
+            <button
+              key={tabId}
+              ref={(node) => {
+                tabRefs.current[tabId] = node;
+              }}
+              type="button"
+              role="tab"
+              id={`${id}-${tabId}`}
+              aria-selected={selected}
+              aria-controls={`${id}-panel`}
+              tabIndex={selected ? 0 : -1}
+              onClick={() => onTab(tabId)}
+              className={`-mb-px flex min-h-11 items-center gap-2 border-b-2 px-0.5 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus ${
+                selected
+                  ? 'border-primary text-heading'
+                  : 'border-transparent text-muted hover:text-heading'
+              }`}
+            >
+              {label}
+              <span className="rounded-full bg-chip px-2 text-xs leading-[18px] text-heading">
+                {counts[tabId]}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+      <div role="tabpanel" id={`${id}-panel`} aria-labelledby={`${id}-${tab}`}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+type ActiveEventsProps = { events: AdminEvent[]; globalAdmin: boolean; hasArchived: boolean };
+
+function ActiveEvents({ events, globalAdmin, hasArchived }: ActiveEventsProps) {
+  if (events.length > 0)
+    return (
+      <ul aria-label="Eventos" className="flex flex-col gap-3">
+        {events.map((event) => (
+          <li key={event.id}>
+            <EventCard event={event} />
+          </li>
+        ))}
+      </ul>
+    );
+  if (globalAdmin) return <FirstEvent hasArchived={hasArchived} />;
+  return (
+    <div className="space-y-1 text-muted">
+      <p>No hay eventos disponibles para tu cuenta.</p>
+      <p>Pide a una persona con acceso a todos los eventos que te dé acceso.</p>
+    </div>
+  );
+}
+
+type ArchivedEventsProps = {
+  events: AdminEvent[];
+  restoring: string | null;
+  onRestore: (event: AdminEvent) => void;
+};
+
+function ArchivedEvents({ events, restoring, onRestore }: ArchivedEventsProps) {
+  if (events.length === 0)
+    return (
+      <div className="flex flex-col gap-1 rounded-xl border border-dashed border-input-line px-6 py-10 text-center">
+        <p className="font-bold text-heading">No hay eventos archivados</p>
+        <p className="text-sm text-muted">
+          Los eventos que archives desde Datos del evento aparecen aquí y se pueden restaurar.
+        </p>
+      </div>
+    );
+  return (
+    <ul aria-label="Eventos archivados" className="flex flex-col gap-3">
+      {events.map((event) => (
+        <li key={event.id}>
+          <ArchivedEventCard
+            event={event}
+            restoring={restoring === event.id}
+            disabled={restoring !== null}
+            onRestore={() => onRestore(event)}
+          />
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+const steps = [
+  {
+    title: 'Agrega competencias y workshops',
+    detail: 'Las actividades que va a tener el evento.',
+  },
+  { title: 'Crea los pases y sus precios', detail: 'Lo que el público va a comprar.' },
+  { title: 'Abre la venta y opera el check-in', detail: 'Cuando el catálogo esté listo.' },
+];
+
+// First run: no event yet, so the next step is creating one. With archived events, the copy
+// also points to restoring one.
 function FirstEvent({ hasArchived }: { hasArchived: boolean }) {
   const titleId = useId();
   return (
-    <section aria-labelledby={titleId} className={`${styles.card} max-w-2xl space-y-5 sm:p-8`}>
-      <div className="space-y-2">
-        <h2 id={titleId} className="text-2xl font-extrabold tracking-tight text-heading">
+    <section
+      aria-labelledby={titleId}
+      className="flex flex-col items-center gap-7 rounded-2xl border border-line bg-surface px-6 py-12 text-center sm:px-8"
+    >
+      <span
+        aria-hidden="true"
+        className="flex size-16 items-center justify-center rounded-2xl bg-chip-selected text-chip-selected-fg"
+      >
+        <CalendarPlusIcon />
+      </span>
+      <div className="flex max-w-[520px] flex-col gap-2">
+        <h2 id={titleId} className="text-2xl font-extrabold text-heading">
           {hasArchived ? 'No hay eventos activos' : 'Aún no hay eventos'}
         </h2>
-        <p className="text-fg">
+        <p className="text-muted">
           {hasArchived
-            ? 'Crea un evento nuevo o restaura uno archivado. Después de crearlo podrás:'
-            : 'Crea el primer evento para empezar a configurarlo. Después de crearlo podrás:'}
+            ? 'Crea uno nuevo o restaura uno archivado. Después lo dejas listo en tres pasos.'
+            : 'Crea el primero para empezar. Después lo dejas listo en tres pasos.'}
         </p>
       </div>
-      <ol className="flex flex-col gap-3">
+      <ol className="flex w-full max-w-[840px] flex-wrap gap-4 text-left">
         {steps.map((step, index) => (
-          <li key={step} className="flex items-center gap-3.5">
+          <li
+            key={step.title}
+            className="flex flex-[1_1_220px] flex-col gap-3 rounded-xl bg-surface-inner p-5"
+          >
             <span
               aria-hidden="true"
-              className="flex size-7 shrink-0 items-center justify-center rounded-full bg-chip-selected text-sm font-bold text-chip-selected-fg"
+              className="flex size-8 items-center justify-center rounded-full bg-chip-selected text-sm font-bold text-chip-selected-fg"
             >
               {index + 1}
             </span>
-            <span>{step}</span>
+            <span className="flex flex-col gap-1">
+              <span className="text-[15px] leading-[22px] font-bold text-heading">
+                {step.title}
+              </span>
+              <span className="text-sm text-muted">{step.detail}</span>
+            </span>
           </li>
         ))}
       </ol>
-      <CreateEventLink />
+      <CreateEventLink large />
     </section>
   );
 }
@@ -252,19 +374,49 @@ function FirstEvent({ hasArchived }: { hasArchived: boolean }) {
 function EventMeta({ event, id }: { event: AdminEvent; id?: string }) {
   const location = eventLocation(event);
   return (
-    <span id={id} className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted">
+    <span
+      id={id}
+      className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm leading-5 text-muted"
+    >
       <span>{eventDates(event)}</span>
-      {location && <span>{location}</span>}
-      <span className="font-mono break-all">/e/{event.slug}</span>
-      <span>
-        Folios <span className="font-mono">{folioPattern(event.folioPrefix)}</span>
-      </span>
+      {location && (
+        <span className="inline-flex items-center gap-1.5">
+          <PlaceIcon />
+          {location}
+        </span>
+      )}
+      <span className="max-w-full truncate font-mono text-[13px]">/e/{event.slug}</span>
     </span>
   );
 }
 
-// The whole card opens the event's overview. Its name is the link name; the dates, zone,
-// address, folio prefix and sales chip describe it.
+// The month and days of the event, or a dashed "Por definir" tile while its dates are not set.
+// Decorative: the card's description already reads the dates.
+function DateTileBadge({ event }: { event: AdminEvent }) {
+  const tile = eventDateTile(event);
+  if (!tile)
+    return (
+      <span
+        aria-hidden="true"
+        className="flex size-[72px] shrink-0 flex-col items-center justify-center gap-1 rounded-[10px] border border-dashed border-input-line bg-surface-inner text-center text-xs leading-[14px] font-semibold text-muted"
+      >
+        <CalendarIcon />
+        Por definir
+      </span>
+    );
+  return (
+    <span
+      aria-hidden="true"
+      className="flex size-[72px] shrink-0 flex-col items-center justify-center gap-0.5 rounded-[10px] bg-chip-selected text-chip-selected-fg"
+    >
+      <span className="text-xs leading-4 font-semibold opacity-85">{tile.month}</span>
+      <span className="text-xl leading-6 font-extrabold tracking-tight">{tile.days}</span>
+    </span>
+  );
+}
+
+// The whole card opens the event's overview. Its name is the link name; the dates, location,
+// address and sales pill describe it.
 function EventCard({ event }: { event: AdminEvent }) {
   const nameId = useId();
   const metaId = useId();
@@ -274,32 +426,35 @@ function EventCard({ event }: { event: AdminEvent }) {
       to={eventPath(routes.adminEventOverview, event.id)}
       aria-labelledby={nameId}
       aria-describedby={`${metaId} ${salesId}`}
-      className="flex items-center gap-4 rounded-xl border border-line bg-surface px-5 py-5 text-heading hover:bg-row focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus sm:px-6"
+      className="flex items-center gap-5 rounded-xl border border-line bg-surface py-4 pr-5 pl-4 text-heading hover:border-input-line focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
     >
-      <span className="flex min-w-0 flex-1 flex-col gap-2">
-        <span id={nameId} className="text-lg font-bold break-words">
+      <DateTileBadge event={event} />
+      <span className="flex min-w-0 flex-1 flex-col gap-1.5">
+        <span id={nameId} className="text-[17px] leading-6 font-bold break-words">
           {event.name}
         </span>
         <EventMeta event={event} id={metaId} />
       </span>
-      <SalesChipBadge salesEnabled={event.salesEnabled} id={salesId} />
+      <SalesPill salesEnabled={event.salesEnabled} id={salesId} />
       <ChevronIcon />
     </Link>
   );
 }
 
-const chipTone = {
-  open: 'bg-success text-success-fg',
-  closed: 'bg-chip text-fg',
+const pillTone = {
+  open: { pill: 'border-success-fg bg-success text-success-fg', dot: 'bg-success-fg' },
+  closed: { pill: 'border-line bg-chip text-muted', dot: 'bg-muted' },
 } as const;
 
-function SalesChipBadge({ salesEnabled, id }: { salesEnabled: boolean; id?: string }) {
+function SalesPill({ salesEnabled, id }: { salesEnabled: boolean; id?: string }) {
   const chip = salesChip(salesEnabled);
+  const tone = pillTone[chip.tone];
   return (
     <span
       id={id}
-      className={`shrink-0 rounded-full px-3 py-1.5 text-sm font-bold whitespace-nowrap ${chipTone[chip.tone]}`}
+      className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-[3px] text-xs leading-4 font-semibold whitespace-nowrap ${tone.pill}`}
     >
+      <span aria-hidden="true" className={`size-1.5 rounded-full ${tone.dot}`} />
       {chip.label}
     </span>
   );
@@ -317,15 +472,16 @@ function ArchivedEventCard({ event, restoring, disabled, onRestore }: ArchivedEv
   return (
     <article
       aria-labelledby={nameId}
-      className="flex flex-wrap items-center gap-4 rounded-xl border border-line bg-surface px-5 py-5 sm:px-6"
+      className="flex flex-wrap items-center gap-5 rounded-xl border border-line bg-surface py-4 pr-5 pl-4"
     >
-      <div className="flex min-w-0 flex-1 basis-60 flex-col gap-2">
-        <h3 id={nameId} className="text-lg font-bold break-words text-heading">
+      <DateTileBadge event={event} />
+      <div className="flex min-w-0 flex-1 basis-60 flex-col gap-1.5">
+        <h3 id={nameId} className="text-[17px] leading-6 font-bold break-words text-heading">
           {event.name}
         </h3>
         <EventMeta event={event} />
       </div>
-      <span className="rounded-full bg-chip px-3 py-1.5 text-sm font-bold whitespace-nowrap text-fg">
+      <span className="rounded-full border border-line bg-chip px-3 py-[3px] text-xs leading-4 font-semibold whitespace-nowrap text-muted">
         Archivado
       </span>
       <button
@@ -341,39 +497,39 @@ function ArchivedEventCard({ event, restoring, disabled, onRestore }: ArchivedEv
   );
 }
 
-function ChevronIcon() {
-  return (
-    <svg
-      width="20"
-      height="20"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      aria-hidden="true"
-      className="shrink-0 text-muted"
-    >
-      <path d="M9 6l6 6-6 6" />
-    </svg>
-  );
-}
+const iconProps = {
+  'aria-hidden': true,
+  viewBox: '0 0 20 20',
+  fill: 'none',
+  stroke: 'currentColor',
+  strokeWidth: 1.75,
+  strokeLinecap: 'round',
+  strokeLinejoin: 'round',
+} as const;
 
-function ArchiveIcon() {
-  return (
-    <svg
-      width="18"
-      height="18"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <rect x="3" y="4" width="18" height="4" rx="1" />
-      <path d="M5 8v11a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8M10 12h4" />
-    </svg>
-  );
-}
+const ChevronIcon = () => (
+  <svg {...iconProps} width="18" height="18" className="shrink-0 text-muted">
+    <path d="M8 5l5 5-5 5" />
+  </svg>
+);
+
+const PlaceIcon = () => (
+  <svg {...iconProps} width="14" height="14" className="shrink-0">
+    <path d="M10 17.5s5.5-4.8 5.5-9a5.5 5.5 0 0 0-11 0c0 4.2 5.5 9 5.5 9z" />
+    <circle cx="10" cy="8.5" r="2" />
+  </svg>
+);
+
+const CalendarIcon = () => (
+  <svg {...iconProps} width="18" height="18">
+    <rect x="3" y="4.5" width="14" height="13" rx="2" />
+    <path d="M3 8.5h14M7 2.5v4M13 2.5v4" />
+  </svg>
+);
+
+const CalendarPlusIcon = () => (
+  <svg {...iconProps} width="30" height="30" strokeWidth={1.5}>
+    <rect x="3" y="4.5" width="14" height="13" rx="2" />
+    <path d="M3 8.5h14M7 2.5v4M13 2.5v4M10 11v4M8 13h4" />
+  </svg>
+);

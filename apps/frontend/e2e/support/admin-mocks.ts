@@ -352,7 +352,7 @@ const accessControls = (page: Page) =>
 // Puts each screen in a state that shows its main interactive controls.
 export async function revealControls(page: Page, name: AdminScreenName) {
   if (name === 'Eventos') {
-    await page.getByRole('button', { name: /^Archivados/ }).click();
+    await page.getByRole('tab', { name: /^Archivados/ }).click();
     await page.getByRole('button', { name: /^Restaurar / }).waitFor();
   }
   // An empty submit shows the field errors, so their text is measured too.

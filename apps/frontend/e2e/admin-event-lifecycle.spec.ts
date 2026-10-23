@@ -97,7 +97,7 @@ test('archives the event after the dialog and lands on the event list', async ({
   await expect(main(page).getByRole('status').first()).toContainText(
     '«Encuentro del barrio» se archivó.',
   );
-  await expect(main(page).getByRole('button', { name: /^Archivados \(1\)/ })).toBeVisible();
+  await expect(main(page).getByRole('tab', { name: /^Archivados/ })).toContainText('1');
   expect(calls).toEqual([{ body: null, csrf: 'csrf-token' }]);
 });
 

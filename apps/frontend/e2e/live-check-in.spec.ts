@@ -103,9 +103,10 @@ test('browser session searches, checks in a pass activity in one action and pers
     await page.getByRole('button', { name: 'Iniciar sesión' }).click();
     // The operator is scoped to one event, so /admin opens that event's overview directly.
     await expect(page).toHaveURL(new RegExp(`/admin/events/${ready.event}$`));
+    // Check-in sits in the side navigation's Operación group, open on the overview (#317).
     await page
-      .getByRole('main')
-      .getByRole('link', { name: /Abrir check-in/ })
+      .getByRole('navigation', { name: 'Navegación administrativa' })
+      .getByRole('link', { name: 'Check-in' })
       .click();
     await expect(page).toHaveURL(new RegExp(`/admin/events/${ready.event}/check-in$`));
     await page.getByRole('textbox', { name: 'Buscar inscripción' }).fill('Allowed');

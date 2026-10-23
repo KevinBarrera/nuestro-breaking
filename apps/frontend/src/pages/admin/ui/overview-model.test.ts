@@ -1,6 +1,6 @@
 import type { CatalogActivity, CatalogPassType } from '@/entities/event-catalog';
 import { describe, expect, it } from 'vitest';
-import { catalogStats, describeAccess } from './overview-model';
+import { catalogStats, describeAccess, passCountLabel } from './overview-model';
 
 const activity = (id: string, kind: string, name: string, status = 'active'): CatalogActivity => ({
   id,
@@ -129,5 +129,12 @@ describe('describeAccess', () => {
     expect(access({ passClass: 'add_on', requiresPassClass: 'general' })).toBe(
       'Sin actividades · Requiere pase general',
     );
+  });
+});
+
+describe('passCountLabel', () => {
+  it('counts the passes on sale for the table footer', () => {
+    expect(passCountLabel(1)).toBe('1 pase');
+    expect(passCountLabel(8)).toBe('8 pases');
   });
 });

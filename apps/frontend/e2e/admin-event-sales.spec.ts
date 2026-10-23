@@ -68,11 +68,23 @@ test('shows closed sales with the reason and the public address', async ({ page 
   await mockOverview(page, closed);
   await page.goto(overviewPath);
   await expect(section(page).getByTestId('sales-status')).toHaveText(
-    'CerradaLa venta está apagada',
+    'Venta cerradaLa venta está apagada',
+  );
+  await expect(section(page)).toContainText(
+    'Decide si el público puede comprar pases y en qué fechas.',
   );
   await expect(section(page)).toContainText(`/e/${slug}`);
-  await expect(section(page)).toContainText(`Identificador: ${slug}`);
-  await expect(form(page).getByRole('switch', { name: 'Venta en línea activa' })).not.toBeChecked();
+  await expect(section(page)).not.toContainText('Identificador');
+  const enabled = form(page).getByRole('switch', { name: 'Venta en línea activa' });
+  await expect(enabled).not.toBeChecked();
+  // The hint under the switch follows its position in the form.
+  await expect(enabled).toHaveAccessibleDescription(
+    'Apagada, la venta queda cerrada aunque las fechas estén dentro del periodo.',
+  );
+  await enabled.check();
+  await expect(enabled).toHaveAccessibleDescription(
+    'El público puede comprar dentro del periodo de venta.',
+  );
   await expect(form(page).getByLabel('Apertura (opcional)')).toHaveValue('');
   await expect(section(page)).toContainText('Hora del evento (America/Mexico_City)');
 });
@@ -81,7 +93,7 @@ test('shows open sales with dates on the event clock', async ({ page }) => {
   await mockOverview(page, openWithWindow);
   await page.goto(overviewPath);
   const status = section(page).getByTestId('sales-status');
-  await expect(status).toContainText('Abierta');
+  await expect(status).toContainText('Venta abierta');
   await expect(status).toContainText(/Cierra el .*00:00/);
   await expect(form(page).getByRole('switch', { name: 'Venta en línea activa' })).toBeChecked();
   await expect(form(page).getByLabel('Apertura (opcional)')).toHaveValue('2026-10-01T09:00');
@@ -100,7 +112,7 @@ test('opens sales with a window and sends the full PUT body', async ({ page }) =
   await form(page).getByRole('switch', { name: 'Venta en línea activa' }).check();
   await form(page).getByLabel('Apertura (opcional)').fill('2026-10-01T09:00');
   await form(page).getByLabel('Cierre (opcional)').fill('2026-11-20T00:00');
-  await form(page).getByRole('button', { name: 'Guardar' }).click();
+  await form(page).getByRole('button', { name: 'Guardar cambios' }).click();
 
   await expect(form(page).getByRole('status')).toHaveText('Venta en línea guardada.');
   expect(bodies).toEqual([
@@ -111,7 +123,7 @@ test('opens sales with a window and sends the full PUT body', async ({ page }) =
     },
   ]);
   expect(tokens).toEqual(['safe-token']);
-  await expect(section(page).getByTestId('sales-status')).toContainText('Abierta');
+  await expect(section(page).getByTestId('sales-status')).toContainText('Venta abierta');
 });
 
 test('clears a date and sends null for it', async ({ page }) => {
@@ -123,12 +135,12 @@ test('clears a date and sends null for it', async ({ page }) => {
   await page.goto(overviewPath);
   await form(page).getByRole('button', { name: 'Quitar fecha de cierre' }).click();
   await expect(form(page).getByLabel('Cierre (opcional)')).toHaveValue('');
-  await form(page).getByRole('button', { name: 'Guardar' }).click();
+  await form(page).getByRole('button', { name: 'Guardar cambios' }).click();
   await expect(form(page).getByRole('status')).toBeVisible();
   expect(bodies).toEqual([
     { salesEnabled: true, salesOpensAt: '2026-10-01T15:00:00.000Z', salesClosesAt: null },
   ]);
-  await expect(section(page).getByTestId('sales-status')).toHaveText('Abierta');
+  await expect(section(page).getByTestId('sales-status')).toHaveText('Venta abierta');
 });
 
 test('blocks a closing date before the opening without calling the API', async ({ page }) => {
@@ -141,7 +153,7 @@ test('blocks a closing date before the opening without calling the API', async (
   await form(page).getByLabel('Apertura (opcional)').fill('2026-10-15T09:00');
   const closing = form(page).getByLabel('Cierre (opcional)');
   await closing.fill('2026-10-15T08:00');
-  await form(page).getByRole('button', { name: 'Guardar' }).click();
+  await form(page).getByRole('button', { name: 'Guardar cambios' }).click();
   await expect(closing).toHaveAttribute('aria-invalid', 'true');
   await expect(closing).toHaveAccessibleDescription('El cierre debe ser después de la apertura.');
   await expect(closing).toBeFocused();
@@ -154,11 +166,11 @@ test('shows a safe notice when the server rejects the window', async ({ page }) 
   );
   await page.goto(overviewPath);
   await form(page).getByLabel('Apertura (opcional)').fill('2026-10-15T09:00');
-  await form(page).getByRole('button', { name: 'Guardar' }).click();
+  await form(page).getByRole('button', { name: 'Guardar cambios' }).click();
   await expect(form(page).getByRole('alert')).toContainText('el servidor rechazó las fechas');
   await expect(page.getByText('private detail')).toHaveCount(0);
-  await expect(form(page).getByRole('button', { name: 'Guardar' })).toBeEnabled();
-  await expect(section(page).getByTestId('sales-status')).toContainText('Cerrada');
+  await expect(form(page).getByRole('button', { name: 'Guardar cambios' })).toBeEnabled();
+  await expect(section(page).getByTestId('sales-status')).toContainText('Venta cerrada');
 });
 
 test('keeps the catalog summary when sales cannot be read and retries', async ({ page }) => {
@@ -175,17 +187,31 @@ test('keeps the catalog summary when sales cannot be read and retries', async ({
   await expect(section(page).getByRole('alert')).toHaveCount(0);
   healthy = true;
   await section(page).getByRole('button', { name: 'Reintentar' }).click();
-  await expect(section(page).getByTestId('sales-status')).toContainText('Cerrada');
+  await expect(section(page).getByTestId('sales-status')).toContainText('Venta cerrada');
+});
+
+test('copies the full public address and opens the public page', async ({ page, context }) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  await mockOverview(page, closed);
+  await page.goto(overviewPath);
+  const address = section(page).getByRole('group', { name: 'Dirección pública' });
+  await expect(address.getByRole('link', { name: 'Abrir' })).toHaveAttribute('href', `/e/${slug}`);
+  await expect(address.getByRole('link', { name: 'Abrir' })).toHaveAttribute('target', '_blank');
+  await address.getByRole('button', { name: 'Copiar' }).click();
+  await expect(address.getByRole('button', { name: 'Copiada' })).toBeVisible();
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
+    `${new URL(page.url()).origin}/e/${slug}`,
+  );
 });
 
 test('fits a 375px viewport with 44px controls', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 800 });
   await mockOverview(page, openWithWindow);
   await page.goto(overviewPath);
-  await expect(form(page).getByRole('button', { name: 'Guardar' })).toBeVisible();
+  await expect(form(page).getByRole('button', { name: 'Guardar cambios' })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
   for (const control of [
-    form(page).getByRole('button', { name: 'Guardar' }),
+    form(page).getByRole('button', { name: 'Guardar cambios' }),
     form(page).getByRole('button', { name: 'Quitar fecha de apertura' }),
     form(page).getByLabel('Cierre (opcional)'),
   ])

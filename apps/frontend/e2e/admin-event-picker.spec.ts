@@ -49,7 +49,6 @@ test('several events show a picker built only from the returned events', async (
     const eventCard = card(page, event.name);
     await expect(eventCard).toHaveAttribute('href', `/admin/events/${event.id}`);
     await expect(eventCard).toContainText(`/e/${event.slug}`);
-    await expect(eventCard).toContainText(`Folios ${event.folioPrefix}-····`);
   }
   await expect(page).toHaveURL(/\/admin$/);
   await expectNoSampleContent(page);

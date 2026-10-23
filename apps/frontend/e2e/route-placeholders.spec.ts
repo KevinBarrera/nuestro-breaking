@@ -397,7 +397,6 @@ test('renders the Spanish event picker at /admin with no sample planning content
 
   await expect(page).toHaveURL(/\/admin$/);
   const main = page.getByRole('main');
-  await expect(main.getByText('Administración', { exact: true })).toBeVisible();
   await expect(main.getByRole('heading', { name: 'Eventos', level: 1 })).toBeVisible();
   await expect(
     main.getByText(

@@ -23,6 +23,8 @@ async function mockTwoEvents(page: Page) {
 const listboxTriggers = (page: Page) => page.locator('button[aria-haspopup="listbox"]');
 
 test('admin screens and catalog forms expose no native select', async ({ page }) => {
+  // One test walks every admin screen: about 15s alone, past 30s under full-suite load.
+  test.slow();
   await mockAdminApi(page);
   for (const screen of adminScreens) {
     await page.goto(screen.path);

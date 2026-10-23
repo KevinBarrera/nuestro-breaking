@@ -40,9 +40,13 @@ const detailFields: (keyof EventDetailsDraft)[] = [
   'country',
 ];
 
-// The location is checked and sent once the event has one or the admin types a city or state.
+// The location is checked and sent once the event has one or the admin starts one: a city, a
+// state or another country.
 const withLocation = (event: AdminEvent, draft: EventDetailsDraft) =>
-  event.city !== null || draft.city.trim() !== '' || draft.state.trim() !== '';
+  event.city !== null ||
+  draft.city.trim() !== '' ||
+  draft.state.trim() !== '' ||
+  draft.country !== detailsDraft(event).country;
 
 // Whether the form holds edits: drives "Guardar cambios", "Descartar cambios" and the
 // unsaved-changes guard.

@@ -161,6 +161,11 @@ describe('validateDetails location', () => {
     expect(validateDetails(withoutLocation, { ...draft, city: 'Guadalajara' })).toEqual({
       state: 'Escribe el estado.',
     });
+    // Choosing only a country starts a location too, so the save never drops it silently.
+    expect(validateDetails(withoutLocation, { ...draft, country: 'CO' })).toEqual({
+      city: 'Escribe la ciudad.',
+      state: 'Escribe el estado.',
+    });
   });
 
   it('keeps a stored country outside the list selectable and valid', () => {

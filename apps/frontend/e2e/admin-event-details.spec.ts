@@ -361,8 +361,8 @@ test('switching events while a save is pending opens the other event', async ({ 
   await saveButton(page).click();
   await expect(form(page).getByRole('button', { name: 'Guardando…' })).toBeVisible();
 
-  const header = page.getByRole('banner', { name: 'Espacio de administración' });
-  await chooseOption(selectTrigger(header, 'Evento'), 'Otro evento');
+  const nav = page.getByRole('navigation', { name: 'Navegación administrativa' });
+  await chooseOption(selectTrigger(nav, 'Evento'), 'Otro evento');
   await expect(page).toHaveURL(new RegExp(`/admin/events/${otherId}/foundation$`));
   await expect(form(page).getByLabel('Nombre del evento')).toHaveValue('Otro evento');
 
@@ -426,18 +426,17 @@ test('keeps the header and navigation usable at 375px and opens the overview', a
   await page.setViewportSize({ width: 375, height: 800 });
   await openDetails(page);
   const header = page.getByRole('banner', { name: 'Espacio de administración' });
-  const selector = selectTrigger(header, 'Evento');
+  const nav = page.getByRole('navigation', { name: 'Navegación administrativa' });
+  // The event selector sits in the side navigation (#313), not in the header.
+  await expect(selectTrigger(header, 'Evento')).toHaveCount(0);
+  const selector = selectTrigger(nav, 'Evento');
   await expectSelected(selector, 'Encuentro del barrio');
   await expect(header.getByText(eventId)).toHaveCount(0);
-  const home = page
-    .getByRole('navigation', { name: 'Navegación administrativa' })
-    .getByRole('link', { name: 'Resumen' });
+  const home = nav.getByRole('link', { name: 'Resumen' });
   await page.keyboard.press('Tab');
   await expect(
     header.getByRole('link', { name: 'Los más pesados, ir a todos los eventos' }),
   ).toBeFocused();
-  await page.keyboard.press('Tab');
-  await expect(selector).toBeFocused();
   await page.keyboard.press('Tab');
   await expect(header.getByRole('button', { name: 'Cambiar a tema oscuro' })).toBeFocused();
   await page.keyboard.press('Tab');
@@ -448,9 +447,10 @@ test('keeps the header and navigation usable at 375px and opens the overview', a
       .getByRole('navigation', { name: 'Navegación administrativa' })
       .getByRole('link', { name: 'Todos los eventos' }),
   ).toBeFocused();
-  const nav = page.getByRole('navigation', { name: 'Navegación administrativa' });
   await page.keyboard.press('Tab');
   await expect(nav.getByRole('link', { name: 'Equipo' })).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(selector).toBeFocused();
   // Datos del evento opens only Configuración; Operación opens from the keyboard.
   await page.keyboard.press('Tab');
   const operation = nav.getByRole('button', { name: 'Operación' });

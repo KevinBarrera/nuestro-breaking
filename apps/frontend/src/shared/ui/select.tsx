@@ -13,8 +13,9 @@ import { CheckIcon } from './check-icon';
 
 export type SelectOption = { id: string; label: string; isDisabled?: boolean };
 
-// `field` sits in forms, `header` in the dark admin topbar, `chip` in dense list rows.
-export type SelectVariant = 'field' | 'header' | 'chip';
+// `field` sits in forms, `header` in the dark admin topbar, `nav` in the admin side navigation,
+// `chip` in dense list rows.
+export type SelectVariant = 'field' | 'header' | 'nav' | 'chip';
 
 type SelectProps = {
   label: string;
@@ -39,6 +40,7 @@ type SelectProps = {
 const roots: Record<SelectVariant, string> = {
   field: 'block text-sm font-semibold text-fg',
   header: 'flex min-w-0 items-center gap-2 text-sm text-header-muted',
+  nav: 'block min-w-0',
   chip: 'inline-block',
 };
 
@@ -48,6 +50,7 @@ const focusRing = 'outline-none data-focus-visible:outline-2 data-focus-visible:
 const triggers: Record<SelectVariant, string> = {
   field: `mt-1 flex min-h-11 w-full items-center justify-between gap-2 rounded-lg border border-input-line bg-input py-2 pr-3 pl-3 text-left text-base text-fg data-focus-visible:border-focus ${focusRing} data-focus-visible:outline-focus data-disabled:cursor-not-allowed data-disabled:opacity-60`,
   header: `flex min-h-11 max-w-[60vw] min-w-0 items-center gap-2 rounded-md border border-header-line bg-header-control pr-3 pl-3 font-semibold text-header-fg ${focusRing} data-focus-visible:outline-header-fg data-disabled:cursor-not-allowed data-disabled:opacity-60`,
+  nav: `flex min-h-12 w-full items-center gap-2.5 rounded-lg border border-input-line bg-input px-3 py-2 text-left text-sm font-semibold text-fg ${focusRing} data-focus-visible:outline-focus`,
   chip: `inline-flex min-h-11 items-center gap-2 rounded-full border pr-3 pl-3 text-xs font-semibold ${focusRing} data-focus-visible:outline-focus data-disabled:cursor-wait data-disabled:opacity-60`,
 };
 
@@ -104,7 +107,9 @@ export function Select({
       <Label className={hideLabel ? 'sr-only' : undefined}>{label}</Label>
       <Button className={`${triggers[variant]} ${triggerClassName}`}>
         {/* Text only: the option's check-mark layout must not leak into the trigger. */}
-        <SelectValue className="min-w-0 flex-1 truncate text-left data-placeholder:text-muted">
+        <SelectValue
+          className={`min-w-0 flex-1 text-left data-placeholder:text-muted ${variant === 'nav' ? 'leading-5' : 'truncate'}`}
+        >
           {({ isPlaceholder, selectedText }) => (isPlaceholder ? placeholder : selectedText)}
         </SelectValue>
         <ChevronIcon />
@@ -115,7 +120,8 @@ export function Select({
       </FieldError>
       <Popover
         offset={4}
-        className="max-h-80 max-w-[calc(100vw-2rem)] min-w-(--trigger-width) overflow-auto rounded-lg border border-line bg-surface p-1 shadow-lg"
+        // The side navigation keeps its list as wide as the trigger; long names wrap.
+        className={`max-h-80 max-w-[calc(100vw-2rem)] ${variant === 'nav' ? 'w-(--trigger-width)' : 'min-w-(--trigger-width)'} overflow-auto rounded-lg border border-line bg-surface p-1 shadow-lg`}
       >
         <ListBox className="outline-none">
           {options.map((option) => (

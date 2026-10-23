@@ -110,8 +110,8 @@ test('restores an archived event here and makes it editable again', async ({ pag
     restored = true;
     return { status: 201, json: event };
   });
-  const header = page.getByRole('banner', { name: 'Espacio de administración' });
-  await expect(selectTrigger(header, 'Evento')).toHaveCount(0);
+  const nav = page.getByRole('navigation', { name: 'Navegación administrativa' });
+  await expect(selectTrigger(nav, 'Evento')).toHaveCount(0);
   await expect(main(page)).toContainText('Restáuralo abajo, en «Archivar o eliminar»');
   await expect(section(page).getByRole('button', { name: 'Archivar evento' })).toHaveCount(0);
   await expect(section(page)).toContainText('La venta en línea sigue cerrada');
@@ -123,7 +123,7 @@ test('restores an archived event here and makes it editable again', async ({ pag
   await expect(main(page).getByRole('button', { name: 'Guardar cambios' })).toBeVisible();
   await expect(section(page).getByRole('button', { name: 'Archivar evento' })).toBeVisible();
   // The selector reads the list again and shows the event once more.
-  await expect(selectTrigger(header, 'Evento')).toContainText('Encuentro del barrio');
+  await expect(selectTrigger(nav, 'Evento')).toContainText('Encuentro del barrio');
   expect(calls).toHaveLength(1);
 });
 

@@ -3,6 +3,7 @@ import { useId, useState, type ReactNode } from 'react';
 import { Link } from 'react-router';
 import { eventSectionPath, type AdminLocation } from './admin-location';
 import { eventListRequest } from './event-list-request';
+import { EventSelector } from './event-selector';
 import {
   CalendarIcon,
   CatalogIcon,
@@ -13,6 +14,7 @@ import {
   TeamIcon,
 } from './nav-icons';
 import { navGroups, openGroupsFor, type NavGroup, type NavGroupId } from './side-nav-model';
+import type { ShellEvent } from './use-admin-events';
 import { useFlaggedPaymentsCount } from './use-flagged-payments-count';
 
 const groupIcons: Record<NavGroupId, () => ReactNode> = {
@@ -27,6 +29,7 @@ const linkClass = `${rowClass} text-fg hover:bg-row aria-[current=page]:bg-nav-a
 const sectionTitle = 'px-3 text-xs font-semibold text-muted';
 
 type AdminSideNavProps = {
+  events: ShellEvent[];
   location: AdminLocation;
   // The event list landing (`/admin`, `/admin/events/new`) marks Todos los eventos current.
   onLanding: boolean;
@@ -35,8 +38,7 @@ type AdminSideNavProps = {
   onTeam: boolean;
 };
 
-export function AdminSideNav({ location, onLanding, showTeam, onTeam }: AdminSideNavProps) {
-  const hintId = useId();
+export function AdminSideNav({ events, location, onLanding, showTeam, onTeam }: AdminSideNavProps) {
   return (
     <nav
       aria-label="Navegación administrativa"
@@ -75,34 +77,31 @@ export function AdminSideNav({ location, onLanding, showTeam, onTeam }: AdminSid
       <div aria-hidden="true" className="mx-3 h-px bg-line" />
       <div className="flex flex-col gap-2">
         <p className={sectionTitle}>Evento</p>
+        <div className="mb-1">
+          <EventSelector events={events} location={location} />
+        </div>
         {location.eventId ? (
           <EventGroups eventId={location.eventId} location={location} />
         ) : (
-          <>
-            {/* Event sections need an event in the URL; Todos los eventos lists them. */}
-            <p id={hintId} className="px-3 pb-1 text-sm text-muted">
-              Elige un evento de la lista para usar estas secciones.
-            </p>
-            <ul className="flex flex-col gap-0.5">
-              {navGroups.map((group) => {
-                const GroupIcon = groupIcons[group.id];
-                return (
-                  <li key={group.id}>
-                    <button
-                      type="button"
-                      disabled
-                      aria-describedby={hintId}
-                      className={`${rowClass} font-semibold text-fg opacity-50`}
-                    >
-                      <GroupIcon />
-                      <span className="flex-1">{group.title}</span>
-                      <LockIcon />
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-          </>
+          // Event sections need an event in the URL: pick one above or in Todos los eventos.
+          <ul className="flex flex-col gap-0.5">
+            {navGroups.map((group) => {
+              const GroupIcon = groupIcons[group.id];
+              return (
+                <li key={group.id}>
+                  <button
+                    type="button"
+                    disabled
+                    className={`${rowClass} font-semibold text-fg opacity-50`}
+                  >
+                    <GroupIcon />
+                    <span className="flex-1">{group.title}</span>
+                    <LockIcon />
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
         )}
       </div>
     </nav>

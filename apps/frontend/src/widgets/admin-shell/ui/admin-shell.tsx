@@ -7,7 +7,6 @@ import { Link, useLocation } from 'react-router';
 import { readAdminLocation } from './admin-location';
 import { AdminSideNav } from './admin-side-nav';
 import { eventListRequest } from './event-list-request';
-import { EventSelector } from './event-selector';
 import { useAdminEvents } from './use-admin-events';
 
 type AdminShellProps = PropsWithChildren<{
@@ -59,7 +58,6 @@ export function AdminShell({ signingOut, signOutFailed, onSignOut, children }: A
             )}
           </div>
           <div className="flex min-w-0 flex-wrap items-center gap-3">
-            <EventSelector events={events} location={location} />
             <ThemeToggle className="border-header-line text-header-fg hover:bg-header-control focus-visible:outline-header-fg" />
             <button
               type="button"
@@ -80,6 +78,7 @@ export function AdminShell({ signingOut, signOutFailed, onSignOut, children }: A
       <div aria-hidden="true" className="h-[5px] shrink-0 bg-brand-bar print:hidden" />
       <div className="flex flex-1 flex-col md:min-h-0 md:flex-row print:block">
         <AdminSideNav
+          events={events}
           location={location}
           onLanding={pathname === routes.admin || pathname === routes.adminEventNew}
           showTeam={globalAdmin}

@@ -48,11 +48,13 @@ test('admin screens and catalog forms expose no native select', async ({ page })
 });
 
 for (const key of ['Enter', 'Space', 'ArrowDown'] as const) {
-  test(`the topbar event selector opens with ${key} and navigates on choice`, async ({ page }) => {
+  test(`the side navigation event selector opens with ${key} and navigates on choice`, async ({
+    page,
+  }) => {
     await mockTwoEvents(page);
     await page.goto(`/admin/events/${eventId}/activities`);
-    const header = page.getByRole('banner', { name: 'Espacio de administración' });
-    const trigger = selectTrigger(header, 'Evento');
+    const nav = page.getByRole('navigation', { name: 'Navegación administrativa' });
+    const trigger = selectTrigger(nav, 'Evento');
     await expect(trigger).toContainText('Encuentro del barrio');
     await expect(trigger).toHaveAttribute('aria-expanded', 'false');
 
@@ -88,8 +90,8 @@ for (const key of ['Enter', 'Space', 'ArrowDown'] as const) {
 test('Escape closes the listbox and returns focus to the trigger', async ({ page }) => {
   await mockTwoEvents(page);
   await page.goto(`/admin/events/${eventId}/activities`);
-  const header = page.getByRole('banner', { name: 'Espacio de administración' });
-  const trigger = selectTrigger(header, 'Evento');
+  const nav = page.getByRole('navigation', { name: 'Navegación administrativa' });
+  const trigger = selectTrigger(nav, 'Evento');
   await trigger.focus();
   await page.keyboard.press('Enter');
   await expect(page.getByRole('listbox')).toBeVisible();
@@ -103,8 +105,8 @@ test('Escape closes the listbox and returns focus to the trigger', async ({ page
 test('choosing the current event again does not navigate', async ({ page }) => {
   await mockTwoEvents(page);
   await page.goto(`/admin/events/${eventId}/passes`);
-  const header = page.getByRole('banner', { name: 'Espacio de administración' });
-  const trigger = selectTrigger(header, 'Evento');
+  const nav = page.getByRole('navigation', { name: 'Navegación administrativa' });
+  const trigger = selectTrigger(nav, 'Evento');
   await trigger.click();
   await page.getByRole('option', { name: 'Encuentro del barrio' }).click();
   await expect(page.getByRole('listbox')).toHaveCount(0);

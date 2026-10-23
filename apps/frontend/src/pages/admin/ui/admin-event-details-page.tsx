@@ -23,6 +23,7 @@ import {
   validateDetails,
 } from './event-details-model';
 import {
+  countryOptionsFor,
   eventFieldOrder,
   eventServerErrors,
   type EventDetailsDraft,
@@ -37,6 +38,7 @@ import {
 import { restoredHereNotice } from './event-lifecycle-model';
 import { EventLifecycleSection } from './event-lifecycle-section';
 import { eventFailureMessage, eventZoneName } from './event-model';
+import { LocationFields } from './location-fields';
 import { VenuesSection } from './venues-section';
 
 function loadFailureMessage(failure: AdminEventFailure) {
@@ -203,6 +205,7 @@ function EventDetailsForm({ event, editable, onSaved, onArchived, onEdit }: Even
   const lockedId = useId();
   const dirty = isDetailsDirty(initial, draft);
   const zoneOptions = detailsZoneOptions(event.timeZone);
+  const countries = countryOptionsFor(event.country);
 
   useEffect(() => {
     if (saving || !focusAfterSave.current) return;
@@ -279,6 +282,14 @@ function EventDetailsForm({ event, editable, onSaved, onArchived, onEdit }: Even
         error={errors.name}
         readOnly={locked}
         onChange={(changeEvent) => set({ name: changeEvent.currentTarget.value })}
+      />
+      <LocationFields
+        value={draft}
+        errors={errors}
+        countries={countries}
+        locked={locked}
+        lockMode="readOnly"
+        onChange={set}
       />
       <div className="max-w-md">
         <Select

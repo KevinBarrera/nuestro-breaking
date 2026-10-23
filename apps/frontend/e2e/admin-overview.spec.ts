@@ -16,6 +16,9 @@ const events = [
   eventSummary(eventId, 'Encuentro del barrio', {
     startsAt: '2026-11-21T16:00:00.000Z',
     endsAt: '2026-11-23T03:00:00.000Z',
+    city: 'Ciudad de México',
+    state: 'Ciudad de México',
+    country: 'MX',
   }),
   eventSummary(otherId, 'Batalla de otoño'),
 ];
@@ -117,7 +120,7 @@ test('shows the event overview with its dates and city and Resumen as the curren
   await page.goto(overviewPath);
   await expect(page.getByRole('heading', { level: 1, name: 'Resumen del evento' })).toBeVisible();
   await expect(page.getByRole('main')).toContainText('Encuentro del barrio');
-  // Dates on the event clock and the city of its zone (#317), from the event list.
+  // Dates on the event clock (#317) and its location (#322), from the event list.
   const facts = page
     .getByRole('main')
     .getByRole('paragraph')
@@ -217,6 +220,8 @@ test('keeps the overview when switching events', async ({ page }) => {
   await chooseOption(selector, 'Batalla de otoño');
   await expect(page).toHaveURL(new RegExp(`/admin/events/${otherId}$`));
   await expect(page.getByRole('main')).toContainText('Batalla de otoño');
+  // That event has no location yet (#322), so its header shows none.
+  await expect(page.getByRole('main')).not.toContainText('Ciudad de México');
 });
 
 test('shows empty states when the catalog has nothing active', async ({ page }) => {

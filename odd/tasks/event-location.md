@@ -15,12 +15,15 @@ Test runner: Jest unit + PostgreSQL e2e (backend), Vitest + Playwright (frontend
 
 ## Tasks
 
-| ID  | Specs  | Route  | Status  | Commit |
-| --- | ------ | ------ | ------- | ------ |
-| T1  | S2, S3 | inline | pending |        |
-| T2  | S4, S5 | inline | pending |        |
+| ID  | Specs  | Route  | Status | Commit           |
+| --- | ------ | ------ | ------ | ---------------- |
+| T1  | S2, S3 | inline | done   | 7c238ce, e97857b |
+| T2  | S4, S5 | inline | done   | 0238efc, dc07118 |
 
 ## Log
 
 - **L1 (2026-10-22, user):** "estamos trabajando en el epic https://github.com/KevinBarrera/nuestro-breaking/issues/312 ya completamos Admin navigation y Event screens. El siguiente task es implementar el nuevo diseño https://claude.ai/artifact/EQBVYtnzLp7u9BX8caRxYf#page-e9a39eef76fa Tienes acceso a mi navegador Google Chrome para que veas los cambios que implementas y te quede tan parecido al diseño como sea posible. Esta vez el diseño incluye una nota pues involucra nueva funcionalidad (nueva data para la entidad "events" referente a la ubicación). Crea los dos issues: uno exclusivo de UI/UX para la implementación del diseño (ligado al epic) y otro para la nueva funcionalidad y comenzamos el desarrollo"
 - **L2:** Issues #323 (UI, sub-issue of #312) and #322 (location). #322 goes first; #323 builds on it (`odd/tasks/events-redesign.md`).
+- **L3:** T1 `7c238ce`: backend unit 636/636, e2e 46 suites / 523 tests. Native review (risk, reliability) approved and acknowledged; two non-blocking reliability advisories on `admin-event-input.ts` (country check, place parsing).
+- **L4:** T2: shared `LocationFields` on Nuevo evento and Datos del evento; `eventLocation` replaces the zone label on the event cards and the Resumen header (hidden when empty). An event without a location saves other edits without one; typing a city or state requires the whole location. Vitest 758/758; `pnpm verify:pr` 560 passed, 1 timeout in `admin-select.spec.ts` under full-suite load (passes 3/3 alone).
+- **L5:** Independent verifier: S1–S5 met, no blockers. Fixed two advisories: a country-only change on an event without a location was dropped on save (`dc07118`), and Intl-named non-ISO codes (XK, IC, SU, …) passed as countries (`e97857b`). Open advisory: the hint promises the location on the purchase page, which is the documented follow-up.

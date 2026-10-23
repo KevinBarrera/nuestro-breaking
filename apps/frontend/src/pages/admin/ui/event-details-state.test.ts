@@ -17,6 +17,9 @@ const event: AdminEvent = {
   startsAt: null,
   endsAt: null,
   salesEnabled: false,
+  city: null,
+  state: null,
+  country: null,
 };
 const centro = { id: 'v1', name: 'Centro' };
 const foro = { id: 'v2', name: 'Foro' };

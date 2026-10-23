@@ -13,6 +13,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { styles } from './catalog-copy';
 import {
+  countryOptions,
   createInput,
   emptyEventDraft,
   eventFieldOrder,
@@ -30,12 +31,13 @@ import {
   type EventErrors,
 } from './event-form-model';
 import { eventFailureMessage } from './event-model';
+import { LocationFields } from './location-fields';
 
 const createDenied = 'Sin acceso: solo quien tiene acceso a todos los eventos puede crear eventos.';
 const mayExistMessage =
   'Es posible que el evento sí se haya creado. Revisa la lista de eventos antes de intentarlo de nuevo.';
 
-// Nuevo evento (#213): name, address, folio prefix, time zone and optional dates, with a live
+// Nuevo evento (#213): name, location (#322), address, folio prefix, time zone and optional dates, with a live
 // preview of the purchase address and a sample folio. Global admins only. On success it opens
 // the new event's overview, where the next steps (activities, passes, sales) start.
 export function AdminEventNewPage() {
@@ -171,6 +173,14 @@ export function AdminEventNewPage() {
                   set(slugEdited ? { name } : { name, slug: slugify(name) });
                 }}
               />
+              <LocationFields
+                value={draft}
+                errors={errors}
+                countries={countryOptions}
+                locked={sending}
+                lockMode="disabled"
+                onChange={set}
+              />
               <TextField
                 label="Dirección de la página de compra"
                 name="slug"
@@ -298,7 +308,8 @@ function EventPreview({ slug, folioPrefix }: { slug: string; folioPrefix: string
         <p className="text-sm font-bold text-fg">Qué se fija al crear</p>
         <p className="text-sm text-fg">
           La dirección y el prefijo no cambian: la dirección puede estar ya compartida y los folios
-          emitidos usan ese prefijo. Nombre, zona horaria y fechas se pueden editar después.
+          emitidos usan ese prefijo. Nombre, ubicación, zona horaria y fechas se pueden editar
+          después.
         </p>
       </div>
     </aside>

@@ -21,6 +21,9 @@ const event = {
   startsAt: '2026-11-21T16:00:00.000Z',
   endsAt: '2026-11-23T04:00:00.000Z',
   salesEnabled: false,
+  city: 'Guadalajara',
+  state: 'Jalisco',
+  country: 'MX',
 };
 
 describe('readEventList', () => {
@@ -63,6 +66,21 @@ describe('readAdminEvent', () => {
     expect(readAdminEvent({ ...event, timeZone: 1 })).toBeNull();
     expect(readAdminEvent({ ...event, endsAt: 'later' })).toBeNull();
     expect(readAdminEvent(summary)).toBeNull();
+  });
+});
+
+describe('readAdminEvent location', () => {
+  it('reads a missing, null, partial or malformed location as none', () => {
+    const none = { city: null, state: null, country: null };
+    const withoutLocation: Record<string, unknown> = { ...event };
+    for (const key of ['city', 'state', 'country']) delete withoutLocation[key];
+    for (const value of [
+      withoutLocation,
+      { ...event, city: null, state: null, country: null },
+      { ...event, state: null },
+      { ...event, country: 7 },
+    ])
+      expect(readAdminEvent(value)).toEqual({ ...withoutLocation, ...none });
   });
 });
 

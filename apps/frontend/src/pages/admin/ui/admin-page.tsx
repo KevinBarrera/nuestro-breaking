@@ -9,7 +9,7 @@ import { styles } from './catalog-copy';
 import {
   eventDates,
   eventFailureMessage,
-  eventZoneName,
+  eventLocation,
   folioPattern,
   landingRedirect,
   restoredNotice,
@@ -250,10 +250,11 @@ function FirstEvent({ hasArchived }: { hasArchived: boolean }) {
 }
 
 function EventMeta({ event, id }: { event: AdminEvent; id?: string }) {
+  const location = eventLocation(event);
   return (
     <span id={id} className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted">
       <span>{eventDates(event)}</span>
-      <span>{eventZoneName(event.timeZone)}</span>
+      {location && <span>{location}</span>}
       <span className="font-mono break-all">/e/{event.slug}</span>
       <span>
         Folios <span className="font-mono">{folioPattern(event.folioPrefix)}</span>

@@ -20,6 +20,9 @@ const input: CreateEventInput = {
   timeZone: 'America/Mexico_City',
   startsAt: null,
   endsAt: null,
+  city: 'Guadalajara',
+  state: 'Jalisco',
+  country: 'MX',
 };
 const event = {
   id,
@@ -31,6 +34,9 @@ const event = {
   startsAt: null,
   endsAt: null,
   salesEnabled: false,
+  city: input.city,
+  state: input.state,
+  country: input.country,
 };
 
 const session = () =>

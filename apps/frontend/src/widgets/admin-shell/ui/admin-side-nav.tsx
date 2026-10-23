@@ -1,35 +1,30 @@
 import { routes } from '@/shared/config';
+import { useId, useState, type ReactNode } from 'react';
 import { Link } from 'react-router';
-import { eventSectionPath, type AdminLocation, type EventSection } from './admin-location';
+import { eventSectionPath, type AdminLocation } from './admin-location';
 import { eventListRequest } from './event-list-request';
+import {
+  CalendarIcon,
+  CatalogIcon,
+  ChevronIcon,
+  LockIcon,
+  OperationIcon,
+  SettingsIcon,
+  TeamIcon,
+} from './nav-icons';
+import { navGroups, openGroupsFor, type NavGroup, type NavGroupId } from './side-nav-model';
+import { useFlaggedPaymentsCount } from './use-flagged-payments-count';
 
-type NavItem = { label: string; section: EventSection };
+const groupIcons: Record<NavGroupId, () => ReactNode> = {
+  operation: OperationIcon,
+  catalog: CatalogIcon,
+  settings: SettingsIcon,
+};
 
-const groups: { title: string; items: NavItem[] }[] = [
-  {
-    title: 'OPERACIÓN',
-    items: [
-      { label: 'Resumen', section: 'overview' },
-      { label: 'Check-in', section: 'check-in' },
-      { label: 'Pagos por revisar', section: 'payments-review' },
-      { label: 'Inscripciones', section: 'registrations' },
-      { label: 'Historial', section: 'history' },
-      { label: 'Listas de respaldo', section: 'lists' },
-    ],
-  },
-  {
-    title: 'CATÁLOGO',
-    items: [
-      { label: 'Actividades', section: 'activities' },
-      { label: 'Pases', section: 'passes' },
-    ],
-  },
-  // Datos del evento (#213 D2), the former "Fundamentos del evento" route.
-  { title: 'EVENTO', items: [{ label: 'Datos del evento', section: 'foundation' }] },
-];
-
-const itemClass =
-  'flex min-h-11 items-center justify-between gap-2 rounded-md px-3 text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus';
+const rowClass =
+  'flex min-h-11 w-full items-center gap-2.5 rounded-lg px-3 text-left text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus';
+const linkClass = `${rowClass} text-fg hover:bg-row aria-[current=page]:bg-nav-active aria-[current=page]:font-semibold aria-[current=page]:text-nav-active-fg`;
+const sectionTitle = 'px-3 text-xs font-semibold text-muted';
 
 type AdminSideNavProps = {
   location: AdminLocation;
@@ -40,79 +35,169 @@ type AdminSideNavProps = {
   onTeam: boolean;
 };
 
-const linkClass = `${itemClass} font-medium text-fg hover:bg-row aria-[current=page]:bg-nav-active aria-[current=page]:font-semibold aria-[current=page]:text-nav-active-fg`;
-
 export function AdminSideNav({ location, onLanding, showTeam, onTeam }: AdminSideNavProps) {
-  function renderItem(item: NavItem) {
-    // Event sections, Resumen included, need an event in the URL; the event list itself is
-    // "Todos los eventos" at the top.
-    const target = location.eventId ? eventSectionPath(location.eventId, item.section) : undefined;
-    if (!target)
-      return (
-        <a
-          role="link"
-          aria-disabled="true"
-          className={`${itemClass} cursor-not-allowed text-muted`}
-        >
-          {item.label}
-        </a>
-      );
-    return (
-      <Link
-        to={target}
-        aria-current={item.section === location.section ? 'page' : undefined}
-        className={linkClass}
-      >
-        {item.label}
-      </Link>
-    );
-  }
-
+  const hintId = useId();
   return (
     <nav
       aria-label="Navegación administrativa"
-      className="border-b border-sidenav-line bg-sidenav px-4 py-5 md:w-64 md:shrink-0 md:overflow-y-auto md:border-r md:border-b-0 md:py-6 print:hidden"
+      className="flex flex-col gap-5 border-b border-sidenav-line bg-sidenav px-3 py-5 md:w-72 md:shrink-0 md:overflow-y-auto md:border-r md:border-b-0 md:pb-6 print:hidden"
     >
-      {/* The way back to the event list (Crear evento, Archivados) from any screen, for every
-          admin; its state keeps the one-event redirect from bouncing them straight back. */}
-      <ul className="mb-4 flex flex-col gap-1">
-        <li>
-          <Link
-            to={routes.admin}
-            state={eventListRequest}
-            aria-current={onLanding ? 'page' : undefined}
-            className={linkClass}
-          >
-            Todos los eventos
-          </Link>
-        </li>
-      </ul>
-      {groups.map((group) => (
-        <div key={group.title} className="mb-4 last:mb-0">
-          <p className="px-3 pb-2 text-xs font-bold tracking-[0.08em] text-muted">{group.title}</p>
-          <ul className="flex flex-col gap-1">
-            {group.items.map((item) => (
-              <li key={item.label}>{renderItem(item)}</li>
-            ))}
-          </ul>
-        </div>
-      ))}
-      {showTeam && (
-        <div className="mb-4 last:mb-0">
-          <p className="px-3 pb-2 text-xs font-bold tracking-[0.08em] text-muted">ADMINISTRACIÓN</p>
-          <ul className="flex flex-col gap-1">
+      <div className="flex flex-col gap-0.5">
+        <p className={`${sectionTitle} pb-1.5`}>General</p>
+        <ul className="flex flex-col gap-0.5">
+          {/* The way back to the event list (Crear evento, Archivados) from any screen, for
+              every admin; its state keeps the one-event redirect from bouncing them back. */}
+          <li>
+            <Link
+              to={routes.admin}
+              state={eventListRequest}
+              aria-current={onLanding ? 'page' : undefined}
+              className={`${linkClass} font-semibold`}
+            >
+              <CalendarIcon />
+              Todos los eventos
+            </Link>
+          </li>
+          {showTeam && (
             <li>
               <Link
                 to={routes.adminTeam}
                 aria-current={onTeam ? 'page' : undefined}
-                className={linkClass}
+                className={`${linkClass} font-semibold`}
               >
+                <TeamIcon />
                 Equipo
               </Link>
             </li>
-          </ul>
-        </div>
-      )}
+          )}
+        </ul>
+      </div>
+      <div aria-hidden="true" className="mx-3 h-px bg-line" />
+      <div className="flex flex-col gap-2">
+        <p className={sectionTitle}>Evento</p>
+        {location.eventId ? (
+          <EventGroups eventId={location.eventId} location={location} />
+        ) : (
+          <>
+            {/* Event sections need an event in the URL; Todos los eventos lists them. */}
+            <p id={hintId} className="px-3 pb-1 text-sm text-muted">
+              Elige un evento de la lista para usar estas secciones.
+            </p>
+            <ul className="flex flex-col gap-0.5">
+              {navGroups.map((group) => {
+                const GroupIcon = groupIcons[group.id];
+                return (
+                  <li key={group.id}>
+                    <button
+                      type="button"
+                      disabled
+                      aria-describedby={hintId}
+                      className={`${rowClass} font-semibold text-fg opacity-50`}
+                    >
+                      <GroupIcon />
+                      <span className="flex-1">{group.title}</span>
+                      <LockIcon />
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </>
+        )}
+      </div>
     </nav>
+  );
+}
+
+function EventGroups({ eventId, location }: { eventId: string; location: AdminLocation }) {
+  const [open, setOpen] = useState(() => openGroupsFor(new Set(), location.section));
+  // Moving to a section in a closed group opens that group.
+  const [shownSection, setShownSection] = useState(location.section);
+  if (shownSection !== location.section) {
+    setShownSection(location.section);
+    setOpen(openGroupsFor(open, location.section));
+  }
+  const flagged = useFlaggedPaymentsCount(eventId);
+
+  function toggle(id: NavGroupId) {
+    setOpen((current) => {
+      const next = new Set(current);
+      if (!next.delete(id)) next.add(id);
+      return next;
+    });
+  }
+
+  return (
+    <ul className="flex flex-col gap-0.5">
+      {navGroups.map((group) => (
+        <li key={group.id}>
+          <EventGroup
+            group={group}
+            expanded={open.has(group.id)}
+            onToggle={() => toggle(group.id)}
+            eventId={eventId}
+            location={location}
+            flagged={flagged}
+          />
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+type EventGroupProps = {
+  group: NavGroup;
+  expanded: boolean;
+  onToggle: () => void;
+  eventId: string;
+  location: AdminLocation;
+  flagged: number;
+};
+
+function EventGroup({ group, expanded, onToggle, eventId, location, flagged }: EventGroupProps) {
+  const listId = useId();
+  const GroupIcon = groupIcons[group.id];
+  return (
+    <>
+      <button
+        type="button"
+        aria-expanded={expanded}
+        aria-controls={listId}
+        onClick={onToggle}
+        className={`${rowClass} cursor-pointer font-semibold text-fg hover:bg-row`}
+      >
+        <GroupIcon />
+        <span className="flex-1">{group.title}</span>
+        <span
+          className={`text-muted transition-transform motion-reduce:transition-none ${expanded ? '' : '-rotate-90'}`}
+        >
+          <ChevronIcon />
+        </span>
+      </button>
+      {expanded && (
+        <ul
+          id={listId}
+          className="mt-0.5 mb-1 ml-5 flex flex-col gap-0.5 border-l border-line pl-2"
+        >
+          {group.items.map((item) => (
+            <li key={item.section}>
+              <Link
+                to={eventSectionPath(eventId, item.section)}
+                aria-current={item.section === location.section ? 'page' : undefined}
+                className={`${linkClass} justify-between`}
+              >
+                {item.label}
+                {item.section === 'payments-review' && flagged > 0 && (
+                  <span className="rounded-full border border-warning-fg bg-warning px-2 text-xs leading-4 font-semibold text-warning-fg">
+                    <span aria-hidden="true">{flagged}</span>
+                    <span className="sr-only">({flagged} pendientes)</span>
+                  </span>
+                )}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+    </>
   );
 }

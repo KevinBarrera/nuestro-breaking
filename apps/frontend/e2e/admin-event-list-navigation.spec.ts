@@ -31,12 +31,10 @@ test('Todos los eventos goes from an event overview back to the event list', asy
   await expect(page).toHaveURL(/\/admin$/);
   await expect(createLink(page)).toBeVisible();
   await expect(allEvents(page)).toHaveAttribute('aria-current', 'page');
-  // One current item: Resumen needs an event, so it is not offered on the list.
+  // One current item: Resumen needs an event, so its group is locked on the list.
   await expect(sideNav(page).locator('[aria-current="page"]')).toHaveCount(1);
-  await expect(sideNav(page).getByRole('link', { name: 'Resumen' })).toHaveAttribute(
-    'aria-disabled',
-    'true',
-  );
+  await expect(sideNav(page).getByRole('button', { name: 'Operación' })).toBeDisabled();
+  await expect(sideNav(page).getByRole('link', { name: 'Resumen' })).toHaveCount(0);
 });
 
 test('the brand goes from an event overview back to the event list', async ({ page }) => {

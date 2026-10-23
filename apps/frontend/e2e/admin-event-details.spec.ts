@@ -180,10 +180,11 @@ test('Descartar cambios brings back the stored values', async ({ page }) => {
 test('unsaved edits ask before leaving the page', async ({ page }) => {
   await openDetails(page);
   await form(page).getByLabel('Nombre del evento').fill('Otro nombre');
-  await page
-    .getByRole('navigation', { name: 'Navegación administrativa' })
-    .getByRole('link', { name: 'Pases' })
-    .click();
+  const nav = page.getByRole('navigation', { name: 'Navegación administrativa' });
+  // Opening a group is not leaving the page; following one of its links is.
+  await nav.getByRole('button', { name: 'Catálogo' }).click();
+  await expect(page.getByRole('alertdialog')).toHaveCount(0);
+  await nav.getByRole('link', { name: 'Pases' }).click();
   await expect(page.getByRole('alertdialog')).toBeVisible();
   await expect(page).toHaveURL(new RegExp(`${detailsPath}$`));
 });
@@ -447,6 +448,15 @@ test('keeps the header and navigation usable at 375px and opens the overview', a
       .getByRole('navigation', { name: 'Navegación administrativa' })
       .getByRole('link', { name: 'Todos los eventos' }),
   ).toBeFocused();
+  const nav = page.getByRole('navigation', { name: 'Navegación administrativa' });
+  await page.keyboard.press('Tab');
+  await expect(nav.getByRole('link', { name: 'Equipo' })).toBeFocused();
+  // Datos del evento opens only Configuración; Operación opens from the keyboard.
+  await page.keyboard.press('Tab');
+  const operation = nav.getByRole('button', { name: 'Operación' });
+  await expect(operation).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(operation).toHaveAttribute('aria-expanded', 'true');
   await page.keyboard.press('Tab');
   await expect(home).toBeFocused();
   const scrollWidth = await page.evaluate(

@@ -65,7 +65,7 @@ test('an event-scoped admin has no Equipo item and a direct visit shows Sin acce
     user: { ...globalAdminSession.user, globalAdmin: false },
   });
   await page.goto('/admin');
-  await expect(sideNav(page).getByRole('link', { name: 'Resumen' })).toBeVisible();
+  await expect(sideNav(page).getByRole('link', { name: 'Todos los eventos' })).toBeVisible();
   await expect(sideNav(page).getByRole('link', { name: 'Equipo' })).toHaveCount(0);
 
   await page.goto('/admin/team');

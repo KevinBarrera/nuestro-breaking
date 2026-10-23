@@ -33,28 +33,78 @@ test('renders the shell with grouped navigation and event sections disabled', as
   await expect(header.getByText('LOS MÁS PESADOS')).toBeVisible();
   await expect(header.getByText('ADMIN', { exact: true })).toBeVisible();
   const nav = sideNav(page);
-  await expect(nav.getByText('OPERACIÓN')).toBeVisible();
-  await expect(nav.getByText('CATÁLOGO')).toBeVisible();
+  await expect(nav.getByText('General', { exact: true })).toBeVisible();
+  await expect(nav.getByText('Evento', { exact: true })).toBeVisible();
   // On the event list, Todos los eventos is the one current item; Resumen needs an event.
   const allEvents = nav.getByRole('link', { name: 'Todos los eventos' });
   await expect(allEvents).toHaveAttribute('href', '/admin');
   await expect(allEvents).toHaveAttribute('aria-current', 'page');
   await expect(nav.locator('[aria-current="page"]')).toHaveCount(1);
-  // Without an event in the URL, event-scoped sections cannot be reached yet.
-  for (const name of [
-    'Resumen',
-    'Check-in',
-    'Inscripciones',
-    'Historial',
-    'Listas de respaldo',
-    'Actividades',
-    'Pases',
-  ]) {
-    const link = nav.getByRole('link', { name });
-    await expect(link).toHaveAttribute('aria-disabled', 'true');
-    await expect(link).not.toHaveAttribute('href');
+  // Without an event in the URL, the event groups are locked and explain why.
+  await expect(nav).toContainText('Elige un evento de la lista para usar estas secciones.');
+  for (const name of ['Operación', 'Catálogo', 'Configuración']) {
+    const group = nav.getByRole('button', { name });
+    await expect(group).toBeDisabled();
+    await expect(group).toHaveAccessibleDescription(
+      'Elige un evento de la lista para usar estas secciones.',
+    );
   }
+  await expect(nav.getByRole('link', { name: 'Resumen' })).toHaveCount(0);
   await expect(nav).not.toContainText('Próximamente');
+});
+
+test('opens the group of the current section and toggles groups', async ({ page }) => {
+  await page.goto(`/admin/events/${firstId}/activities`);
+  const nav = sideNav(page);
+  const operation = nav.getByRole('button', { name: 'Operación' });
+  const catalog = nav.getByRole('button', { name: 'Catálogo' });
+  const settings = nav.getByRole('button', { name: 'Configuración' });
+  await expect(catalog).toHaveAttribute('aria-expanded', 'true');
+  await expect(operation).toHaveAttribute('aria-expanded', 'false');
+  await expect(settings).toHaveAttribute('aria-expanded', 'false');
+  await expect(nav.getByRole('link', { name: 'Resumen' })).toHaveCount(0);
+
+  await operation.focus();
+  await page.keyboard.press('Enter');
+  await expect(operation).toHaveAttribute('aria-expanded', 'true');
+  await expect(nav.getByRole('link', { name: 'Resumen' })).toBeVisible();
+  await page.keyboard.press('Space');
+  await expect(operation).toHaveAttribute('aria-expanded', 'false');
+
+  // Reaching a section in a closed group opens it; the open ones stay open.
+  await settings.click();
+  await nav.getByRole('link', { name: 'Datos del evento' }).click();
+  await expect(page).toHaveURL(new RegExp(`/admin/events/${firstId}/foundation$`));
+  await expect(catalog).toHaveAttribute('aria-expanded', 'true');
+  await expect(settings).toHaveAttribute('aria-expanded', 'true');
+});
+
+test('shows how many payments wait for review next to Pagos por revisar', async ({ page }) => {
+  const flagged = (id: string) => ({
+    providerPaymentId: id,
+    reason: 'approved_after_confirmation',
+    receivedAt: '2026-10-20T18:00:00.000Z',
+    amountCents: 50000,
+    registration: { id: `r-${id}`, folio: null, participantName: 'Ana', status: 'confirmed' },
+  });
+  await page.route(
+    (url) => api(url) && url.pathname === `/admin/events/${firstId}/flagged-payments`,
+    (route) => route.fulfill({ json: { payments: [flagged('1'), flagged('2'), flagged('3')] } }),
+  );
+  await page.route(
+    (url) => api(url) && url.pathname === `/admin/events/${secondId}/flagged-payments`,
+    (route) => route.fulfill({ json: { payments: [] } }),
+  );
+  await page.goto(`/admin/events/${firstId}/activities`);
+  const nav = sideNav(page);
+  await nav.getByRole('button', { name: 'Operación' }).click();
+  const review = nav.getByRole('link', { name: 'Pagos por revisar' });
+  await expect(review).toHaveAccessibleName('Pagos por revisar (3 pendientes)');
+
+  await selectTrigger(page, 'Evento').click();
+  await page.getByRole('option', { name: events[1].name }).click();
+  await expect(page).toHaveURL(new RegExp(`/admin/events/${secondId}/activities$`));
+  await expect(review).toHaveAccessibleName('Pagos por revisar');
 });
 
 test('links event sections, marks the active one and switches events in place', async ({
@@ -69,6 +119,8 @@ test('links event sections, marks the active one and switches events in place', 
     'href',
     `/admin/events/${firstId}/passes`,
   );
+  // Operación starts closed on Actividades; its sections show once it opens.
+  await nav.getByRole('button', { name: 'Operación' }).click();
   await expect(nav.getByRole('link', { name: 'Check-in' })).toHaveAttribute(
     'href',
     `/admin/events/${firstId}/check-in`,

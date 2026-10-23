@@ -10,7 +10,10 @@ async function mockApi(page: Page) {
 }
 
 const form = (page: Page) => page.getByRole('form', { name: 'Nuevo evento' });
-const preview = (page: Page) => page.getByRole('complementary', { name: 'Vista previa' });
+const identifiers = (page: Page) =>
+  form(page).getByRole('region', { name: 'Identificadores permanentes' });
+const sampleFolio = (page: Page) =>
+  form(page).getByRole('status', { name: 'Así se verá un folio' });
 const slugField = (page: Page) =>
   form(page).getByRole('textbox', { name: 'Dirección de la página de compra' });
 
@@ -68,13 +71,11 @@ test('a global admin creates an event: suggested address, preview, then the new 
   // The address follows the name until it is edited by hand.
   await expect(slugField(page)).toHaveValue('los-mas-pesados-final-marzo-2027');
   await expect(form(page).getByLabel('Prefijo de folio')).toHaveValue('LMPF');
-  const origin = new URL(page.url()).origin;
-  await expect(preview(page)).toContainText(`${origin}/e/los-mas-pesados-final-marzo-2027`);
-  await expect(preview(page)).toContainText('LMPF-7K3Q');
+  await expect(sampleFolio(page)).toHaveText('LMPF-7K3Q');
+  await expect(identifiers(page)).toContainText('No se pueden cambiar después');
   await slugField(page).fill('final-2027');
   await form(page).getByLabel('Nombre del evento').fill('Los más pesados - Final - Marzo 2027');
   await expect(slugField(page)).toHaveValue('final-2027');
-  await expect(preview(page)).toContainText(`${origin}/e/final-2027`);
   await expect(form(page)).toContainText('El evento se crea con la venta en línea cerrada.');
 
   await form(page).getByLabel('Inicio').fill('2027-03-20T10:00');
@@ -179,12 +180,19 @@ test('an event admin cannot create events', async ({ page }) => {
   await expect(form(page)).toHaveCount(0);
 });
 
-test('on a phone the preview stacks under the form', async ({ page }) => {
+test('the sample folio shows a placeholder until there is a prefix', async ({ page }) => {
+  await mockApi(page);
+  await page.goto('/admin/events/new');
+  await expect(sampleFolio(page)).toHaveText('PREFIJO-7K3Q');
+  await expect(form(page)).toContainText('Aparece en los recibos y en el check-in.');
+  await form(page).getByLabel('Prefijo de folio').fill('ev27');
+  await expect(sampleFolio(page)).toHaveText('EV27-7K3Q');
+});
+
+test('on a phone the form fits without a horizontal scroll', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 800 });
   await mockAdminApi(page);
   await page.goto('/admin/events/new');
-  const formBox = await form(page).boundingBox();
-  const previewBox = await preview(page).boundingBox();
-  expect(previewBox!.y).toBeGreaterThanOrEqual(formBox!.y + formBox!.height);
+  await expect(identifiers(page)).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
 });

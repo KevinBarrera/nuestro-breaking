@@ -3,8 +3,9 @@ import {
   createInput,
   emptyEventDraft,
   eventServerErrors,
-  previewUrl,
+  folioPrefixHint,
   sampleFolio,
+  slugHint,
   slugify,
   timeZoneOptions,
   countryOptions,
@@ -39,14 +40,15 @@ describe('slugify', () => {
   });
 });
 
-describe('previewUrl and sampleFolio', () => {
-  it('builds the purchase address and a sample folio', () => {
-    expect(previewUrl('https://example.org', 'final-2027')).toBe(
-      'https://example.org/e/final-2027',
-    );
-    expect(previewUrl('https://example.org', '')).toBe('https://example.org/e/…');
+describe('sampleFolio and the identifier hints', () => {
+  it('builds a sample folio, with a placeholder until there is a prefix', () => {
     expect(sampleFolio('LMPF')).toBe('LMPF-7K3Q');
-    expect(sampleFolio('')).toBe('…-7K3Q');
+    expect(sampleFolio('')).toBe('PREFIJO-7K3Q');
+  });
+
+  it('states the address and prefix rules', () => {
+    expect(slugHint).toBe('Solo minúsculas, números y guiones, hasta 80 caracteres.');
+    expect(folioPrefixHint).toBe('De 2 a 6 caracteres; empieza con letra.');
   });
 });
 

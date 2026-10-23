@@ -9,7 +9,7 @@ import {
   TextField,
   UnsavedChangesGuard,
 } from '@/shared/ui';
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { styles } from './catalog-copy';
 import {
@@ -18,7 +18,6 @@ import {
   emptyEventDraft,
   eventFieldOrder,
   eventServerErrors,
-  previewUrl,
   sampleFolio,
   slugify,
   slugTakenMessage,
@@ -118,15 +117,15 @@ export function AdminEventNewPage() {
   }
 
   return (
-    <main className="px-4 py-8 text-fg sm:px-8 lg:py-12">
-      <div className="mx-auto max-w-5xl space-y-6">
+    <main className="px-4 py-8 text-fg sm:px-8">
+      <div className="mx-auto max-w-[760px] space-y-6">
         <Breadcrumbs
           variant="link"
           items={[{ label: 'Eventos', to: routes.admin }, { label: 'Nuevo evento' }]}
         />
-        <header className="space-y-1">
+        <header className="space-y-1.5">
           <h1 className="text-3xl font-extrabold tracking-tight text-heading">Nuevo evento</h1>
-          <p className="max-w-2xl text-muted">
+          <p className="text-muted">
             Lo indispensable para empezar. Actividades, pases y venta se configuran después.
           </p>
         </header>
@@ -138,15 +137,15 @@ export function AdminEventNewPage() {
             {createDenied}
           </p>
         ) : (
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] lg:items-start">
+          <form
+            ref={formRef}
+            aria-label="Nuevo evento"
+            noValidate
+            onSubmit={(event) => void submit(event)}
+            className="rounded-xl border border-line bg-surface"
+          >
             <UnsavedChangesGuard when={dirty && !sending} />
-            <form
-              ref={formRef}
-              aria-label="Nuevo evento"
-              noValidate
-              onSubmit={(event) => void submit(event)}
-              className={`${styles.card} space-y-6 sm:p-8`}
-            >
+            <div className="space-y-6 px-5 pt-7 pb-2 sm:px-7">
               {failure && <Notice tone="danger">{failure}</Notice>}
               {mayExist && (
                 <Notice tone="danger">
@@ -159,10 +158,12 @@ export function AdminEventNewPage() {
                   </Link>
                 </Notice>
               )}
+              <h2 className="text-lg font-bold text-heading">Datos generales</h2>
               <TextField
                 label="Nombre del evento"
                 name="name"
                 autoComplete="off"
+                placeholder="Ej. Los más pesados 2027"
                 hint="Así aparece en el panel, en la página de compra y en los correos."
                 hintPlacement="below"
                 value={draft.name}
@@ -181,54 +182,19 @@ export function AdminEventNewPage() {
                 lockMode="disabled"
                 onChange={set}
               />
-              <TextField
-                label="Dirección de la página de compra"
-                name="slug"
-                autoComplete="off"
-                autoCapitalize="none"
-                spellCheck={false}
-                prefix={`${window.location.host}/e/`}
-                hint={slugHint}
-                hintPlacement="below"
-                value={draft.slug}
-                error={errors.slug}
-                disabled={sending}
-                onChange={(event) => {
-                  setSlugEdited(true);
-                  set({ slug: event.currentTarget.value });
-                }}
-              />
-              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 sm:items-start">
-                <TextField
-                  label="Prefijo de folio"
-                  name="folioPrefix"
-                  autoComplete="off"
-                  autoCapitalize="characters"
-                  spellCheck={false}
-                  maxLength={FOLIO_PREFIX_MAX}
-                  hint={folioPrefixHint}
-                  hintPlacement="below"
-                  value={draft.folioPrefix}
-                  error={errors.folioPrefix}
-                  disabled={sending}
-                  onChange={(event) =>
-                    set({ folioPrefix: event.currentTarget.value.toUpperCase() })
-                  }
+              <div>
+                <Select
+                  label="Zona horaria"
+                  name="timeZone"
+                  options={timeZoneOptions}
+                  selectedKey={draft.timeZone}
+                  onSelectionChange={(timeZone) => set({ timeZone })}
+                  isDisabled={sending}
                 />
-                <div>
-                  <Select
-                    label="Zona horaria"
-                    name="timeZone"
-                    options={timeZoneOptions}
-                    selectedKey={draft.timeZone}
-                    onSelectionChange={(timeZone) => set({ timeZone })}
-                    isDisabled={sending}
-                  />
-                  <p className="mt-1 text-sm text-muted">
-                    Los horarios del evento se muestran en esta zona.
-                  </p>
-                  {errors.timeZone && <FieldError>{errors.timeZone}</FieldError>}
-                </div>
+                <p className="mt-1 text-sm text-muted">
+                  Los horarios del evento se muestran en esta zona.
+                </p>
+                {errors.timeZone && <FieldError>{errors.timeZone}</FieldError>}
               </div>
               {/* `min-w-0`: a fieldset defaults to its content width, and datetime inputs are wide. */}
               <fieldset className="min-w-0 space-y-3">
@@ -240,6 +206,7 @@ export function AdminEventNewPage() {
                     label="Inicio"
                     name="startsAt"
                     type="datetime-local"
+                    inputClassName="font-mono"
                     value={draft.startsAt}
                     error={errors.startsAt}
                     disabled={sending}
@@ -249,6 +216,7 @@ export function AdminEventNewPage() {
                     label="Fin"
                     name="endsAt"
                     type="datetime-local"
+                    inputClassName="font-mono"
                     value={draft.endsAt}
                     error={errors.endsAt}
                     disabled={sending}
@@ -259,59 +227,173 @@ export function AdminEventNewPage() {
                   Llena las dos o déjalas vacías y defínelas cuando la agenda esté confirmada.
                 </p>
               </fieldset>
-              <p className="rounded-xl bg-surface-inner p-4 text-sm text-fg">
-                El evento se crea con la venta en línea cerrada. La abres desde el resumen del
-                evento cuando el catálogo esté listo.
-              </p>
-              <div className="flex flex-col-reverse gap-3 border-t border-row pt-5 sm:flex-row sm:justify-end">
-                <Link
-                  to={routes.admin}
-                  className={`${styles.secondary} inline-flex items-center justify-center`}
-                >
-                  Cancelar
-                </Link>
-                <button type="submit" disabled={sending} className={styles.primary}>
-                  {sending ? 'Creando evento…' : 'Crear evento'}
-                </button>
-              </div>
-            </form>
-            <EventPreview slug={draft.slug} folioPrefix={draft.folioPrefix} />
-          </div>
+            </div>
+            <PermanentIdentifiers
+              draft={draft}
+              errors={errors}
+              sending={sending}
+              onSlug={(slug) => {
+                setSlugEdited(true);
+                set({ slug });
+              }}
+              onFolioPrefix={(folioPrefix) => set({ folioPrefix })}
+            />
+            <p className="mx-5 mt-5 flex items-start gap-2.5 text-sm text-fg sm:mx-7">
+              <InfoIcon />
+              El evento se crea con la venta en línea cerrada. La abres desde el resumen cuando el
+              catálogo esté listo.
+            </p>
+            <div className="mt-6 flex flex-col-reverse gap-3 border-t border-line px-5 py-4 sm:flex-row sm:justify-end sm:px-7">
+              <Link
+                to={routes.admin}
+                className={`${styles.secondary} inline-flex items-center justify-center bg-surface`}
+              >
+                Cancelar
+              </Link>
+              <button type="submit" disabled={sending} className={styles.primary}>
+                {sending ? 'Creando evento…' : 'Crear evento'}
+              </button>
+            </div>
+          </form>
         )}
       </div>
     </main>
   );
 }
 
-// "Así se verá": what the address and prefix will look like once the event exists.
-function EventPreview({ slug, folioPrefix }: { slug: string; folioPrefix: string }) {
+type PermanentIdentifiersProps = {
+  draft: EventDraft;
+  errors: EventErrors;
+  sending: boolean;
+  onSlug: (slug: string) => void;
+  onFolioPrefix: (prefix: string) => void;
+};
+
+// "Identificadores permanentes": the address and folio prefix are suggested from the name and
+// fixed once the event exists, with a sample folio built from the prefix.
+function PermanentIdentifiers({
+  draft,
+  errors,
+  sending,
+  onSlug,
+  onFolioPrefix,
+}: PermanentIdentifiersProps) {
+  const titleId = useId();
   return (
-    <aside aria-label="Vista previa" className="space-y-4">
-      <div className={`${styles.card} space-y-4`}>
-        <p className="text-xs font-bold tracking-[0.08em] text-muted uppercase">Así se verá</p>
-        <dl className="space-y-4">
-          <div className="space-y-1">
-            <dt className="text-sm font-semibold text-fg">Página de compra</dt>
-            <dd className="font-mono text-sm break-all text-heading">
-              {previewUrl(window.location.origin, slug)}
-            </dd>
-          </div>
-          <div className="space-y-1">
-            <dt className="text-sm font-semibold text-fg">Folio de una inscripción confirmada</dt>
-            <dd className="font-mono text-lg font-bold break-all text-heading">
-              {sampleFolio(folioPrefix)}
-            </dd>
-          </div>
-        </dl>
+    <section
+      aria-labelledby={titleId}
+      className="mx-5 mt-6 space-y-5 rounded-xl border border-line bg-surface-inner p-5 sm:mx-7 sm:p-6"
+    >
+      <div className="flex gap-3">
+        <span
+          aria-hidden="true"
+          className="flex size-9 shrink-0 items-center justify-center rounded-full bg-chip text-heading"
+        >
+          <LockIcon />
+        </span>
+        <div className="space-y-0.5">
+          <h2 id={titleId} className="text-lg font-bold text-heading">
+            Identificadores permanentes
+          </h2>
+          <p className="text-sm text-muted">
+            Se sugieren a partir del nombre. No se pueden cambiar después: la dirección puede estar
+            ya compartida y los folios emitidos usan el prefijo.
+          </p>
+        </div>
       </div>
-      <div className="space-y-2 rounded-xl bg-surface-inner p-5">
-        <p className="text-sm font-bold text-fg">Qué se fija al crear</p>
-        <p className="text-sm text-fg">
-          La dirección y el prefijo no cambian: la dirección puede estar ya compartida y los folios
-          emitidos usan ese prefijo. Nombre, ubicación, zona horaria y fechas se pueden editar
-          después.
-        </p>
+      <TextField
+        label="Dirección de la página de compra"
+        name="slug"
+        autoComplete="off"
+        autoCapitalize="none"
+        spellCheck={false}
+        prefix="/e/"
+        placeholder="los-mas-pesados-2027"
+        inputClassName="font-mono"
+        hint={slugHint}
+        hintPlacement="below"
+        value={draft.slug}
+        error={errors.slug}
+        disabled={sending}
+        onChange={(event) => onSlug(event.currentTarget.value)}
+      />
+      <div className="flex flex-wrap items-start gap-x-6 gap-y-4">
+        <TextField
+          className="flex-[0_1_200px]"
+          label="Prefijo de folio"
+          name="folioPrefix"
+          autoComplete="off"
+          autoCapitalize="characters"
+          spellCheck={false}
+          maxLength={FOLIO_PREFIX_MAX}
+          placeholder="LMP27"
+          inputClassName="font-mono"
+          hint={folioPrefixHint}
+          hintPlacement="below"
+          value={draft.folioPrefix}
+          error={errors.folioPrefix}
+          disabled={sending}
+          onChange={(event) => onFolioPrefix(event.currentTarget.value.toUpperCase())}
+        />
+        <SampleFolio prefix={draft.folioPrefix} />
       </div>
-    </aside>
+    </section>
   );
 }
+
+function SampleFolio({ prefix }: { prefix: string }) {
+  const labelId = useId();
+  return (
+    <div className="flex min-w-0 flex-[1_1_220px] flex-col gap-1 text-sm">
+      <span id={labelId} className="font-semibold text-fg">
+        Así se verá un folio
+      </span>
+      <output
+        aria-labelledby={labelId}
+        aria-live="off"
+        className="flex min-h-11 items-center gap-2.5 rounded-lg border border-dashed border-input-line bg-surface px-3.5"
+      >
+        <TicketIcon />
+        <span
+          className={`font-mono text-base font-medium break-all ${prefix ? 'text-heading' : 'text-muted'}`}
+        >
+          {sampleFolio(prefix)}
+        </span>
+      </output>
+      <span className="text-muted">Aparece en los recibos y en el check-in.</span>
+    </div>
+  );
+}
+
+const iconProps = {
+  'aria-hidden': true,
+  width: 18,
+  height: 18,
+  viewBox: '0 0 20 20',
+  fill: 'none',
+  stroke: 'currentColor',
+  strokeWidth: 1.75,
+  strokeLinecap: 'round',
+  strokeLinejoin: 'round',
+  className: 'shrink-0',
+} as const;
+
+const LockIcon = () => (
+  <svg {...iconProps}>
+    <rect x="4.5" y="9" width="11" height="8" rx="1.5" />
+    <path d="M7 9V6.5a3 3 0 0 1 6 0V9" />
+  </svg>
+);
+
+const InfoIcon = () => (
+  <svg {...iconProps} className="mt-px shrink-0">
+    <circle cx="10" cy="10" r="7.5" />
+    <path d="M10 9v4.5M10 6.5v.01" />
+  </svg>
+);
+
+const TicketIcon = () => (
+  <svg {...iconProps} className="shrink-0 text-muted">
+    <path d="M3 6.5a1.5 1.5 0 0 1 1.5-1.5h11A1.5 1.5 0 0 1 17 6.5v1.8a1.8 1.8 0 0 0 0 3.4v1.8a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 3 13.5v-1.8a1.8 1.8 0 0 0 0-3.4z" />
+  </svg>
+);

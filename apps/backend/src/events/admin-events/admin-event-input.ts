@@ -17,21 +17,37 @@ export type CreateEventInput = {
   timeZone: string;
   startsAt: Date | null;
   endsAt: Date | null;
+  city: string;
+  state: string;
+  country: string;
 };
 
 /**
  * Only the supplied fields. A date supplied alone must still be paired with the stored one, so the
- * caller checks the merged window with `eventWindowErrors`.
+ * caller checks the merged window with `eventWindowErrors`; location fields likewise merge with the
+ * stored ones and are checked with `eventLocationErrors`.
  */
 export type UpdateEventInput = Partial<{
   name: string;
   timeZone: string;
   startsAt: Date | null;
   endsAt: Date | null;
+  city: string;
+  state: string;
+  country: string;
 }>;
 
+/** Where the event happens (#322). Events created before it have no location: all three `null`. */
+export type EventLocation = { city: string | null; state: string | null; country: string | null };
+
 const MAX_NAME = 120;
-const UPDATABLE = new Set(['name', 'timeZone', 'startsAt', 'endsAt']);
+const UPDATABLE = new Set(['name', 'timeZone', 'startsAt', 'endsAt', 'city', 'state', 'country']);
+const LOCATION_FIELDS = ['city', 'state', 'country'] as const;
+const MAX_PLACE = 80;
+// Codes `Intl` names that are not countries: unknown region, European Union, Eurozone, United
+// Nations, outlying Oceania and the pseudo-locales.
+const NOT_COUNTRIES = new Set(['ZZ', 'EU', 'EZ', 'UN', 'QO', 'XA', 'XB']);
+const regionNames = new Intl.DisplayNames(['en'], { type: 'region' });
 const IMMUTABLE = new Set(['slug', 'folioPrefix']);
 // Shape of an IANA zone name (`UTC`, `America/Mexico_City`, `Etc/GMT+6`). It keeps out offsets such
 // as `+01:00`, which `Intl` also accepts but which do not follow daylight saving rules.
@@ -48,6 +64,23 @@ function parseName(raw: unknown): string | null {
   const name = raw.trim();
   return name && name.length <= MAX_NAME ? name : null;
 }
+
+/** A trimmed, non-blank city or state of at most 80 characters without control characters. */
+function parsePlace(raw: unknown): string | null {
+  if (typeof raw !== 'string' || hasControlCharacters(raw)) return null;
+  const place = raw.trim();
+  return place && place.length <= MAX_PLACE ? place : null;
+}
+
+/** An ISO 3166-1 alpha-2 code in upper case (`mx` becomes `MX`), or `null` when not a country. */
+function parseCountry(raw: unknown): string | null {
+  if (typeof raw !== 'string' || !/^[A-Za-z]{2}$/.test(raw)) return null;
+  const code = raw.toUpperCase();
+  return !NOT_COUNTRIES.has(code) && regionNames.of(code) !== code ? code : null;
+}
+
+const parseLocationField = (key: (typeof LOCATION_FIELDS)[number], raw: unknown) =>
+  key === 'country' ? parseCountry(raw) : parsePlace(raw);
 
 /** The canonical IANA name (`america/bogota` becomes `America/Bogota`), or `null` when unknown. */
 function parseTimeZone(raw: unknown): string | null {
@@ -81,6 +114,16 @@ export function eventWindowErrors(
   return {};
 }
 
+/**
+ * Mirrors the `events_location_ck` check: the three fields together or none, so a stored location
+ * is never partial. The error names the missing fields.
+ */
+export function eventLocationErrors(location: EventLocation): Record<string, 'invalid'> {
+  const missing = LOCATION_FIELDS.filter((key) => location[key] === null);
+  if (missing.length === LOCATION_FIELDS.length) return {};
+  return Object.fromEntries(missing.map((key) => [key, 'invalid' as const]));
+}
+
 /** Validates a new event. Errors name fields only and never echo the submitted values. */
 export function parseCreateEventInput(body: unknown): ParseResult<CreateEventInput> {
   if (!isRecord(body)) return { ok: false, fieldErrors: { body: 'invalid' } };
@@ -93,6 +136,9 @@ export function parseCreateEventInput(body: unknown): ParseResult<CreateEventInp
   const timeZone = parseTimeZone(body.timeZone);
   const startsAt = parseDate(body.startsAt);
   const endsAt = parseDate(body.endsAt);
+  const city = parsePlace(body.city);
+  const state = parsePlace(body.state);
+  const country = parseCountry(body.country);
 
   const fieldErrors: Record<string, EventFieldError> = {};
   if (!name) fieldErrors.name = 'invalid';
@@ -101,6 +147,9 @@ export function parseCreateEventInput(body: unknown): ParseResult<CreateEventInp
   if (!timeZone) fieldErrors.timeZone = 'invalid';
   if (startsAt === undefined) fieldErrors.startsAt = 'invalid';
   if (endsAt === undefined) fieldErrors.endsAt = 'invalid';
+  if (!city) fieldErrors.city = 'invalid';
+  if (!state) fieldErrors.state = 'invalid';
+  if (!country) fieldErrors.country = 'invalid';
   if (startsAt !== undefined && endsAt !== undefined)
     Object.assign(fieldErrors, eventWindowErrors(startsAt, endsAt));
   if (
@@ -110,14 +159,20 @@ export function parseCreateEventInput(body: unknown): ParseResult<CreateEventInp
     !timeZone ||
     startsAt === undefined ||
     endsAt === undefined ||
+    !city ||
+    !state ||
+    !country ||
     Object.keys(fieldErrors).length > 0
   )
     return { ok: false, fieldErrors };
-  return { ok: true, value: { name, slug, folioPrefix, timeZone, startsAt, endsAt } };
+  return {
+    ok: true,
+    value: { name, slug, folioPrefix, timeZone, startsAt, endsAt, city, state, country },
+  };
 }
 
 /**
- * Validates an edit. Only the name, time zone and dates can change; the slug and folio prefix are
+ * Validates an edit. Only the name, time zone, dates and location can change; the slug and folio prefix are
  * refused as `immutable` so shared links and printed folios stay valid, and any other key is
  * `invalid`. At least one field is required.
  */
@@ -147,6 +202,12 @@ export function parseUpdateEventInput(body: unknown): ParseResult<UpdateEventInp
     const date = parseDate(body[key]);
     if (date === undefined) fieldErrors[key] = 'invalid';
     else value[key] = date;
+  }
+  for (const key of LOCATION_FIELDS) {
+    if (!(key in body)) continue;
+    const place = parseLocationField(key, body[key]);
+    if (place) value[key] = place;
+    else fieldErrors[key] = 'invalid';
   }
   if (value.startsAt !== undefined && value.endsAt !== undefined)
     Object.assign(fieldErrors, eventWindowErrors(value.startsAt, value.endsAt));

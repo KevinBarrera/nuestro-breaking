@@ -3,7 +3,7 @@ import { events } from '@/database/schema';
 /**
  * One event as the admin API returns it: the items of `GET /admin/events` and the answer of
  * `POST`, `PATCH`, archive and restore (#213). Dates are ISO date-times or `null`. The list
- * carries the time zone, dates and sales switch too (T9), so the event cards need no
+ * carries the time zone, dates, sales switch (T9) and location (#322) too, so the event cards need no
  * request per event; every field is a column of the `events` row.
  */
 export interface AdminEvent {
@@ -16,6 +16,10 @@ export interface AdminEvent {
   startsAt: string | null;
   endsAt: string | null;
   salesEnabled: boolean;
+  /** Where the event happens (#322); all three `null` until an admin fills them in. */
+  city: string | null;
+  state: string | null;
+  country: string | null;
 }
 
 type EventRow = typeof events.$inferSelect;
@@ -30,6 +34,9 @@ type AdminEventRow = Pick<
   | 'startsAt'
   | 'endsAt'
   | 'salesEnabled'
+  | 'city'
+  | 'state'
+  | 'country'
 >;
 
 /** The columns `toAdminEvent` needs, for `select()` and `returning()`. */
@@ -43,6 +50,9 @@ export const adminEventColumns = {
   startsAt: events.startsAt,
   endsAt: events.endsAt,
   salesEnabled: events.salesEnabled,
+  city: events.city,
+  state: events.state,
+  country: events.country,
 };
 
 export function toAdminEvent(row: AdminEventRow): AdminEvent {
@@ -56,5 +66,8 @@ export function toAdminEvent(row: AdminEventRow): AdminEvent {
     startsAt: row.startsAt?.toISOString() ?? null,
     endsAt: row.endsAt?.toISOString() ?? null,
     salesEnabled: row.salesEnabled,
+    city: row.city,
+    state: row.state,
+    country: row.country,
   };
 }

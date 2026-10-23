@@ -34,21 +34,15 @@ test('renders the shell with grouped navigation and event sections disabled', as
   await expect(header.getByText('ADMIN', { exact: true })).toBeVisible();
   const nav = sideNav(page);
   await expect(nav.getByText('General', { exact: true })).toBeVisible();
-  await expect(nav.getByText('Evento', { exact: true })).toBeVisible();
+  await expect(nav.getByRole('paragraph').filter({ hasText: /^Evento$/ })).toBeVisible();
   // On the event list, Todos los eventos is the one current item; Resumen needs an event.
   const allEvents = nav.getByRole('link', { name: 'Todos los eventos' });
   await expect(allEvents).toHaveAttribute('href', '/admin');
   await expect(allEvents).toHaveAttribute('aria-current', 'page');
   await expect(nav.locator('[aria-current="page"]')).toHaveCount(1);
-  // Without an event in the URL, the event groups are locked and explain why.
-  await expect(nav).toContainText('Elige un evento de la lista para usar estas secciones.');
-  for (const name of ['Operación', 'Catálogo', 'Configuración']) {
-    const group = nav.getByRole('button', { name });
-    await expect(group).toBeDisabled();
-    await expect(group).toHaveAccessibleDescription(
-      'Elige un evento de la lista para usar estas secciones.',
-    );
-  }
+  // Without an event in the URL, the event groups are locked until one is picked.
+  for (const name of ['Operación', 'Catálogo', 'Configuración'])
+    await expect(nav.getByRole('button', { name })).toBeDisabled();
   await expect(nav.getByRole('link', { name: 'Resumen' })).toHaveCount(0);
   await expect(nav).not.toContainText('Próximamente');
 });
@@ -149,10 +143,20 @@ test('links event sections, marks the active one and switches events in place', 
   await expect(activities).toHaveAttribute('href', `/admin/events/${secondId}/activities`);
 });
 
-test('hides the event selector when no event is selected', async ({ page }) => {
+test('picks an event from the side navigation when none is selected', async ({ page }) => {
   await page.goto('/admin');
-  await expect(sideNav(page)).toBeVisible();
-  await expect(selectTrigger(page, 'Evento')).toHaveCount(0);
+  const header = page.getByRole('banner', { name: 'Espacio de administración' });
+  await expect(selectTrigger(header, 'Evento')).toHaveCount(0);
+  const selector = selectTrigger(sideNav(page), 'Evento');
+  await expectSelected(selector, 'Elige un evento');
+  await selector.click();
+  await page.getByRole('option', { name: events[1].name }).click();
+  await expect(page).toHaveURL(new RegExp(`/admin/events/${secondId}$`));
+  await expectSelected(selector, events[1].name);
+  await expect(sideNav(page).getByRole('link', { name: 'Resumen' })).toHaveAttribute(
+    'aria-current',
+    'page',
+  );
 });
 
 const selectorGuardCases: {

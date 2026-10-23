@@ -147,9 +147,8 @@ The lists (#65) need an event administrator; judges get no data. See the
 
 ### Before the event
 
-1. Open "Listas de respaldo" from the side navigation ("Operación") or the
-   overview card "Imprimir listas". The page reads one snapshot: press
-   "Actualizar" for a fresh one.
+1. Open "Listas de respaldo" from the side navigation ("Operación"). The page
+   reads one snapshot: press "Actualizar" for a fresh one.
 2. In "Lista", choose "Todas las listas" or one list: "Evento completo", one
    per pass ("Pase · …") and one per competition or workshop. Press "Imprimir
    o guardar PDF" and print or save each one. Each list starts on a new page.

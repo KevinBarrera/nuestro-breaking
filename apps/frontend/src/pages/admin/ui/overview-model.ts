@@ -12,7 +12,8 @@ const requiredLabels: Record<RequiredPassClass, string> = {
   general: 'general',
 };
 
-export type CatalogStat = { label: string; count: number };
+// Each count links to the screen that edits it: Pases, or Actividades for every kind.
+export type CatalogStat = { label: string; count: number; target: 'passes' | 'activities' };
 
 // Active pass types first, then one entry per activity kind that has active activities.
 export function catalogStats(
@@ -24,10 +25,14 @@ export function catalogStats(
     if (activity.status === 'active')
       byKind.set(activity.kind, (byKind.get(activity.kind) ?? 0) + 1);
   const kinds = [...byKind]
-    .map(([kind, count]) => ({ label: kindLabels[kind] ?? kind, count }))
+    .map(([kind, count]) => ({
+      label: kindLabels[kind] ?? kind,
+      count,
+      target: 'activities' as const,
+    }))
     .sort((left, right) => right.count - left.count || left.label.localeCompare(right.label));
   const activePasses = passTypes.filter((passType) => passType.status === 'active').length;
-  return [{ label: 'pases activos', count: activePasses }, ...kinds];
+  return [{ label: 'pases activos', count: activePasses, target: 'passes' }, ...kinds];
 }
 
 const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;

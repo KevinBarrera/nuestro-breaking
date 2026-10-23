@@ -1,7 +1,7 @@
+import { listAdminEvents, type AdminEvent } from '@/entities/admin-event';
 import {
   formatMxn,
   listActivities,
-  listCatalogEvents,
   listPassTypes,
   type CatalogActivity,
   type CatalogPassType,
@@ -12,6 +12,7 @@ import { useCallback, useId } from 'react';
 import { Link, useParams } from 'react-router';
 import { passClassLabels, styles } from './catalog-copy';
 import { CatalogLoadFailure } from './catalog-notice';
+import { eventDates, eventZoneName } from './event-model';
 import { catalogStats, describeAccess, passCountLabel } from './overview-model';
 import { SalesSection } from './sales-section';
 import { useCatalogLoad } from './use-catalog-load';
@@ -28,13 +29,13 @@ function EventOverview({ eventId }: { eventId: string }) {
   const load = useCallback(
     async (signal: AbortSignal) => {
       const [events, activities, passTypes] = await Promise.all([
-        // The event name is a nicety: a failed event list never blocks the catalog summary.
-        listCatalogEvents(signal).catch(() => []),
+        // The event facts are a nicety: a failed event list never blocks the catalog summary.
+        listAdminEvents(signal).catch(() => []),
         listActivities(eventId, signal),
         listPassTypes(eventId, signal),
       ]);
-      const eventName = events.find((event) => event.id === eventId)?.name ?? null;
-      return { eventName, activities, passTypes };
+      const event = events.find((candidate) => candidate.id === eventId) ?? null;
+      return { event, activities, passTypes };
     },
     [eventId],
   );
@@ -42,79 +43,96 @@ function EventOverview({ eventId }: { eventId: string }) {
   const data = state.status === 'ready' ? state.data : null;
 
   return (
-    <main className="px-4 py-8 text-fg sm:px-8 lg:py-12">
-      <div className="mx-auto max-w-5xl space-y-6">
-        <header className="space-y-1">
+    <main className="px-4 py-8 text-fg sm:px-8 lg:py-10">
+      <div className="mx-auto max-w-[67.5rem] space-y-6">
+        <header className="space-y-1.5 pb-2">
           <h1 className="text-3xl font-extrabold tracking-tight text-heading">
             Resumen del evento
           </h1>
-          {data?.eventName && <p className="text-muted">{data.eventName}</p>}
+          {data?.event && <EventFacts event={data.event} />}
         </header>
-        <QuickActions eventId={eventId} />
-        {/* Keyed so another event never shows, or saves over, the previous settings. */}
-        <SalesSection key={eventId} eventId={eventId} />
-        {state.status === 'loading' && <p role="status">Cargando resumen…</p>}
-        {state.status === 'failed' && <CatalogLoadFailure failure={state.failure} />}
+        {/* Venta en línea (wide) beside Catálogo (narrow); they stack when there is no room. */}
+        <div className="flex flex-wrap items-start gap-6">
+          <div className="min-w-0 grow-2 basis-[32.5rem]">
+            {/* Keyed so another event never shows, or saves over, the previous settings. */}
+            <SalesSection key={eventId} eventId={eventId} />
+          </div>
+          <div className="min-w-0 grow basis-[17.5rem]">
+            {state.status === 'loading' && <p role="status">Cargando resumen…</p>}
+            {state.status === 'failed' && <CatalogLoadFailure failure={state.failure} />}
+            {data && (
+              <CatalogSummary
+                eventId={eventId}
+                activities={data.activities}
+                passTypes={data.passTypes}
+              />
+            )}
+          </div>
+        </div>
         {data && (
-          <>
-            <CatalogSummary
-              eventId={eventId}
-              activities={data.activities}
-              passTypes={data.passTypes}
-            />
-            <PassTable eventId={eventId} activities={data.activities} passTypes={data.passTypes} />
-          </>
+          <PassTable eventId={eventId} activities={data.activities} passTypes={data.passTypes} />
         )}
       </div>
     </main>
   );
 }
 
-const actionCard =
-  'flex min-h-36 flex-col justify-between gap-4 rounded-xl p-5 text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus';
-
-function QuickActions({ eventId }: { eventId: string }) {
-  const titleId = useId();
+// The event name, its dates on the event clock and its city, under the page title.
+function EventFacts({ event }: { event: AdminEvent }) {
   return (
-    <section aria-labelledby={titleId}>
-      <h2 id={titleId} className="sr-only">
-        Acciones rápidas
-      </h2>
-      <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,15rem),1fr))] gap-4">
-        <Link
-          to={eventPath(routes.adminEventCheckIn, eventId)}
-          className={`${actionCard} bg-primary text-primary-fg hover:opacity-90`}
-        >
-          <span className="text-xs font-bold tracking-[0.08em]">EN PUERTA</span>
-          <span className="text-2xl leading-tight font-extrabold">Abrir check-in</span>
-          <span className="text-sm">Busca por nombre, AKA, correo o folio</span>
-        </Link>
-        {/* The in-person sale (#105) starts with the participant's data. */}
-        <Link
-          to={eventPath(routes.adminEventRegistrationNew, eventId)}
-          className={`${actionCard} border border-line bg-surface text-fg hover:bg-row`}
-        >
-          <span className="text-xs font-bold tracking-[0.08em] text-muted">EFECTIVO</span>
-          <span className="text-xl leading-tight font-extrabold text-heading">
-            Registrar en el lugar
-          </span>
-          <span className="text-sm text-muted">Con número de recibo foliado</span>
-        </Link>
-        {/* The printable fallback lists (#65). */}
-        <Link
-          to={eventPath(routes.adminEventLists, eventId)}
-          className={`${actionCard} border border-line bg-surface text-fg hover:bg-row`}
-        >
-          <span className="text-xs font-bold tracking-[0.08em] text-muted">RESPALDO</span>
-          <span className="text-xl leading-tight font-extrabold text-heading">Imprimir listas</span>
-          <span className="text-sm text-muted">Por pase y actividad, sin contactos</span>
-        </Link>
-      </div>
-    </section>
+    <p className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-muted">
+      <span className="font-semibold text-fg">{event.name}</span>
+      <span className="inline-flex items-center gap-1.5">
+        <CalendarIcon />
+        {eventDates(event)}
+      </span>
+      <span className="inline-flex items-center gap-1.5">
+        <PlaceIcon />
+        {eventZoneName(event.timeZone)}
+      </span>
+    </p>
   );
 }
 
+const iconProps = {
+  'aria-hidden': true,
+  width: 16,
+  height: 16,
+  viewBox: '0 0 20 20',
+  fill: 'none',
+  stroke: 'currentColor',
+  strokeWidth: 1.75,
+  strokeLinecap: 'round',
+  strokeLinejoin: 'round',
+  className: 'shrink-0',
+} as const;
+
+const CalendarIcon = () => (
+  <svg {...iconProps}>
+    <rect x="3" y="4.5" width="14" height="13" rx="2" />
+    <path d="M3 8.5h14M7 2.5v4M13 2.5v4" />
+  </svg>
+);
+
+const PlaceIcon = () => (
+  <svg {...iconProps}>
+    <path d="M10 17.5s5.5-4.8 5.5-9a5.5 5.5 0 0 0-11 0c0 4.2 5.5 9 5.5 9z" />
+    <circle cx="10" cy="8.5" r="2" />
+  </svg>
+);
+
+const ArrowIcon = () => (
+  <svg {...iconProps}>
+    <path d="M8 6l4 4-4 4" />
+  </svg>
+);
+
 type CatalogProps = { activities: CatalogActivity[]; passTypes: CatalogPassType[] };
+
+const statTargets = {
+  passes: { route: routes.adminEventPasses, action: 'Ver pases' },
+  activities: { route: routes.adminEventActivities, action: 'Ver actividades' },
+};
 
 function CatalogSummary({ eventId, activities, passTypes }: CatalogProps & { eventId: string }) {
   const titleId = useId();
@@ -122,22 +140,30 @@ function CatalogSummary({ eventId, activities, passTypes }: CatalogProps & { eve
   const hasActivities = stats.length > 1;
   return (
     <section aria-labelledby={titleId} className={`${styles.card} space-y-4`}>
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 id={titleId} className="text-lg font-bold text-heading">
+      <div className="space-y-1">
+        <h2 id={titleId} className="text-xl font-extrabold text-heading">
           Catálogo
         </h2>
-        <Link
-          to={eventPath(routes.adminEventPasses, eventId)}
-          className="inline-flex min-h-11 items-center rounded-md px-3 text-sm font-semibold text-link hover:text-link-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
-        >
-          Editar
-        </Link>
+        <p className="text-sm text-muted">Lo que este evento ofrece.</p>
       </div>
-      <ul className="grid grid-cols-[repeat(auto-fit,minmax(8rem,1fr))] gap-3">
+      <ul className="flex flex-col gap-3">
         {stats.map((stat) => (
-          <li key={stat.label} className="flex flex-col gap-0.5 rounded-lg bg-surface-inner p-3">
-            <span className="text-3xl font-extrabold text-heading">{stat.count}</span>
-            <span className="text-sm text-muted">{stat.label}</span>
+          <li key={stat.label}>
+            <Link
+              to={eventPath(statTargets[stat.target].route, eventId)}
+              className="flex items-center gap-3 rounded-lg bg-surface-inner p-4 text-fg hover:bg-row focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+            >
+              <span className="flex flex-1 flex-col gap-0.5">
+                <span className="text-[2rem] leading-9 font-extrabold tracking-tight text-heading">
+                  {stat.count}
+                </span>
+                <span className="text-sm text-muted">{stat.label}</span>
+              </span>
+              <span className="inline-flex items-center gap-1 text-sm font-semibold text-link">
+                {statTargets[stat.target].action}
+                <ArrowIcon />
+              </span>
+            </Link>
           </li>
         ))}
       </ul>

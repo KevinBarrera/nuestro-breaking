@@ -41,9 +41,15 @@ async function mockWrite(
 }
 
 const member = (page: Page, name: string) =>
-  page.getByRole('table', { name: 'Miembros del equipo' }).getByRole('row').filter({
+  page.getByRole('table', { name: 'Equipo' }).getByRole('row').filter({
     hasText: name,
   });
+
+// Opens the person's Acciones menu and picks one item.
+async function pick(page: Page, name: string, item: string) {
+  await page.getByRole('button', { name: `Acciones para ${name}` }).click();
+  await page.getByRole('menuitem', { name: item }).click();
+}
 
 test('inviting shows the link once, copies it and returns to Equipo', async ({ page, context }) => {
   await context.grantPermissions(['clipboard-read', 'clipboard-write']);
@@ -89,7 +95,7 @@ test('inviting shows the link once, copies it and returns to Equipo', async ({ p
   await page.getByRole('button', { name: 'Volver a Equipo' }).click();
   await expect(page).toHaveURL('/admin/team');
   // Equipo must finish loading before going back, or the back navigation can race it.
-  await expect(page.getByRole('table', { name: 'Miembros del equipo' })).toBeVisible();
+  await expect(page.getByRole('table', { name: 'Equipo' })).toBeVisible();
   await page.goBack();
   await expect(page.getByRole('form', { name: 'Agregar administrador' })).toBeVisible();
   await expect(page.getByLabel('Enlace de activación')).toHaveCount(0);
@@ -158,10 +164,8 @@ test('deactivating requires a reason and reports the last global admin rule', as
     },
   );
   await page.goto('/admin/team');
-  await expect(
-    member(page, 'Kevin Barrera').getByRole('button', { name: /^Desactivar/ }),
-  ).toHaveCount(0);
-  await page.getByRole('button', { name: 'Desactivar a Coordinación principal' }).click();
+  await expect(member(page, 'Kevin Barrera').getByRole('button')).toHaveCount(0);
+  await pick(page, 'Coordinación principal', 'Desactivar');
   const dialog = page.getByRole('alertdialog', { name: '¿Desactivar a Coordinación principal?' });
   await expect(dialog).toContainText('Su sesión se cierra de inmediato');
   await dialog.getByRole('button', { name: 'Desactivar acceso' }).click();
@@ -194,7 +198,7 @@ test('a new link for a pending member is shown once on Equipo', async ({ page })
     json: issued(pendingId),
   });
   await page.goto('/admin/team');
-  await page.getByRole('button', { name: `Nuevo enlace para ${pendingName}` }).click();
+  await pick(page, pendingName, 'Generar nueva invitación');
   await page
     .getByRole('alertdialog', { name: `¿Generar un nuevo enlace para ${pendingName}?` })
     .getByRole('button', { name: 'Generar enlace' })
@@ -204,7 +208,7 @@ test('a new link for a pending member is shown once on Equipo', async ({ page })
   expect(writes).toHaveLength(1);
   await page.getByRole('button', { name: 'Volver a Equipo' }).click();
   await expect(page.getByLabel('Enlace de activación')).toHaveCount(0);
-  await expect(page.getByRole('table', { name: 'Miembros del equipo' })).toBeVisible();
+  await expect(page.getByRole('table', { name: 'Equipo' })).toBeVisible();
 });
 
 test('cancels an invitation, reactivates and changes access', async ({ page }) => {
@@ -223,7 +227,7 @@ test('cancels an invitation, reactivates and changes access', async ({ page }) =
   });
   await page.goto('/admin/team');
 
-  await page.getByRole('button', { name: `Cancelar invitación de ${pendingName}` }).click();
+  await pick(page, pendingName, 'Cancelar invitación');
   await page
     .getByRole('alertdialog', { name: `¿Cancelar la invitación de ${pendingName}?` })
     .getByRole('button', { name: 'Cancelar invitación' })
@@ -231,7 +235,7 @@ test('cancels an invitation, reactivates and changes access', async ({ page }) =
   await expect(page.getByRole('status')).toHaveText(`Se canceló la invitación de ${pendingName}.`);
   expect(cancels).toHaveLength(1);
 
-  await page.getByRole('button', { name: 'Reactivar a Persona de caja' }).click();
+  await pick(page, 'Persona de caja', 'Reactivar');
   await page
     .getByRole('alertdialog', { name: '¿Reactivar a Persona de caja?' })
     .getByRole('button', { name: 'Reactivar' })
@@ -239,7 +243,7 @@ test('cancels an invitation, reactivates and changes access', async ({ page }) =
   await expect(page.getByRole('status')).toHaveText('Persona de caja está activo otra vez.');
   expect(reactivations).toHaveLength(1);
 
-  await page.getByRole('button', { name: `Cambiar acceso de ${pendingName}` }).click();
+  await pick(page, pendingName, 'Cambiar acceso');
   const dialog = page.getByRole('dialog', { name: `Cambiar acceso de ${pendingName}` });
   await expect(
     dialog.getByRole('checkbox', { name: 'Los más pesados - Preliminares - Noviembre 2026' }),
@@ -274,15 +278,15 @@ test('a member without access shows "Sin acceso" and gets events back', async ({
   await page.goto('/admin/team');
 
   const row = member(page, 'Persona sin acceso');
-  await expect(row.getByRole('cell').nth(1)).toHaveText('Sin acceso');
+  await expect(row.getByRole('cell').nth(1)).toHaveText('AccesoSin acceso');
   await expect(row.getByRole('cell').nth(2)).toContainText('Sin acceso');
   await expect(row.getByRole('cell').nth(2)).toContainText(
     'Usa «Cambiar acceso» para darle eventos',
   );
   // No new link: it would only set a password that cannot sign in.
-  await expect(row.getByRole('button')).toHaveText(['Cambiar acceso', 'Desactivar']);
-
-  await row.getByRole('button', { name: 'Cambiar acceso de Persona sin acceso' }).click();
+  await row.getByRole('button', { name: 'Acciones para Persona sin acceso' }).click();
+  await expect(page.getByRole('menuitem')).toHaveText(['Cambiar acceso', 'Desactivar']);
+  await page.getByRole('menuitem', { name: 'Cambiar acceso' }).click();
   const dialog = page.getByRole('dialog', { name: 'Cambiar acceso de Persona sin acceso' });
   await dialog.getByRole('button', { name: 'Guardar acceso' }).click();
   await expect(dialog.getByText('Elige al menos un evento.')).toBeVisible();

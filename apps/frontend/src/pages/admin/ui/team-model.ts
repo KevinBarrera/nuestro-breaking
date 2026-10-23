@@ -9,6 +9,63 @@ export function accessSummary(access: TeamAccess): string {
   return access.events.map((event) => event.name).join(', ');
 }
 
+// The table's Acceso cell: the access, then a short line with its scope or how many events.
+export function accessLines(access: TeamAccess): { main: string; sub: string } {
+  const main = accessSummary(access);
+  if (access.kind === 'global') return { main, sub: 'Incluye eventos nuevos y el equipo' };
+  if (access.kind === 'none' || access.events.length === 0) return { main, sub: '' };
+  const count = access.events.length;
+  return { main, sub: `${count} ${count === 1 ? 'evento' : 'eventos'}` };
+}
+
+export function memberInitials(name: string): string {
+  return name
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((word) => word.charAt(0))
+    .join('')
+    .toUpperCase();
+}
+
+export type TeamFilter = 'all' | TeamMember['status'];
+export type TeamCounts = Record<TeamFilter, number>;
+
+export function teamCounts(members: TeamMember[]): TeamCounts {
+  const counts: TeamCounts = {
+    all: members.length,
+    active: 0,
+    pending: 0,
+    deactivated: 0,
+    no_access: 0,
+  };
+  for (const member of members) counts[member.status] += 1;
+  return counts;
+}
+
+const fold = (text: string) =>
+  text
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase();
+
+// Search and the status chips run over the loaded list: name, email or the access text, ignoring
+// case and accents.
+export function filterTeam(members: TeamMember[], query: string, filter: TeamFilter): TeamMember[] {
+  const needle = fold(query.trim());
+  return members.filter((member) => {
+    if (filter !== 'all' && member.status !== filter) return false;
+    if (!needle) return true;
+    const haystack = `${member.displayName} ${member.email} ${accessSummary(member.access)}`;
+    return fold(haystack).includes(needle);
+  });
+}
+
+export function teamCountText(shown: number, total: number): string {
+  const people = `${total} ${total === 1 ? 'persona' : 'personas'}`;
+  return shown === total ? people : `Mostrando ${shown} de ${people}`;
+}
+
 const hourMs = 60 * 60 * 1000;
 
 export function expiryHint(expiresAt: string, now: Date): string {
@@ -65,14 +122,16 @@ export type MemberAction =
 export function memberActions(member: TeamMember, isSelf: boolean, now: Date): MemberAction[] {
   if (isSelf) return [];
   if (member.status === 'deactivated') return ['reactivate', 'change-access'];
-  // Without access a new link would only set a password that cannot sign in (#213 D9); the
-  // backend refuses it, so access comes back first.
-  const actions: MemberAction[] = member.status === 'no_access' ? [] : ['regenerate'];
-  if (
-    (member.status === 'pending' || member.status === 'no_access') &&
-    invitationOpen(member.invitation, now)
-  )
+  // A pending invitation leads with its new link. Without access a new link would only set a
+  // password that cannot sign in (#213 D9); the backend refuses it, so access comes back first.
+  const actions: MemberAction[] =
+    member.status === 'active'
+      ? ['change-access', 'regenerate']
+      : member.status === 'pending'
+        ? ['regenerate', 'change-access']
+        : ['change-access'];
+  if (member.status !== 'active' && invitationOpen(member.invitation, now))
     actions.push('cancel-invitation');
-  actions.push('change-access', 'deactivate');
+  actions.push('deactivate');
   return actions;
 }

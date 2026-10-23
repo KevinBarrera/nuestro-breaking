@@ -8,7 +8,7 @@ import {
   type IssuedLink,
   type TeamMember,
 } from '@/entities/admin-team';
-import { useSessionStore, type User } from '@/entities/session';
+import { useSessionStore } from '@/entities/session';
 import { routes } from '@/shared/config';
 import { ConfirmDialog, Notice } from '@/shared/ui';
 import { useEffect, useRef, useState } from 'react';
@@ -18,29 +18,10 @@ import { InvitationCreated } from './invitation-created';
 import { teamDenied } from './team-copy';
 import { ChangeAccessDialog, DeactivateDialog } from './team-dialogs';
 import { accessInput, teamFailureMessage, type AccessDraft } from './team-form-model';
-import {
-  accessSummary,
-  memberActions,
-  memberStatus,
-  type MemberAction,
-  type StatusTone,
-} from './team-model';
+import { type MemberAction } from './team-model';
+import { TeamList } from './team-list';
 import { useTeamEvents } from './use-team-events';
 import { useTeamLoad } from './use-team-load';
-
-const toneClass: Record<StatusTone, string> = {
-  success: 'bg-success text-success-fg',
-  warning: 'bg-warning text-warning-fg',
-  neutral: 'bg-chip text-fg',
-};
-
-const actionLabels: Record<MemberAction, (name: string) => [string, string]> = {
-  regenerate: (name) => ['Nuevo enlace', `Nuevo enlace para ${name}`],
-  'cancel-invitation': (name) => ['Cancelar invitación', `Cancelar invitación de ${name}`],
-  'change-access': (name) => ['Cambiar acceso', `Cambiar acceso de ${name}`],
-  deactivate: (name) => ['Desactivar', `Desactivar a ${name}`],
-  reactivate: (name) => ['Reactivar', `Reactivar a ${name}`],
-};
 
 export function TeamDenied() {
   return (
@@ -124,13 +105,10 @@ export function AdminTeamPage() {
   const name = member?.displayName ?? '';
 
   return (
-    <main className="px-4 py-8 text-fg sm:px-8 lg:py-12">
-      <div className="mx-auto max-w-5xl space-y-6">
+    <main className="px-4 py-8 text-fg sm:px-8 lg:pt-10 lg:pb-16">
+      <div className="mx-auto max-w-[1080px] space-y-6">
         <header className="flex flex-wrap items-end justify-between gap-4">
-          <div className="space-y-1">
-            <p className="text-xs font-bold tracking-[0.08em] text-muted uppercase">
-              Administración
-            </p>
+          <div className="space-y-1.5">
             <h1
               ref={heading}
               tabIndex={-1}
@@ -149,15 +127,15 @@ export function AdminTeamPage() {
             >
               <svg
                 aria-hidden="true"
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
+                width="16"
+                height="16"
+                viewBox="0 0 20 20"
                 fill="none"
                 stroke="currentColor"
-                strokeWidth="2.5"
+                strokeWidth="2"
                 strokeLinecap="round"
               >
-                <path d="M12 5v14M5 12h14" />
+                <path d="M10 4v12M4 10h12" />
               </svg>
               Agregar administrador
             </Link>
@@ -196,10 +174,26 @@ export function AdminTeamPage() {
           <TeamList members={state.members} user={user} onAction={start} />
         )}
         {!issued && (
-          <p className="max-w-3xl text-sm text-muted">
-            Solo quien tiene acceso a <strong className="text-fg">todos los eventos</strong> ve esta
-            sección. Nadie puede desactivarse a sí mismo, y siempre queda al menos una persona
-            activa con acceso a todos los eventos.
+          <p className="flex max-w-[760px] items-start gap-2.5 text-sm text-muted">
+            <svg
+              aria-hidden="true"
+              width="18"
+              height="18"
+              viewBox="0 0 20 20"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.75"
+              strokeLinecap="round"
+              className="mt-px shrink-0"
+            >
+              <circle cx="10" cy="10" r="7.5" />
+              <path d="M10 9v4.5M10 6.5v.01" />
+            </svg>
+            <span>
+              Solo quien tiene acceso a todos los eventos ve esta sección. Nadie puede desactivarse
+              a sí mismo, y siempre queda al menos una persona activa con acceso a todos los
+              eventos.
+            </span>
           </p>
         )}
       </div>
@@ -295,105 +289,5 @@ export function AdminTeamPage() {
         />
       )}
     </main>
-  );
-}
-
-type TeamListProps = {
-  members: TeamMember[];
-  user: User | null;
-  onAction: (action: MemberAction, member: TeamMember) => void;
-};
-
-// One ARIA table. Below `lg` (where the side navigation leaves too little room for four
-// columns) each row stacks as a card; from `lg` up the rows share the table's columns through
-// subgrid, so every column lines up and the actions stay on their row.
-const subgridRow = 'lg:col-span-4 lg:grid lg:grid-cols-subgrid';
-const headerCell = 'px-5 py-3 text-xs font-bold tracking-[0.08em] text-muted uppercase';
-
-function TeamList({ members, user, onAction }: TeamListProps) {
-  const now = new Date();
-  return (
-    <div
-      role="table"
-      aria-label="Miembros del equipo"
-      className="overflow-hidden rounded-xl border border-line bg-surface lg:grid lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1.3fr)_minmax(0,1fr)_fit-content(45%)]"
-    >
-      <div role="rowgroup" className={`sr-only lg:not-sr-only ${subgridRow}`}>
-        <div role="row" className={`${subgridRow} border-b border-line bg-surface-inner`}>
-          <span role="columnheader" className={headerCell}>
-            Persona
-          </span>
-          <span role="columnheader" className={headerCell}>
-            Acceso
-          </span>
-          <span role="columnheader" className={headerCell}>
-            Estado
-          </span>
-          <span role="columnheader" className={headerCell}>
-            <span className="sr-only">Acciones</span>
-          </span>
-        </div>
-      </div>
-      <div role="rowgroup" className={`divide-y divide-row ${subgridRow}`}>
-        {members.map((member) => {
-          const status = memberStatus(member, now);
-          const isSelf = member.id === user?.id;
-          const actions = memberActions(member, isSelf, now);
-          const muted = member.status === 'deactivated';
-          return (
-            <div
-              key={member.id}
-              role="row"
-              className={`grid gap-3 px-5 py-4 lg:items-center lg:gap-0 lg:px-0 ${subgridRow}`}
-            >
-              <div role="cell" className="min-w-0 lg:px-5">
-                <p className={`font-bold break-words ${muted ? 'text-muted' : 'text-heading'}`}>
-                  {member.displayName}
-                  {isSelf && <span className="font-medium text-muted"> (tú)</span>}
-                </p>
-                <p className="text-sm break-words text-muted">{member.email}</p>
-              </div>
-              <p role="cell" className={`min-w-0 break-words lg:px-5 ${muted ? 'text-muted' : ''}`}>
-                {accessSummary(member.access)}
-              </p>
-              <div role="cell" className="lg:px-5">
-                <span
-                  className={`inline-block rounded-full px-3 py-1 text-sm font-bold ${toneClass[status.tone]}`}
-                >
-                  {status.label}
-                </span>
-                {status.hint && <p className="mt-1 text-sm text-muted">{status.hint}</p>}
-              </div>
-              <div
-                role="cell"
-                className={`${actions.length === 0 ? 'hidden lg:flex' : 'flex'} flex-wrap gap-2 lg:justify-end lg:px-5`}
-              >
-                {actions.length === 0 ? (
-                  <span className="text-muted">
-                    <span aria-hidden="true">—</span>
-                    <span className="sr-only">Sin acciones</span>
-                  </span>
-                ) : (
-                  actions.map((action) => {
-                    const [text, label] = actionLabels[action](member.displayName);
-                    return (
-                      <button
-                        key={action}
-                        type="button"
-                        aria-label={label}
-                        className={action === 'deactivate' ? styles.danger : styles.secondary}
-                        onClick={() => onAction(action, member)}
-                      >
-                        {text}
-                      </button>
-                    );
-                  })
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
   );
 }

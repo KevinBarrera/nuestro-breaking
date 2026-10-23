@@ -100,6 +100,9 @@ describe('parseCreateEventInput', () => {
     ['country', 'XX'],
     ['country', 'ZZ'],
     ['country', 'EU'],
+    ['country', 'XK'],
+    ['country', 'SU'],
+    ['country', 'IC'],
     ['country', undefined],
   ])('reports %s as invalid for %p', (field, value) => {
     const result = parseCreateEventInput({ ...valid, [field]: value });

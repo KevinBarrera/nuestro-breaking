@@ -44,9 +44,17 @@ const MAX_NAME = 120;
 const UPDATABLE = new Set(['name', 'timeZone', 'startsAt', 'endsAt', 'city', 'state', 'country']);
 const LOCATION_FIELDS = ['city', 'state', 'country'] as const;
 const MAX_PLACE = 80;
-// Codes `Intl` names that are not countries: unknown region, European Union, Eurozone, United
-// Nations, outlying Oceania and the pseudo-locales.
-const NOT_COUNTRIES = new Set(['ZZ', 'EU', 'EZ', 'UN', 'QO', 'XA', 'XB']);
+// Codes `Intl` names that are not ISO 3166-1 countries: unknown region, European Union, Eurozone,
+// United Nations, outlying Oceania, the pseudo-locales, user-assigned and exceptionally reserved
+// codes (Kosovo, Ascension, Canary Islands, Ceuta and Melilla, Diego Garcia, Clipperton, Tristan
+// da Cunha) and retired ones (Netherlands Antilles, Soviet Union, Yugoslavia).
+const NOT_COUNTRIES = new Set(
+  ['ZZ', 'EU', 'EZ', 'UN', 'QO', 'XA', 'XB', 'XK', 'AC', 'IC', 'EA', 'DG', 'CP', 'TA'].concat([
+    'AN',
+    'SU',
+    'YU',
+  ]),
+);
 const regionNames = new Intl.DisplayNames(['en'], { type: 'region' });
 const IMMUTABLE = new Set(['slug', 'folioPrefix']);
 // Shape of an IANA zone name (`UTC`, `America/Mexico_City`, `Etc/GMT+6`). It keeps out offsets such

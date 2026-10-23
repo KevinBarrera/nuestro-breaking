@@ -7,11 +7,12 @@ import {
   type CatalogPassType,
 } from '@/entities/event-catalog';
 import { routes } from '@/shared/config';
+import { DataTable, TableChip, type TableColumn } from '@/shared/ui';
 import { useCallback, useId } from 'react';
 import { Link, useParams } from 'react-router';
 import { passClassLabels, styles } from './catalog-copy';
 import { CatalogLoadFailure } from './catalog-notice';
-import { catalogStats, describeAccess } from './overview-model';
+import { catalogStats, describeAccess, passCountLabel } from './overview-model';
 import { SalesSection } from './sales-section';
 import { useCatalogLoad } from './use-catalog-load';
 
@@ -61,7 +62,7 @@ function EventOverview({ eventId }: { eventId: string }) {
               activities={data.activities}
               passTypes={data.passTypes}
             />
-            <PassTable activities={data.activities} passTypes={data.passTypes} />
+            <PassTable eventId={eventId} activities={data.activities} passTypes={data.passTypes} />
           </>
         )}
       </div>
@@ -145,56 +146,52 @@ function CatalogSummary({ eventId, activities, passTypes }: CatalogProps & { eve
   );
 }
 
-function PassTable({ activities, passTypes }: CatalogProps) {
-  const titleId = useId();
+function PassTable({ eventId, activities, passTypes }: CatalogProps & { eventId: string }) {
   const onSale = passTypes.filter((passType) => passType.status === 'active');
   const activityById = new Map(activities.map((activity) => [activity.id, activity]));
+  const columns: TableColumn<CatalogPassType>[] = [
+    {
+      key: 'name',
+      header: 'Pase',
+      rowHeader: true,
+      cell: (passType) => (
+        <Link
+          to={eventPath(routes.adminEventPass, eventId).replace(':passTypeId', passType.id)}
+          className="inline-flex min-h-11 items-center rounded font-semibold text-fg hover:underline hover:underline-offset-3 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+        >
+          {passType.name}
+        </Link>
+      ),
+    },
+    {
+      key: 'class',
+      header: 'Clase',
+      cell: (passType) => <TableChip>{passClassLabels[passType.passClass]}</TableChip>,
+    },
+    {
+      key: 'access',
+      header: 'Incluye',
+      muted: true,
+      cell: (passType) => describeAccess(passType, activityById),
+    },
+    {
+      key: 'price',
+      header: 'Precio',
+      align: 'end',
+      mono: true,
+      cell: (passType) => formatMxn(passType.priceCents),
+    },
+  ];
   return (
-    <section aria-labelledby={titleId} className="rounded-xl border border-line bg-surface">
-      <div className="flex flex-wrap items-baseline justify-between gap-3 px-5 pt-5 pb-3">
-        <h2 id={titleId} className="text-lg font-bold text-heading">
-          Pases a la venta
-        </h2>
-        <span className="text-sm text-muted">Precios en MXN</span>
-      </div>
-      {onSale.length === 0 ? (
-        <p className="px-5 pb-5 text-sm text-muted">Aún no hay pases a la venta.</p>
-      ) : (
-        <div data-testid="pass-table-scroll" className="overflow-x-auto">
-          <table aria-labelledby={titleId} className="w-full min-w-[38rem] text-sm">
-            <thead>
-              <tr className="border-b border-line text-left text-xs tracking-[0.06em] text-muted">
-                <th scope="col" className="px-5 py-2.5 font-bold">
-                  PASE
-                </th>
-                <th scope="col" className="px-3 py-2.5 font-bold">
-                  CLASE
-                </th>
-                <th scope="col" className="px-3 py-2.5 font-bold">
-                  INCLUYE
-                </th>
-                <th scope="col" className="px-5 py-2.5 text-right font-bold">
-                  PRECIO
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {onSale.map((passType) => (
-                <tr key={passType.id} className="border-b border-row last:border-b-0">
-                  <th scope="row" className="px-5 py-3 text-left font-semibold">
-                    {passType.name}
-                  </th>
-                  <td className="px-3 py-3 text-muted">{passClassLabels[passType.passClass]}</td>
-                  <td className="px-3 py-3 text-muted">{describeAccess(passType, activityById)}</td>
-                  <td className="px-5 py-3 text-right font-mono font-medium">
-                    {formatMxn(passType.priceCents)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </section>
+    <DataTable
+      title="Pases a la venta"
+      description="Lo que el público puede comprar en línea."
+      columns={columns}
+      rows={onSale}
+      rowKey={(passType) => passType.id}
+      empty="Aún no hay pases a la venta."
+      count={passCountLabel(onSale.length)}
+      note="Precios en MXN"
+    />
   );
 }

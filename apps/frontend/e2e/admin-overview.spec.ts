@@ -170,6 +170,17 @@ test('renders catalog counts and the pass types on sale', async ({ page }) => {
   await expect(table.getByText('Pase anticipado')).toHaveCount(0);
   const price = row('Pase completo').getByRole('cell').last();
   await expect(price).toHaveCSS('text-align', 'right');
+  // The shared table design (#317): sentence-case headers, the pass name links to its pass and
+  // a footer counts the passes on sale.
+  await expect(table.getByRole('columnheader')).toHaveText(['Pase', 'Clase', 'Incluye', 'Precio']);
+  await expect(row('Pase completo').getByRole('link', { name: 'Pase completo' })).toHaveAttribute(
+    'href',
+    `${overviewPath}/passes/f1b2c3d4-1234-4567-89ab-123456789abc`,
+  );
+  const tableCard = page.getByRole('region', { name: 'Pases a la venta' });
+  await expect(tableCard).toContainText('Lo que el público puede comprar en línea.');
+  await expect(tableCard).toContainText('3 pases');
+  await expect(tableCard).toContainText('Precios en MXN');
 });
 
 test('keeps the catalog summary when the event list fails', async ({ page }) => {
@@ -235,7 +246,7 @@ test('fits a 375px viewport and scrolls the pass table inside its box', async ({
   expect(await page.evaluate<number>('document.documentElement.scrollWidth')).toBeLessThanOrEqual(
     375,
   );
-  const box = page.getByTestId('pass-table-scroll');
+  const box = page.getByTestId('data-table-scroll');
   expect(await box.evaluate((node) => node.scrollWidth > node.clientWidth)).toBe(true);
   await expect(box).toHaveCSS('overflow-x', 'auto');
 });

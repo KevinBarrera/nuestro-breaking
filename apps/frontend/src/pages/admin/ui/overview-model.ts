@@ -32,6 +32,9 @@ export function catalogStats(
 
 const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
 
+// The footer of "Pases a la venta".
+export const passCountLabel = (count: number) => plural(count, 'pase', 'pases');
+
 // Summarizes what a pass grants, counting only activities that are still active.
 export function describeAccess(
   passType: CatalogPassType,

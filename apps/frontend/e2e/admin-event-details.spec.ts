@@ -42,7 +42,10 @@ const centro = { id: venueId, name: 'Centro cultural' };
 const main = (page: Page) => page.getByRole('main');
 const form = (page: Page) => main(page).getByRole('form', { name: 'Datos del evento' });
 const venues = (page: Page) => main(page).getByRole('region', { name: 'Sedes' });
-const saveButton = (page: Page) => form(page).getByRole('button', { name: 'Guardar cambios' });
+// The save and discard buttons live in a bar that shows only while General has edits.
+const unsavedBar = (page: Page) => main(page).getByRole('region', { name: 'Cambios sin guardar' });
+const saveButton = (page: Page) =>
+  unsavedBar(page).getByRole('button', { name: 'Guardar cambios' });
 
 async function openDetails(page: Page, json: unknown = foundation(), session?: unknown) {
   await mockSession(page, session);
@@ -95,13 +98,12 @@ test('shows the event data on its own clock, the fixed fields and the venues', a
   await expect(form(page).getByLabel('Ciudad', { exact: true })).toHaveValue('Guadalajara');
   await expect(form(page).getByLabel('Estado', { exact: true })).toHaveValue('Jalisco');
   await expectSelected(selectTrigger(form(page), 'País'), 'México');
-  const locked = form(page).getByRole('region', { name: 'Fijos desde la creación' });
-  await expect(locked).toContainText('/e/encuentro-del-barrio');
-  await expect(locked).toContainText('EB');
-  await expect(locked).toContainText('los folios emitidos usan este prefijo');
-  // Nothing changed yet.
-  await expect(saveButton(page)).toBeDisabled();
-  await expect(form(page).getByRole('button', { name: 'Descartar cambios' })).toBeDisabled();
+  const identifiers = main(page).getByRole('region', { name: 'Identificadores' });
+  await expect(identifiers).toContainText('/e/encuentro-del-barrio');
+  await expect(identifiers).toContainText('EB · por ejemplo EB-7K3Q');
+  await expect(identifiers).toContainText('los folios emitidos usan este prefijo');
+  // Nothing changed yet, so there is nothing to save.
+  await expect(unsavedBar(page)).toHaveCount(0);
   await expect(venues(page).getByRole('listitem')).toHaveText([/^Centro cultural/]);
   const header = page.getByRole('banner', { name: 'Espacio de administración' });
   await expect(header.getByText('Datos del evento')).toBeVisible();
@@ -116,7 +118,7 @@ test('fills in the location of an event created without one', async ({ page }) =
   await openDetails(page, foundation({ city: null, state: null, country: null }));
   await expect(form(page).getByLabel('Ciudad', { exact: true })).toHaveValue('');
   await expectSelected(selectTrigger(form(page), 'País'), 'México');
-  await expect(saveButton(page)).toBeDisabled();
+  await expect(unsavedBar(page)).toHaveCount(0);
   const patch = await capturePatch(page, (body) => ({ json: { ...event, ...body } }));
   await form(page).getByLabel('Ciudad', { exact: true }).fill('Bogotá');
   await saveButton(page).click();
@@ -150,7 +152,7 @@ test('saves only the changed fields and shows the saved values', async ({ page }
   expect(patch.csrf).toEqual(['csrf-token']);
   await expect(form(page).getByLabel('Nombre del evento')).toHaveValue('Encuentro del barrio 2026');
   await expect(form(page).getByLabel('Fin')).toHaveValue('2026-11-15T22:00');
-  await expect(saveButton(page)).toBeDisabled();
+  await expect(unsavedBar(page)).toHaveCount(0);
 });
 
 test('changing the zone keeps the typed times and sends the new instants', async ({ page }) => {
@@ -196,14 +198,28 @@ test('a server field error is mapped to its field', async ({ page }) => {
   await expect(form(page).getByLabel('Fin')).toBeFocused();
 });
 
-test('Descartar cambios brings back the stored values', async ({ page }) => {
+test('Descartar brings back the stored values', async ({ page }) => {
   await openDetails(page);
   const name = form(page).getByLabel('Nombre del evento');
   await name.fill('Otro nombre');
+  await expect(unsavedBar(page)).toContainText('Tienes cambios sin guardar');
   await expect(saveButton(page)).toBeEnabled();
-  await form(page).getByRole('button', { name: 'Descartar cambios' }).click();
+  await unsavedBar(page).getByRole('button', { name: 'Descartar' }).click();
   await expect(name).toHaveValue('Encuentro del barrio');
-  await expect(saveButton(page)).toBeDisabled();
+  await expect(unsavedBar(page)).toHaveCount(0);
+});
+
+test('Copiar copies the purchase address and says so', async ({ page, context }) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  await openDetails(page);
+  const identifiers = main(page).getByRole('region', { name: 'Identificadores' });
+  await identifiers.getByRole('button', { name: 'Copiar' }).click();
+  await expect(identifiers.getByRole('button', { name: 'Copiada' })).toBeVisible();
+  await expect(identifiers.getByRole('status')).toHaveText('Dirección copiada.');
+  const origin = new URL(page.url()).origin;
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
+    `${origin}/e/encuentro-del-barrio`,
+  );
 });
 
 test('unsaved edits ask before leaving the page', async ({ page }) => {
@@ -349,7 +365,7 @@ test('a venue added while a save is pending stays after the save answers', async
   );
   await form(page).getByLabel('Nombre del evento').fill('Encuentro 2026');
   await saveButton(page).click();
-  await expect(form(page).getByRole('button', { name: 'Guardando…' })).toBeVisible();
+  await expect(unsavedBar(page).getByRole('button', { name: 'Guardando…' })).toBeVisible();
 
   const section = venues(page);
   await section.getByRole('button', { name: 'Agregar sede' }).click();
@@ -390,7 +406,7 @@ test('switching events while a save is pending opens the other event', async ({ 
   await page.goto(detailsPath);
   await form(page).getByLabel('Nombre del evento').fill('Encuentro 2026');
   await saveButton(page).click();
-  await expect(form(page).getByRole('button', { name: 'Guardando…' })).toBeVisible();
+  await expect(unsavedBar(page).getByRole('button', { name: 'Guardando…' })).toBeVisible();
 
   const nav = page.getByRole('navigation', { name: 'Navegación administrativa' });
   await chooseOption(selectTrigger(nav, 'Evento'), 'Otro evento');

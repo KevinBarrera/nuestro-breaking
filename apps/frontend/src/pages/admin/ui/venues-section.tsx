@@ -8,6 +8,7 @@ import { Notice, TextField } from '@/shared/ui';
 import { useId, useRef, useState, type FormEvent } from 'react';
 import { styles } from './catalog-copy';
 import { validateVenueName, venueFailureMessage } from './event-details-model';
+import { SettingsSection, settingsCard } from './settings-section';
 
 type VenuesSectionProps = {
   eventId: string;
@@ -80,87 +81,130 @@ export function VenuesSection({
   }
 
   return (
-    <section aria-labelledby={headingId} className={`${styles.card} space-y-5 sm:p-8`}>
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="min-w-0 basis-72 space-y-1">
-          <h2
-            ref={heading}
-            id={headingId}
-            tabIndex={-1}
-            className="text-lg font-extrabold text-heading outline-none"
-          >
-            Sedes
-          </h2>
-          <p className="text-sm text-muted">
-            Los lugares donde suceden las actividades. Cada actividad se programa en una sede.
+    <SettingsSection
+      headingId={headingId}
+      headingRef={heading}
+      title="Sedes"
+      description="Los lugares donde suceden las actividades. Cada actividad se programa en una sede."
+    >
+      <div className={`${settingsCard} overflow-hidden`}>
+        {message && (
+          <div className="border-b border-line p-4">
+            <Notice tone={message.tone}>{message.text}</Notice>
+          </div>
+        )}
+        {venues.length === 0 ? (
+          <p className="border-b border-line px-6 py-4 text-muted">
+            Aún no hay sedes. Agrega la primera para poder programar actividades.
           </p>
-        </div>
+        ) : (
+          <ul aria-label="Sedes del evento">
+            {venues.map((venue) => (
+              <li key={venue.id} className="border-b border-line">
+                {editable && renaming === venue.id ? (
+                  <div className="p-4">
+                    <VenueForm
+                      formLabel={`Renombrar ${venue.name}`}
+                      submitLabel="Guardar nombre"
+                      sendingLabel="Guardando…"
+                      initialName={venue.name}
+                      onSubmit={(name) => rename(venue.id, name)}
+                      onCancel={() => setRenaming(null)}
+                    />
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-3 py-3 pr-4 pl-5 sm:pl-6">
+                    <span
+                      aria-hidden="true"
+                      className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-chip text-heading"
+                    >
+                      <PlaceIcon />
+                    </span>
+                    <span className="min-w-0 flex-1 text-[15px] leading-[22px] font-semibold break-words text-heading">
+                      {venue.name}
+                    </span>
+                    {editable && !formOpen && (
+                      <button
+                        type="button"
+                        aria-label={`Renombrar ${venue.name}`}
+                        className={ghostButton}
+                        onClick={() => {
+                          setMessage(null);
+                          setRenaming(venue.id);
+                        }}
+                      >
+                        <PencilIcon />
+                        Renombrar
+                      </button>
+                    )}
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+        {editable && adding && (
+          <div className="p-4">
+            <VenueForm
+              formLabel="Agregar sede"
+              submitLabel="Agregar"
+              sendingLabel="Agregando…"
+              initialName=""
+              onSubmit={add}
+              onCancel={() => setAdding(false)}
+            />
+          </div>
+        )}
         {editable && !formOpen && (
           <button
             type="button"
-            className={styles.secondary}
+            className="flex min-h-[52px] w-full items-center gap-2.5 px-5 text-left text-sm font-semibold text-heading hover:bg-row focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus sm:px-6"
             onClick={() => {
               setMessage(null);
               setAdding(true);
             }}
           >
+            <PlusIcon />
             Agregar sede
           </button>
         )}
       </div>
-      {message && <Notice tone={message.tone}>{message.text}</Notice>}
-      {editable && adding && (
-        <VenueForm
-          formLabel="Agregar sede"
-          submitLabel="Agregar"
-          sendingLabel="Agregando…"
-          initialName=""
-          onSubmit={add}
-          onCancel={() => setAdding(false)}
-        />
-      )}
-      {venues.length === 0 ? (
-        <p className="text-muted">
-          Aún no hay sedes. Agrega la primera para poder programar actividades.
-        </p>
-      ) : (
-        <ul aria-label="Sedes del evento" className="divide-y divide-row">
-          {venues.map((venue) => (
-            <li key={venue.id} className="py-3 first:pt-0 last:pb-0">
-              {editable && renaming === venue.id ? (
-                <VenueForm
-                  formLabel={`Renombrar ${venue.name}`}
-                  submitLabel="Guardar nombre"
-                  sendingLabel="Guardando…"
-                  initialName={venue.name}
-                  onSubmit={(name) => rename(venue.id, name)}
-                  onCancel={() => setRenaming(null)}
-                />
-              ) : (
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <span className="min-w-0 font-semibold break-words text-fg">{venue.name}</span>
-                  {editable && !formOpen && (
-                    <button
-                      type="button"
-                      aria-label={`Renombrar ${venue.name}`}
-                      className={styles.secondary}
-                      onClick={() => {
-                        setMessage(null);
-                        setRenaming(venue.id);
-                      }}
-                    >
-                      Renombrar
-                    </button>
-                  )}
-                </div>
-              )}
-            </li>
-          ))}
-        </ul>
-      )}
-    </section>
+    </SettingsSection>
   );
 }
+
+const ghostButton =
+  'inline-flex min-h-11 items-center gap-1.5 rounded-lg px-3 text-sm font-semibold text-heading hover:bg-row focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus';
+
+const iconProps = {
+  'aria-hidden': true,
+  viewBox: '0 0 20 20',
+  fill: 'none',
+  stroke: 'currentColor',
+  strokeWidth: 1.75,
+  strokeLinecap: 'round',
+  strokeLinejoin: 'round',
+  className: 'shrink-0',
+} as const;
+
+const PlaceIcon = () => (
+  <svg {...iconProps} width="18" height="18">
+    <path d="M10 17.5s5.5-4.8 5.5-9a5.5 5.5 0 0 0-11 0c0 4.2 5.5 9 5.5 9z" />
+    <circle cx="10" cy="8.5" r="2" />
+  </svg>
+);
+
+const PencilIcon = () => (
+  <svg {...iconProps} width="16" height="16">
+    <path d="M12.5 4.5l3 3L7 16H4v-3z" />
+  </svg>
+);
+
+const PlusIcon = () => (
+  <svg {...iconProps} width="18" height="18" strokeWidth={2}>
+    <path d="M10 4v12M4 10h12" />
+  </svg>
+);
 
 type VenueFormProps = {
   formLabel: string;

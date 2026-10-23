@@ -15,11 +15,11 @@ Test runner: Vitest for pure logic, Playwright (`apps/frontend/e2e`) for flows; 
 
 ## Tasks
 
-| ID  | Specs      | Route  | Status  | Commit |
-| --- | ---------- | ------ | ------- | ------ |
-| T1  | S2, S3, S6 | inline | done    | (T1)   |
-| T2  | S4, S6     | inline | done    | (T2)   |
-| T3  | S5, S6     | inline | pending |        |
+| ID  | Specs      | Route  | Status | Commit  |
+| --- | ---------- | ------ | ------ | ------- |
+| T1  | S2, S3, S6 | inline | done   | 1081f99 |
+| T2  | S4, S6     | inline | done   | 9973581 |
+| T3  | S5, S6     | inline | done   | e9a4182 |
 
 ## Log
 
@@ -27,3 +27,4 @@ Test runner: Vitest for pure logic, Playwright (`apps/frontend/e2e`) for flows; 
 - **L2 (2026-10-22, user):** "levantalo tu" → Vite on `localhost:5173` from this checkout; backend already on 3000.
 - **L3:** T1: tabs (arrow keys move between them; a restore goes back to Activos), date tile from `eventDateTile`, location with a pin, sales pill with a dot, the new empty state. The card meta keeps `eventDates` ("21–22 de noviembre de 2026"), shared with the Resumen header, instead of the artboard's weekday form; the folio pattern leaves the cards, as in the design. Checked in Chrome (light, dark, empty, narrow). `verify:pr`: 760 unit; e2e green after pointing the sweep's Eventos reveal step at the Archivados tab (163/163 sweeps).
 - **L4:** T2: single-column Nuevo evento ("Datos generales" card, then "Identificadores permanentes" with `/e/` prefix and the sample folio, the closed-sales note, footer actions); the side preview is gone. Hints follow the artboard; `TextField` gains `inputClassName` for mono inputs; error focus follows the new screen order. Checked in Chrome (light, dark). `verify:pr` green except `admin-select` timing out under load (15s alone over 17 screens), now `test.slow()` in its own commit.
+- **L5:** T3: `SettingsSection` (title and description left, card right) for General, Identificadores, Sedes and Archivar o eliminar; the address copy logic moved to `useCopyText`/`CopyStatus`, shared with the Resumen sales card; save and discard moved into a sticky "Cambios sin guardar" bar shown only while General has edits. General's description adds "ubicación" (the artboard predates the location fields). Checked in Chrome (light, dark, the unsaved bar, discard). `verify:pr`: 761 unit, 563 e2e, all green.

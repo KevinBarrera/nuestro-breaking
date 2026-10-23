@@ -117,10 +117,11 @@ test('restores an archived event here and makes it editable again', async ({ pag
   await expect(section(page)).toContainText('La venta en línea sigue cerrada');
 
   await section(page).getByRole('button', { name: 'Restaurar evento' }).click();
-  await expect(main(page).getByRole('status')).toContainText(
-    'Evento restaurado. La venta en línea sigue cerrada',
-  );
-  await expect(main(page).getByRole('button', { name: 'Guardar cambios' })).toBeVisible();
+  await expect(
+    main(page).getByRole('status').filter({ hasText: 'Evento restaurado.' }),
+  ).toContainText('Evento restaurado. La venta en línea sigue cerrada');
+  // Editable again: the name is no longer read-only.
+  await expect(main(page).getByLabel('Nombre del evento')).not.toHaveAttribute('readonly');
   await expect(section(page).getByRole('button', { name: 'Archivar evento' })).toBeVisible();
   // The selector reads the list again and shows the event once more.
   await expect(selectTrigger(nav, 'Evento')).toContainText('Encuentro del barrio');
@@ -227,7 +228,7 @@ test('an archive refused because the event was archived meanwhile shows it archi
   await expect(dialog).toHaveCount(0);
   await expect(section(page).getByRole('button', { name: 'Restaurar evento' })).toBeVisible();
   await expect(main(page)).toContainText('Restáuralo abajo, en «Archivar o eliminar»');
-  await expect(main(page).getByRole('button', { name: 'Guardar cambios' })).toHaveCount(0);
+  await expect(main(page).getByLabel('Nombre del evento')).toHaveAttribute('readonly');
   await expect(page.getByText('Event is archived')).toHaveCount(0);
   await expect(page).toHaveURL(new RegExp(`${detailsPath}$`));
 });
@@ -265,7 +266,8 @@ test('a restore refused because the event was restored meanwhile shows it editab
   await section(page).getByRole('button', { name: 'Restaurar evento' }).click();
 
   await expect(section(page).getByRole('button', { name: 'Archivar evento' })).toBeVisible();
-  await expect(main(page).getByRole('button', { name: 'Guardar cambios' })).toBeVisible();
+  // Editable again: the name is no longer read-only.
+  await expect(main(page).getByLabel('Nombre del evento')).not.toHaveAttribute('readonly');
   await expect(main(page)).not.toContainText('Restáuralo abajo');
   await expect(main(page).getByRole('alert')).toHaveCount(0);
   await expect(page.getByText('Event is not archived')).toHaveCount(0);

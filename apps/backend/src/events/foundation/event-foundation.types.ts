@@ -14,6 +14,10 @@ export interface EventFoundation {
     salesEnabled: boolean;
     /** ISO date-time when the event was archived (#213 D6), or `null`. */
     archivedAt: string | null;
+    /** Where the event happens (#322); all three `null` until an admin fills them in. */
+    city: string | null;
+    state: string | null;
+    country: string | null;
   };
   venues: { id: string; name: string }[];
   activities: {

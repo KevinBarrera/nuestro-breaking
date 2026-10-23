@@ -1,4 +1,5 @@
 import {
+  eventLocationErrors,
   eventWindowErrors,
   parseCreateEventInput,
   parseDeleteEventInput,
@@ -12,6 +13,9 @@ const valid = {
   timeZone: 'America/Mexico_City',
   startsAt: '2026-11-14T10:00:00-06:00',
   endsAt: '2026-11-15T20:00:00-06:00',
+  city: ' Guadalajara ',
+  state: ' Jalisco ',
+  country: 'MX',
 };
 
 describe('parseCreateEventInput', () => {
@@ -25,7 +29,17 @@ describe('parseCreateEventInput', () => {
         timeZone: 'America/Mexico_City',
         startsAt: new Date('2026-11-14T16:00:00.000Z'),
         endsAt: new Date('2026-11-16T02:00:00.000Z'),
+        city: 'Guadalajara',
+        state: 'Jalisco',
+        country: 'MX',
       },
+    });
+  });
+
+  it('accepts a lower-case country code and returns it upper-case', () => {
+    expect(parseCreateEventInput({ ...valid, country: 'co' })).toMatchObject({
+      ok: true,
+      value: { country: 'CO' },
     });
   });
 
@@ -35,6 +49,9 @@ describe('parseCreateEventInput', () => {
       slug: valid.slug,
       folioPrefix: 'LMP',
       timeZone: 'UTC',
+      city: 'Guadalajara',
+      state: 'Jalisco',
+      country: 'MX',
     };
     for (const body of [withoutDates, { ...valid, startsAt: null, endsAt: null }]) {
       const result = parseCreateEventInput(body);
@@ -72,6 +89,21 @@ describe('parseCreateEventInput', () => {
     ['startsAt', '2026-11-14T10:00:00'],
     ['startsAt', '2026-02-31T10:00:00Z'],
     ['endsAt', 1_700_000_000_000],
+    ['city', '   '],
+    ['city', undefined],
+    ['city', 'Line\nbreak'],
+    ['city', 'x'.repeat(81)],
+    ['state', ''],
+    ['state', null],
+    ['state', 42],
+    ['country', 'MEX'],
+    ['country', 'XX'],
+    ['country', 'ZZ'],
+    ['country', 'EU'],
+    ['country', 'XK'],
+    ['country', 'SU'],
+    ['country', 'IC'],
+    ['country', undefined],
   ])('reports %s as invalid for %p', (field, value) => {
     const result = parseCreateEventInput({ ...valid, [field]: value });
     expect(result).toEqual({ ok: false, fieldErrors: { [field]: 'invalid' } });
@@ -97,6 +129,9 @@ describe('parseCreateEventInput', () => {
         slug: 'invalid',
         folioPrefix: 'invalid',
         timeZone: 'invalid',
+        city: 'invalid',
+        state: 'invalid',
+        country: 'invalid',
       },
     });
   });
@@ -146,6 +181,19 @@ describe('parseUpdateEventInput', () => {
     });
   });
 
+  it('returns the supplied location fields, trimmed and with the country upper-case', () => {
+    expect(
+      parseUpdateEventInput({ city: ' Monterrey ', state: 'Nuevo León', country: 'mx' }),
+    ).toEqual({ ok: true, value: { city: 'Monterrey', state: 'Nuevo León', country: 'MX' } });
+  });
+
+  it('refuses a blank or unknown location field, so a stored location is never cleared', () => {
+    expect(parseUpdateEventInput({ city: '', state: null, country: 'XX' })).toEqual({
+      ok: false,
+      fieldErrors: { city: 'invalid', state: 'invalid', country: 'invalid' },
+    });
+  });
+
   it('refuses the slug and the folio prefix as immutable and unknown fields as invalid', () => {
     expect(
       parseUpdateEventInput({ name: 'Ok', slug: 'otro', folioPrefix: 'OTR', salesEnabled: true }),
@@ -182,6 +230,22 @@ describe('eventWindowErrors', () => {
     expect(eventWindowErrors(null, end)).toEqual({ startsAt: 'invalid' });
     expect(eventWindowErrors(end, start)).toEqual({ endsAt: 'invalid' });
     expect(eventWindowErrors(start, start)).toEqual({ endsAt: 'invalid' });
+  });
+});
+
+describe('eventLocationErrors', () => {
+  it('accepts a full location or none', () => {
+    expect(eventLocationErrors({ city: 'Guadalajara', state: 'Jalisco', country: 'MX' })).toEqual(
+      {},
+    );
+    expect(eventLocationErrors({ city: null, state: null, country: null })).toEqual({});
+  });
+
+  it('names the missing fields of a partial location', () => {
+    expect(eventLocationErrors({ city: 'Guadalajara', state: null, country: null })).toEqual({
+      state: 'invalid',
+      country: 'invalid',
+    });
   });
 });
 

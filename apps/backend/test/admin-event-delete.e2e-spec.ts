@@ -153,7 +153,15 @@ describe('admin event delete (e2e)', () => {
     await server()
       .post('/admin/events')
       .set(headers(cookie))
-      .send({ name: 'De nuevo', slug: SLUG, folioPrefix: 'LMP', timeZone: 'UTC' })
+      .send({
+        name: 'De nuevo',
+        slug: SLUG,
+        folioPrefix: 'LMP',
+        timeZone: 'UTC',
+        city: 'Guadalajara',
+        state: 'Jalisco',
+        country: 'MX',
+      })
       .expect(201);
   });
 

@@ -22,6 +22,9 @@ export class EventFoundationService {
         endsAt: events.endsAt,
         salesEnabled: events.salesEnabled,
         archivedAt: events.archivedAt,
+        city: events.city,
+        state: events.state,
+        country: events.country,
       })
       .from(events)
       .where(eq(events.id, eventId))
@@ -65,6 +68,9 @@ export class EventFoundationService {
         windowStatus: event.startsAt === null && event.endsAt === null ? 'unbounded' : 'bounded',
         salesEnabled: event.salesEnabled,
         archivedAt: event.archivedAt?.toISOString() ?? null,
+        city: event.city,
+        state: event.state,
+        country: event.country,
       },
       venues: attachedVenues,
       activities: eventActivities.map((activity) => ({

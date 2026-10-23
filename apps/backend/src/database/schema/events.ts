@@ -33,6 +33,11 @@ export const events = pgTable(
     // Set when an admin archives the event (#213 D6): its data stays, the public pages treat it as
     // not found. Restoring clears it.
     archivedAt: timestamp('archived_at', { withTimezone: true }),
+    // Where the event happens (#322). Events created before it have none until an admin fills it in;
+    // the three are set together. `country` is an ISO 3166-1 alpha-2 code.
+    city: text('city'),
+    state: text('state'),
+    country: text('country'),
   },
   (table) => [
     primaryKey({ columns: [table.id], name: 'events_pk' }),
@@ -53,6 +58,17 @@ export const events = pgTable(
       sql`${table.salesOpensAt} IS NULL OR ${table.salesClosesAt} IS NULL OR ${table.salesOpensAt} < ${table.salesClosesAt}`,
     ),
     check('events_name_ck', sql`length(btrim(${table.name})) > 0`),
+    check(
+      'events_location_ck',
+      sql`(
+        (${table.city} IS NULL AND ${table.state} IS NULL AND ${table.country} IS NULL)
+        OR (
+          length(btrim(${table.city})) > 0
+          AND length(btrim(${table.state})) > 0
+          AND ${table.country} ~ '^[A-Z]{2}$'
+        )
+      )`,
+    ),
     check(
       'events_window_ck',
       sql`(

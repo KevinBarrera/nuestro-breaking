@@ -107,37 +107,29 @@ test.beforeEach(async ({ page }) => {
 
 const sideNav = (page: Page) => page.getByRole('navigation', { name: 'Navegación administrativa' });
 
-test('shows the event overview with quick actions and Resumen as the current page', async ({
+test('shows the event overview with its dates and city and Resumen as the current page', async ({
   page,
 }) => {
   await mockCatalog(page);
   await page.goto(overviewPath);
   await expect(page.getByRole('heading', { level: 1, name: 'Resumen del evento' })).toBeVisible();
   await expect(page.getByRole('main')).toContainText('Encuentro del barrio');
+  // Dates on the event clock and the city of its zone (#317), from the event list.
+  const facts = page
+    .getByRole('main')
+    .getByRole('paragraph')
+    .filter({ hasText: 'Encuentro del barrio' });
+  await expect(facts).toContainText(/\d+–\d+ de \w+ de \d{4}|Fechas por definir/);
+  await expect(facts).toContainText('Ciudad de México');
   await expect(page.getByText('por confirmar', { exact: false })).toHaveCount(0);
 
   const resumen = sideNav(page).getByRole('link', { name: 'Resumen' });
   await expect(resumen).toHaveAttribute('href', overviewPath);
   await expect(resumen).toHaveAttribute('aria-current', 'page');
 
-  const actions = page.getByRole('region', { name: 'Acciones rápidas' });
-  await expect(actions.getByRole('link', { name: /Abrir check-in/ })).toHaveAttribute(
-    'href',
-    `${overviewPath}/check-in`,
-  );
-  // The in-person sale (#105) starts at Nueva inscripción.
-  await expect(actions.getByRole('link', { name: /Registrar en el lugar/ })).toHaveAttribute(
-    'href',
-    `${overviewPath}/registrations/new`,
-  );
-  // The printable fallback lists (#65).
-  await expect(actions.getByRole('link', { name: /Imprimir listas/ })).toHaveAttribute(
-    'href',
-    `${overviewPath}/lists`,
-  );
-  await expect(actions).not.toContainText('Próximamente');
-  const box = await actions.getByRole('link', { name: /Abrir check-in/ }).boundingBox();
-  expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
+  // The quick action cards are gone (#317): those screens are in the side navigation.
+  await expect(page.getByRole('region', { name: 'Acciones rápidas' })).toHaveCount(0);
+  await expect(page.getByRole('main').getByRole('link', { name: /Abrir check-in/ })).toHaveCount(0);
 });
 
 // Counts, access summaries and kind labels are covered by `overview-model.test.ts`, and price
@@ -151,10 +143,21 @@ test('renders catalog counts and the pass types on sale', async ({ page }) => {
   await expect(stat('competencias')).toContainText('2');
   await expect(stat('talleres')).toContainText('1');
   await expect(catalog.getByRole('listitem')).toHaveCount(3);
-  await expect(catalog.getByRole('link', { name: 'Editar' })).toHaveAttribute(
+  await expect(catalog).toContainText('Lo que este evento ofrece.');
+  // Each count links to the screen that edits it.
+  await expect(stat('pases activos').getByRole('link')).toHaveAttribute(
     'href',
     `${overviewPath}/passes`,
   );
+  await expect(stat('pases activos')).toContainText('Ver pases');
+  for (const kind of ['competencias', 'talleres']) {
+    await expect(stat(kind).getByRole('link')).toHaveAttribute(
+      'href',
+      `${overviewPath}/activities`,
+    );
+    await expect(stat(kind)).toContainText('Ver actividades');
+  }
+  await expect(catalog.getByRole('link', { name: 'Editar' })).toHaveCount(0);
 
   const table = page.getByRole('table', { name: 'Pases a la venta' });
   await expect(table.getByRole('row')).toHaveCount(4);
@@ -228,7 +231,8 @@ test('shows a load failure when the catalog cannot be read', async ({ page }) =>
   await mockCatalog(page, 500);
   await page.goto(overviewPath);
   await expect(page.getByRole('alert')).toContainText('No se pudo cargar el catálogo');
-  await expect(page.getByRole('region', { name: 'Acciones rápidas' })).toBeVisible();
+  // Venta en línea loads on its own, so it stays.
+  await expect(page.getByRole('region', { name: 'Venta en línea' })).toBeVisible();
 });
 
 test('shows a no-access state when the catalog is denied', async ({ page }) => {

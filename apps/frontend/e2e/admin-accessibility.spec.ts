@@ -105,7 +105,7 @@ for (const theme of themes) {
       }
     });
     // Primary actions use the event magenta with ink text in both themes.
-    const primary = page.getByRole('link', { name: /Abrir check-in/ });
+    const primary = page.getByRole('button', { name: /^Guardar/ });
     const [fg, bg] = await primary.evaluate((node) => [
       getComputedStyle(node).color,
       getComputedStyle(node).backgroundColor,

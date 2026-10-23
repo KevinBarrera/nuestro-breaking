@@ -48,24 +48,26 @@ describe('catalogStats', () => {
       passType({ id: 'd', status: 'archived' }),
     ];
     expect(catalogStats([battle, final, footwork, old], passes)).toEqual([
-      { label: 'pases activos', count: 3 },
-      { label: 'competencias', count: 2 },
-      { label: 'talleres', count: 1 },
+      { label: 'pases activos', count: 3, target: 'passes' },
+      { label: 'competencias', count: 2, target: 'activities' },
+      { label: 'talleres', count: 1, target: 'activities' },
     ]);
   });
 
   it('sorts kinds by count, then by label, and names unknown kinds as sent', () => {
     const rows = [battle, footwork, toprock, power, activity('cypher', 'cypher', 'Cypher abierto')];
     expect(catalogStats(rows, [])).toEqual([
-      { label: 'pases activos', count: 0 },
-      { label: 'talleres', count: 3 },
-      { label: 'competencias', count: 1 },
-      { label: 'cypher', count: 1 },
+      { label: 'pases activos', count: 0, target: 'passes' },
+      { label: 'talleres', count: 3, target: 'activities' },
+      { label: 'competencias', count: 1, target: 'activities' },
+      { label: 'cypher', count: 1, target: 'activities' },
     ]);
   });
 
   it('reports only the pass count when no activity is active', () => {
-    expect(catalogStats([old], [passType({})])).toEqual([{ label: 'pases activos', count: 1 }]);
+    expect(catalogStats([old], [passType({})])).toEqual([
+      { label: 'pases activos', count: 1, target: 'passes' },
+    ]);
   });
 });
 

@@ -15,10 +15,10 @@ Test runner: Jest unit + PostgreSQL e2e (backend), Vitest + Playwright (frontend
 
 ## Tasks
 
-| ID  | Specs  | Route  | Status | Commit        |
-| --- | ------ | ------ | ------ | ------------- |
-| T1  | S2, S3 | inline | done   | 7c238ce       |
-| T2  | S4, S5 | inline | done   | (this commit) |
+| ID  | Specs  | Route  | Status | Commit           |
+| --- | ------ | ------ | ------ | ---------------- |
+| T1  | S2, S3 | inline | done   | 7c238ce, e97857b |
+| T2  | S4, S5 | inline | done   | 0238efc, dc07118 |
 
 ## Log
 
@@ -26,3 +26,4 @@ Test runner: Jest unit + PostgreSQL e2e (backend), Vitest + Playwright (frontend
 - **L2:** Issues #323 (UI, sub-issue of #312) and #322 (location). #322 goes first; #323 builds on it (`odd/tasks/events-redesign.md`).
 - **L3:** T1 `7c238ce`: backend unit 636/636, e2e 46 suites / 523 tests. Native review (risk, reliability) approved and acknowledged; two non-blocking reliability advisories on `admin-event-input.ts` (country check, place parsing).
 - **L4:** T2: shared `LocationFields` on Nuevo evento and Datos del evento; `eventLocation` replaces the zone label on the event cards and the Resumen header (hidden when empty). An event without a location saves other edits without one; typing a city or state requires the whole location. Vitest 758/758; `pnpm verify:pr` 560 passed, 1 timeout in `admin-select.spec.ts` under full-suite load (passes 3/3 alone).
+- **L5:** Independent verifier: S1–S5 met, no blockers. Fixed two advisories: a country-only change on an event without a location was dropped on save (`dc07118`), and Intl-named non-ISO codes (XK, IC, SU, …) passed as countries (`e97857b`). Open advisory: the hint promises the location on the purchase page, which is the documented follow-up.

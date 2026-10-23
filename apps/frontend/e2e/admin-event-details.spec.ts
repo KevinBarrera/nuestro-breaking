@@ -26,6 +26,9 @@ const event = {
   endsAt: '2026-11-16T02:00:00.000Z',
   salesEnabled: false,
   archivedAt: null as string | null,
+  city: 'Guadalajara' as string | null,
+  state: 'Jalisco' as string | null,
+  country: 'MX' as string | null,
 };
 
 const foundation = (overrides: Partial<typeof event> = {}, venues = [centro]) => ({
@@ -89,6 +92,9 @@ test('shows the event data on its own clock, the fixed fields and the venues', a
   );
   await expect(form(page).getByLabel('Inicio')).toHaveValue('2026-11-14T10:00');
   await expect(form(page).getByLabel('Fin')).toHaveValue('2026-11-15T20:00');
+  await expect(form(page).getByLabel('Ciudad', { exact: true })).toHaveValue('Guadalajara');
+  await expect(form(page).getByLabel('Estado', { exact: true })).toHaveValue('Jalisco');
+  await expectSelected(selectTrigger(form(page), 'País'), 'México');
   const locked = form(page).getByRole('region', { name: 'Fijos desde la creación' });
   await expect(locked).toContainText('/e/encuentro-del-barrio');
   await expect(locked).toContainText('EB');
@@ -104,6 +110,29 @@ test('shows the event data on its own clock, the fixed fields and the venues', a
     'aria-current',
     'page',
   );
+});
+
+test('fills in the location of an event created without one', async ({ page }) => {
+  await openDetails(page, foundation({ city: null, state: null, country: null }));
+  await expect(form(page).getByLabel('Ciudad', { exact: true })).toHaveValue('');
+  await expectSelected(selectTrigger(form(page), 'País'), 'México');
+  await expect(saveButton(page)).toBeDisabled();
+  const patch = await capturePatch(page, (body) => ({ json: { ...event, ...body } }));
+  await form(page).getByLabel('Ciudad', { exact: true }).fill('Bogotá');
+  await saveButton(page).click();
+  // Once a city is typed, the whole location is required.
+  await expect(form(page).getByLabel('Estado', { exact: true })).toHaveAccessibleDescription(
+    /Escribe el estado\./,
+  );
+  await expect(form(page).getByLabel('Estado', { exact: true })).toBeFocused();
+  expect(patch.bodies).toEqual([]);
+  await form(page).getByLabel('Estado', { exact: true }).fill('Cundinamarca');
+  await chooseOption(selectTrigger(form(page), 'País'), 'Colombia');
+  await saveButton(page).click();
+  await expect(
+    main(page).getByRole('status').filter({ hasText: 'Cambios guardados.' }),
+  ).toBeVisible();
+  expect(patch.bodies).toEqual([{ city: 'Bogotá', state: 'Cundinamarca', country: 'CO' }]);
 });
 
 test('saves only the changed fields and shows the saved values', async ({ page }) => {
@@ -205,7 +234,9 @@ test('a judge sees the data read-only', async ({ page }) => {
   });
   await expect(main(page)).toContainText('Solo lectura');
   await expect(form(page).getByLabel('Nombre del evento')).toHaveAttribute('readonly');
-  await expect(form(page).getByRole('button')).toHaveCount(1); // the zone select only
+  await expect(form(page).getByRole('button')).toHaveCount(2); // the country and zone selects only
+  await expect(form(page).getByLabel('Ciudad', { exact: true })).toHaveAttribute('readonly');
+  await expect(selectTrigger(form(page), 'País')).toBeDisabled();
   await expect(selectTrigger(form(page), 'Zona horaria')).toBeDisabled();
   await expect(venues(page).getByRole('button')).toHaveCount(0);
   await expect(venues(page)).toContainText('Centro cultural');

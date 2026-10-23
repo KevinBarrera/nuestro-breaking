@@ -18,10 +18,13 @@ export type EventSummary = {
   startsAt: string | null;
   endsAt: string | null;
   salesEnabled: boolean;
+  city: string | null;
+  state: string | null;
+  country: string | null;
 };
 
 // A `GET /admin/events` row. The slug is built from the whole name; the folio prefix defaults
-// to `EV`, the zone to Mexico City, no dates and sales off.
+// to `EV`, the zone to Mexico City, no dates, sales off and no location.
 export const eventSummary = (
   id: string,
   name: string,
@@ -41,6 +44,9 @@ export const eventSummary = (
   startsAt: null,
   endsAt: null,
   salesEnabled: false,
+  city: null,
+  state: null,
+  country: null,
   ...overrides,
 });
 

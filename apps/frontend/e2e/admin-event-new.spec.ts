@@ -1,6 +1,7 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
 import { eventId, mockAdminApi } from './support/admin-mocks.ts';
 import { eventAdmin, mockSession } from './support/event-mocks.ts';
+import { expectSelected, selectTrigger } from './support/select.ts';
 
 // The shared admin mocks plus a session that sends the CSRF token header.
 async function mockApi(page: Page) {
@@ -23,6 +24,9 @@ const created = {
   endsAt: '2027-03-22T04:00:00.000Z',
   salesEnabled: false,
   archivedAt: null,
+  city: 'Guadalajara',
+  state: 'Jalisco',
+  country: 'MX',
 };
 
 // Answers `POST /admin/events` with `reply` and records each body; reads fall through.
@@ -41,6 +45,8 @@ async function mockCreate(page: Page, reply: (route: Route) => Promise<void>) {
 
 async function fillValid(page: Page) {
   await form(page).getByLabel('Nombre del evento').fill('Los más pesados - Final - Marzo 2027');
+  await form(page).getByLabel('Ciudad', { exact: true }).fill('Guadalajara');
+  await form(page).getByLabel('Estado', { exact: true }).fill('Jalisco');
   await form(page).getByLabel('Prefijo de folio').fill('lmpf');
 }
 
@@ -84,8 +90,29 @@ test('a global admin creates an event: suggested address, preview, then the new 
       timeZone: 'America/Mexico_City',
       startsAt: '2027-03-20T16:00:00.000Z',
       endsAt: '2027-03-22T04:00:00.000Z',
+      city: 'Guadalajara',
+      state: 'Jalisco',
+      country: 'MX',
     },
   ]);
+});
+
+test('the location is required, with Mexico as the default country', async ({ page }) => {
+  await mockApi(page);
+  const bodies = await mockCreate(page, (route) => route.fulfill({ status: 201, json: created }));
+  await page.goto('/admin/events/new');
+  await expectSelected(selectTrigger(form(page), 'País'), 'México');
+  await expect(form(page)).toContainText(
+    'Dónde sucede el evento. Se muestra en la lista de eventos, en el resumen y en la página de compra.',
+  );
+  await fillValid(page);
+  await form(page).getByLabel('Ciudad', { exact: true }).fill(' ');
+  await form(page).getByRole('button', { name: 'Crear evento' }).click();
+  const city = form(page).getByLabel('Ciudad', { exact: true });
+  await expect(city).toHaveAttribute('aria-invalid', 'true');
+  await expect(city).toHaveAccessibleDescription(/Escribe la ciudad\./);
+  await expect(city).toBeFocused();
+  expect(bodies).toEqual([]);
 });
 
 test('a taken address shows its field error and keeps the form', async ({ page }) => {

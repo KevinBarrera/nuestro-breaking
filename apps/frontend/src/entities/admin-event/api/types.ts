@@ -3,7 +3,8 @@
 // One event as the admin API returns it: each row of `GET /admin/events` and the answer of
 // create, edit, archive and restore. Dates are ISO in UTC, or null; `archivedAt` is null while
 // active. `salesEnabled` is only the switch: whether sales are open now also depends on the
-// sales window, which only the event sales API reports.
+// sales window, which only the event sales API reports. `city`, `state` and `country` (ISO
+// 3166-1 alpha-2) are where the event happens (#322): all null until an admin fills them in.
 export type AdminEvent = {
   id: string;
   name: string;
@@ -14,9 +15,12 @@ export type AdminEvent = {
   startsAt: string | null;
   endsAt: string | null;
   salesEnabled: boolean;
+  city: string | null;
+  state: string | null;
+  country: string | null;
 };
 
-// Dates are ISO 8601 with an offset, or null; both or neither.
+// Dates are ISO 8601 with an offset, or null; both or neither. The location is required.
 export type CreateEventInput = {
   name: string;
   slug: string;
@@ -24,11 +28,14 @@ export type CreateEventInput = {
   timeZone: string;
   startsAt: string | null;
   endsAt: string | null;
+  city: string;
+  state: string;
+  country: string;
 };
 
 // Only these fields can change after creation; the slug and folio prefix are fixed.
 export type UpdateEventInput = Partial<
-  Pick<CreateEventInput, 'name' | 'timeZone' | 'startsAt' | 'endsAt'>
+  Pick<CreateEventInput, 'name' | 'timeZone' | 'startsAt' | 'endsAt' | 'city' | 'state' | 'country'>
 >;
 
 export type AdminVenue = { id: string; name: string };

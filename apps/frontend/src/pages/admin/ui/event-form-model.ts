@@ -6,6 +6,7 @@ import { hasControlCharacters } from '@/shared/lib';
 // (`admin-event-input.ts`), so most mistakes show before a request.
 
 export const NAME_MAX = 120;
+export const PLACE_MAX = 80;
 export const SLUG_MAX = 80;
 export const FOLIO_PREFIX_MIN = 2;
 export const FOLIO_PREFIX_MAX = 6;
@@ -26,6 +27,31 @@ export const timeZoneOptions = [
   { id: 'America/Tijuana', label: 'Tijuana (America/Tijuana)' },
 ];
 
+const countryName = new Intl.DisplayNames(['es-MX'], { type: 'region' });
+
+// Where events usually happen: Mexico first, then the rest of Latin America, the United States,
+// Canada and Spain by name. The backend accepts any ISO 3166-1 alpha-2 country.
+export const countryOptions = [
+  'MX',
+  ...['AR', 'BO', 'BR', 'CA', 'CL', 'CO', 'CR', 'CU', 'DO', 'EC', 'SV', 'ES', 'US', 'GT', 'HN']
+    .concat(['NI', 'PA', 'PY', 'PE', 'PR', 'UY', 'VE'])
+    .sort((a, b) => (countryName.of(a) ?? a).localeCompare(countryName.of(b) ?? b, 'es')),
+].map((id) => ({ id, label: countryName.of(id) ?? id }));
+
+// The country list, plus the stored country first when the list lacks it (set through the API),
+// so the current value stays selectable.
+export function countryOptionsFor(storedCountry: string | null) {
+  return !storedCountry || countryOptions.some((option) => option.id === storedCountry)
+    ? countryOptions
+    : [
+        { id: storedCountry, label: countryName.of(storedCountry) ?? storedCountry },
+        ...countryOptions,
+      ];
+}
+
+// The country's name in Spanish (`CO` is "Colombia").
+export const countryLabel = (country: string) => countryName.of(country) ?? country;
+
 // Dates are `datetime-local` values on the chosen zone's clock, empty when not set.
 export type EventDraft = {
   name: string;
@@ -34,6 +60,9 @@ export type EventDraft = {
   timeZone: string;
   startsAt: string;
   endsAt: string;
+  city: string;
+  state: string;
+  country: string;
 };
 
 export const emptyEventDraft: EventDraft = {
@@ -43,6 +72,9 @@ export const emptyEventDraft: EventDraft = {
   timeZone: 'America/Mexico_City',
   startsAt: '',
   endsAt: '',
+  city: '',
+  state: '',
+  country: 'MX',
 };
 
 export type EventField = keyof EventDraft;
@@ -79,7 +111,16 @@ const messages = {
   endMissing: 'Escribe también la fecha de fin.',
   order: 'El fin debe ser después del inicio.',
   skipped: 'Esa hora no existe en la zona horaria elegida. Elige otra.',
+  cityMissing: 'Escribe la ciudad.',
+  stateMissing: 'Escribe el estado.',
+  placeLong: `Usa ${PLACE_MAX} caracteres o menos.`,
+  placeControl: 'Quita los caracteres especiales.',
+  country: 'Elige un país de la lista.',
 };
+
+// Shown under the location fields of both event forms.
+export const locationHint =
+  'Dónde sucede el evento. Se muestra en la lista de eventos, en el resumen y en la página de compra.';
 
 // Shared with `eventFailureMessage`, so the field and the page alert never disagree.
 export const slugTakenMessage = messages.slugTaken;
@@ -96,8 +137,35 @@ function nameError(name: string): string | undefined {
   return undefined;
 }
 
+function placeError(place: string, missing: string): string | undefined {
+  if (hasControlCharacters(place)) return messages.placeControl;
+  const trimmed = place.trim();
+  if (!trimmed) return missing;
+  if (trimmed.length > PLACE_MAX) return messages.placeLong;
+  return undefined;
+}
+
+export type EventLocationDraft = Pick<EventDraft, 'city' | 'state' | 'country'>;
+
+// City, state and country, all required. `allowedCountries` is the country list on screen.
+export function validateLocation(
+  draft: EventLocationDraft,
+  allowedCountries: readonly string[] = countryOptions.map((option) => option.id),
+): EventErrors {
+  const errors: EventErrors = {};
+  const city = placeError(draft.city, messages.cityMissing);
+  const state = placeError(draft.state, messages.stateMissing);
+  if (city) errors.city = city;
+  if (state) errors.state = state;
+  if (!allowedCountries.includes(draft.country)) errors.country = messages.country;
+  return errors;
+}
+
 // The fields that stay editable after creation (Datos del evento uses the same rules).
-export type EventDetailsDraft = Pick<EventDraft, 'name' | 'timeZone' | 'startsAt' | 'endsAt'>;
+export type EventDetailsDraft = Pick<
+  EventDraft,
+  'name' | 'timeZone' | 'startsAt' | 'endsAt' | 'city' | 'state' | 'country'
+>;
 
 // Name, time zone and dates. `allowedZones` is the zone list on screen; Datos del evento adds
 // the stored zone when it is not in the short list.
@@ -121,7 +189,7 @@ export function validateEventDetails(
 }
 
 export function validateEvent(draft: EventDraft): EventErrors {
-  const errors = validateEventDetails(draft);
+  const errors = { ...validateEventDetails(draft), ...validateLocation(draft) };
   if (!draft.slug) errors.slug = messages.slugMissing;
   else if (draft.slug.length > SLUG_MAX || !SLUG_PATTERN.test(draft.slug))
     errors.slug = messages.slugInvalid;
@@ -138,6 +206,9 @@ export function createInput(draft: EventDraft): CreateEventInput {
     timeZone: draft.timeZone,
     startsAt: draft.startsAt ? fromZonedInput(draft.startsAt, draft.timeZone) : null,
     endsAt: draft.endsAt ? fromZonedInput(draft.endsAt, draft.timeZone) : null,
+    city: draft.city.trim(),
+    state: draft.state.trim(),
+    country: draft.country,
   };
 }
 
@@ -151,12 +222,18 @@ export function eventServerErrors(fieldErrors: Record<string, string>): EventErr
   if (fieldErrors.timeZone) errors.timeZone = messages.timeZone;
   if (fieldErrors.startsAt) errors.startsAt = 'Revisa la fecha de inicio.';
   if (fieldErrors.endsAt) errors.endsAt = 'Revisa la fecha de fin: debe ser después del inicio.';
+  if (fieldErrors.city) errors.city = 'Revisa la ciudad.';
+  if (fieldErrors.state) errors.state = 'Revisa el estado.';
+  if (fieldErrors.country) errors.country = messages.country;
   return errors;
 }
 
 // Field order on the screen, to focus the first error.
 export const eventFieldOrder: EventField[] = [
   'name',
+  'city',
+  'state',
+  'country',
   'slug',
   'folioPrefix',
   'timeZone',

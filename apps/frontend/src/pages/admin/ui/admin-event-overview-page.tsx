@@ -12,7 +12,7 @@ import { useCallback, useId } from 'react';
 import { Link, useParams } from 'react-router';
 import { passClassLabels, styles } from './catalog-copy';
 import { CatalogLoadFailure } from './catalog-notice';
-import { eventDates, eventZoneName } from './event-model';
+import { eventDates, eventLocation } from './event-model';
 import { catalogStats, describeAccess, passCountLabel } from './overview-model';
 import { SalesSection } from './sales-section';
 import { useCatalogLoad } from './use-catalog-load';
@@ -77,8 +77,10 @@ function EventOverview({ eventId }: { eventId: string }) {
   );
 }
 
-// The event name, its dates on the event clock and its city, under the page title.
+// The event name, its dates on the event clock and where it happens, under the page title. An
+// event without a location (#322) shows none.
 function EventFacts({ event }: { event: AdminEvent }) {
+  const location = eventLocation(event);
   return (
     <p className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-muted">
       <span className="font-semibold text-fg">{event.name}</span>
@@ -86,10 +88,12 @@ function EventFacts({ event }: { event: AdminEvent }) {
         <CalendarIcon />
         {eventDates(event)}
       </span>
-      <span className="inline-flex items-center gap-1.5">
-        <PlaceIcon />
-        {eventZoneName(event.timeZone)}
-      </span>
+      {location && (
+        <span className="inline-flex items-center gap-1.5">
+          <PlaceIcon />
+          {location}
+        </span>
+      )}
     </p>
   );
 }

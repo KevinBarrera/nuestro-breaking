@@ -9,6 +9,7 @@ import {
   restoredNotice,
   salesChip,
   splitEvents,
+  eventLocation,
 } from './event-model';
 import { slugTakenMessage } from './event-form-model';
 
@@ -22,6 +23,9 @@ const event = (id: string, archivedAt: string | null = null): AdminEvent => ({
   startsAt: null,
   endsAt: null,
   salesEnabled: false,
+  city: null,
+  state: null,
+  country: null,
 });
 
 describe('splitEvents', () => {
@@ -103,6 +107,28 @@ describe('eventZoneName', () => {
   it('names a listed zone by its city and falls back to the zone id', () => {
     expect(eventZoneName('America/Mexico_City')).toBe('Ciudad de México');
     expect(eventZoneName('Europe/Madrid')).toBe('Europe/Madrid');
+  });
+});
+
+describe('eventLocation', () => {
+  it('names the city and state, and the country outside Mexico', () => {
+    const located = (city: string, state: string, country: string) => ({
+      ...event('a'),
+      city,
+      state,
+      country,
+    });
+    expect(eventLocation(located('Guadalajara', 'Jalisco', 'MX'))).toBe('Guadalajara, Jalisco');
+    expect(eventLocation(located('Ciudad de México', 'Ciudad de México', 'MX'))).toBe(
+      'Ciudad de México',
+    );
+    expect(eventLocation(located('Bogotá', 'Cundinamarca', 'CO'))).toBe(
+      'Bogotá, Cundinamarca, Colombia',
+    );
+  });
+
+  it('is empty without a location, never the time zone', () => {
+    expect(eventLocation(event('a'))).toBeNull();
   });
 });
 

@@ -34,7 +34,7 @@ test('a global admin sees every event with its address, folio prefix and Crear e
   await expect(main(page).getByRole('button', { name: /^Archivados/ })).toHaveCount(0);
 });
 
-test('event cards show the dates on the event clock, the zone and the sales switch', async ({
+test('event cards show the dates on the event clock, the location and the sales switch', async ({
   page,
 }) => {
   await mockSession(page);
@@ -43,17 +43,22 @@ test('event cards show the dates on the event clock, the zone and the sales swit
       startsAt: '2026-11-14T16:00:00.000Z',
       endsAt: '2026-11-16T04:00:00.000Z',
       salesEnabled: true,
+      city: 'Guadalajara',
+      state: 'Jalisco',
+      country: 'MX',
     }),
     eventSummary(otherEventId, 'Sin fechas', { timeZone: 'Europe/Madrid' }),
   ]);
   await page.goto('/admin');
   const dated = eventList(page).getByRole('link', { name: 'Con fechas', exact: true });
   await expect(dated).toContainText('14–15 de noviembre de 2026');
-  await expect(dated).toContainText('Ciudad de México');
+  await expect(dated).toContainText('Guadalajara, Jalisco');
   await expect(dated).toHaveAccessibleDescription(/Venta abierta$/);
   const undated = eventList(page).getByRole('link', { name: 'Sin fechas', exact: true });
   await expect(undated).toContainText('Fechas por definir');
-  await expect(undated).toContainText('Europe/Madrid');
+  // Without a location (#322) the card shows none, and never the time zone.
+  await expect(undated).not.toContainText('Europe/Madrid');
+  await expect(undated).not.toContainText('Ciudad de México');
   await expect(undated).toHaveAccessibleDescription(/Venta cerrada$/);
 });
 

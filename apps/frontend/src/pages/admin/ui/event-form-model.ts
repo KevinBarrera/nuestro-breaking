@@ -93,10 +93,8 @@ export function slugify(name: string): string {
     .replace(/-+$/, '');
 }
 
-export const previewUrl = (origin: string, slug: string) => `${origin}/e/${slug || '…'}`;
-
 // A folio as a confirmed registration gets it: the prefix, then a four-character code.
-export const sampleFolio = (prefix: string) => `${prefix || '…'}-7K3Q`;
+export const sampleFolio = (prefix: string) => `${prefix || 'PREFIJO'}-7K3Q`;
 
 const messages = {
   nameMissing: 'Escribe el nombre del evento.',
@@ -126,8 +124,9 @@ export const locationHint =
 export const slugTakenMessage = messages.slugTaken;
 
 // Field hints on the event forms, built from the same limits as the validation.
-export const slugHint = `Se sugiere a partir del nombre. Solo minúsculas, números y guiones, hasta ${SLUG_MAX} caracteres. No se puede cambiar después de crear el evento.`;
-export const folioPrefixHint = `De ${FOLIO_PREFIX_MIN} a ${FOLIO_PREFIX_MAX} caracteres; empieza con letra. No se puede cambiar después.`;
+// The panel around them says they are suggested from the name and cannot change later.
+export const slugHint = `Solo minúsculas, números y guiones, hasta ${SLUG_MAX} caracteres.`;
+export const folioPrefixHint = `De ${FOLIO_PREFIX_MIN} a ${FOLIO_PREFIX_MAX} caracteres; empieza con letra.`;
 
 function nameError(name: string): string | undefined {
   if (hasControlCharacters(name)) return messages.nameControl;
@@ -234,9 +233,9 @@ export const eventFieldOrder: EventField[] = [
   'city',
   'state',
   'country',
-  'slug',
-  'folioPrefix',
   'timeZone',
   'startsAt',
   'endsAt',
+  'slug',
+  'folioPrefix',
 ];

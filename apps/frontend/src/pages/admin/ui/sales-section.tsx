@@ -8,6 +8,8 @@ import {
 } from '@/entities/event-sales';
 import { useCallback, useEffect, useId, useState, type FormEvent, type ReactNode } from 'react';
 import { styles } from './catalog-copy';
+import { CopyIcon, CopyStatus } from './copy-text';
+import { useCopyText } from './use-copy-text';
 import { DateField } from './date-field';
 import {
   publicPath,
@@ -250,24 +252,11 @@ function SalesSettings({ eventId, loaded, heading }: SalesSettingsProps) {
 const addressAction =
   'inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-input-line bg-surface px-3.5 text-sm font-semibold text-fg hover:bg-row focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus';
 
-type CopyState = 'idle' | 'copied' | 'failed';
-
-// The read-only public address with "Copiar" (the full URL on this origin) and "Abrir". The
-// outcome of a copy is announced, and a failure (no clipboard access) says what to do instead.
+// The read-only public address with "Copiar" (the full URL on this origin) and "Abrir".
 function PublicAddress({ slug }: { slug: string }) {
   const labelId = useId();
-  const [copy, setCopy] = useState<CopyState>('idle');
+  const copy = useCopyText();
   const path = publicPath(slug);
-
-  async function copyAddress() {
-    setCopy('idle');
-    try {
-      await navigator.clipboard.writeText(`${window.location.origin}${path}`);
-      setCopy('copied');
-    } catch {
-      setCopy('failed');
-    }
-  }
 
   return (
     <div className="space-y-2" role="group" aria-labelledby={labelId}>
@@ -278,19 +267,20 @@ function PublicAddress({ slug }: { slug: string }) {
         <p className="flex min-h-11 min-w-0 flex-[1_1_16rem] items-center rounded-lg border border-line bg-surface-inner px-3 font-mono text-sm break-all text-fg">
           {path}
         </p>
-        <button type="button" className={addressAction} onClick={() => void copyAddress()}>
+        <button
+          type="button"
+          className={addressAction}
+          onClick={() => void copy.copy(`${window.location.origin}${path}`)}
+        >
           <CopyIcon />
-          {copy === 'copied' ? 'Copiada' : 'Copiar'}
+          {copy.state === 'copied' ? 'Copiada' : 'Copiar'}
         </button>
         <a href={path} target="_blank" rel="noreferrer" className={addressAction}>
           <OpenIcon />
           Abrir
         </a>
       </div>
-      <p role="status" className={copy === 'failed' ? 'text-sm text-danger-fg' : 'sr-only'}>
-        {copy === 'copied' && 'Dirección copiada.'}
-        {copy === 'failed' && 'No se pudo copiar. Selecciona la dirección y cópiala a mano.'}
-      </p>
+      <CopyStatus state={copy.state} />
     </div>
   );
 }
@@ -307,13 +297,6 @@ const iconProps = {
   strokeLinejoin: 'round',
   className: 'shrink-0',
 } as const;
-
-const CopyIcon = () => (
-  <svg {...iconProps}>
-    <rect x="7" y="7" width="10" height="10" rx="2" />
-    <path d="M13 7V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2" />
-  </svg>
-);
 
 const OpenIcon = () => (
   <svg {...iconProps}>

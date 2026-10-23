@@ -8,7 +8,7 @@ import {
 } from '@/entities/admin-event';
 import { useSessionStore } from '@/entities/session';
 import { FieldError, Notice, Select, TextField, UnsavedChangesGuard } from '@/shared/ui';
-import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { useParams } from 'react-router';
 import { styles } from './catalog-copy';
 import {
@@ -26,6 +26,7 @@ import {
   countryOptionsFor,
   eventFieldOrder,
   eventServerErrors,
+  sampleFolio,
   type EventDetailsDraft,
   type EventErrors,
 } from './event-form-model';
@@ -38,7 +39,10 @@ import {
 import { restoredHereNotice } from './event-lifecycle-model';
 import { EventLifecycleSection } from './event-lifecycle-section';
 import { eventFailureMessage, eventZoneName } from './event-model';
+import { CopyIcon, CopyStatus } from './copy-text';
 import { LocationFields } from './location-fields';
+import { SettingsSection, settingsCard } from './settings-section';
+import { useCopyText } from './use-copy-text';
 import { VenuesSection } from './venues-section';
 
 function loadFailureMessage(failure: AdminEventFailure) {
@@ -118,9 +122,9 @@ export function AdminEventDetailsPage() {
   }
 
   return (
-    <main className="px-4 py-8 text-fg sm:px-8 lg:py-12">
-      <div className="mx-auto max-w-5xl space-y-6">
-        <header className="space-y-1">
+    <main className="px-4 pt-10 pb-16 text-fg sm:px-8">
+      <div className="mx-auto max-w-[1080px]">
+        <header className="space-y-1.5 pb-8">
           <h1 className="text-3xl font-extrabold tracking-tight text-heading">Datos del evento</h1>
           <p className="max-w-2xl text-muted">
             Los cambios se reflejan en la página de compra y en los correos que se envíen después.
@@ -144,10 +148,14 @@ export function AdminEventDetailsPage() {
         )}
         {ready && (
           <>
-            {staleText && <Notice tone="danger">{staleText}</Notice>}
-            {archived && <Notice>{archivedNotice(globalAdmin)}</Notice>}
-            {!archived && !canEdit && <Notice>{readOnlyNotice}</Notice>}
-            {noticeText && !archived && <Notice>{noticeText}</Notice>}
+            {(staleText || archived || !canEdit || noticeText) && (
+              <div className="space-y-3 pb-6">
+                {staleText && <Notice tone="danger">{staleText}</Notice>}
+                {archived && <Notice>{archivedNotice(globalAdmin)}</Notice>}
+                {!archived && !canEdit && <Notice>{readOnlyNotice}</Notice>}
+                {noticeText && !archived && <Notice>{noticeText}</Notice>}
+              </div>
+            )}
             <EventDetailsForm
               key={`${ready.event.id}-${ready.saves}`}
               event={ready.event}
@@ -155,28 +163,29 @@ export function AdminEventDetailsPage() {
               onSaved={saved}
               onArchived={() => setArchivedFor(ready.event.id)}
               onEdit={() => setNotice(null)}
-            />
-            <VenuesSection
-              key={`venues-${ready.event.id}`}
-              eventId={ready.event.id}
-              venues={ready.venues}
-              editable={editable}
-              onChange={venuesChanged}
-              onArchived={() => setArchivedFor(ready.event.id)}
-            />
-            {globalAdmin && (
-              <EventLifecycleSection
-                key={`lifecycle-${ready.event.id}`}
-                event={ready.event}
-                archived={archived}
-                deleteBlockers={ready.deleteBlockers}
-                onRestored={restored}
-                onNotEmpty={(blockers) =>
-                  setState((previous) => withDeleteBlockers(previous, ready.event.id, blockers))
-                }
-                onStale={reloadEvent}
+            >
+              <VenuesSection
+                key={`venues-${ready.event.id}`}
+                eventId={ready.event.id}
+                venues={ready.venues}
+                editable={editable}
+                onChange={venuesChanged}
+                onArchived={() => setArchivedFor(ready.event.id)}
               />
-            )}
+              {globalAdmin && (
+                <EventLifecycleSection
+                  key={`lifecycle-${ready.event.id}`}
+                  event={ready.event}
+                  archived={archived}
+                  deleteBlockers={ready.deleteBlockers}
+                  onRestored={restored}
+                  onNotEmpty={(blockers) =>
+                    setState((previous) => withDeleteBlockers(previous, ready.event.id, blockers))
+                  }
+                  onStale={reloadEvent}
+                />
+              )}
+            </EventDetailsForm>
           </>
         )}
       </div>
@@ -191,9 +200,19 @@ type EventDetailsFormProps = {
   onArchived: () => void;
   // The first edit after a save clears its notice.
   onEdit: () => void;
+  // The sections after General and Identificadores (Sedes, Archivar o eliminar), so the unsaved
+  // changes bar sits after them all.
+  children: ReactNode;
 };
 
-function EventDetailsForm({ event, editable, onSaved, onArchived, onEdit }: EventDetailsFormProps) {
+function EventDetailsForm({
+  event,
+  editable,
+  onSaved,
+  onArchived,
+  onEdit,
+  children,
+}: EventDetailsFormProps) {
   const [initial] = useState(() => detailsDraft(event));
   const [draft, setDraft] = useState<EventDetailsDraft>(initial);
   const [errors, setErrors] = useState<EventErrors>({});
@@ -202,7 +221,8 @@ function EventDetailsForm({ event, editable, onSaved, onArchived, onEdit }: Even
   const pending = useRef(false);
   const formRef = useRef<HTMLFormElement>(null);
   const focusAfterSave = useRef<string | null>(null);
-  const lockedId = useId();
+  const formId = useId();
+  const generalId = useId();
   const dirty = isDetailsDirty(initial, draft);
   const zoneOptions = detailsZoneOptions(event.timeZone);
   const countries = countryOptionsFor(event.country);
@@ -263,113 +283,163 @@ function EventDetailsForm({ event, editable, onSaved, onArchived, onEdit }: Even
   const locked = !editable || saving;
 
   return (
-    <form
-      ref={formRef}
-      aria-label="Datos del evento"
-      noValidate
-      onSubmit={(formEvent) => void submit(formEvent)}
-      className={`${styles.card} space-y-6 sm:p-8`}
-    >
-      <UnsavedChangesGuard when={editable && dirty && !saving} />
-      {failure && <Notice tone="danger">{failure}</Notice>}
-      <TextField
-        label="Nombre del evento"
-        name="name"
-        autoComplete="off"
-        hint="Así aparece en el panel, en la página de compra y en los correos."
-        hintPlacement="below"
-        value={draft.name}
-        error={errors.name}
-        readOnly={locked}
-        onChange={(changeEvent) => set({ name: changeEvent.currentTarget.value })}
-      />
-      <LocationFields
-        value={draft}
-        errors={errors}
-        countries={countries}
-        locked={locked}
-        lockMode="readOnly"
-        onChange={set}
-      />
-      <div className="max-w-md">
-        <Select
-          label="Zona horaria"
-          name="timeZone"
-          options={zoneOptions}
-          selectedKey={draft.timeZone}
-          onSelectionChange={(timeZone) => set({ timeZone })}
-          isDisabled={locked}
-        />
-        <p className="mt-1 text-sm text-muted">Los horarios del evento se muestran en esta zona.</p>
-        {errors.timeZone && <FieldError>{errors.timeZone}</FieldError>}
-      </div>
-      {/* `min-w-0`: a fieldset defaults to its content width, and datetime inputs are wide. */}
-      <fieldset className="min-w-0 space-y-3">
-        <legend className="text-sm font-semibold text-fg">
-          Fechas del evento <span className="font-normal text-muted">(opcional)</span>
-        </legend>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <TextField
-            label="Inicio"
-            name="startsAt"
-            type="datetime-local"
-            value={draft.startsAt}
-            error={errors.startsAt}
-            readOnly={locked}
-            onChange={(changeEvent) => set({ startsAt: changeEvent.currentTarget.value })}
-          />
-          <TextField
-            label="Fin"
-            name="endsAt"
-            type="datetime-local"
-            value={draft.endsAt}
-            error={errors.endsAt}
-            readOnly={locked}
-            onChange={(changeEvent) => set({ endsAt: changeEvent.currentTarget.value })}
-          />
-        </div>
-        <p className="text-sm text-muted">
-          En la hora de {eventZoneName(draft.timeZone)}. Llena las dos o déjalas vacías.
-        </p>
-      </fieldset>
-      <section
-        aria-labelledby={lockedId}
-        className="space-y-4 rounded-xl border border-line bg-surface-inner p-5"
+    <>
+      <SettingsSection
+        headingId={generalId}
+        title="General"
+        description="Nombre, ubicación, zona horaria y fechas. Puedes editarlos cuando quieras."
       >
-        <h2 id={lockedId} className="flex items-center gap-2.5 text-base font-bold text-fg">
+        <form
+          ref={formRef}
+          id={formId}
+          aria-label="Datos del evento"
+          noValidate
+          onSubmit={(formEvent) => void submit(formEvent)}
+          className={`${settingsCard} space-y-[22px] p-5 sm:p-6`}
+        >
+          <UnsavedChangesGuard when={editable && dirty && !saving} />
+          {failure && <Notice tone="danger">{failure}</Notice>}
+          <TextField
+            label="Nombre del evento"
+            name="name"
+            autoComplete="off"
+            hint="Así aparece en el panel, en la página de compra y en los correos."
+            hintPlacement="below"
+            value={draft.name}
+            error={errors.name}
+            readOnly={locked}
+            onChange={(changeEvent) => set({ name: changeEvent.currentTarget.value })}
+          />
+          <LocationFields
+            value={draft}
+            errors={errors}
+            countries={countries}
+            locked={locked}
+            lockMode="readOnly"
+            onChange={set}
+          />
+          <div>
+            <Select
+              label="Zona horaria"
+              name="timeZone"
+              options={zoneOptions}
+              selectedKey={draft.timeZone}
+              onSelectionChange={(timeZone) => set({ timeZone })}
+              isDisabled={locked}
+            />
+            <p className="mt-1 text-sm text-muted">
+              Los horarios del evento se muestran en esta zona.
+            </p>
+            {errors.timeZone && <FieldError>{errors.timeZone}</FieldError>}
+          </div>
+          {/* `min-w-0`: a fieldset defaults to its content width, and datetime inputs are wide. */}
+          <fieldset className="min-w-0 space-y-3">
+            <legend className="text-sm font-semibold text-fg">
+              Fechas del evento <span className="font-normal text-muted">(opcional)</span>
+            </legend>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <TextField
+                label="Inicio"
+                name="startsAt"
+                type="datetime-local"
+                value={draft.startsAt}
+                error={errors.startsAt}
+                readOnly={locked}
+                onChange={(changeEvent) => set({ startsAt: changeEvent.currentTarget.value })}
+              />
+              <TextField
+                label="Fin"
+                name="endsAt"
+                type="datetime-local"
+                value={draft.endsAt}
+                error={errors.endsAt}
+                readOnly={locked}
+                onChange={(changeEvent) => set({ endsAt: changeEvent.currentTarget.value })}
+              />
+            </div>
+            <p className="text-sm text-muted">
+              En la hora de {eventZoneName(draft.timeZone)}. Llena las dos o déjalas vacías.
+            </p>
+          </fieldset>
+        </form>
+      </SettingsSection>
+      <IdentifiersSection event={event} />
+      {children}
+      {editable && dirty && <UnsavedBar formId={formId} saving={saving} onDiscard={discard} />}
+    </>
+  );
+}
+
+// The address and folio prefix are fixed once the event exists (#213); the address can be copied.
+function IdentifiersSection({ event }: { event: AdminEvent }) {
+  const headingId = useId();
+  const copy = useCopyText();
+  const path = `/e/${event.slug}`;
+  return (
+    <SettingsSection
+      headingId={headingId}
+      title={
+        <>
           <LockIcon />
-          Fijos desde la creación
-        </h2>
-        <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div className="min-w-0 space-y-1">
-            <dt className="text-sm text-muted">Dirección de la página de compra</dt>
-            <dd className="font-mono break-all text-fg">/e/{event.slug}</dd>
+          Identificadores
+        </>
+      }
+      description="Fijos desde la creación: la dirección puede estar ya compartida y los folios emitidos usan este prefijo."
+    >
+      <div className={`${settingsCard} overflow-hidden`}>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-line px-5 py-4 sm:px-6">
+          <div className="flex min-w-0 flex-[1_1_260px] flex-col gap-0.5">
+            <p className="text-sm text-muted">Dirección de la página de compra</p>
+            <p className="truncate font-mono text-sm text-heading">{path}</p>
           </div>
-          <div className="space-y-1">
-            <dt className="text-sm text-muted">Prefijo de folio</dt>
-            <dd className="font-mono text-fg">{event.folioPrefix}</dd>
+          <div>
+            <button
+              type="button"
+              className={`${styles.secondary} inline-flex items-center gap-1.5 border-input-line bg-surface`}
+              onClick={() => void copy.copy(`${window.location.origin}${path}`)}
+            >
+              <CopyIcon />
+              {copy.state === 'copied' ? 'Copiada' : 'Copiar'}
+            </button>
+            <CopyStatus state={copy.state} />
           </div>
-        </dl>
-        <p className="text-sm text-muted">
-          La dirección puede estar ya compartida y los folios emitidos usan este prefijo.
-        </p>
-      </section>
-      {editable && (
-        <div className="flex flex-col-reverse gap-3 border-t border-row pt-5 sm:flex-row sm:justify-end">
-          <button
-            type="button"
-            disabled={!dirty || saving}
-            onClick={discard}
-            className={styles.secondary}
-          >
-            Descartar cambios
-          </button>
-          <button type="submit" disabled={!dirty || saving} className={styles.primary}>
-            {saving ? 'Guardando…' : 'Guardar cambios'}
-          </button>
         </div>
-      )}
-    </form>
+        <div className="flex flex-col gap-0.5 px-5 py-4 sm:px-6">
+          <p className="text-sm text-muted">Prefijo de folio</p>
+          <p className="text-sm">
+            <span className="font-mono font-medium text-heading">{event.folioPrefix}</span>{' '}
+            <span className="text-muted">· por ejemplo </span>
+            <span className="font-mono text-heading">{sampleFolio(event.folioPrefix)}</span>
+          </p>
+        </div>
+      </div>
+    </SettingsSection>
+  );
+}
+
+type UnsavedBarProps = { formId: string; saving: boolean; onDiscard: () => void };
+
+// Sticks to the bottom of the screen while General has edits; its buttons act on that form.
+function UnsavedBar({ formId, saving, onDiscard }: UnsavedBarProps) {
+  return (
+    <div
+      role="region"
+      aria-label="Cambios sin guardar"
+      className="sticky bottom-4 z-10 mt-2 flex flex-wrap items-center gap-x-4 gap-y-3 rounded-xl bg-nav-active py-3 pr-3 pl-5 text-nav-active-fg shadow-lg"
+    >
+      <p className="flex-[1_1_200px] text-sm font-semibold">Tienes cambios sin guardar</p>
+      <button
+        type="button"
+        disabled={saving}
+        onClick={onDiscard}
+        className="min-h-11 rounded-lg border border-header-line px-4 text-sm font-semibold hover:bg-header-control focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus disabled:cursor-wait disabled:opacity-50"
+      >
+        Descartar
+      </button>
+      <button type="submit" form={formId} disabled={saving} className={styles.primary}>
+        {saving ? 'Guardando…' : 'Guardar cambios'}
+      </button>
+    </div>
   );
 }
 
@@ -378,17 +448,17 @@ function LockIcon() {
     <svg
       width="18"
       height="18"
-      viewBox="0 0 24 24"
+      viewBox="0 0 20 20"
       fill="none"
       stroke="currentColor"
-      strokeWidth="2"
+      strokeWidth="1.75"
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden="true"
-      className="shrink-0 text-muted"
+      className="shrink-0"
     >
-      <rect x="5" y="11" width="14" height="10" rx="2" />
-      <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+      <rect x="4.5" y="9" width="11" height="8" rx="1.5" />
+      <path d="M7 9V6.5a3 3 0 0 1 6 0V9" />
     </svg>
   );
 }

@@ -63,6 +63,9 @@ async function mockOverview(page: Page, initial: unknown, put?: (route: Route) =
 
 const section = (page: Page) => page.getByRole('region', { name: 'Venta en línea' });
 const form = (page: Page) => page.getByRole('form', { name: 'Configurar venta en línea' });
+// The save notice; the public address has its own status for copies.
+const saved = (page: Page) =>
+  form(page).getByRole('status').filter({ hasText: 'Venta en línea guardada.' });
 
 test('shows closed sales with the reason and the public address', async ({ page }) => {
   await mockOverview(page, closed);
@@ -114,7 +117,7 @@ test('opens sales with a window and sends the full PUT body', async ({ page }) =
   await form(page).getByLabel('Cierre (opcional)').fill('2026-11-20T00:00');
   await form(page).getByRole('button', { name: 'Guardar cambios' }).click();
 
-  await expect(form(page).getByRole('status')).toHaveText('Venta en línea guardada.');
+  await expect(saved(page)).toBeVisible();
   expect(bodies).toEqual([
     {
       salesEnabled: true,
@@ -136,7 +139,7 @@ test('clears a date and sends null for it', async ({ page }) => {
   await form(page).getByRole('button', { name: 'Quitar fecha de cierre' }).click();
   await expect(form(page).getByLabel('Cierre (opcional)')).toHaveValue('');
   await form(page).getByRole('button', { name: 'Guardar cambios' }).click();
-  await expect(form(page).getByRole('status')).toBeVisible();
+  await expect(saved(page)).toBeVisible();
   expect(bodies).toEqual([
     { salesEnabled: true, salesOpensAt: '2026-10-01T15:00:00.000Z', salesClosesAt: null },
   ]);
@@ -199,9 +202,26 @@ test('copies the full public address and opens the public page', async ({ page, 
   await expect(address.getByRole('link', { name: 'Abrir' })).toHaveAttribute('target', '_blank');
   await address.getByRole('button', { name: 'Copiar' }).click();
   await expect(address.getByRole('button', { name: 'Copiada' })).toBeVisible();
+  await expect(address.getByRole('status')).toHaveText('Dirección copiada.');
   expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
     `${new URL(page.url()).origin}/e/${slug}`,
   );
+});
+
+test('says how to copy the address when the clipboard is not available', async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'clipboard', {
+      value: { writeText: () => Promise.reject(new Error('denied')) },
+    });
+  });
+  await mockOverview(page, closed);
+  await page.goto(overviewPath);
+  const address = section(page).getByRole('group', { name: 'Dirección pública' });
+  await address.getByRole('button', { name: 'Copiar' }).click();
+  await expect(address.getByRole('status')).toHaveText(
+    'No se pudo copiar. Selecciona la dirección y cópiala a mano.',
+  );
+  await expect(address.getByRole('button', { name: 'Copiar' })).toBeVisible();
 });
 
 test('fits a 375px viewport with 44px controls', async ({ page }) => {

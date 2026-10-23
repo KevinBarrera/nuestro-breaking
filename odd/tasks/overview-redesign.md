@@ -17,11 +17,11 @@ Test runner: Vitest for pure logic, Playwright (`apps/frontend/e2e`) for flows; 
 
 ## Tasks
 
-| ID  | Specs              | Route  | Status  | Commit |
-| --- | ------------------ | ------ | ------- | ------ |
-| T1  | S7, S8             | inline | pending |        |
-| T2  | S2, S3, S4, S6, S8 | inline | pending |        |
-| T3  | S5, S8             | inline | pending |        |
+| ID  | Specs              | Route  | Status | Commit              |
+| --- | ------------------ | ------ | ------ | ------------------- |
+| T1  | S7, S8             | inline | done   | 007e1a9             |
+| T2  | S2, S3, S4, S6, S8 | inline | done   | dab93b3             |
+| T3  | S5, S8             | inline | done   | 06cd2af + follow-up |
 
 ## Log
 
@@ -29,4 +29,6 @@ Test runner: Vitest for pure logic, Playwright (`apps/frontend/e2e`) for flows; 
 - **L2 (2026-10-22, user):** "crea un nuevo issue en GH para esta nueva task" → #317, sub-issue of #312.
 - **L3 (2026-10-22, user):** "no queremos las tres tarjetas de acceso rápido, ese es el nuevo diseño"
 - **L4:** Worktree `../nuestro-breaking-worktrees/317-overview-redesign`; its Vite serves `localhost:5173` (the backend admits one admin origin). Date and city reuse `eventDates` / `eventZoneName` from `event-model.ts`, read from `listAdminEvents`.
-- **Next:** T1.
+- **L5:** T1–T3 done, each with `pnpm verify:pr` green (557/557/558 e2e) and checked in Chrome against the artboards (light, dark). Native review per commit (readability, reliability): all approved. Follow-up commit on T3 from advisories: copy failure feedback and announcement, pill tone from `sales.state`, exact date assertion.
+- **L6:** ~930 authored lines → three chained PRs, one per task (T3 PR holds its follow-up).
+- **Next:** open the chained PRs.

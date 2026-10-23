@@ -160,7 +160,7 @@ function SalesSettings({ eventId, loaded, heading }: SalesSettingsProps) {
         <div className="flex flex-col items-end gap-1" data-testid="sales-status">
           <span
             className={`rounded-full border px-3 py-0.5 text-xs leading-4 font-semibold ${
-              status.label === 'Venta abierta'
+              sales.state === 'open'
                 ? 'border-success-fg bg-success text-success-fg'
                 : 'border-line bg-chip text-muted'
             }`}
@@ -250,18 +250,22 @@ function SalesSettings({ eventId, loaded, heading }: SalesSettingsProps) {
 const addressAction =
   'inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-input-line bg-surface px-3.5 text-sm font-semibold text-fg hover:bg-row focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus';
 
-// The read-only public address with "Copiar" (the full URL on this origin) and "Abrir".
+type CopyState = 'idle' | 'copied' | 'failed';
+
+// The read-only public address with "Copiar" (the full URL on this origin) and "Abrir". The
+// outcome of a copy is announced, and a failure (no clipboard access) says what to do instead.
 function PublicAddress({ slug }: { slug: string }) {
   const labelId = useId();
-  const [copied, setCopied] = useState(false);
+  const [copy, setCopy] = useState<CopyState>('idle');
   const path = publicPath(slug);
 
-  async function copy() {
+  async function copyAddress() {
+    setCopy('idle');
     try {
       await navigator.clipboard.writeText(`${window.location.origin}${path}`);
-      setCopied(true);
+      setCopy('copied');
     } catch {
-      setCopied(false);
+      setCopy('failed');
     }
   }
 
@@ -274,15 +278,19 @@ function PublicAddress({ slug }: { slug: string }) {
         <p className="flex min-h-11 min-w-0 flex-[1_1_16rem] items-center rounded-lg border border-line bg-surface-inner px-3 font-mono text-sm break-all text-fg">
           {path}
         </p>
-        <button type="button" className={addressAction} onClick={() => void copy()}>
+        <button type="button" className={addressAction} onClick={() => void copyAddress()}>
           <CopyIcon />
-          {copied ? 'Copiada' : 'Copiar'}
+          {copy === 'copied' ? 'Copiada' : 'Copiar'}
         </button>
         <a href={path} target="_blank" rel="noreferrer" className={addressAction}>
           <OpenIcon />
           Abrir
         </a>
       </div>
+      <p role="status" className={copy === 'failed' ? 'text-sm text-danger-fg' : 'sr-only'}>
+        {copy === 'copied' && 'Dirección copiada.'}
+        {copy === 'failed' && 'No se pudo copiar. Selecciona la dirección y cópiala a mano.'}
+      </p>
     </div>
   );
 }

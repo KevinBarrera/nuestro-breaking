@@ -8,16 +8,17 @@ import { buttonClass, Select } from '@/shared/ui';
 import { useEffect, useId, useState } from 'react';
 import { useParams } from 'react-router';
 import {
-  allListsOption,
-  attendanceLabel,
   buildAttendeeLists,
+  entryLabel,
   folioLabel,
   formatGeneratedAt,
+  listKind,
   peopleCount,
-  visibleLists,
   type AttendeeListView,
 } from './attendee-lists-model';
 import { styles } from './catalog-copy';
+
+const allListsOption = 'all';
 
 type LoadState =
   | { status: 'loading' }
@@ -109,8 +110,12 @@ type SnapshotProps = {
 };
 
 function Snapshot({ snapshot, selection, onSelect, onReload }: SnapshotProps) {
-  const lists = buildAttendeeLists(snapshot);
-  const shown = visibleLists(lists, selection);
+  const lists = buildAttendeeLists(snapshot).map((list) => ({
+    ...list,
+    title: list.group === 'event' ? list.title : `${listKind(list)} · ${list.title}`,
+  }));
+  const chosen = lists.filter((list) => list.id === selection);
+  const shown = chosen.length > 0 ? chosen : lists;
   const generatedAt = formatGeneratedAt(snapshot.generatedAt);
   const options = [
     { id: allListsOption, label: 'Todas las listas' },
@@ -243,12 +248,14 @@ function ListTable({ list, eventName, generatedAt, breakBefore }: ListTableProps
                 <td className={`${cell} font-mono whitespace-nowrap ${printBorder}`}>
                   {folioLabel(row.folio)}
                 </td>
-                <td className={`${cell} ${printBorder}`}>{row.status}</td>
+                <td className={`${cell} ${printBorder}`}>
+                  {row.pending ? 'Pendiente de pago' : 'Confirmada'}
+                </td>
                 {list.showPasses && (
                   <td className={`${cell} ${printBorder}`}>{row.passes.join(', ')}</td>
                 )}
                 <td className={`${cell} whitespace-nowrap ${printBorder}`}>
-                  {attendanceLabel(row.checkedInAt)}
+                  {entryLabel(row.checkedInAt)}
                 </td>
                 {/* Left blank for a handwritten mark on paper. */}
                 <td className={`${cell} ${printBorder}`} />

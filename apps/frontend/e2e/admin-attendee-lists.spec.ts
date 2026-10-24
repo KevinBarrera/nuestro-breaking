@@ -130,13 +130,20 @@ test('reaches the lists from the navigation and shows each list with its people'
     'EB-7K3Q',
     'Confirmada',
     'Pase completo',
-    /^Registrada \d{2}:\d{2}$/,
+    /^Entró \d{2}:\d{2}$/,
     '',
   ]);
-  await expect(beto.getByRole('cell')).toHaveText(['', '—', 'Pendiente de pago', '', '—', '']);
+  await expect(beto.getByRole('cell')).toHaveText([
+    '',
+    '—',
+    'Pendiente de pago',
+    '',
+    'Sin entrar',
+    '',
+  ]);
   // The activity list shows that activity's attendance, not the event entry.
   await expect(bodyRows(page, 'Competencia · Batalla 1vs1').getByRole('cell').nth(3)).toHaveText(
-    '—',
+    'Sin entrar',
   );
 
   const text = await page.getByRole('main').innerText();

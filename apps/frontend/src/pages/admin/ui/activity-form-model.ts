@@ -23,7 +23,9 @@ export type ActivityDraft = {
 
 export type DayOption = { key: string; label: string; sub: string };
 
-export type TimeCheck = { kind: 'missing' } | { kind: 'order' } | { kind: 'ok'; minutes: number };
+// `skipped`: a filled time that does not exist on the event clock (a daylight saving jump).
+export type TimeCheck =
+  { kind: 'missing' } | { kind: 'skipped' } | { kind: 'order' } | { kind: 'ok'; minutes: number };
 
 const dayMs = 24 * 60 * 60 * 1000;
 
@@ -94,7 +96,8 @@ export function activityDraft(
   };
 }
 
-const endDayOf = (draft: ActivityDraft) => (draft.endsOtherDay ? draft.endDay : draft.day);
+// The day the activity ends: `endDay` only with "Termina otro día".
+export const endDayOf = (draft: ActivityDraft) => (draft.endsOtherDay ? draft.endDay : draft.day);
 
 // The instants the API takes, or null while a value is missing, falls in a DST gap, or the end
 // is not after the start.
@@ -103,17 +106,20 @@ export function draftWindow(draft: ActivityDraft, timeZone: string) {
   return check && check.endsAt > check.startsAt ? check : null;
 }
 
+const filled = (draft: ActivityDraft) =>
+  !!draft.day && !!draft.start && !!endDayOf(draft) && !!draft.end;
+
 function instants(draft: ActivityDraft, timeZone: string) {
-  const endDay = endDayOf(draft);
-  if (!draft.day || !draft.start || !endDay || !draft.end) return null;
+  if (!filled(draft)) return null;
   const startsAt = fromZonedInput(`${draft.day}T${draft.start}`, timeZone);
-  const endsAt = fromZonedInput(`${endDay}T${draft.end}`, timeZone);
+  const endsAt = fromZonedInput(`${endDayOf(draft)}T${draft.end}`, timeZone);
   return startsAt && endsAt ? { startsAt, endsAt } : null;
 }
 
 export function checkTimes(draft: ActivityDraft, timeZone: string): TimeCheck {
+  if (!filled(draft)) return { kind: 'missing' };
   const window = instants(draft, timeZone);
-  if (!window) return { kind: 'missing' };
+  if (!window) return { kind: 'skipped' };
   const minutes = (Date.parse(window.endsAt) - Date.parse(window.startsAt)) / 60000;
   return minutes > 0 ? { kind: 'ok', minutes } : { kind: 'order' };
 }
@@ -175,10 +181,18 @@ export function editSummary(enrolled: number | undefined, passes: string[] | nul
   return parts.join(' ');
 }
 
-// The review's warning when people already enrolled had the previous schedule or venue.
+// The review's warning when people already enrolled had the previous schedule, venue or both.
 export function reviewWarning(enrolled: number | undefined, rows: ChangeRow[]): string | null {
   if (!enrolled) return null;
-  if (!rows.some((row) => row.key === 'schedule' || row.key === 'venue')) return null;
+  const schedule = rows.some((row) => row.key === 'schedule');
+  const venue = rows.some((row) => row.key === 'venue');
+  if (!schedule && !venue) return null;
+  const what =
+    schedule && venue
+      ? 'el horario y la sede anteriores'
+      : schedule
+        ? 'el horario anterior'
+        : 'la sede anterior';
   const verb = enrolled === 1 ? 'tenía' : 'tenían';
-  return `${peopleEnrolled(enrolled)} ${verb} el horario anterior. Avísales del cambio.`;
+  return `${peopleEnrolled(enrolled)} ${verb} ${what}. Avísales del cambio.`;
 }

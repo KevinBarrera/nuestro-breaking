@@ -6,6 +6,7 @@ import {
   draftWindow,
   durationLabel,
   editSummary,
+  endDayOf,
   eventDayOptions,
   overlapNames,
   reviewWarning,
@@ -135,11 +136,25 @@ describe('checkTimes and draftWindow', () => {
     expect(draftWindow(draft({ end: '14:55' }), timeZone)).toBeNull();
   });
 
+  it('reports a time skipped by a daylight saving change, apart from a missing one', () => {
+    // New York jumps from 02:00 to 03:00 on 8 March 2026.
+    const gap = draft({ day: '2026-03-08', endDay: '2026-03-08', start: '02:30', end: '04:00' });
+    expect(checkTimes(gap, 'America/New_York')).toEqual({ kind: 'skipped' });
+    expect(draftWindow(gap, 'America/New_York')).toBeNull();
+  });
+
   it('reports missing times or day', () => {
     expect(checkTimes(draft({ start: '' }), timeZone)).toEqual({ kind: 'missing' });
     expect(checkTimes(draft({ end: '' }), timeZone)).toEqual({ kind: 'missing' });
     expect(checkTimes(draft({ day: '' }), timeZone)).toEqual({ kind: 'missing' });
     expect(draftWindow(draft({ start: '' }), timeZone)).toBeNull();
+  });
+});
+
+describe('endDayOf', () => {
+  it('ends on the start day unless "Termina otro día" is on', () => {
+    expect(endDayOf(draft({ endDay: '2026-11-23' }))).toBe('2026-11-22');
+    expect(endDayOf(draft({ endsOtherDay: true, endDay: '2026-11-23' }))).toBe('2026-11-23');
   });
 });
 
@@ -226,12 +241,18 @@ describe('reviewWarning', () => {
   const venue = { key: 'venue', label: 'Sede', before: 'a', after: 'b' };
   const name = { key: 'name', label: 'Nombre', before: 'a', after: 'b' };
 
-  it('warns the enrolled when the schedule or the venue changes', () => {
+  it('warns the enrolled about the change they had: schedule, venue or both', () => {
     expect(reviewWarning(4, [schedule])).toBe(
       '4 personas inscritas tenían el horario anterior. Avísales del cambio.',
     );
-    expect(reviewWarning(1, [venue])).toBe(
+    expect(reviewWarning(1, [schedule])).toBe(
       '1 persona inscrita tenía el horario anterior. Avísales del cambio.',
+    );
+    expect(reviewWarning(1, [venue])).toBe(
+      '1 persona inscrita tenía la sede anterior. Avísales del cambio.',
+    );
+    expect(reviewWarning(3, [schedule, venue])).toBe(
+      '3 personas inscritas tenían el horario y la sede anteriores. Avísales del cambio.',
     );
   });
 

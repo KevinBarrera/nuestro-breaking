@@ -19,6 +19,7 @@ import {
   checkTimes,
   draftWindow,
   editSummary,
+  endDayOf,
   eventDayOptions,
   overlapNames,
   reviewWarning,
@@ -122,8 +123,7 @@ export function ActivityEditor({
     if (!window || !values.name.trim() || !isActivityKind(kind)) return null;
     if (!venues.some((venue) => venue.id === values.venueId)) return null;
     const sameStart = values.day === initial.day && values.start === initial.start;
-    const endDay = (draft: ActivityDraft) => (draft.endsOtherDay ? draft.endDay : draft.day);
-    const sameEnd = endDay(values) === endDay(initial) && values.end === initial.end;
+    const sameEnd = endDayOf(values) === endDayOf(initial) && values.end === initial.end;
     return {
       name: values.name.trim(),
       kind,

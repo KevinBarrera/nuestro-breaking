@@ -72,14 +72,19 @@ export function ActivityForm({
     windowMessage ??
     (times.kind === 'order'
       ? 'La hora de fin debe ser después del inicio.'
-      : tried && times.kind === 'missing'
-        ? 'Escribe a qué hora empieza y termina.'
-        : null);
+      : times.kind === 'skipped'
+        ? 'Esa hora no existe en el evento por el cambio de horario. Elige otra.'
+        : tried && times.kind === 'missing'
+          ? 'Escribe a qué hora empieza y termina.'
+          : null);
   const timeNote = timeError ?? (times.kind === 'ok' ? durationLabel(times.minutes) : null);
+  // A skipped time cannot be told apart from here, so both fields are marked.
+  const skipped = times.kind === 'skipped';
   const startInvalid =
-    !!windowMessages.startsAt || (tried && times.kind === 'missing' && !draft.start);
+    !!windowMessages.startsAt || skipped || (tried && times.kind === 'missing' && !draft.start);
   const endInvalid =
     !!windowMessages.endsAt ||
+    skipped ||
     times.kind === 'order' ||
     (tried && times.kind === 'missing' && !draft.end);
   const laterDays = days.filter((day) => day.key > draft.day);

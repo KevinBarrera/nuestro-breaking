@@ -211,7 +211,7 @@ test('reviews an edit in the same dialog, and "Volver a editar" keeps the edits'
     'Antes: Centro culturalDespués: Estudio principal',
   );
   await expect(review).toContainText(
-    '2 personas inscritas tenían el horario anterior. Avísales del cambio.',
+    '2 personas inscritas tenían el horario y la sede anteriores. Avísales del cambio.',
   );
 
   await review.getByRole('button', { name: 'Volver a editar' }).click();

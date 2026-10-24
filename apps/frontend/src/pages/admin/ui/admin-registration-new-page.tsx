@@ -17,10 +17,18 @@ import {
   type ParticipantForm,
 } from '@/entities/participant';
 import { routes } from '@/shared/config';
-import { Breadcrumbs, buttonClass, Notice, TextField, UnsavedChangesGuard } from '@/shared/ui';
+import { FieldError, Notice, TextField, UnsavedChangesGuard } from '@/shared/ui';
 import { useEffect, useRef, useState, type ComponentProps, type FormEvent } from 'react';
 import { generatePath, Link, useNavigate, useParams } from 'react-router';
 import { styles } from './catalog-copy';
+import {
+  stepHeading,
+  stepLead,
+  StepperIcon,
+  stepSection,
+  StepperFooter,
+  StepperFrame,
+} from './new-registration-layout';
 import { RegistrationDuplicatesDialog } from './registration-duplicates-dialog';
 import {
   createFailureMessage,
@@ -35,20 +43,24 @@ import {
   validateSaleParticipant,
   type SalePhoneMode,
 } from './sale-participant-model';
-import { useEventName } from './use-event-name';
 
 type FieldSetup = Omit<ComponentProps<typeof TextField>, 'value' | 'onChange' | 'error'>;
 
-// The operator types someone else's data, so browser autofill stays off.
+// The operator types someone else's data, so browser autofill stays off. The labels follow the
+// #346 artboard; the rules and messages are the participant form's.
 const fieldSetup: Record<ParticipantField, FieldSetup> = {
   firstName: { label: participantFieldLabels.firstName },
   firstLastName: { label: participantFieldLabels.firstLastName },
-  secondLastName: { label: participantFieldLabels.secondLastName, optional: true },
-  stageName: { label: participantFieldLabels.stageName, optional: true },
+  secondLastName: { label: 'Segundo apellido', optional: true },
+  stageName: {
+    label: 'AKA o nombre artístico',
+    optional: true,
+    placeholder: 'Como lo anuncian en la batalla',
+  },
   email: {
     label: participantFieldLabels.email,
-    hint: 'Ahí le llegan la confirmación y el folio.',
     type: 'email',
+    placeholder: 'nombre@correo.com',
     autoCapitalize: 'none',
     spellCheck: false,
   },
@@ -59,13 +71,16 @@ const fieldSetup: Record<ParticipantField, FieldSetup> = {
   birthDate: { label: participantFieldLabels.birthDate, optional: true, type: 'date' },
 };
 
-const phoneSetup: Record<SalePhoneMode, Partial<FieldSetup>> = {
-  mx: { prefix: '+52', hint: '10 dígitos.' },
-  international: { hint: 'Con clave de país, por ejemplo +1 555 123 4567.' },
+const phoneSetup: Record<SalePhoneMode, { placeholder: string; hint: string }> = {
+  mx: { placeholder: '55 1234 5678', hint: '10 dígitos, sin lada de país.' },
+  international: {
+    placeholder: '+1 555 123 4567',
+    hint: 'Incluye la lada del país, por ejemplo +1.',
+  },
 };
 
 const phoneModeLabels: Record<SalePhoneMode, string> = {
-  mx: 'México (+52)',
+  mx: 'México +52',
   international: 'Otro país',
 };
 
@@ -81,18 +96,22 @@ function withoutField(errors: ParticipantErrors, field: ParticipantField): Parti
 type FormNotice = { message: string; unknownOutcome: boolean };
 type Leave = { to: string; state: RegistrationContext };
 
+// The phone input mirrors the TextField frame; the country switch sits on the same row.
+const phoneFrame =
+  'flex min-h-11 flex-[1_1_220px] items-stretch overflow-hidden rounded-lg border bg-input text-base text-fg focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-focus';
+
 export function AdminRegistrationNewPage() {
   const { eventId } = useParams<'eventId'>();
   if (!eventId) return null;
   return <NewRegistration key={eventId} eventId={eventId} />;
 }
 
-// Nueva inscripción (#105): the participant registered in person. A registration exists only
-// once the backend answers; possible duplicates are confirmed in a dialog first (#125). Passes
-// and the cash payment follow on the registration's own screen.
+// Nueva inscripción, step 1 "Participante" (#105, #346): the participant registered in person. A
+// registration exists only once the backend answers; possible duplicates are confirmed in a
+// dialog first (#125). "Continuar a pases" creates it and the passes and the cash payment follow
+// on its sale route, which gets the name and contact line this screen typed.
 function NewRegistration({ eventId }: { eventId: string }) {
   const navigate = useNavigate();
-  const { name: eventName } = useEventName(eventId);
   const [form, setForm] = useState<ParticipantForm>(emptyParticipantForm);
   const [phoneMode, setPhoneMode] = useState<SalePhoneMode>(defaultSalePhoneMode);
   const [submitted, setSubmitted] = useState(false);
@@ -127,8 +146,8 @@ function NewRegistration({ eventId }: { eventId: string }) {
     if (leave) void navigate(leave.to, { state: leave.state });
   }, [leave, navigate]);
 
-  const registrationPath = (registrationId: string) =>
-    generatePath(routes.adminEventRegistration, { eventId, registrationId });
+  const salePath = (registrationId: string) =>
+    generatePath(routes.adminEventRegistrationSale, { eventId, registrationId });
 
   function showErrors(found: ParticipantErrors) {
     const field = firstInvalidField(found);
@@ -155,8 +174,9 @@ function NewRegistration({ eventId }: { eventId: string }) {
       const state: RegistrationContext = {
         participantName: participantDisplayName(form),
         status: created.status,
+        contact: { email: input.email, phone: input.phone },
       };
-      void navigate(registrationPath(created.registrationId), { state });
+      void navigate(salePath(created.registrationId), { state });
     } catch (error) {
       const failure = adminRegistrationFailure(error);
       if (failure.kind === 'possible_duplicates') {
@@ -194,9 +214,10 @@ function NewRegistration({ eventId }: { eventId: string }) {
     setServerErrors((previous) => withoutField(previous, field));
   }
 
+  // A pending match goes on to its pass step, as "Continuar venta" does.
   function continueWith(match: DuplicateMatchRow) {
     setLeave({
-      to: registrationPath(match.registrationId),
+      to: salePath(match.registrationId),
       state: { participantName: match.fullName, status: 'pending_payment' },
     });
   }
@@ -204,7 +225,6 @@ function NewRegistration({ eventId }: { eventId: string }) {
   const input = (field: ParticipantField) => (
     <TextField
       {...fieldSetup[field]}
-      {...(field === 'phone' ? phoneSetup[phoneMode] : {})}
       id={inputId(field)}
       name={field}
       autoComplete="off"
@@ -216,119 +236,179 @@ function NewRegistration({ eventId }: { eventId: string }) {
     />
   );
   const listed = participantFields.filter((field) => errors[field]);
+  const phoneId = inputId('phone');
+  const phoneDescribedBy = [
+    phoneMode === 'mx' ? `${phoneId}-prefix` : null,
+    `${phoneId}-hint`,
+    errors.phone ? `${phoneId}-error` : null,
+  ]
+    .filter(Boolean)
+    .join(' ');
 
   return (
-    <main className="px-4 py-8 text-fg sm:px-8 lg:py-12">
-      <div className="mx-auto max-w-3xl space-y-6">
-        <Breadcrumbs
-          items={[{ label: 'Inscripciones', to: listsPath }, { label: 'Nueva inscripción' }]}
-        />
-        <header className="space-y-1">
-          <h1 className="text-3xl font-extrabold tracking-tight text-heading">Nueva inscripción</h1>
-          {eventName && <p className="text-muted">{eventName}</p>}
-          <p className="text-muted">
-            Los datos del participante. Los pases y el cobro se registran en el siguiente paso.
-          </p>
-        </header>
-        <UnsavedChangesGuard when={dirty && !sending && !leave} />
-        <form
-          aria-label="Nueva inscripción"
-          noValidate
-          onSubmit={submit}
-          className={`${styles.card} flex flex-col gap-4 sm:p-8`}
-        >
-          {notice && (
-            <Notice tone="danger">
-              {notice.message}
-              {notice.unknownOutcome && (
-                <>
-                  {' '}
-                  <Link
-                    to={listsPath}
-                    className="inline-flex min-h-11 items-center font-bold underline"
-                  >
-                    Ir a Inscripciones
-                  </Link>
-                </>
-              )}
-            </Notice>
-          )}
-          {listed.length > 0 && (
-            <Notice tone="danger" title="Revisa estos datos:">
-              <ul className="list-disc pl-5">
-                {listed.map((field) => (
-                  <li key={field}>
-                    {fieldSetup[field].label}: {errors[field]}
-                  </li>
-                ))}
-              </ul>
-            </Notice>
-          )}
-          {input('firstName')}
-          <div className="grid grid-cols-2 gap-3 *:min-w-0">
+    <StepperFrame listsPath={listsPath} step={1}>
+      <UnsavedChangesGuard when={dirty && !sending && !leave} />
+      <form
+        aria-label="Nueva inscripción"
+        noValidate
+        autoComplete="off"
+        onSubmit={submit}
+        className="rounded-xl border border-line bg-surface"
+      >
+        {(notice || listed.length > 0) && (
+          <div className="flex flex-col gap-3 px-5 pt-5 sm:px-7 sm:pt-7">
+            {notice && (
+              <Notice tone="danger">
+                {notice.message}
+                {notice.unknownOutcome && (
+                  <>
+                    {' '}
+                    <Link
+                      to={listsPath}
+                      className="inline-flex min-h-11 items-center font-bold underline"
+                    >
+                      Ir a Inscripciones
+                    </Link>
+                  </>
+                )}
+              </Notice>
+            )}
+            {listed.length > 0 && (
+              <Notice tone="danger" title="Revisa estos datos:">
+                <ul className="list-disc pl-5">
+                  {listed.map((field) => (
+                    <li key={field}>
+                      {fieldSetup[field].label}: {errors[field]}
+                    </li>
+                  ))}
+                </ul>
+              </Notice>
+            )}
+          </div>
+        )}
+        <section aria-labelledby="registration-who" className={stepSection}>
+          <h2 id="registration-who" className={stepHeading}>
+            ¿Quién se inscribe?
+          </h2>
+          <div className="grid gap-4 *:min-w-0 @min-[641px]:grid-cols-3">
+            {input('firstName')}
             {input('firstLastName')}
             {input('secondLastName')}
           </div>
           {input('stageName')}
-          {input('email')}
-          <fieldset className="min-w-0">
-            <legend className={styles.label}>País del teléfono</legend>
-            <div className={`mt-1 ${styles.segments.replace('grid-cols-3', 'grid-cols-2')}`}>
-              {(['mx', 'international'] as const).map((mode) => (
-                <label key={mode} className={styles.segment}>
-                  <input
-                    type="radio"
-                    name="phoneMode"
-                    value={mode}
-                    checked={phoneMode === mode}
-                    disabled={sending}
-                    onChange={() => {
-                      setPhoneMode(mode);
-                      setServerErrors((previous) => withoutField(previous, 'phone'));
-                    }}
-                    className={styles.segmentInput}
-                  />
-                  {phoneModeLabels[mode]}
-                </label>
-              ))}
-            </div>
-          </fieldset>
-          {input('phone')}
-          <details
-            open={detailsOpen}
-            onToggle={(event) => setDetailsOpen(event.currentTarget.open)}
-            className="rounded-xl border border-line bg-surface px-4"
-          >
-            <summary className="flex min-h-12 cursor-pointer items-center font-bold text-heading focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus">
-              Más datos (opcional): ciudad, Instagram, nivel
-            </summary>
-            <div className="flex flex-col gap-4 pb-4">
-              {input('city')}
-              {input('instagram')}
-              {input('level')}
-              {input('birthDate')}
-            </div>
-          </details>
-          <div className="flex flex-col-reverse gap-3 border-t border-row pt-5 sm:flex-row sm:justify-end">
-            <Link
-              to={listsPath}
-              className={buttonClass('secondary', 'inline-flex items-center justify-center')}
-            >
-              Cancelar
-            </Link>
-            <button type="submit" disabled={sending} className={buttonClass('primary')}>
-              {sending ? 'Registrando…' : 'Registrar'}
-            </button>
+        </section>
+        <section
+          aria-labelledby="registration-contact"
+          className={`${stepSection} border-t border-line`}
+        >
+          <div className="flex flex-col gap-0.5">
+            <h2 id="registration-contact" className={stepHeading}>
+              Contacto
+            </h2>
+            <p className={stepLead}>Al correo le llegan la confirmación y el folio.</p>
           </div>
-        </form>
-        <RegistrationDuplicatesDialog
-          matches={duplicates?.matches ?? null}
-          pending={sending}
-          onCancel={() => setDuplicates(null)}
-          onConfirm={() => duplicates && void send(duplicates.input, duplicates.matches)}
-          onContinue={continueWith}
+          {input('email')}
+          <div>
+            <label htmlFor={phoneId} className={styles.label}>
+              {fieldSetup.phone.label}
+            </label>
+            <div className="mt-1 flex flex-wrap gap-2">
+              <fieldset className="min-w-0 flex-none">
+                <legend className="sr-only">País del teléfono</legend>
+                <div className="flex gap-1 rounded-lg border border-input-line bg-input p-1">
+                  {(['mx', 'international'] as const).map((mode) => (
+                    <label key={mode} className={`${styles.segment} px-3`}>
+                      <input
+                        type="radio"
+                        name="phoneMode"
+                        value={mode}
+                        checked={phoneMode === mode}
+                        disabled={sending}
+                        onChange={() => {
+                          setPhoneMode(mode);
+                          setServerErrors((previous) => withoutField(previous, 'phone'));
+                        }}
+                        className={styles.segmentInput}
+                      />
+                      {phoneModeLabels[mode]}
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+              <div
+                className={`${phoneFrame} ${errors.phone ? 'border-danger-fg' : 'border-input-line'}`}
+              >
+                {phoneMode === 'mx' && (
+                  <span
+                    id={`${phoneId}-prefix`}
+                    className="flex items-center border-r border-input-line bg-surface-inner px-3 font-mono text-muted"
+                  >
+                    +52
+                  </span>
+                )}
+                <input
+                  type="tel"
+                  inputMode="tel"
+                  id={phoneId}
+                  name="phone"
+                  autoComplete="off"
+                  maxLength={participantMaxLength.phone}
+                  placeholder={phoneSetup[phoneMode].placeholder}
+                  value={form.phone}
+                  disabled={sending}
+                  aria-invalid={errors.phone ? true : undefined}
+                  aria-describedby={phoneDescribedBy}
+                  onChange={(event) => edit('phone', event.target.value)}
+                  className="min-h-11 min-w-0 flex-1 bg-transparent px-3 py-2 font-mono text-fg outline-none placeholder:text-muted disabled:opacity-60"
+                />
+              </div>
+            </div>
+            <p id={`${phoneId}-hint`} className="mt-1 text-sm text-muted">
+              {phoneSetup[phoneMode].hint}
+            </p>
+            {errors.phone ? <FieldError id={`${phoneId}-error`}>{errors.phone}</FieldError> : null}
+          </div>
+        </section>
+        <details
+          open={detailsOpen}
+          onToggle={(event) => setDetailsOpen(event.currentTarget.open)}
+          className="group border-t border-line"
+        >
+          <summary className="flex min-h-14 cursor-pointer list-none items-center gap-2.5 px-5 text-[15px] font-bold text-heading hover:bg-row focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-focus sm:px-7 [&::-webkit-details-marker]:hidden">
+            <StepperIcon
+              size={16}
+              strokeWidth={2}
+              className="flex-none -rotate-90 transition-transform group-open:rotate-0"
+            >
+              <path d="M5 8l5 5 5-5" />
+            </StepperIcon>
+            <span className="flex-1">
+              Más datos{' '}
+              <span className="font-normal text-muted">
+                (opcional) · ciudad, Instagram, nivel y fecha de nacimiento
+              </span>
+            </span>
+          </summary>
+          <div className="grid gap-4 px-5 pb-5 *:min-w-0 sm:px-7 sm:pb-7 @min-[641px]:grid-cols-2">
+            {input('city')}
+            {input('instagram')}
+            {input('level')}
+            {input('birthDate')}
+          </div>
+        </details>
+        <StepperFooter
+          back={{ kind: 'cancel', to: listsPath }}
+          totalCents={null}
+          next={{ label: 'Continuar a pases', pendingLabel: 'Registrando…', pending: sending }}
         />
-      </div>
-    </main>
+      </form>
+      <RegistrationDuplicatesDialog
+        matches={duplicates?.matches ?? null}
+        pending={sending}
+        onCancel={() => setDuplicates(null)}
+        onConfirm={() => duplicates && void send(duplicates.input, duplicates.matches)}
+        onContinue={continueWith}
+      />
+    </StepperFrame>
   );
 }

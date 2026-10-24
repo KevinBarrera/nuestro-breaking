@@ -16,14 +16,14 @@ Test runner: Jest + PostgreSQL e2e for the backend; Vitest for pure logic and Pl
 
 ## Tasks
 
-| ID  | Specs      | Route                        | Status | Commit  |
-| --- | ---------- | ---------------------------- | ------ | ------- |
-| T1  | S2         | inline                       | done   | c71076d |
-| T2  | S3, S7     | inline                       | done   | d77f287 |
-| T3  | S4, S5, S7 | inline                       | done   | 2795adc |
-| T4  | S5, S7     | inline                       | done   | bec82a0 |
-| T5  | S6         | inline                       | done   | e2c935f |
-| T6  | S6, S7     | delegated (context backstop) | done   | 494dda0 |
+| ID  | Specs      | Route                        | Status | Commit                             |
+| --- | ---------- | ---------------------------- | ------ | ---------------------------------- |
+| T1  | S2         | inline                       | done   | c71076d                            |
+| T2  | S3, S7     | inline                       | done   | d77f287                            |
+| T3  | S4, S5, S7 | inline                       | done   | 2795adc                            |
+| T4  | S5, S7     | inline                       | done   | bec82a0                            |
+| T5  | S6         | inline                       | done   | e2c935f                            |
+| T6  | S6, S7     | delegated (context backstop) | done   | eca527e, b6f5fe0, 9a9afc3, 66a6cb5 |
 
 ## Log
 
@@ -39,3 +39,5 @@ Test runner: Jest + PostgreSQL e2e for the backend; Vitest for pure logic and Pl
 - **L10:** T6 decisions: step 1 stays on `/registrations/new` and creates the registration on "Continuar a pases", then the flow continues on a new route `/registrations/:registrationId/sale` (steps 2–4), which is also where "Continuar venta" resumes a pending registration. The detail page drops its inline sale sections (pass picker, removal, competitions, cash, complimentary) and shows a "Continuar venta" link instead; "Anular inscripción" stays. Step 3 keeps the optional "Nota" (existing behavior) under the receipt. Route delegated to a bounded writer for the context backstop.
 - **L11:** T6 (`feat/346-02-new-registration-flow`, bounded writer): step 1 restyled with the indicator and sticky footer, new `admin-registration-sale-page.tsx` (steps 2–4) and `new-registration-layout.tsx`, route `adminEventRegistrationSale`, detail shows "Venta pendiente" with "Continuar venta" instead of the inline sale; the five sale components deleted (their models kept). Writer choices: the duplicates dialog's "Continuar con esta inscripción" opens the sale route; the stepper's receipt error copy is local; pass picks survive "Recargar"; a saved competition no longer offered is dropped on re-send. Writer: Vitest 810, lint, build, Playwright 248, `verify:pr` green (588). Parent spot check: cash, passes and complimentary specs 17/17; screenshots of steps 2–4 (1280 and 375) and step 1 in Chrome match the artboards. Assessed medium, `under_budget`.
 - **L12:** Open follow-ups: "Continuar venta" is on the detail only (list rows open the detail, as the artboard draws them); unused sale model helpers (`salePassOptions`, `removalBlockers`, `unsavedCompetitionsHint`, `cashConfirmation`, …) can be removed; an archived held pass type is missing from the step 2 radios and its running total (step 3 total is right).
+- **L13:** T6's single commit exceeded the native review budget (`lens_context_budget_exceeded`); the product owner chose to split it and review each slice. Slices: `feat/346-02-sale-route` eca527e (sale route, steps 2–4), `feat/346-03-participant-step` b6f5fe0 (step 1; readability, reliability), `feat/346-04-detail-sale-handoff` 9a9afc3 (detail "Continuar venta", five sale components deleted, docs; all four lenses). Fix 66a6cb5 keeps the correction buttons disabled while the registration reloads (RED→GREEN in `admin-registration-cash-correction.spec.ts`). The split tree equals the original T6 plus the fix. Every slice and T1–T5 native-reviewed and acknowledged; `verify:pr` green.
+- **L14:** Non-blocking review findings kept for follow-ups: `continueWith` (pending duplicate) passes no contact in the navigation state; the sale route reached by reload without router state is untested; step 1 finds "Más datos" by `summary`; two step 1 labels are hardcoded instead of `participantFieldLabels`. The $0 pending path is covered by the sale route's "Nueva inscripción sin cobro" sweep and `admin-registration-complimentary.spec.ts`.

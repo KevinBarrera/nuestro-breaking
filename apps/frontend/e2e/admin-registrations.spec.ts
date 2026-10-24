@@ -1,11 +1,11 @@
 import { expect, test, type Page } from '@playwright/test';
 import {
-  catalogActivity,
-  catalogPassType,
+  cashConfirmed,
   created,
   duplicateMatch,
   eventId,
   heldPass,
+  heldPassId,
   mockRegistrations,
   newRegistrationPath,
   otherRegistrationId,
@@ -14,6 +14,10 @@ import {
   registrationPath,
   registrationsPath,
   registrationSummary,
+  saleActivities,
+  saleBackend,
+  salePassTypes,
+  salePath,
   searchPage,
   searchResult,
   thirdRegistrationId,
@@ -35,7 +39,9 @@ async function fillRequired(page: Page, phone = '33 1234 5678') {
   await field(page, 'Teléfono celular').fill(phone);
 }
 
-const register = (page: Page) => form(page).getByRole('button', { name: 'Registrar' }).click();
+const register = (page: Page) =>
+  form(page).getByRole('button', { name: 'Continuar a pases' }).click();
+const steps = (page: Page) => page.getByRole('list', { name: 'Pasos' }).getByRole('listitem');
 
 const expectedBody = {
   firstName: 'Ana',
@@ -142,44 +148,6 @@ test('lists the roster, filters by status, searches live and opens one', async (
   await expect(searchBox(page)).toHaveValue('');
   await expect(page).toHaveURL(registrationsPath);
   await expect(page.getByText('2 inscripciones')).toBeVisible();
-});
-
-test('opens a pending registration with its sale from the list', async ({ page }) => {
-  const breaking = catalogActivity(
-    'a1b2c3d4-1234-4567-89ab-123456789abc',
-    'Breaking 1 vs 1',
-    '2026-11-14T18:00:00.000Z',
-  );
-  await mockRegistrations(page, {
-    search: () => ({
-      json: searchPage([
-        searchResult(registrationId, 'Luz Rivera', { folio: 'EV-7K3Q', status: 'confirmed' }),
-        searchResult(otherRegistrationId, 'Luis Ruiz'),
-      ]),
-    }),
-    entitlements: (id) => ({
-      json: {
-        registration: registrationSummary(id, { fullName: 'Luis Ruiz' }),
-        passes: [heldPass],
-        accessibleActivityIds: [],
-      },
-    }),
-    passTypes: () => ({
-      json: [
-        catalogPassType(heldPass.passTypeId, 'Pase completo', 'full', 150000, {
-          activities: [{ activityId: breaking.id, access: 'selectable' }],
-        }),
-      ],
-    }),
-    activities: () => ({ json: [breaking] }),
-  });
-  await page.goto(registrationsPath);
-  await page.getByRole('link', { name: /^Luis Ruiz, sin folio, Pendiente de pago/ }).click();
-
-  await expect(page).toHaveURL(registrationPath(otherRegistrationId));
-  await expect(page.getByRole('heading', { level: 1, name: 'Luis Ruiz' })).toBeVisible();
-  for (const name of ['Pases', 'Agregar pase', 'Competencias', 'Pago en efectivo'])
-    await expect(page.getByRole('region', { name, exact: true })).toBeVisible();
 });
 
 test('pages through results 20 at a time', async ({ page }) => {
@@ -293,16 +261,173 @@ test('registers a participant and opens the new registration', async ({ page }) 
     'page',
   );
 
+  // Step 1 of 3, with autofill off for someone else's data.
+  await expect(steps(page)).toHaveText([
+    /^1Participante, paso actual/,
+    /^2Pases, pendiente/,
+    /^3Cobro, pendiente/,
+  ]);
+  await expect(steps(page).nth(0)).toHaveAttribute('aria-current', 'step');
+  await expect(form(page)).toHaveAttribute('autocomplete', 'off');
+  await expect(field(page, 'Nombre(s)')).toHaveAttribute('autocomplete', 'off');
+  await expect(form(page).getByRole('link', { name: 'Cancelar' })).toHaveAttribute(
+    'href',
+    registrationsPath,
+  );
+
   await fillRequired(page);
-  await field(page, 'AKA / nombre artístico (opcional)').fill('Anita');
+  await field(page, 'AKA o nombre artístico (opcional)').fill('Anita');
   await register(page);
 
-  await expect(page).toHaveURL(registrationPath(registrationId));
+  await expect(page).toHaveURL(salePath(registrationId));
   expect(creates).toEqual([{ body: { ...expectedBody, stageName: 'Anita' }, csrf: 'csrf-token' }]);
   expect(creates[0].body).not.toHaveProperty('activityIds');
-  await expect(page.getByRole('heading', { level: 1, name: 'Ana López' })).toBeVisible();
-  await expect(page.getByRole('main')).toContainText('Pendiente de pago');
-  await expect(page.getByText('Aún no tiene pases.')).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'Nueva inscripción' })).toBeVisible();
+  await expect(steps(page).nth(0)).toContainText('completado');
+  await expect(steps(page).nth(1)).toHaveAttribute('aria-current', 'step');
+  await expect(page.getByRole('heading', { name: 'Pase de Ana' })).toBeVisible();
+  await expect(sideNav(page).getByRole('link', { name: 'Inscripciones' })).toHaveAttribute(
+    'aria-current',
+    'page',
+  );
+});
+
+test('sells a registration in three steps, confirms it and starts the next one', async ({
+  page,
+}) => {
+  const { general, popping, openStyles } = salePassTypes;
+  const backend = saleBackend();
+  const sent = await mockRegistrations(page, {
+    ...backend.mocks,
+    cash: () => ({ status: 201, json: cashConfirmed(registrationId, 'LMP-K2M7') }),
+  });
+  await page.goto(newRegistrationPath);
+  await fillRequired(page);
+  await register(page);
+  await expect(page).toHaveURL(salePath(registrationId));
+
+  // Step 2: an add-on waits for a full pass; changing the full pass drops its competitions.
+  const footer = page.getByRole('form', { name: 'Pase de Ana' });
+  const addOn = page.getByRole('checkbox', { name: /^Open Styles/ });
+  await expect(addOn).toBeDisabled();
+  await expect(page.getByText('Requiere un pase completo.')).toBeVisible();
+  await footer.getByRole('button', { name: 'Continuar al cobro' }).click();
+  await expect(page.getByRole('alert')).toHaveText('Elige un pase para continuar.');
+  expect(sent.addedPasses).toHaveLength(0);
+
+  await page.getByRole('radio', { name: /^Entrada general/ }).check();
+  await expect(footer).toContainText('Total$1,000.00');
+  await page.getByRole('radio', { name: /^Pase completo Popping/ }).check();
+  const competitions = page.getByRole('group', { name: 'Competencias de Pase completo Popping' });
+  await expect(competitions.locator('label')).toHaveText(['Popping 1v1', 'Popping 2v2']);
+  await competitions.getByRole('checkbox', { name: 'Popping 2v2' }).check();
+  await competitions.getByRole('checkbox', { name: 'Popping 1v1' }).check();
+  await addOn.check();
+  await expect(page.getByText('Open Styles 1vs1. Se suma al pase completo.')).toBeVisible();
+  await expect(footer).toContainText('Total$2,800.00');
+  await footer.getByRole('button', { name: 'Continuar al cobro' }).click();
+
+  // The base first, then its add-on, then the competitions in the order shown.
+  const cobro = page.getByRole('form', { name: 'Cobro en efectivo' });
+  await expect(cobro).toBeVisible();
+  expect(sent.addedPasses).toEqual([
+    { registrationId, body: { passTypeId: popping.id }, csrf: 'csrf-token' },
+    { registrationId, body: { passTypeId: openStyles.id }, csrf: 'csrf-token' },
+  ]);
+  expect(sent.selections).toEqual([
+    {
+      registrationId,
+      registrationPassId: heldPassId(popping),
+      body: { activityIds: [saleActivities.popping1.id, saleActivities.popping2.id] },
+      csrf: 'csrf-token',
+    },
+  ]);
+  expect(sent.addedPasses.map((pass) => pass.body)).not.toContainEqual({
+    passTypeId: general.id,
+  });
+
+  // Step 3: the summary, the prefilled amount and the receipt.
+  await expect(steps(page).nth(2)).toHaveAttribute('aria-current', 'step');
+  await expect(cobro).toContainText('Ana López');
+  await expect(cobro).toContainText('ana@example.org · +52 3312345678');
+  const lines = cobro.getByRole('list', { name: 'Pases' }).getByRole('listitem');
+  await expect(lines).toHaveText([
+    'Pase completo PoppingPopping 1v1, Popping 2v2$2,000.00',
+    'Open StylesOpen Styles 1vs1$800.00',
+  ]);
+  await expect(cobro).toContainText('Total a cobrar$2,800.00');
+  const amount = cobro.getByRole('textbox', { name: 'Monto recibido (MXN)' });
+  await expect(amount).toHaveValue('2800.00');
+  await expect(cobro).toContainText('Coincide con el total.');
+  await amount.fill('2500');
+  await expect(cobro).toContainText(
+    'No coincide con el total ($2,800.00). Puedes continuar si así dice el recibo.',
+  );
+  await cobro.getByRole('button', { name: 'Confirmar inscripción' }).click();
+  await expect(cobro.getByText('Escribe el número impreso en el recibo.')).toBeVisible();
+  expect(sent.cash).toHaveLength(0);
+  await cobro.getByRole('textbox', { name: 'Número de recibo' }).fill(' 08590 ');
+  await cobro.getByRole('button', { name: 'Confirmar inscripción' }).click();
+
+  // Step 4: the folio from the answer.
+  await expect(page.getByRole('heading', { name: 'Inscripción confirmada' })).toBeFocused();
+  expect(sent.cash).toEqual([
+    { registrationId, body: { amount: 250000, receipt: '08590' }, csrf: 'csrf-token' },
+  ]);
+  const main = page.getByRole('main');
+  await expect(main).toContainText(
+    'La inscripción de Ana López quedó lista. Le enviamos la confirmación y el folio a ana@example.org.',
+  );
+  await expect(main).toContainText('LMP-K2M7');
+  await expect(main).toContainText('Pase completo Popping + Open Styles · $2,800.00');
+  await expect(page.getByRole('list', { name: 'Pasos' })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'Ver inscripción' })).toHaveAttribute(
+    'href',
+    registrationPath(registrationId),
+  );
+
+  await page.getByRole('link', { name: 'Inscribir a otra persona' }).click();
+  await expect(page).toHaveURL(newRegistrationPath);
+  await expect(field(page, 'Nombre(s)')).toHaveValue('');
+  await expect(steps(page).nth(0)).toHaveAttribute('aria-current', 'step');
+});
+
+test('goes back to the saved participant and on to the passes', async ({ page }) => {
+  await mockRegistrations(page, saleBackend().mocks);
+  await page.goto(newRegistrationPath);
+  await fillRequired(page);
+  await field(page, 'AKA o nombre artístico (opcional)').fill('Anita');
+  await register(page);
+  await page.getByRole('button', { name: 'Atrás' }).click();
+
+  // Read-only: the registration exists, so name fixes go through its correction.
+  const saved = page.getByRole('form', { name: '¿Quién se inscribe?' });
+  await expect(saved.getByRole('heading', { name: '¿Quién se inscribe?' })).toBeFocused();
+  await expect(saved.getByRole('textbox')).toHaveCount(0);
+  await expect(saved).toContainText('Ana López');
+  await expect(saved).toContainText('ana@example.org · +52 3312345678');
+  await expect(saved).toContainText('«Corregir nombre o AKA»');
+  await expect(steps(page).nth(0)).toHaveAttribute('aria-current', 'step');
+  await saved.getByRole('button', { name: 'Continuar a pases' }).click();
+  await expect(page.getByRole('heading', { name: 'Pase de Ana' })).toBeFocused();
+});
+
+test('fits a phone screen on every step', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 800 });
+  await mockRegistrations(page, saleBackend().mocks);
+  const fits = async () =>
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+      375,
+    );
+  await page.goto(newRegistrationPath);
+  await fits();
+  await fillRequired(page);
+  await register(page);
+  await page.getByRole('radio', { name: /^Pase completo Popping/ }).check();
+  await fits();
+  await page.getByRole('button', { name: 'Continuar al cobro' }).click();
+  await page.getByRole('textbox', { name: 'Número de recibo' }).waitFor();
+  await fits();
 });
 
 test('focuses the first invalid field and opens Más datos for its errors', async ({ page }) => {
@@ -315,9 +440,9 @@ test('focuses the first invalid field and opens Más datos for its errors', asyn
   await expect(page.getByRole('alert')).toContainText('Revisa estos datos:');
 
   await fillRequired(page);
-  await form(page).getByText('Más datos (opcional)').click();
+  await form(page).locator('summary').click();
   await form(page).getByLabel('Fecha de nacimiento').fill('2999-01-01');
-  await form(page).getByText('Más datos (opcional)').click();
+  await form(page).locator('summary').click();
   await register(page);
   await expect(form(page).getByLabel('Fecha de nacimiento')).toBeFocused();
   await expect(form(page).getByText('La fecha no puede ser futura.').first()).toBeVisible();
@@ -330,7 +455,7 @@ test('sends an international phone with its country code', async ({ page }) => {
   await form(page).getByRole('radio', { name: 'Otro país' }).check();
   await fillRequired(page, '+1 (555) 123-4567');
   await register(page);
-  await expect(page).toHaveURL(registrationPath(registrationId));
+  await expect(page).toHaveURL(salePath(registrationId));
   expect(creates.map((sent) => sent.body)).toEqual([{ ...expectedBody, phone: '+15551234567' }]);
 });
 
@@ -373,7 +498,7 @@ test('confirms possible duplicates and registers another person', async ({ page 
   ).toHaveCount(0);
   await dialog.getByRole('button', { name: 'Es otra persona, registrar' }).click();
 
-  await expect(page).toHaveURL(registrationPath(registrationId));
+  await expect(page).toHaveURL(salePath(registrationId));
   expect(creates.map((sent) => sent.body)).toEqual([
     expectedBody,
     { ...expectedBody, confirmedDuplicateRegistrationIds: [otherRegistrationId] },
@@ -389,7 +514,12 @@ test('continues with a pending duplicate instead of registering again', async ({
     create: () => possibleDuplicates([duplicateMatch(otherRegistrationId)]),
     entitlements: (id) => ({
       json: {
-        registration: registrationSummary(id, { fullName: 'Alex Rivera', stageName: 'Flash' }),
+        registration: registrationSummary(id, {
+          fullName: 'Alex Rivera',
+          firstName: 'Alex',
+          firstLastName: 'Rivera',
+          stageName: 'Flash',
+        }),
         passes: [],
         accessibleActivityIds: [],
       },
@@ -402,11 +532,9 @@ test('continues with a pending duplicate instead of registering again', async ({
     .getByRole('button', { name: 'Continuar con esta inscripción: Alex Rivera' })
     .click();
 
-  // No unsaved-changes warning: the operator chose where to go.
-  await expect(page).toHaveURL(registrationPath(otherRegistrationId));
-  await expect(page.getByRole('heading', { level: 1, name: 'Alex Rivera' })).toBeVisible();
-  // The same sale screen the search opens.
-  await expect(page.getByRole('region', { name: 'Agregar pase' })).toBeVisible();
+  // No unsaved-changes warning: the operator chose where to go, the pass step of that sale.
+  await expect(page).toHaveURL(salePath(otherRegistrationId));
+  await expect(page.getByRole('heading', { name: 'Pase de Alex' })).toBeVisible();
   expect(creates).toHaveLength(1);
 });
 

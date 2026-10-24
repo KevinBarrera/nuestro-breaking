@@ -8,6 +8,7 @@ export { AdminHistoryPage } from './ui/admin-history-page';
 export { AdminRegistrationsPage } from './ui/admin-registrations-page';
 export { AdminRegistrationNewPage } from './ui/admin-registration-new-page';
 export { AdminRegistrationPage } from './ui/admin-registration-page';
+export { AdminRegistrationSalePage } from './ui/admin-registration-sale-page';
 export { AdminEventActivitiesPage } from './ui/admin-event-activities-page';
 export { AdminEventPassesPage } from './ui/admin-event-passes-page';
 export { PassCreateScreen, PassDetailScreen, PassListScreen } from './ui/pass-screens';

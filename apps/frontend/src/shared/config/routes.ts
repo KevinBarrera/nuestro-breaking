@@ -26,6 +26,8 @@ export const routes = {
   adminEventRegistrations: '/admin/events/:eventId/registrations',
   adminEventRegistrationNew: '/admin/events/:eventId/registrations/new',
   adminEventRegistration: '/admin/events/:eventId/registrations/:registrationId',
+  // Nueva inscripción's pass, cash and confirmed steps for a pending registration (#346).
+  adminEventRegistrationSale: '/admin/events/:eventId/registrations/:registrationId/sale',
   adminEventActivities: '/admin/events/:eventId/activities',
   adminEventPasses: '/admin/events/:eventId/passes',
   adminEventPassNew: '/admin/events/:eventId/passes/new',

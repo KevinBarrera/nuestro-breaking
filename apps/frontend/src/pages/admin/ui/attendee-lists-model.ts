@@ -189,3 +189,62 @@ export function formatGeneratedAt(iso: string, timeZone?: string) {
 }
 
 export const peopleCount = (count: number) => `${count} ${count === 1 ? 'persona' : 'personas'}`;
+
+// The printout (#363): what the "Opciones del PDF" card turns on.
+export type PrintOptions = { cover: boolean; paper: boolean; sheetPerList: boolean };
+
+export const defaultPrintOptions: PrintOptions = { cover: true, paper: true, sheetPerList: false };
+
+// About 30 lines fit a letter sheet; each list also takes about 3 for its title and header row.
+const linesPerSheet = 30;
+const listHeaderLines = 3;
+const sheetsFor = (lines: number) => Math.ceil(lines / linesPerSheet);
+
+// "Tamaño aproximado": an estimate only, the browser decides the real breaks.
+export function estimateSheets(lists: AttendeeListView[], options: PrintOptions): number {
+  if (lists.length === 0) return 0;
+  const lines = lists.map((list) => list.rows.length + listHeaderLines);
+  const sheets = options.sheetPerList
+    ? lines.reduce((total, count) => total + Math.max(1, sheetsFor(count)), 0)
+    : Math.max(1, sheetsFor(lines.reduce((total, count) => total + count, 0)));
+  return sheets + (options.cover ? 1 : 0) + (options.paper ? 1 : 0);
+}
+
+export function sheetsLabel(sheets: number): string {
+  if (sheets === 0) return 'Sin listas';
+  return `${sheets} ${sheets === 1 ? 'hoja carta' : 'hojas carta'}`;
+}
+
+// "Evento completo", or the list with its kind ("Pase · Pase completo").
+export const printTitle = (list: AttendeeListView) =>
+  list.group === 'event' ? list.title : `${listKind(list)} · ${list.title}`;
+
+export const paperSheetTitle = 'Inscripciones en papel';
+
+// The cover's index. Sheet numbers are left out: only the browser knows where pages break.
+export function printIndex(lists: AttendeeListView[], paper: boolean) {
+  return [
+    ...lists.map((list) => ({ label: printTitle(list), people: String(list.rows.length) })),
+    ...(paper ? [{ label: paperSheetTitle, people: '—' }] : []),
+  ];
+}
+
+export function printMeta(list: AttendeeListView): string {
+  const entered = listProgress(list).entered;
+  return `${peopleCount(list.rows.length)} · ${entered} ${entered === 1 ? 'ya entró' : 'ya entraron'}`;
+}
+
+// "23/10/2026 15:24" for the sheet header and footer.
+export function formatSnapshotStamp(iso: string, timeZone?: string) {
+  const day = new Intl.DateTimeFormat('es-MX', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    timeZone,
+  }).format(new Date(iso));
+  return `${day} ${formatCheckInTime(iso, timeZone)}`;
+}
+
+// A CSS string literal for `content`, so an event name can't end the rule.
+export const cssString = (text: string) =>
+  `"${text.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\A ')}"`;

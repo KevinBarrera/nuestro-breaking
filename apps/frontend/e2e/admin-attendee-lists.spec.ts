@@ -248,3 +248,118 @@ test('a denied read shows no lists and no retry', async ({ page }) => {
   await expect(alert.getByRole('button')).toHaveCount(0);
   await expect(page.getByRole('region', { name: 'Qué imprimir' })).toHaveCount(0);
 });
+
+test('the PDF options change what prints and the estimated size', async ({ page }) => {
+  await mockLists(page, { json: snapshot });
+  await page.goto(listsPath);
+  const card = page.getByRole('region', { name: 'Opciones del PDF' });
+  await expect(card.getByRole('checkbox', { name: 'Portada con índice' })).toBeChecked();
+  await expect(
+    card.getByRole('checkbox', { name: 'Hoja para inscripciones en papel' }),
+  ).toBeChecked();
+  await expect(card.getByRole('checkbox', { name: 'Cada lista en hoja nueva' })).not.toBeChecked();
+  await expect(card).toContainText('Tamaño aproximado3 hojas carta');
+  await card.getByRole('checkbox', { name: 'Portada con índice' }).uncheck();
+  await card.getByRole('checkbox', { name: 'Hoja para inscripciones en papel' }).uncheck();
+  await expect(card).toContainText('Tamaño aproximado1 hoja carta');
+  await include(page, 'Evento completo').uncheck();
+  await expect(card).toContainText('Tamaño aproximadoSin listas');
+});
+
+test('prints only the checked lists, with the cover and the paper sheet, black on white', async ({
+  page,
+}) => {
+  await page.addInitScript({ content: "localStorage.setItem('nb-theme', 'dark');" });
+  await mockLists(page, { json: snapshot });
+  await page.goto(listsPath);
+  await show(page, 'Batalla 1vs1').click();
+  await include(page, 'Batalla 1vs1').check();
+  await page.emulateMedia({ media: 'print' });
+
+  // Nothing of the screen prints.
+  await expect(nav(page)).toBeHidden();
+  await expect(page.getByRole('banner', { name: 'Espacio de administración' })).toBeHidden();
+  await expect(page.getByRole('main')).toBeHidden();
+
+  const cover = page.getByRole('region', { name: 'Portada' });
+  await expect(cover.getByRole('heading', { level: 1 })).toHaveText('Listas de respaldo');
+  await expect(cover).toContainText('Cómo usarlas si el sistema falla');
+  await expect(cover.getByRole('row')).toHaveText([
+    'ListaPersonas',
+    'Evento completo2',
+    'Competencia · Batalla 1vs11',
+    'Inscripciones en papel—',
+  ]);
+  await expect(cover).toContainText('Responsable de la mesa');
+
+  const tables = page.getByRole('table', { name: /Evento completo|Batalla 1vs1/ });
+  await expect(tables).toHaveCount(2);
+  const event = page.getByRole('table', { name: 'Evento completo' });
+  await expect(event.getByRole('columnheader')).toHaveText([
+    'Marca✓',
+    'Nombre',
+    'AKA',
+    'Folio',
+    'Pases',
+    'Entró',
+  ]);
+  await expect(event.getByRole('row').nth(1)).toHaveText(
+    /^Ana LópezFlashEB-7K3QPase completo\d{2}:\d{2}$/,
+  );
+  await expect(event.getByRole('row').nth(2)).toHaveText(
+    'Beto RuizPendiente de pago—Entrada general',
+  );
+  await expect(
+    page.getByRole('table', { name: 'Batalla 1vs1' }).getByRole('columnheader'),
+  ).toHaveText(['Marca✓', 'Nombre', 'AKA', 'Folio', 'Entró']);
+  await expect(page.getByRole('table', { name: /Pase completo/ })).toHaveCount(0);
+
+  const paper = page.getByRole('region', { name: 'Inscripciones en papel' });
+  await expect(paper.getByRole('row')).toHaveCount(19);
+  // Lists flow one after another; rows never split across sheets.
+  const breaks = await page
+    .getByRole('region', { name: /Evento completo|Batalla 1vs1/ })
+    .evaluateAll((sections) => sections.map((node) => getComputedStyle(node).breakBefore));
+  expect(breaks).toEqual(['auto', 'auto']);
+  await expect(event.getByRole('row').nth(1)).toHaveCSS('break-inside', 'avoid');
+  await expect(event.getByRole('rowheader').first()).toHaveCSS('color', 'rgb(0, 0, 0)');
+  await expect(page.locator('html')).toHaveCSS('background-color', 'rgb(255, 255, 255)');
+});
+
+test('"Cada lista en hoja nueva" starts each list on a new sheet and the cover can go', async ({
+  page,
+}) => {
+  await mockLists(page, { json: snapshot });
+  await page.goto(listsPath);
+  await include(page, 'Pase completo').check();
+  const card = page.getByRole('region', { name: 'Opciones del PDF' });
+  await card.getByRole('checkbox', { name: 'Cada lista en hoja nueva' }).check();
+  await card.getByRole('checkbox', { name: 'Portada con índice' }).uncheck();
+  await card.getByRole('checkbox', { name: 'Hoja para inscripciones en papel' }).uncheck();
+  await page.emulateMedia({ media: 'print' });
+
+  await expect(page.getByRole('region', { name: 'Portada' })).toHaveCount(0);
+  await expect(page.getByRole('region', { name: 'Inscripciones en papel' })).toHaveCount(0);
+  const breaks = await page
+    .getByRole('region', { name: /Evento completo|Pase completo/ })
+    .evaluateAll((sections) => sections.map((node) => getComputedStyle(node).breakBefore));
+  expect(breaks).toEqual(['auto', 'page']);
+});
+
+test('saves a letter PDF with our own sheet header and footer', async ({ page }) => {
+  await mockLists(page, { json: snapshot });
+  await page.goto(listsPath);
+  await expect(page.getByRole('region', { name: 'Opciones del PDF' })).toContainText(
+    '3 hojas carta',
+  );
+  const pdf = await page.pdf({ preferCSSPageSize: true });
+  // Cover, the event list and the paper sheet, each on its letter sheet (612 × 792 points).
+  expect(pdf.toString('latin1').match(/\/Type\s*\/Page[^s]/g)).toHaveLength(3);
+  expect(pdf.toString('latin1')).toMatch(/\/MediaBox\s*\[\s*0 0 612 792\s*\]/);
+  // The header, footer and "Hoja X de Y" live in the page margin boxes.
+  const rules = await page
+    .locator('style')
+    .evaluateAll((nodes) => nodes.map((node) => node.textContent ?? '').join('\n'));
+  expect(rules).toContain('"LOS MÁS PESADOS · Encuentro del barrio"');
+  expect(rules).toContain('"Hoja " counter(page) " de " counter(pages)');
+});

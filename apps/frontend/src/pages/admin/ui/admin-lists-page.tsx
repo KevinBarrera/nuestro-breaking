@@ -5,12 +5,14 @@ import {
   type AttendeeListsFailure,
 } from '@/entities/attendee-list';
 import { routes } from '@/shared/config';
-import { buttonClass } from '@/shared/ui';
+import { buttonClass, CheckboxField } from '@/shared/ui';
 import { useEffect, useState } from 'react';
 import { generatePath, Link, useParams } from 'react-router';
 import {
   buildAttendeeLists,
+  defaultPrintOptions,
   entryLabel,
+  estimateSheets,
   eventListId,
   folioLabel,
   freshness,
@@ -20,8 +22,11 @@ import {
   listProgress,
   printLabel,
   searchList,
+  sheetsLabel,
   type AttendeeListView,
+  type PrintOptions,
 } from './attendee-lists-model';
+import { AttendeeListsPrintout } from './attendee-lists-printout';
 
 const failureMessages: Record<AttendeeListsFailure, string> = {
   denied: 'No tienes acceso a las listas de este evento.',
@@ -79,6 +84,7 @@ function AttendeeListsScreen({ eventId }: { eventId: string }) {
   const [selection, setSelection] = useState<string[]>([eventListId]);
   const [focused, setFocused] = useState(eventListId);
   const [query, setQuery] = useState('');
+  const [options, setOptions] = useState(defaultPrintOptions);
   const [now, setNow] = useState(() => new Date());
 
   useEffect(() => {
@@ -111,91 +117,160 @@ function AttendeeListsScreen({ eventId }: { eventId: string }) {
   const hasPeople = !!snapshot && snapshot.registrations.length > 0;
   // A checked or focused list that a refresh removed drops out; the focus falls back to the event.
   const checked = keptSelection(selection, lists);
+  const printed = lists.filter((list) => checked.includes(list.id));
   const shown = lists.find((list) => list.id === focused) ?? lists[0];
 
   return (
-    <main
-      aria-busy={load.status === 'loading'}
-      className="px-4 py-8 text-fg sm:px-8 lg:pt-10 lg:pb-16 print:hidden"
-    >
-      <div className="@container mx-auto max-w-[1180px] space-y-5">
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <header className="max-w-[640px] space-y-1.5">
-            <h1 className="text-3xl font-extrabold tracking-tight text-heading">
-              Listas de respaldo
-            </h1>
-            <p className="text-muted">
-              Imprímelas o guárdalas en PDF antes de abrir puertas. Si el sistema falla, la mesa
-              sigue registrando entradas en papel. No incluyen correos ni teléfonos.
-            </p>
-          </header>
-          {hasPeople && (
-            <button
-              type="button"
-              disabled={checked.length === 0}
-              onClick={() => window.print()}
-              className={buttonClass(
-                'primary',
-                'inline-flex min-h-12 items-center gap-2 px-5 disabled:cursor-not-allowed disabled:opacity-60',
-              )}
-            >
-              {printerIcon(18, '1.75')}
-              {printLabel(checked.length)}
-            </button>
-          )}
-        </div>
-
-        {load.status === 'failed' && (
-          <div
-            role="alert"
-            className="space-y-3 rounded-lg border border-danger-fg bg-danger px-4 py-3 text-sm text-danger-fg"
-          >
-            <p>{failureMessages[load.failure]}</p>
-            {load.failure !== 'denied' && (
-              <button type="button" className={buttonClass('secondary')} onClick={reload}>
-                Reintentar
+    <>
+      <main
+        aria-busy={load.status === 'loading'}
+        className="px-4 py-8 text-fg sm:px-8 lg:pt-10 lg:pb-16 print:hidden"
+      >
+        <div className="@container mx-auto max-w-[1180px] space-y-5">
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <header className="max-w-[640px] space-y-1.5">
+              <h1 className="text-3xl font-extrabold tracking-tight text-heading">
+                Listas de respaldo
+              </h1>
+              <p className="text-muted">
+                Imprímelas o guárdalas en PDF antes de abrir puertas. Si el sistema falla, la mesa
+                sigue registrando entradas en papel. No incluyen correos ni teléfonos.
+              </p>
+            </header>
+            {hasPeople && (
+              <button
+                type="button"
+                disabled={checked.length === 0}
+                onClick={() => window.print()}
+                className={buttonClass(
+                  'primary',
+                  'inline-flex min-h-12 items-center gap-2 px-5 disabled:cursor-not-allowed disabled:opacity-60',
+                )}
+              >
+                {printerIcon(18, '1.75')}
+                {printLabel(checked.length)}
               </button>
             )}
           </div>
-        )}
-        {!snapshot && load.status === 'loading' && (
-          <p role="status" className="text-muted">
-            Cargando listas…
-          </p>
-        )}
 
-        {snapshot && !hasPeople && <EmptyEvent eventId={eventId} />}
-
-        {snapshot && hasPeople && shown && (
-          <>
-            <FreshnessNotice
-              generatedAt={snapshot.generatedAt}
-              now={now}
-              refreshing={load.status === 'loading'}
-              onRefresh={reload}
-            />
-            <div className="grid items-start gap-5 @min-[900px]:grid-cols-[340px_minmax(0,1fr)]">
-              <ListPicker
-                lists={lists}
-                checked={checked}
-                focused={shown.id}
-                onCheck={setSelection}
-                onFocus={(id) => {
-                  setFocused(id);
-                  setQuery('');
-                }}
-              />
-              <Preview
-                list={shown}
-                included={checked.includes(shown.id)}
-                query={query}
-                onQuery={setQuery}
-              />
+          {load.status === 'failed' && (
+            <div
+              role="alert"
+              className="space-y-3 rounded-lg border border-danger-fg bg-danger px-4 py-3 text-sm text-danger-fg"
+            >
+              <p>{failureMessages[load.failure]}</p>
+              {load.failure !== 'denied' && (
+                <button type="button" className={buttonClass('secondary')} onClick={reload}>
+                  Reintentar
+                </button>
+              )}
             </div>
-          </>
-        )}
+          )}
+          {!snapshot && load.status === 'loading' && (
+            <p role="status" className="text-muted">
+              Cargando listas…
+            </p>
+          )}
+
+          {snapshot && !hasPeople && <EmptyEvent eventId={eventId} />}
+
+          {snapshot && hasPeople && shown && (
+            <>
+              <FreshnessNotice
+                generatedAt={snapshot.generatedAt}
+                now={now}
+                refreshing={load.status === 'loading'}
+                onRefresh={reload}
+              />
+              <div className="grid items-start gap-5 @min-[900px]:grid-cols-[340px_minmax(0,1fr)]">
+                <div className="flex flex-col gap-4">
+                  <ListPicker
+                    lists={lists}
+                    checked={checked}
+                    focused={shown.id}
+                    onCheck={setSelection}
+                    onFocus={(id) => {
+                      setFocused(id);
+                      setQuery('');
+                    }}
+                  />
+                  <PrintOptionsCard
+                    options={options}
+                    onChange={setOptions}
+                    sheets={estimateSheets(printed, options)}
+                  />
+                </div>
+                <Preview
+                  list={shown}
+                  included={checked.includes(shown.id)}
+                  query={query}
+                  onQuery={setQuery}
+                />
+              </div>
+            </>
+          )}
+        </div>
+      </main>
+      {snapshot && hasPeople && printed.length > 0 && (
+        <AttendeeListsPrintout
+          eventName={snapshot.event.name}
+          generatedAt={snapshot.generatedAt}
+          lists={printed}
+          options={options}
+        />
+      )}
+    </>
+  );
+}
+
+const optionCopy: { key: keyof PrintOptions; label: string; help: string }[] = [
+  {
+    key: 'cover',
+    label: 'Portada con índice',
+    help: 'Cómo usar las listas y qué lleva el PDF.',
+  },
+  {
+    key: 'paper',
+    label: 'Hoja para inscripciones en papel',
+    help: 'Renglones en blanco para quien se inscriba mientras no hay sistema.',
+  },
+  {
+    key: 'sheetPerList',
+    label: 'Cada lista en hoja nueva',
+    help: 'Útil para repartir una hoja a cada juez. Usa más papel.',
+  },
+];
+
+type PrintOptionsCardProps = {
+  options: PrintOptions;
+  onChange: (options: PrintOptions) => void;
+  sheets: number;
+};
+
+function PrintOptionsCard({ options, onChange, sheets }: PrintOptionsCardProps) {
+  return (
+    <section aria-labelledby="lists-options-title" className={`${cardClass} flex flex-col p-4`}>
+      <h2 id="lists-options-title" className="mb-1 text-lg leading-7 font-bold text-heading">
+        Opciones del PDF
+      </h2>
+      {optionCopy.map(({ key, label, help }) => (
+        <CheckboxField
+          key={key}
+          checked={options[key]}
+          onChange={(event) => onChange({ ...options, [key]: event.target.checked })}
+          label={
+            <span className="flex flex-col gap-0.5">
+              <span className="font-semibold text-heading">{label}</span>
+              <span className="text-[13px] leading-[18px] text-muted">{help}</span>
+            </span>
+          }
+        />
+      ))}
+      <div className="mt-2 flex items-center justify-between gap-2 border-t border-line pt-3 text-sm">
+        <span className="text-muted">Tamaño aproximado</span>
+        <span className="font-bold text-heading">{sheetsLabel(sheets)}</span>
       </div>
-    </main>
+    </section>
   );
 }
 

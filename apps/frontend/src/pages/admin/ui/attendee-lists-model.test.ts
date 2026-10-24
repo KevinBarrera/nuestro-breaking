@@ -2,17 +2,23 @@ import type { AttendeeLists, AttendeeListRegistration } from '@/entities/attende
 import { describe, expect, it } from 'vitest';
 import {
   buildAttendeeLists,
+  cssString,
   entryLabel,
+  estimateSheets,
   folioLabel,
   formatGeneratedAt,
+  formatSnapshotStamp,
   freshness,
   groupAttendeeLists,
   keptSelection,
   listKindLabel,
   listProgress,
   peopleCount,
+  printIndex,
   printLabel,
+  printMeta,
   searchList,
+  sheetsLabel,
 } from './attendee-lists-model';
 
 const zone = 'America/Mexico_City';
@@ -229,5 +235,54 @@ describe('labels', () => {
     expect(peopleCount(0)).toBe('0 personas');
     expect(peopleCount(1)).toBe('1 persona');
     expect(peopleCount(2)).toBe('2 personas');
+  });
+});
+
+describe('printout', () => {
+  const rows = (count: number) =>
+    Array.from({ length: count }, (_, index) => ({
+      ...lists[0].rows[0],
+      registrationId: `${index}`,
+    }));
+  const sized = (count: number) => ({ ...lists[0], rows: rows(count) });
+  const options = { cover: false, paper: false, sheetPerList: false };
+
+  it('estimates letter sheets: lists flow together, or each starts a sheet', () => {
+    expect(estimateSheets([], { ...options, cover: true, paper: true })).toBe(0);
+    expect(estimateSheets([sized(10), sized(4), sized(5)], options)).toBe(1);
+    expect(
+      estimateSheets([sized(10), sized(4), sized(5)], { ...options, sheetPerList: true }),
+    ).toBe(3);
+    expect(estimateSheets([sized(60)], options)).toBe(3);
+    expect(estimateSheets([sized(10)], { ...options, cover: true, paper: true })).toBe(3);
+  });
+
+  it('names the size of the PDF', () => {
+    expect(sheetsLabel(0)).toBe('Sin listas');
+    expect(sheetsLabel(1)).toBe('1 hoja carta');
+    expect(sheetsLabel(4)).toBe('4 hojas carta');
+  });
+
+  it('indexes the printed lists with their kind and people, then the paper sheet', () => {
+    expect(printIndex([lists[0], lists[1], lists[3]], true)).toEqual([
+      { label: 'Evento completo', people: '2' },
+      { label: 'Pase · Pase completo', people: '2' },
+      { label: 'Competencia · Batalla 1vs1', people: '1' },
+      { label: 'Inscripciones en papel', people: '—' },
+    ]);
+    expect(printIndex([lists[0]], false)).toEqual([{ label: 'Evento completo', people: '2' }]);
+  });
+
+  it('heads each printed list with its people and who already entered', () => {
+    expect(printMeta(lists[0])).toBe('2 personas · 1 ya entró');
+    expect(printMeta(lists[3])).toBe('1 persona · 1 ya entró');
+  });
+
+  it('stamps the snapshot time in short form', () => {
+    expect(formatSnapshotStamp('2026-10-23T21:24:00Z', zone)).toBe('23/10/2026 15:24');
+  });
+
+  it('quotes text for CSS content', () => {
+    expect(cssString('Say "hi" \\ ok\nnext')).toBe('"Say \\"hi\\" \\\\ ok\\A next"');
   });
 });

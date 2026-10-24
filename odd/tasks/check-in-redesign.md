@@ -18,10 +18,10 @@ Test runner: Vitest for pure logic, Playwright (`apps/frontend/e2e`) for flows; 
 
 ## Tasks
 
-| ID  | Specs          | Route  | Status | Commit      |
-| --- | -------------- | ------ | ------ | ----------- |
-| T1  | S3, S4, S5, S8 | inline | done   | 687adb1     |
-| T2  | S2–S9          | inline | done   | (T2 commit) |
+| ID  | Specs          | Route  | Status | Commit  |
+| --- | -------------- | ------ | ------ | ------- |
+| T1  | S3, S4, S5, S8 | inline | done   | 687adb1 |
+| T2  | S2–S9          | inline | done   | bc6e3b2 |
 
 ## Log
 

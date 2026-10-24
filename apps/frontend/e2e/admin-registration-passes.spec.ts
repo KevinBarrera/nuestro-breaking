@@ -51,9 +51,7 @@ test('adds a pass only after confirming it, and explains the passes it cannot ge
   });
   // Opened directly, as after a reload: the name and status come from the entitlements read.
   await page.goto(registrationPath(registrationId));
-  await expect(
-    page.getByRole('heading', { level: 1, name: 'Inscripción de Ana López' }),
-  ).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'Ana López' })).toBeVisible();
   await expect(page.getByRole('main')).toContainText('Pendiente de pago');
   await expect(held(page)).toContainText('Aún no tiene pases.');
 

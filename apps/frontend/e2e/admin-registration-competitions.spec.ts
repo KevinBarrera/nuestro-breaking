@@ -218,12 +218,15 @@ test('the confirmed view tells included competitions apart from chosen ones', as
   });
   await page.goto(registrationPath(registrationId));
 
+  // Included competitions are access, not a choice, so they never read as chosen (#277).
   const rows = page.getByRole('region', { name: 'Pases' }).getByRole('listitem');
-  await expect(rows.filter({ hasText: 'Pase completo' })).toContainText(
-    'Competencias elegidas: Breaking 1 vs 1',
+  await expect(
+    rows.filter({ hasText: 'Pase completo' }).getByRole('list', { name: 'Competencias' }),
+  ).toHaveText('Breaking 1 vs 1');
+  const addOnRow = rows.filter({ hasText: 'Open Styles' }).first();
+  await expect(addOnRow.getByRole('list', { name: 'Competencias incluidas' })).toHaveText(
+    'Open Styles 1 vs 1',
   );
-  const addOnRow = rows.filter({ hasText: 'Open Styles' });
-  await expect(addOnRow).toContainText('Competencias incluidas: Open Styles 1 vs 1');
   await expect(addOnRow).not.toContainText('Sin competencias');
   await expect(addOnRow).not.toContainText('Competencias elegidas');
 });

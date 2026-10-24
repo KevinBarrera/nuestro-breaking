@@ -177,9 +177,7 @@ test('opens a pending registration with its sale from the list', async ({ page }
   await page.getByRole('link', { name: /^Luis Ruiz, sin folio, Pendiente de pago/ }).click();
 
   await expect(page).toHaveURL(registrationPath(otherRegistrationId));
-  await expect(
-    page.getByRole('heading', { level: 1, name: 'Inscripción de Luis Ruiz' }),
-  ).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'Luis Ruiz' })).toBeVisible();
   for (const name of ['Pases', 'Agregar pase', 'Competencias', 'Pago en efectivo'])
     await expect(page.getByRole('region', { name, exact: true })).toBeVisible();
 });
@@ -302,9 +300,7 @@ test('registers a participant and opens the new registration', async ({ page }) 
   await expect(page).toHaveURL(registrationPath(registrationId));
   expect(creates).toEqual([{ body: { ...expectedBody, stageName: 'Anita' }, csrf: 'csrf-token' }]);
   expect(creates[0].body).not.toHaveProperty('activityIds');
-  await expect(
-    page.getByRole('heading', { level: 1, name: 'Inscripción de Ana López' }),
-  ).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'Ana López' })).toBeVisible();
   await expect(page.getByRole('main')).toContainText('Pendiente de pago');
   await expect(page.getByText('Aún no tiene pases.')).toBeVisible();
 });
@@ -408,9 +404,7 @@ test('continues with a pending duplicate instead of registering again', async ({
 
   // No unsaved-changes warning: the operator chose where to go.
   await expect(page).toHaveURL(registrationPath(otherRegistrationId));
-  await expect(
-    page.getByRole('heading', { level: 1, name: 'Inscripción de Alex Rivera' }),
-  ).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'Alex Rivera' })).toBeVisible();
   // The same sale screen the search opens.
   await expect(page.getByRole('region', { name: 'Agregar pase' })).toBeVisible();
   expect(creates).toHaveLength(1);

@@ -18,7 +18,7 @@ const confirmButton = (page: Page) =>
   cashSection(page).getByRole('button', { name: 'Confirmar pago' });
 const confirmDialog = (page: Page) =>
   page.getByRole('alertdialog', { name: '¿Confirmar el pago de $1,700.00?' });
-const folio = (page: Page) => page.getByRole('region', { name: 'Folio' });
+const folio = (page: Page) => page.getByRole('region', { name: 'Resumen' });
 
 const breaking = catalogActivity(
   'a1b2c3d4-1234-4567-89ab-123456789abc',
@@ -78,9 +78,12 @@ test('confirms the cash payment after restating it and shows the folio', async (
   await confirmDialog(page).getByRole('button', { name: 'Confirmar pago' }).click();
 
   await expect(folio(page)).toContainText('LMP-7K3Q');
-  await expect(folio(page).getByRole('status')).toHaveText(
-    'Pago registrado. La inscripción quedó confirmada.',
-  );
+  await expect(
+    page
+      .getByRole('main')
+      .getByRole('status')
+      .filter({ hasText: 'Pago registrado. La inscripción quedó confirmada.' }),
+  ).toBeVisible();
   expect(cash).toEqual([
     {
       registrationId,
@@ -94,13 +97,11 @@ test('confirms the cash payment after restating it and shows the folio', async (
   // The payment just recorded is shown, and only the collapsed cash and name corrections (#104)
   // remain.
   await expect(page.getByRole('main')).toContainText('Confirmada');
-  await expect(page.getByRole('region', { name: 'Pases' })).toContainText(
-    'Competencias elegidas: Breaking 1 vs 1',
-  );
+  await expect(page.getByRole('region', { name: 'Pases' })).toContainText('Breaking 1 vs 1');
   await expect(cashSection(page)).toContainText('$1,700.00');
   await expect(cashSection(page)).toContainText('A-17');
   await expect(page.getByRole('main').getByRole('button')).toHaveText([
-    'Corregir pago en efectivo',
+    'Corregir pago',
     'Corregir nombre o AKA',
   ]);
   await expect(page.getByRole('main').getByRole('textbox')).toHaveCount(0);

@@ -94,9 +94,7 @@ test('swaps a confirmed registration to another discipline of the same price', a
   await expect(section(page).getByRole('status')).toHaveText(
     'Se cambió «Pase completo» por «Popping».',
   );
-  await expect(page.getByRole('region', { name: 'Pases' })).toContainText(
-    'Competencias elegidas: Popping 2 vs 2',
-  );
+  await expect(page.getByRole('region', { name: 'Pases' })).toContainText('Popping 2 vs 2');
   await expect(openButton(page)).toBeFocused();
   expect(swaps).toEqual([
     {

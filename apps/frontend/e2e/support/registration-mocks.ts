@@ -537,7 +537,7 @@ export const registrationSweepCases: {
     },
     ready: async (page) => {
       await page.getByRole('button', { name: /^Editar competencias de/ }).click();
-      await page.getByRole('textbox', { name: 'Motivo del cambio' }).waitFor();
+      await page.getByRole('textbox', { name: 'Motivo' }).waitFor();
     },
   },
   {

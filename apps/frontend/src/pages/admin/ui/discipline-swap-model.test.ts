@@ -7,7 +7,7 @@ import type { CatalogActivity, CatalogPassType } from '@/entities/event-catalog'
 import { describe, expect, it } from 'vitest';
 import {
   canSwapDiscipline,
-  disciplineSwapConfirmation,
+  disciplineSwapRows,
   disciplineSwapFailure,
   disciplineSwapOptions,
   reviewDisciplineSwap,
@@ -196,7 +196,7 @@ describe('reviewDisciplineSwap', () => {
       ok: false,
       errors: {
         toPassTypeId: 'Elige el pase al que cambia.',
-        reason: 'Escribe el motivo del cambio.',
+        reason: 'Escribe el motivo. Queda en el historial.',
       },
     });
     expect(reviewDisciplineSwap(target, [], 'x'.repeat(501))).toEqual({
@@ -207,30 +207,25 @@ describe('reviewDisciplineSwap', () => {
   });
 });
 
-describe('disciplineSwapConfirmation', () => {
-  it('summarizes the pass and competitions before and after with the reason', () => {
+describe('disciplineSwapRows', () => {
+  it('restates the pass and its competitions before and after', () => {
     const options = disciplineSwapOptions(held('breaking'), catalog, activities);
     if (options.status !== 'ready') throw new Error('Expected targets');
-    expect(
-      disciplineSwapConfirmation(
-        options.from,
-        options.targets[0],
-        ['popping-1v1'],
-        'Pidió popping',
-      ),
-    ).toEqual({
-      title: '¿Cambiar «Breaking» por «Popping»?',
-      consequence:
-        'Antes: Breaking (Breaking 1vs1). Después: Popping (Popping 1vs1). Motivo: Pidió popping. El monto cobrado no cambia y el cambio quedará registrado con este motivo.',
-    });
-    expect(
-      disciplineSwapConfirmation(
-        { ...options.from, selected: null },
-        options.targets[0],
-        [],
-        'Cambio',
-      ).consequence,
-    ).toContain('Antes: Breaking (Sin competencias). Después: Popping (Sin competencias).');
+    expect(disciplineSwapRows(options.from, options.targets[0], ['popping-1v1'])).toEqual([
+      { key: 'pass', label: 'Pase', before: 'Breaking', after: 'Popping' },
+      {
+        key: 'competitions',
+        label: 'Competencias',
+        before: 'Breaking 1vs1',
+        after: 'Popping 1vs1',
+      },
+    ]);
+    expect(disciplineSwapRows({ ...options.from, selected: null }, options.targets[0], [])).toEqual(
+      [
+        { key: 'pass', label: 'Pase', before: 'Breaking', after: 'Popping' },
+        { key: 'competitions', label: 'Competencias', before: 'Ninguna', after: 'Ninguna' },
+      ],
+    );
   });
 });
 

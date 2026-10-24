@@ -9,8 +9,8 @@ import {
   registrationSummary,
 } from './support/registration-mocks.ts';
 
-// Changing the competitions of a confirmed registration with a reason (#170). The reason rules,
-// change detection, confirmation copy and failure messages are covered by
+// Changing the competitions of a confirmed registration with a reason (#170) in the two-step modal
+// (#345). The reason rules, change detection, review rows and failure messages are covered by
 // `confirmed-competitions-model.test.ts`; this spec checks the rendered flow and what is sent.
 const breaking = catalogActivity(
   'b1b2c3d4-1234-4567-89ab-123456789abc',
@@ -41,7 +41,11 @@ const catalog = {
 const passes = (page: Page) => page.getByRole('region', { name: 'Pases' });
 const editor = (page: Page) =>
   page.getByRole('form', { name: 'Editar competencias de «Pase completo»' });
-const reason = (page: Page) => editor(page).getByRole('textbox', { name: 'Motivo del cambio' });
+const reason = (page: Page) => editor(page).getByRole('textbox', { name: 'Motivo' });
+const dialog = (page: Page) => page.getByRole('dialog');
+const reviewButton = (page: Page) => dialog(page).getByRole('button', { name: 'Revisar cambios' });
+const saveButton = (page: Page) =>
+  dialog(page).getByRole('button', { name: 'Guardar competencias' });
 
 async function openEditor(page: Page) {
   await page.goto(registrationPath(registrationId));
@@ -60,23 +64,25 @@ test('changes the competitions of a confirmed registration with a reason', async
   await expect(editor(page).getByRole('checkbox', { name: 'Popping 1 vs 1' })).toBeChecked();
   await editor(page).getByText('Popping 1 vs 1').click();
   await editor(page).getByText('Breaking 1 vs 1').click();
+  await expect(editor(page).getByText('Actual')).toHaveCount(1);
   await reason(page).fill('  Pidió cambiar de categoría en mesa  ');
-  await editor(page).getByRole('button', { name: 'Guardar cambios' }).click();
+  await reviewButton(page).click();
 
-  const dialog = page.getByRole('alertdialog');
-  await expect(dialog).toContainText('¿Cambiar las competencias de «Pase completo»?');
-  await expect(dialog).toContainText(
-    'Antes: Popping 1 vs 1. Después: Breaking 1 vs 1. Motivo: Pidió cambiar de categoría en mesa.',
-  );
+  await expect(dialog(page)).toContainText('Paso 2 de 2 · Revisión');
+  await expect(dialog(page).getByRole('table', { name: 'Cambios' }).getByRole('row')).toHaveText([
+    'DatoAntesDespués',
+    'CompetenciasPopping 1 vs 1Breaking 1 vs 1',
+  ]);
+  await expect(dialog(page)).toContainText('Pidió cambiar de categoría en mesa');
   expect(selections).toHaveLength(0);
   // Two quick clicks send one PUT.
-  await dialog.getByRole('button', { name: 'Cambiar competencias' }).dblclick();
+  await saveButton(page).dblclick();
 
   await expect(passes(page).getByRole('status')).toHaveText(
     'Se cambiaron las competencias de «Pase completo».',
   );
   await expect(passes(page)).toContainText('Breaking 1 vs 1');
-  await expect(editor(page)).toHaveCount(0);
+  await expect(dialog(page)).toHaveCount(0);
   await expect(
     passes(page).getByRole('button', { name: 'Editar competencias de «Pase completo»' }),
   ).toBeFocused();
@@ -95,19 +101,21 @@ test('a blank reason or an unchanged list sends nothing', async ({ page }) => {
   await openEditor(page);
 
   await reason(page).fill('   ');
-  await editor(page).getByRole('button', { name: 'Guardar cambios' }).click();
+  await reviewButton(page).click();
   await expect(reason(page)).toHaveAttribute('aria-invalid', 'true');
-  await expect(editor(page)).toContainText('Escribe el motivo del cambio.');
-  await expect(editor(page)).toContainText('Cambia al menos una competencia para guardar.');
+  await expect(editor(page)).toContainText('Escribe el motivo. Queda en el historial.');
+  await expect(editor(page)).toContainText('No hay cambios que guardar. Modifica algo o cancela.');
 
   await editor(page).getByText('Breaking 1 vs 1').click();
-  await editor(page).getByRole('button', { name: 'Guardar cambios' }).click();
-  await expect(editor(page)).toContainText('Escribe el motivo del cambio.');
-  await expect(page.getByRole('alertdialog')).toHaveCount(0);
+  await reviewButton(page).click();
+  await expect(editor(page)).toContainText('Escribe el motivo. Queda en el historial.');
+  await expect(reason(page)).toBeFocused();
+  await expect(dialog(page)).toContainText('Paso 1 de 2 · Cambios');
   expect(selections).toHaveLength(0);
 
   // Cancel keeps the saved list.
-  await editor(page).getByRole('button', { name: 'Cancelar' }).click();
+  await dialog(page).getByRole('button', { name: 'Cancelar' }).click();
+  await expect(dialog(page)).toHaveCount(0);
   await expect(passes(page)).toContainText('Popping 1 vs 1');
 });
 
@@ -127,10 +135,12 @@ test('a reason the backend rejects shows on the field and keeps the draft', asyn
 
   await editor(page).getByText('Breaking 1 vs 1').click();
   await reason(page).fill('Cambio en mesa');
-  await editor(page).getByRole('button', { name: 'Guardar cambios' }).click();
-  await page.getByRole('alertdialog').getByRole('button', { name: 'Cambiar competencias' }).click();
+  await reviewButton(page).click();
+  await saveButton(page).click();
 
+  // Back on the form with the reason marked.
   await expect(editor(page)).toContainText('Escribe un motivo de 1 a 500 caracteres.');
+  await expect(reason(page)).toBeFocused();
   await expect(reason(page)).toHaveAttribute('aria-invalid', 'true');
   await expect(reason(page)).toHaveValue('Cambio en mesa');
   await expect(editor(page).getByRole('checkbox', { name: 'Breaking 1 vs 1' })).toBeChecked();
@@ -146,8 +156,8 @@ test('a failed change shows an alert and keeps the draft', async ({ page }) => {
 
   await editor(page).getByText('Breaking 1 vs 1').click();
   await reason(page).fill('Cambio en mesa');
-  await editor(page).getByRole('button', { name: 'Guardar cambios' }).click();
-  await page.getByRole('alertdialog').getByRole('button', { name: 'Cambiar competencias' }).click();
+  await reviewButton(page).click();
+  await saveButton(page).click();
 
   await expect(editor(page).getByRole('alert')).toHaveText(
     'No pudimos guardar las competencias. Intenta de nuevo.',

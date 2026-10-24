@@ -19,6 +19,8 @@ type CorrectionDialogProps = {
   pending: boolean;
   // A failure that needs a reload: confirming again could repeat a write that landed.
   locked?: boolean;
+  // False when the form only explains why nothing can change: it offers "Cerrar" alone.
+  canReview?: boolean;
   onBack: () => void;
   onConfirm: () => void;
   onClose: () => void;
@@ -49,6 +51,7 @@ export function CorrectionDialog({
   confirmLabel,
   pending,
   locked = false,
+  canReview = true,
   onBack,
   onConfirm,
   onClose,
@@ -100,7 +103,7 @@ export function CorrectionDialog({
               {pending ? 'Guardando…' : confirmLabel}
             </button>
           </>
-        ) : (
+        ) : canReview ? (
           <>
             <button type="button" className={buttonClass('secondary')} onClick={onClose}>
               Cancelar
@@ -116,6 +119,10 @@ export function CorrectionDialog({
               </svg>
             </button>
           </>
+        ) : (
+          <button type="button" className={buttonClass('secondary')} onClick={onClose}>
+            Cerrar
+          </button>
         )
       }
     >
@@ -219,5 +226,45 @@ export function ReloadAlert({ message, onReload }: { message: string; onReload: 
         Recargar
       </button>
     </div>
+  );
+}
+
+type OptionCheckboxProps = {
+  label: string;
+  checked: boolean;
+  onChange: () => void;
+  disabled?: boolean;
+  // A short tag at the end of the row, such as "Actual".
+  tag?: string;
+  // A line under the label, such as why the option is no longer available.
+  note?: string;
+};
+
+// One compact 44px option of a correction's checkbox list, as the #345 modals draw them.
+export function OptionCheckbox({
+  label,
+  checked,
+  onChange,
+  disabled,
+  tag,
+  note,
+}: OptionCheckboxProps) {
+  return (
+    <label
+      className={`flex min-h-11 items-center gap-3 rounded-md px-2.5 py-1.5 text-sm ${disabled ? 'opacity-60' : 'cursor-pointer hover:bg-row'}`}
+    >
+      <input
+        type="checkbox"
+        checked={checked}
+        disabled={disabled}
+        onChange={onChange}
+        className="size-5 shrink-0 accent-primary outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+      />
+      <span className="min-w-0 flex-1">
+        <span className="block break-words text-fg">{label}</span>
+        {note && <span className="block text-xs text-muted">{note}</span>}
+      </span>
+      {tag && <span className="shrink-0 text-xs leading-4 font-semibold text-muted">{tag}</span>}
+    </label>
   );
 }

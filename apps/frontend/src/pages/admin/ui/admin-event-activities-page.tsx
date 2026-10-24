@@ -24,9 +24,7 @@ import { useParams } from 'react-router';
 import { ActivityAgendaFilters } from './activity-agenda-filters';
 import {
   agendaDays,
-  countVisible,
   kindOptions,
-  workshopKind,
   type AgendaDay,
   type AgendaFilters,
 } from './activity-agenda-model';
@@ -85,9 +83,9 @@ function EventActivities({ eventId }: { eventId: string }) {
   const [windowProblem, setWindowProblem] = useState<ActivityWindowProblem | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [filters, setFilters] = useState<AgendaFilters>({
+    tab: 'active',
     kind: null,
     query: '',
-    showArchived: false,
   });
   const headingRef = useRef<HTMLHeadingElement>(null);
   const agendaRef = useRef<HTMLElement>(null);
@@ -335,8 +333,7 @@ function EventActivities({ eventId }: { eventId: string }) {
             >
               <ActivityAgendaFilters
                 filters={filters}
-                kinds={kindOptions(data.activities, filters.showArchived, filters.kind)}
-                total={countVisible(data.activities, filters.showArchived)}
+                kinds={kindOptions(data.activities, filters.tab, filters.kind)}
                 onChange={setFilters}
               />
               <Agenda
@@ -381,20 +378,6 @@ type AgendaProps = {
 function Agenda({ activities, filters, timeZone, children }: AgendaProps) {
   if (activities.length === 0)
     return <p className="text-muted">Aún no hay actividades para este evento.</p>;
-  const noWorkshops =
-    filters.kind === workshopKind &&
-    !filters.query.trim() &&
-    !activities.some((activity) => activity.kind === workshopKind);
-  if (noWorkshops)
-    return (
-      <div className="rounded-xl border border-dashed border-line bg-surface p-6 text-center">
-        <h2 className="text-lg font-bold text-heading">Aún no hay talleres</h2>
-        <p className="mt-1 text-sm text-muted">
-          Se anuncian más adelante. Después de crearlos, marca en Pases a cuáles da acceso cada
-          pase.
-        </p>
-      </div>
-    );
   const days = agendaDays(activities, filters, timeZone);
   if (days.length === 0)
     return <p className="text-muted">Ninguna actividad coincide con los filtros.</p>;

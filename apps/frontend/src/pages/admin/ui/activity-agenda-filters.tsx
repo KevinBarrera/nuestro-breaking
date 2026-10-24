@@ -4,8 +4,8 @@ import { styles } from './catalog-copy';
 
 type ActivityAgendaFiltersProps = {
   filters: AgendaFilters;
+  // "Todas" first, as `kindOptions` returns them.
   kinds: KindOption[];
-  total: number;
   onChange: (filters: AgendaFilters) => void;
 };
 
@@ -14,13 +14,8 @@ type ActivityAgendaFiltersProps = {
 const chip =
   'inline-flex min-h-11 items-center gap-1.5 rounded-full border border-line bg-transparent px-4 text-sm font-semibold text-fg hover:bg-row focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus aria-pressed:border-chip-selected aria-pressed:bg-chip-selected aria-pressed:text-chip-selected-fg aria-pressed:hover:bg-chip-selected';
 
-export function ActivityAgendaFilters({
-  filters,
-  kinds,
-  total,
-  onChange,
-}: ActivityAgendaFiltersProps) {
-  const options = [{ kind: null, label: 'Todas', count: total }, ...kinds];
+export function ActivityAgendaFilters({ filters, kinds, onChange }: ActivityAgendaFiltersProps) {
+  const options = kinds;
   return (
     <div className="flex flex-col gap-3 rounded-xl border border-line bg-surface p-4 lg:flex-row lg:items-center lg:justify-between">
       <div role="group" aria-label="Filtrar por tipo" className="flex flex-wrap gap-2">
@@ -42,8 +37,10 @@ export function ActivityAgendaFilters({
           <input
             type="checkbox"
             className="size-5 accent-primary"
-            checked={filters.showArchived}
-            onChange={(event) => onChange({ ...filters, showArchived: event.target.checked })}
+            checked={filters.tab === 'archived'}
+            onChange={(event) =>
+              onChange({ ...filters, tab: event.target.checked ? 'archived' : 'active' })
+            }
           />
           Mostrar archivadas
         </label>

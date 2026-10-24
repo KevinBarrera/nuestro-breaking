@@ -8,6 +8,7 @@ export type {
   HistoryActor,
   HistoryActorKind,
   HistoryCashValues,
+  HistoryCounts,
   HistoryDetails,
   HistoryFilter,
   HistoryItem,

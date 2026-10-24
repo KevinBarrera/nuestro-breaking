@@ -2,7 +2,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { getRegistrationHistory, registrationHistoryFailure } from './registration-history-api';
 
 const eventId = 'a1b2c3d4-1234-4567-89ab-123456789abc';
-const empty = { items: [], nextCursor: null };
+const empty = {
+  items: [],
+  nextCursor: null,
+  counts: { all: 0, corrections: 0, on_site: 0, complimentary: 0 },
+};
 
 function stubFetch(answer: () => Promise<Response>) {
   const fetchMock = vi.fn(answer);
@@ -54,6 +58,29 @@ describe('getRegistrationHistory', () => {
       filter: 'all',
       cursor: 'abc_-1',
     });
+  });
+
+  it('sends the search and the new filters (#356)', async () => {
+    const fetchMock = stubFetch(() => Promise.resolve(Response.json(empty)));
+
+    await getRegistrationHistory(
+      eventId,
+      { filter: 'on_site', q: 'EV-Y64P', cursor: 'abc' },
+      new AbortController().signal,
+    );
+    await getRegistrationHistory(
+      eventId,
+      { filter: 'complimentary', q: '' },
+      new AbortController().signal,
+    );
+
+    const urls = (fetchMock.mock.calls as unknown as [string][]).map(([url]) => new URL(url));
+    expect(Object.fromEntries(urls[0].searchParams)).toEqual({
+      filter: 'on_site',
+      q: 'EV-Y64P',
+      cursor: 'abc',
+    });
+    expect([...urls[1].searchParams]).toEqual([['filter', 'complimentary']]);
   });
 
   it('maps each failure to the safe class the screen shows', async () => {

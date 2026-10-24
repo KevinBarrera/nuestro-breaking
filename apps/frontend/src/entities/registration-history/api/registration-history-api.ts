@@ -23,13 +23,14 @@ function failureFor(status: number): RegistrationHistoryFailure {
 }
 
 // One page of the history (50 by the backend default); `cursor` is the `nextCursor` of the
-// page before.
+// page before, and `q` the search (#356).
 export async function getRegistrationHistory(
   eventId: string,
   query: HistoryQuery,
   signal: AbortSignal,
 ): Promise<HistoryPage> {
   const params = new URLSearchParams({ filter: query.filter });
+  if (query.q) params.set('q', query.q);
   if (query.cursor) params.set('cursor', query.cursor);
   let response: Response;
   try {

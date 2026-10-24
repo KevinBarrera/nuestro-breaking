@@ -92,7 +92,8 @@ afterEach(() => {
 });
 
 describe('searchRegistrations', () => {
-  const page = { total: 0, limit: 10, offset: 20, results: [] };
+  const counts = { all: 0, pending_payment: 0, confirmed: 0, voided: 0 };
+  const page = { total: 0, limit: 10, offset: 20, counts, results: [] };
 
   it('asks for the trimmed query and the page with credentials, without CSRF', async () => {
     const fetchMock = stubFetch(() => Response.json(page));
@@ -110,6 +111,16 @@ describe('searchRegistrations', () => {
     const fetchMock = stubFetch(() => Response.json({ ...page, limit: 20, offset: 0 }));
     await searchRegistrations(eventId, { q: 'Ana & Flash' }, signal());
     expect(call(fetchMock, 0)[0]).toMatch(/\/participants\?q=Ana\+%26\+Flash$/);
+  });
+
+  it('lists the whole roster without a query and filters by status (#344)', async () => {
+    const fetchMock = stubFetch(() => Response.json(page));
+    await searchRegistrations(eventId, {}, signal());
+    await searchRegistrations(eventId, { q: '   ', status: 'pending_payment' }, signal());
+    await searchRegistrations(eventId, { q: 'Ana', status: 'voided', offset: 20 }, signal());
+    expect(call(fetchMock, 0)[0]).toMatch(/\/participants$/);
+    expect(call(fetchMock, 1)[0]).toMatch(/\/participants\?status=pending_payment$/);
+    expect(call(fetchMock, 2)[0]).toMatch(/\/participants\?q=Ana&status=voided&offset=20$/);
   });
 
   it('rejects a query outside 2 to 200 characters without a request', async () => {

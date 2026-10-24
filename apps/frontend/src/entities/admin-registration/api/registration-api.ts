@@ -111,19 +111,23 @@ const registrationPath = (eventId: string, registrationId: string, suffix: strin
   eventPath(eventId, `/registrations/${encodeURIComponent(registrationId)}${suffix}`);
 
 // Registrations of the event whose participant name, email or AKA, folio or cash receipt
-// number contains `q`. A query outside 2 to 200 characters is rejected without a request.
+// number contains `q`, or the whole roster without one, optionally of one status (#344). A query
+// outside 2 to 200 characters is rejected without a request.
 export async function searchRegistrations(
   eventId: string,
-  { q, limit, offset }: RegistrationSearchQuery,
+  { q, status, limit, offset }: RegistrationSearchQuery,
   signal: AbortSignal,
 ): Promise<RegistrationSearchPage> {
-  const query = q.trim();
-  if (query.length < 2 || query.length > 200)
+  const query = q?.trim() ?? '';
+  if (query && (query.length < 2 || query.length > 200))
     throw new AdminRegistrationError({ kind: 'invalid', fieldErrors: { q: 'invalid' } });
-  const params = new URLSearchParams({ q: query });
+  const params = new URLSearchParams();
+  if (query) params.set('q', query);
+  if (status) params.set('status', status);
   if (limit !== undefined) params.set('limit', String(limit));
   if (offset !== undefined) params.set('offset', String(offset));
-  const path = eventPath(eventId, `/participants?${params.toString()}`);
+  const search = params.toString();
+  const path = eventPath(eventId, `/participants${search ? `?${search}` : ''}`);
   return read(readSearchPage(await registrationRequest(path, { signal }), eventId));
 }
 

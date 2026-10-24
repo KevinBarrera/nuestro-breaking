@@ -21,9 +21,11 @@ const result = {
     status: 'confirmed',
     checkedInAt: null,
   },
+  passes: [{ name: 'Pase completo Breaking', passClass: 'full' }],
   activities: [{ id: 'act-1', name: 'Breaking 1vs1', kind: 'competition', checkedInAt: null }],
 };
-const page = { total: 1, limit: 20, offset: 0, results: [result] };
+const counts = { all: 3, pending_payment: 1, confirmed: 1, voided: 1 };
+const page = { total: 1, limit: 20, offset: 0, counts, results: [result] };
 
 describe('readSearchPage', () => {
   it('reads the page and its results, ignoring extra fields', () => {
@@ -48,9 +50,15 @@ describe('readSearchPage', () => {
       { ...result, registration: { ...result.registration, checkedInAt: 'today' } },
       { ...result, activities: [{ id: 'act-1', name: 'Breaking' }] },
       { ...result, activities: null },
+      { ...result, passes: null },
+      { ...result, passes: [{ name: '', passClass: 'full' }] },
+      { ...result, passes: [{ name: 'Pase', passClass: 'vip' }] },
     ])
       expect(readSearchPage({ ...page, results: [result, bad] }, eventId)).toBeNull();
     expect(readSearchPage({ ...page, total: -1 }, eventId)).toBeNull();
+    expect(readSearchPage({ ...page, counts: undefined }, eventId)).toBeNull();
+    expect(readSearchPage({ ...page, counts: { ...counts, voided: -1 } }, eventId)).toBeNull();
+    expect(readSearchPage({ ...page, counts: { all: 3 } }, eventId)).toBeNull();
     expect(readSearchPage({ ...page, results: undefined }, eventId)).toBeNull();
     expect(readSearchPage([], eventId)).toBeNull();
   });

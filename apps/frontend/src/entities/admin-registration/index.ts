@@ -41,6 +41,7 @@ export type {
   RegistrationSearchPage,
   RegistrationSearchQuery,
   RegistrationSearchResult,
+  RegistrationStatusCounts,
   RegistrationStatus,
   RegistrationSummary,
 } from './api/types';

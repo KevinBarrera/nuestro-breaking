@@ -11,7 +11,7 @@ import { accessLabels, passClassLabels } from './catalog-copy';
 
 const empty = '—';
 const noAccess = 'Sin acceso';
-const followsEvent = 'Sigue la venta del evento';
+const followsEvent = 'Mientras el evento venda';
 
 // Rows for "Revisar cambios" on a pass: each changed field in the words the organizer reads on
 // the pass screens (class label, price in pesos, required class, online close time on the event's
@@ -28,7 +28,7 @@ export function passFieldRows(
   const required = (value: unknown) =>
     value ? passClassLabels[value as PassTypeInput['passClass']] : 'Ninguno';
   const closes = (value: unknown) =>
-    value ? formatEventTime(value as string, timeZone) : followsEvent;
+    value ? `Hasta el ${formatEventTime(value as string, timeZone)}` : followsEvent;
 
   return changedRows([
     { key: 'name', label: 'Nombre', before: before?.name, after: after.name },
@@ -55,7 +55,7 @@ export function passFieldRows(
     },
     {
       key: 'onlineSalesClosesAt',
-      label: 'Cierre de venta en línea',
+      label: 'Venta en línea',
       before: before ? before.onlineSalesClosesAt : null,
       after: after.onlineSalesClosesAt,
       format: closes,

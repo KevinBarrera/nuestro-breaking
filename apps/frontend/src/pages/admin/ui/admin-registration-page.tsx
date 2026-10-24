@@ -13,14 +13,15 @@ import {
 } from '@/entities/event-catalog';
 import { routes } from '@/shared/config';
 import { Breadcrumbs, buttonClass, Notice } from '@/shared/ui';
-import { useEffect, useId, useRef, useState, type ReactNode, type RefObject } from 'react';
+import { useEffect, useId, useRef, useState, type MouseEvent, type ReactNode } from 'react';
 import { generatePath, Link, useLocation, useParams } from 'react-router';
 import { CashCorrectionDialog } from './cash-correction';
 import { canCorrectCash } from './cash-correction-model';
 import { passClassLabels } from './catalog-copy';
-import { ConfirmedCompetitions } from './confirmed-competitions';
-import { DisciplineSwap } from './discipline-swap';
-import { canSwapDiscipline, swapSourcePass } from './discipline-swap-model';
+import { CompetitionsDialog } from './confirmed-competitions-editor';
+import { editableCompetitionPass } from './confirmed-competitions-model';
+import { DisciplineSwapDialog } from './discipline-swap';
+import { canSwapDiscipline, disciplineSwapOptions, swapSourcePass } from './discipline-swap-model';
 import { ParticipantCorrectionDialog } from './participant-correction';
 import { canCorrectParticipant } from './participant-correction-model';
 import { statusTone } from './payments-review-model';
@@ -138,23 +139,23 @@ function RegistrationScreen({
   // What this screen just recorded, announced over the folio.
   const [confirmedBy, setConfirmedBy] = useState<ConfirmedBy | null>(null);
   // The correction modal that is open, and the success notice the last one left in its card.
-  const [correcting, setCorrecting] = useState<'cash' | 'participant' | null>(null);
+  const [correcting, setCorrecting] = useState<Correcting | null>(null);
   const [cardNotice, setCardNotice] = useState<CardNotice | null>(null);
-  // The card buttons that open each modal; the focus goes back to it when the modal closes.
-  const cashButtonRef = useRef<HTMLButtonElement>(null);
-  const participantButtonRef = useRef<HTMLButtonElement>(null);
-  const returnFocus = useRef<RefObject<HTMLButtonElement | null> | null>(null);
-  const closeCorrection = () => {
-    returnFocus.current = correcting === 'cash' ? cashButtonRef : participantButtonRef;
-    setCorrecting(null);
+  // The card button that opened the modal; the focus goes back to it when the modal closes.
+  const opener = useRef<HTMLElement | null>(null);
+  const openCorrection = (next: Correcting, event: MouseEvent<HTMLButtonElement>) => {
+    opener.current = event.currentTarget;
+    setCardNotice(null);
+    setCorrecting(next);
   };
+  const closeCorrection = () => setCorrecting(null);
   // Once the modal is gone; the next frame wins over the modal's own focus restore.
   useEffect(() => {
-    const trigger = returnFocus.current;
+    const trigger = opener.current;
     if (correcting !== null || !trigger) return;
-    returnFocus.current = null;
-    trigger.current?.focus();
-    const frame = requestAnimationFrame(() => trigger.current?.focus());
+    opener.current = null;
+    trigger.focus();
+    const frame = requestAnimationFrame(() => trigger.focus());
     return () => cancelAnimationFrame(frame);
   }, [correcting]);
   // Set when this screen voided the registration, whose void action is then gone (#104).
@@ -177,7 +178,25 @@ function RegistrationScreen({
     );
 
   const summary = state.status === 'ready' ? state.entitlements.registration : null;
-  const swapSource = state.status === 'ready' ? swapSourcePass(state.entitlements) : null;
+  const ready = state.status === 'ready' ? state : null;
+  const swapSource =
+    ready && canSwapDiscipline(ready.entitlements) ? swapSourcePass(ready.entitlements) : null;
+  const swapOptions =
+    ready && swapSource
+      ? disciplineSwapOptions(swapSource, ready.passTypes, ready.activities)
+      : null;
+  // A confirmed registration's passes with competitions to change (#170).
+  const editablePasses =
+    ready && registrationViewMode(ready.entitlements.registration.status) === 'confirmed'
+      ? ready.entitlements.passes.flatMap((pass) => {
+          const editable = editableCompetitionPass(pass, ready.passTypes, ready.activities);
+          return editable ? [editable] : [];
+        })
+      : [];
+  const editingPass =
+    correcting?.kind === 'competitions'
+      ? (editablePasses.find((pass) => pass.registrationPassId === correcting.passId) ?? null)
+      : null;
   const participantName = summary?.participant.fullName ?? context?.participantName ?? null;
   const mode = summary ? registrationViewMode(summary.status) : null;
   // Confirming waits until every held pass's checks are saved or discarded (#277).
@@ -249,7 +268,45 @@ function RegistrationScreen({
               </Notice>
             )}
             <SummaryStrip entitlements={state.entitlements} />
-            <DetailCard titleId={passesTitleId} title="Pases">
+            <DetailCard
+              titleId={passesTitleId}
+              title="Pases"
+              actions={
+                <>
+                  {swapSource && swapOptions && swapOptions.status !== 'unavailable' && (
+                    <button
+                      type="button"
+                      className={buttonClass('secondary')}
+                      onClick={(event) => openCorrection({ kind: 'discipline' }, event)}
+                    >
+                      Cambiar disciplina
+                    </button>
+                  )}
+                  {editablePasses.map((pass) => (
+                    <button
+                      key={pass.registrationPassId}
+                      type="button"
+                      className={buttonClass('secondary')}
+                      aria-label={`Editar competencias de «${pass.name}»`}
+                      onClick={(event) =>
+                        openCorrection(
+                          {
+                            kind: 'competitions',
+                            passId: pass.registrationPassId,
+                          },
+                          event,
+                        )
+                      }
+                    >
+                      {editablePasses.length > 1
+                        ? `Editar competencias de ${pass.name}`
+                        : 'Editar competencias'}
+                    </button>
+                  ))}
+                </>
+              }
+            >
+              {cardNotice?.card === 'passes' && <CardSuccess text={cardNotice.text} />}
               {mode === 'sale' ? (
                 <SalePassRemoval
                   eventId={eventId}
@@ -270,17 +327,6 @@ function RegistrationScreen({
                     />
                   )}
                 </SalePassRemoval>
-              ) : mode === 'confirmed' ? (
-                <ConfirmedCompetitions
-                  eventId={eventId}
-                  entitlements={state.entitlements}
-                  passTypes={state.passTypes}
-                  activities={state.activities}
-                  onSaved={updateEntitlements}
-                  onReload={reload}
-                >
-                  {(editAction) => <HeldPassList ready={state} showSelected action={editAction} />}
-                </ConfirmedCompetitions>
               ) : (
                 <HeldPassList ready={state} showSelected />
               )}
@@ -336,13 +382,9 @@ function RegistrationScreen({
                 actions={
                   canCorrectCash(state.entitlements.registration) && (
                     <button
-                      ref={cashButtonRef}
                       type="button"
                       className={buttonClass('secondary')}
-                      onClick={() => {
-                        setCardNotice(null);
-                        setCorrecting('cash');
-                      }}
+                      onClick={(event) => openCorrection({ kind: 'cash' }, event)}
                     >
                       Corregir pago
                     </button>
@@ -353,34 +395,15 @@ function RegistrationScreen({
                 <CashFacts entitlements={state.entitlements} />
               </DetailCard>
             )}
-            {canSwapDiscipline(state.entitlements) && swapSource && (
-              <DisciplineSwap
-                eventId={eventId}
-                entitlements={state.entitlements}
-                held={swapSource}
-                passTypes={state.passTypes}
-                activities={state.activities}
-                onSwapped={(entitlements) => {
-                  updateEntitlements(entitlements);
-                  // The held pass keeps its id, so its unsaved checks belong to the old pass.
-                  removePassDraft(swapSource);
-                }}
-                onReload={reload}
-              />
-            )}
             <DetailCard
               titleId={participantTitleId}
               title="Participante"
               actions={
                 canCorrectParticipant(state.entitlements.registration) && (
                   <button
-                    ref={participantButtonRef}
                     type="button"
                     className={buttonClass('secondary')}
-                    onClick={() => {
-                      setCardNotice(null);
-                      setCorrecting('participant');
-                    }}
+                    onClick={(event) => openCorrection({ kind: 'participant' }, event)}
                   >
                     Corregir nombre o AKA
                   </button>
@@ -424,7 +447,7 @@ function RegistrationScreen({
                 con tu nombre.
               </span>
             </p>
-            {correcting === 'cash' && state.entitlements.registration.cash && (
+            {correcting?.kind === 'cash' && state.entitlements.registration.cash && (
               <CashCorrectionDialog
                 eventId={eventId}
                 entitlements={state.entitlements}
@@ -437,7 +460,42 @@ function RegistrationScreen({
                 onClose={closeCorrection}
               />
             )}
-            {correcting === 'participant' && (
+            {correcting?.kind === 'competitions' && editingPass && (
+              <CompetitionsDialog
+                eventId={eventId}
+                registrationId={state.entitlements.registration.id}
+                pass={editingPass}
+                onSaved={corrected(
+                  'passes',
+                  `Se cambiaron las competencias de «${editingPass.name}».`,
+                )}
+                onReload={reload}
+                onClose={closeCorrection}
+              />
+            )}
+            {correcting?.kind === 'discipline' &&
+              swapSource &&
+              swapOptions &&
+              swapOptions.status !== 'unavailable' && (
+                <DisciplineSwapDialog
+                  eventId={eventId}
+                  entitlements={state.entitlements}
+                  held={swapSource}
+                  options={swapOptions}
+                  onSwapped={(entitlements, targetName) => {
+                    updateEntitlements(entitlements);
+                    // The held pass keeps its id, so its unsaved checks belong to the old pass.
+                    removePassDraft(swapSource);
+                    setCardNotice({
+                      card: 'passes',
+                      text: `Se cambió a «${targetName}». El monto cobrado no cambia.`,
+                    });
+                  }}
+                  onReload={reload}
+                  onClose={closeCorrection}
+                />
+              )}
+            {correcting?.kind === 'participant' && (
               <ParticipantCorrectionDialog
                 eventId={eventId}
                 entitlements={state.entitlements}
@@ -455,7 +513,10 @@ function RegistrationScreen({
 
 type ConfirmedBy = 'cash' | 'complimentary';
 
-type CardNotice = { card: 'cash' | 'participant'; text: string };
+type Correcting =
+  { kind: 'cash' | 'participant' | 'discipline' } | { kind: 'competitions'; passId: string };
+
+type CardNotice = { card: 'passes' | 'cash' | 'participant'; text: string };
 
 const confirmedMessages: Record<ConfirmedBy, string> = {
   cash: 'Pago registrado. La inscripción quedó confirmada.',

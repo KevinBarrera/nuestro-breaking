@@ -1,5 +1,7 @@
 import type { AdminRegistrationFailure, HeldPass } from '@/entities/admin-registration';
 import type { CatalogActivity, CatalogPassType } from '@/entities/event-catalog';
+import type { ChangeRow } from '@/shared/ui';
+import { correctionReasonError, noChangesMessage } from './participant-correction-model';
 import {
   competitionDraft,
   competitionsPayload,
@@ -27,15 +29,10 @@ export function editableCompetitionPass(
 }
 
 // The backend's reason limit, checked on the trimmed text before sending.
-export function selectionReasonError(reason: string): string | undefined {
-  const trimmed = reason.trim();
-  if (!trimmed) return 'Escribe el motivo del cambio.';
-  if (trimmed.length > reasonMaxLength) return `Usa máximo ${reasonMaxLength} caracteres.`;
-  return undefined;
-}
+export const selectionReasonError = correctionReasonError;
 
 export const selectionReasonHint = (reason: string) =>
-  `${reason.trim().length} de ${reasonMaxLength} caracteres.`;
+  `${reason.trim().length} de ${reasonMaxLength} caracteres`;
 
 export type SelectionChangeReview =
   | { ok: true; activityIds: string[]; reason: string }
@@ -50,9 +47,7 @@ export function reviewSelectionChange(
 ): SelectionChangeReview {
   const reasonError = selectionReasonError(reason);
   const { changed, blocked } = competitionDraft(pass, draft);
-  const selectionError = changed
-    ? (blocked ?? undefined)
-    : 'Cambia al menos una competencia para guardar.';
+  const selectionError = changed ? (blocked ?? undefined) : noChangesMessage;
   if (!reasonError && !selectionError)
     return { ok: true, activityIds: competitionsPayload(pass, draft), reason: reason.trim() };
   return {
@@ -66,18 +61,21 @@ const namesOf = (pass: SaleCompetitionPass, ids: readonly string[]) => {
   const names = pass.choices
     .filter((choice) => ids.includes(choice.activityId))
     .map((choice) => choice.name);
-  return names.length > 0 ? names.join(', ') : 'Sin competencias';
+  return names.length > 0 ? names.join(', ') : 'Ninguna';
 };
 
-// The operator checks the change and its reason before it is recorded.
-export const selectionChangeConfirmation = (
+// The review step's "Antes / Después" row (#345); the list is only sent when it changed.
+export const selectionChangeRows = (
   pass: SaleCompetitionPass,
   draft: readonly string[],
-  reason: string,
-) => ({
-  title: `¿Cambiar las competencias de «${pass.name}»?`,
-  consequence: `Antes: ${namesOf(pass, pass.saved)}. Después: ${namesOf(pass, draft)}. Motivo: ${reason.trim()}. El cambio quedará registrado con este motivo.`,
-});
+): ChangeRow[] => [
+  {
+    key: 'competitions',
+    label: 'Competencias',
+    before: namesOf(pass, pass.saved),
+    after: namesOf(pass, draft),
+  },
+];
 
 export type SelectionChangeFailure = { field: 'reason' | null; message: string; reload: boolean };
 

@@ -1,10 +1,17 @@
-import type { CatalogActivity } from '@/entities/event-catalog';
+import type { AttendeeLists } from '@/entities/attendee-list';
+import type { CatalogActivity, CatalogPassType } from '@/entities/event-catalog';
 import { describe, expect, it } from 'vitest';
 import {
   agendaDays,
-  countVisible,
+  agendaFooter,
+  enrolledCount,
+  enrolledLabel,
+  enrollmentCounts,
   formatTimeRange,
   kindOptions,
+  overlapping,
+  passNames,
+  tabCounts,
   type AgendaFilters,
 } from './activity-agenda-model';
 
@@ -64,7 +71,7 @@ const cancelled = activity({
 });
 const activities = [crews, nightly, bgirl, finale, cancelled];
 
-const allFilters: AgendaFilters = { kind: null, query: '', showArchived: false };
+const allFilters: AgendaFilters = { tab: 'active', kind: null, query: '' };
 const names = (filters: Partial<AgendaFilters>, rows: CatalogActivity[] = activities) =>
   agendaDays(rows, { ...allFilters, ...filters }, timeZone).map((day) => [
     day.label,
@@ -92,11 +99,8 @@ describe('agendaDays', () => {
     expect(names({}, rows)).toEqual([['Sábado 21 de noviembre', ['Alfa', 'Zulu']]]);
   });
 
-  it('shows archived activities only when asked', () => {
-    expect(names({ showArchived: true })).toEqual([
-      ['Sábado 21 de noviembre', ['Bgirl 1v1', 'Batalla de crews', 'Cypher nocturno']],
-      ['Domingo 22 de noviembre', ['Cypher cancelado', 'Exhibición final']],
-    ]);
+  it('shows only archived activities on the Archivadas tab', () => {
+    expect(names({ tab: 'archived' })).toEqual([['Domingo 22 de noviembre', ['Cypher cancelado']]]);
   });
 
   it('filters by kind', () => {
@@ -113,12 +117,11 @@ describe('agendaDays', () => {
     },
   );
 
-  it('combines kind, search and archived filters', () => {
+  it('combines tab, kind and search', () => {
     expect(names({ kind: 'social', query: 'cypher' })).toEqual([
       ['Sábado 21 de noviembre', ['Cypher nocturno']],
     ]);
-    expect(names({ kind: 'social', query: 'cypher', showArchived: true })).toEqual([
-      ['Sábado 21 de noviembre', ['Cypher nocturno']],
+    expect(names({ tab: 'archived', kind: 'social', query: 'cypher' })).toEqual([
       ['Domingo 22 de noviembre', ['Cypher cancelado']],
     ]);
   });
@@ -128,39 +131,192 @@ describe('agendaDays', () => {
   });
 });
 
-describe('kindOptions', () => {
-  const options = (showArchived: boolean, selected: string | null, rows = activities) =>
-    kindOptions(rows, showArchived, selected).map(({ label, count }) => `${label} · ${count}`);
-
-  it('counts the visible kinds, sorted by Spanish label, with workshops always listed', () => {
-    expect(options(false, null)).toEqual(['Competencia · 3', 'Social · 1', 'Taller · 0']);
-  });
-
-  it('counts archived activities only when they are shown', () => {
-    expect(options(true, null)).toContain('Social · 2');
-  });
-
-  it('keeps the selected kind with a zero count when none of it is visible', () => {
-    const archivedCompetitions = activities.map((entry) =>
-      entry.kind === 'competition' ? { ...entry, status: 'archived' as const } : entry,
-    );
-    expect(options(false, null, archivedCompetitions)).not.toContain('Competencia · 0');
-    expect(options(false, 'competition', archivedCompetitions)).toContain('Competencia · 0');
-    expect(options(true, 'competition', archivedCompetitions)).toContain('Competencia · 3');
-  });
-
-  it('labels an unknown kind as stored', () => {
-    expect(options(false, null, [activity({ id: 'x', kind: 'cypher' })])).toEqual([
-      'cypher · 1',
-      'Taller · 0',
-    ]);
+describe('tabCounts', () => {
+  it('counts active and archived activities', () => {
+    expect(tabCounts(activities)).toEqual({ active: 4, archived: 1 });
+    expect(tabCounts([])).toEqual({ active: 0, archived: 0 });
   });
 });
 
-describe('countVisible', () => {
-  it('counts active activities, plus archived ones when shown', () => {
-    expect(countVisible(activities, false)).toBe(4);
-    expect(countVisible(activities, true)).toBe(5);
+describe('kindOptions', () => {
+  const options = (tab: AgendaFilters['tab'], selected: string | null, rows = activities) =>
+    kindOptions(rows, tab, selected).map(({ label, count }) => `${label} · ${count}`);
+
+  it('lists Todas and the kinds present in the tab, in the catalog order', () => {
+    expect(options('active', null)).toEqual(['Todas · 4', 'Competencias · 3', 'Sociales · 1']);
+    expect(options('archived', null)).toEqual(['Todas · 1', 'Sociales · 1']);
+  });
+
+  it('never lists a kind with no activities in the tab', () => {
+    expect(options('active', null)).not.toContain('Talleres · 0');
+  });
+
+  it('keeps the selected kind with a zero count so the pressed chip explains the filter', () => {
+    expect(options('archived', 'competition')).toEqual([
+      'Todas · 1',
+      'Competencias · 0',
+      'Sociales · 1',
+    ]);
+  });
+
+  it('lists an unknown kind after the known ones, as stored', () => {
+    const rows = [activity({ id: 'x', kind: 'cypher' }), activity({ id: 'w', kind: 'workshop' })];
+    expect(options('active', null, rows)).toEqual(['Todas · 2', 'Talleres · 1', 'cypher · 1']);
+  });
+
+  it('gives Todas the null kind', () => {
+    expect(kindOptions(activities, 'active', null)[0]).toMatchObject({
+      kind: null,
+      label: 'Todas',
+    });
+  });
+});
+
+describe('overlapping', () => {
+  const toprock = activity({
+    id: 'toprock',
+    name: 'Breaking 1v1 Toprock',
+    startsAt: '2026-11-21T16:00:00.000Z',
+    endsAt: '2026-11-21T17:00:00.000Z',
+  });
+  const locking = activity({ ...toprock, id: 'locking', name: 'Locking 1v1 beginner' });
+  const next = activity({
+    ...toprock,
+    id: 'next',
+    name: 'Breaking Footwork',
+    startsAt: '2026-11-21T17:00:00.000Z',
+    endsAt: '2026-11-21T18:00:00.000Z',
+  });
+  const elsewhere = activity({ ...toprock, id: 'elsewhere', venueId: 'other' });
+  const archived = activity({ ...toprock, id: 'archived', status: 'archived' });
+  const rows = [toprock, locking, next, elsewhere, archived];
+  const of = (target: CatalogActivity) => overlapping(target, rows).map((entry) => entry.id);
+
+  it('finds the other active activities in the same venue whose times overlap', () => {
+    expect(of(toprock)).toEqual(['locking']);
+    expect(of(locking)).toEqual(['toprock']);
+  });
+
+  it('ignores back-to-back times, other venues and archived activities', () => {
+    expect(of(next)).toEqual([]);
+    expect(of(elsewhere)).toEqual([]);
+  });
+
+  it('never reports an archived activity as overlapping', () => {
+    expect(of(archived)).toEqual([]);
+  });
+});
+
+describe('enrollmentCounts', () => {
+  const registration = (id: string, activityIds: string[]) => ({
+    registrationId: id,
+    folio: null,
+    fullName: id,
+    stageName: null,
+    status: 'confirmed' as const,
+    eventCheckedInAt: null,
+    passTypeIds: [],
+    activities: activityIds.map((activityId) => ({ activityId, checkedInAt: null })),
+  });
+  const lists: AttendeeLists = {
+    event: { id: 'event', name: 'Evento' },
+    generatedAt: '2026-11-20T12:00:00.000Z',
+    passTypes: [],
+    activities: [
+      { id: 'crews', name: 'Batalla de crews', kind: 'competition', startsAt: crews.startsAt },
+      { id: 'bgirl', name: 'Bgirl 1v1', kind: 'competition', startsAt: bgirl.startsAt },
+    ],
+    registrations: [registration('r1', ['crews', 'bgirl']), registration('r2', ['crews'])],
+  };
+
+  it('counts the registrations with access to each listed activity, zero included', () => {
+    const counts = enrollmentCounts({
+      ...lists,
+      registrations: [...lists.registrations, registration('r3', [])],
+    });
+    expect(counts.get('crews')).toBe(2);
+    expect(counts.get('bgirl')).toBe(1);
+    expect(enrollmentCounts({ ...lists, registrations: [] }).get('crews')).toBe(0);
+  });
+
+  it('only lists the activities someone has access to', () => {
+    expect(enrollmentCounts(lists).has('finale')).toBe(false);
+  });
+});
+
+describe('enrolledCount', () => {
+  const counts = new Map([['crews', 2]]);
+
+  it('reads an active competition or workshop missing from the snapshot as zero', () => {
+    expect(enrolledCount(counts, crews)).toBe(2);
+    expect(enrolledCount(counts, finale)).toBe(0);
+    expect(enrolledCount(counts, activity({ id: 'w', kind: 'workshop' }))).toBe(0);
+  });
+
+  it('has no count for social or archived activities, or without the snapshot', () => {
+    expect(enrolledCount(counts, nightly)).toBeUndefined();
+    expect(enrolledCount(counts, { ...crews, status: 'archived' })).toBeUndefined();
+    expect(enrolledCount(null, crews)).toBeUndefined();
+  });
+});
+
+describe('enrolledLabel', () => {
+  it.each([
+    [0, 'Sin inscritos'],
+    [1, '1 inscrito'],
+    [4, '4 inscritos'],
+  ])('reads %i as %j', (count, label) => {
+    expect(enrolledLabel(count)).toBe(label);
+  });
+});
+
+describe('passNames', () => {
+  const pass = (id: string, name: string, activityIds: string[], status = 'active') =>
+    ({
+      id,
+      eventId: 'event',
+      name,
+      passClass: 'full',
+      priceCents: 0,
+      requiresPassClass: null,
+      onlineSalesClosesAt: null,
+      status,
+      version: 1,
+      activities: activityIds.map((activityId) => ({ activityId, access: 'included' })),
+    }) as CatalogPassType;
+  const passTypes = [
+    pass('full', 'Pase completo Breaking', ['crews', 'bgirl']),
+    pass('golden', 'Golden ticket - breaking', ['bgirl']),
+    pass('old', 'Pase viejo', ['bgirl'], 'archived'),
+  ];
+
+  it('names the active passes that include the activity, in catalog order', () => {
+    expect(passNames(passTypes, 'bgirl')).toEqual([
+      'Pase completo Breaking',
+      'Golden ticket - breaking',
+    ]);
+    expect(passNames(passTypes, 'finale')).toEqual([]);
+  });
+});
+
+describe('agendaFooter', () => {
+  const eventWindow = {
+    startsAt: '2026-11-21T15:00:00.000Z',
+    endsAt: '2026-11-23T04:00:00.000Z',
+  };
+
+  it('names the event clock and the event dates', () => {
+    expect(agendaFooter(timeZone, eventWindow)).toBe(
+      'Horas de Ciudad de México. El evento va del 21 al 22 de noviembre de 2026.',
+    );
+  });
+
+  it('only names the clock when the event has no dates', () => {
+    expect(agendaFooter(timeZone, null)).toBe('Horas de Ciudad de México.');
+  });
+
+  it('falls back to the zone city for an unknown zone', () => {
+    expect(agendaFooter('America/Bogota', null)).toBe('Horas de Bogota.');
   });
 });
 

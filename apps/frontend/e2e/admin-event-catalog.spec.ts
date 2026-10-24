@@ -145,7 +145,9 @@ test.beforeEach(async ({ page }) => {
   );
 });
 
-test('lists activities with kind, venue, schedule in event time and status', async ({ page }) => {
+test('lists activities with kind, venue and schedule in event time, archived ones apart', async ({
+  page,
+}) => {
   await mockFoundation(page);
   await mockActivityList(page, () => [
     activity(),
@@ -153,15 +155,11 @@ test('lists activities with kind, venue, schedule in event time and status', asy
   ]);
   await page.goto(activitiesPath);
   const battle = page.getByRole('listitem').filter({ hasText: 'Batalla de crews' });
-  await expect(battle).toContainText('Competencia');
-  await expect(battle).toContainText('Centro cultural');
+  await expect(battle).toContainText('Competencia · Centro cultural');
   await expect(battle).toContainText('10:00');
-  await expect(battle).toContainText('Activa');
   await expect(page.getByText('Taller viejo')).toHaveCount(0);
-  await page.getByRole('checkbox', { name: 'Mostrar archivadas' }).check();
-  await expect(page.getByRole('listitem').filter({ hasText: 'Taller viejo' })).toContainText(
-    'Archivada',
-  );
+  await page.getByRole('tab', { name: /^Archivadas/ }).click();
+  await expect(page.getByRole('listitem').filter({ hasText: 'Taller viejo' })).toBeVisible();
   await expect(
     page
       .getByRole('listitem')
@@ -205,8 +203,8 @@ test('creates an activity with CSRF and event-time instants, then refreshes the 
   await form.getByLabel('Inicio').fill('2026-11-14T12:00');
   await form.getByLabel('Fin').fill('2026-11-14T13:30');
   await saveActivity(page);
-  await expect(page.getByRole('status')).toContainText('Actividad creada');
-  await expect(page.getByText('Taller de toprock')).toBeVisible();
+  await expect(page.getByRole('status')).toContainText('Creaste ');
+  await expect(page.getByRole('heading', { level: 3, name: 'Taller de toprock' })).toBeVisible();
   expect(body).toEqual({
     name: 'Taller de toprock',
     kind: 'workshop',
@@ -243,8 +241,8 @@ test('edits an activity with its expected version', async ({ page }) => {
   await expect(form.getByLabel('Inicio')).toHaveValue('2026-11-14T10:00');
   await form.getByLabel('Nombre').fill('Batalla 2 vs 2');
   await saveActivity(page);
-  await expect(page.getByRole('status')).toContainText('Actividad actualizada');
-  await expect(page.getByText('Batalla 2 vs 2')).toBeVisible();
+  await expect(page.getByRole('status')).toContainText('Guardaste los cambios de ');
+  await expect(page.getByRole('heading', { name: 'Batalla 2 vs 2' })).toBeVisible();
   expect(body).toEqual({
     expectedVersion: 3,
     name: 'Batalla 2 vs 2',
@@ -323,13 +321,13 @@ test('requires a venue when the saved one is no longer among the event venues', 
   await page.getByRole('dialog').getByRole('button', { name: 'Guardar', exact: true }).click();
   await expect(form.getByText('Elige la sede de la actividad.')).toBeVisible();
   await expect(venue).toHaveAccessibleDescription('Elige la sede de la actividad.');
-  await expect(page.getByText('Actividad actualizada')).toHaveCount(0);
+  await expect(page.getByText(/Guardaste los cambios/)).toHaveCount(0);
   expect(writes).toEqual([]);
 
   await chooseOption(venue, 'Centro cultural');
   await expect(form.getByText('Elige la sede de la actividad.')).toHaveCount(0);
   await saveActivity(page);
-  await expect(page.getByRole('status')).toContainText('Actividad actualizada');
+  await expect(page.getByRole('status')).toContainText('Guardaste los cambios de ');
   expect(writes).toEqual(['PATCH']);
 });
 
@@ -351,7 +349,7 @@ test('shows a reload request on a version conflict without claiming success', as
   await saveActivity(page);
   await expect(page.getByRole('alert')).toContainText('Recarga');
   await expect(page.getByText('Activity version conflict')).toHaveCount(0);
-  await expect(page.getByText('Actividad actualizada')).toHaveCount(0);
+  await expect(page.getByText(/Guardaste los cambios/)).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Recargar' })).toBeVisible();
 });
 
@@ -374,16 +372,16 @@ test('archives an activity only after confirmation', async ({ page }) => {
   const row = page.getByRole('listitem').filter({ hasText: 'Batalla de crews' });
   await row.getByRole('button', { name: 'Archivar' }).click();
   const confirm = page.getByRole('alertdialog', { name: '¿Archivar Batalla de crews?' });
-  await expect(confirm).toContainText('Dejará de estar disponible para nuevos pases.');
+  await expect(confirm).toContainText('Deja de aparecer en la venta y en los pases nuevos.');
   expect(bodies).toHaveLength(0);
   await confirm.getByRole('button', { name: 'Cancelar' }).click();
   expect(bodies).toHaveLength(0);
   await row.getByRole('button', { name: 'Archivar' }).click();
   await confirm.getByRole('button', { name: 'Archivar' }).click();
-  await expect(page.getByRole('status')).toContainText('Actividad archivada');
+  await expect(page.getByRole('status')).toContainText('Archivaste Batalla de crews.');
   await expect(row).toHaveCount(0);
-  await page.getByRole('checkbox', { name: 'Mostrar archivadas' }).check();
-  await expect(row).toContainText('Archivada');
+  await page.getByRole('tab', { name: /^Archivadas/ }).click();
+  await expect(row.getByRole('button', { name: 'Restaurar Batalla de crews' })).toBeVisible();
   expect(bodies).toEqual([{ expectedVersion: 3 }]);
 });
 
@@ -652,13 +650,13 @@ test('keeps the success message when the refresh after a write fails', async ({ 
   await saveActivity(page);
   const reloadAlert = page.getByRole('alert').filter({ hasText: 'No se pudo recargar' });
   await expect(reloadAlert).toBeVisible();
-  await expect(page.getByRole('status')).toContainText('Actividad creada');
+  await expect(page.getByRole('status')).toContainText('Creaste ');
   await expect(page.getByText('Batalla de crews')).toBeVisible();
   failReads = false;
   await reloadAlert.getByRole('button', { name: 'Recargar' }).click();
-  await expect(page.getByText('Taller de toprock')).toBeVisible();
+  await expect(page.getByRole('heading', { level: 3, name: 'Taller de toprock' })).toBeVisible();
   await expect(reloadAlert).toHaveCount(0);
-  await expect(page.getByRole('status')).toContainText('Actividad creada');
+  await expect(page.getByRole('status')).toContainText('Creaste ');
 });
 
 test('editing an activity keeps stored seconds when the times are unchanged', async ({ page }) => {
@@ -683,7 +681,7 @@ test('editing an activity keeps stored seconds when the times are unchanged', as
   // Only the name changes; the untouched times must keep their stored seconds.
   await form.getByLabel('Nombre').fill('Batalla de crews 2');
   await saveActivity(page);
-  await expect(page.getByRole('status')).toContainText('Actividad actualizada');
+  await expect(page.getByRole('status')).toContainText('Guardaste los cambios de ');
   expect(bodies[0]).toMatchObject({
     startsAt: '2026-11-14T16:00:45.000Z',
     endsAt: '2026-11-14T18:00:30.000Z',

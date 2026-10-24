@@ -3,6 +3,7 @@ export {
   AttendeeListsError,
   fetchAttendeeLists,
 } from './api/attendee-lists-api';
+export { attendeeListActivityKinds } from './api/types';
 export type {
   AttendeeListActivity,
   AttendeeListActivityKind,

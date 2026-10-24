@@ -1,23 +1,32 @@
+import { attendeeListActivityKinds, type AttendeeLists } from '@/entities/attendee-list';
 import {
+  activityKinds,
   eventDayKey,
   formatEventClock,
   formatEventDay,
+  formatEventWindow,
+  isActivityKind,
   type ActivityKind,
   type CatalogActivity,
+  type CatalogPassType,
+  type EventWindow,
 } from '@/entities/event-catalog';
-import { activityKindLabel } from './catalog-copy';
+import { historyClockLabel } from './history-feed-model';
 
-// The one kind with its own empty state: workshops are announced after the competitions.
-export const workshopKind: ActivityKind = 'workshop';
+export type AgendaTab = 'active' | 'archived';
 
 export type AgendaFilters = {
+  tab: AgendaTab;
   // `null` shows every kind.
   kind: string | null;
   query: string;
-  showArchived: boolean;
 };
 
-export type KindOption = { kind: string; label: string; count: number };
+// Ids that link the tabs to the panel the page renders.
+export const agendaPanelId = (id: string) => `${id}-panel`;
+export const agendaTabId = (id: string, tab: AgendaTab) => `${id}-${tab}`;
+
+export type KindOption = { kind: string | null; label: string; count: number };
 
 export type AgendaDay = { key: string; label: string; activities: CatalogActivity[] };
 
@@ -29,29 +38,47 @@ const searchable = (value: string) =>
     .toLocaleLowerCase('es')
     .trim();
 
-const visible = (activities: CatalogActivity[], showArchived: boolean) =>
-  showArchived ? activities : activities.filter((activity) => activity.status === 'active');
+const inTab = (activities: CatalogActivity[], tab: AgendaTab) =>
+  activities.filter((activity) => activity.status === tab);
 
-// Kind filter options from the kinds actually present (respecting the archived toggle), sorted
-// by Spanish label. Workshops always get an option so their empty state stays reachable, and the
-// selected kind keeps its chip (count 0) when its last visible activity is archived or hidden,
-// so the pressed chip always explains why the agenda is filtered.
-export function kindOptions(
-  activities: CatalogActivity[],
-  showArchived: boolean,
-  selected: string | null,
-): KindOption[] {
-  const counts = new Map<string, number>([[workshopKind, 0]]);
-  if (selected !== null) counts.set(selected, 0);
-  for (const activity of visible(activities, showArchived))
-    counts.set(activity.kind, (counts.get(activity.kind) ?? 0) + 1);
-  return [...counts]
-    .map(([kind, count]) => ({ kind, label: activityKindLabel(kind), count }))
-    .sort((a, b) => a.label.localeCompare(b.label, 'es'));
+export function tabCounts(activities: CatalogActivity[]): Record<AgendaTab, number> {
+  return {
+    active: inTab(activities, 'active').length,
+    archived: inTab(activities, 'archived').length,
+  };
 }
 
-export function countVisible(activities: CatalogActivity[], showArchived: boolean) {
-  return visible(activities, showArchived).length;
+const kindChipLabels: Record<ActivityKind, string> = {
+  competition: 'Competencias',
+  workshop: 'Talleres',
+  social: 'Sociales',
+};
+
+// "Todas" plus a chip per kind with activities in the tab: known kinds in the catalog order, then
+// any other kind as stored. The selected kind keeps its chip (count 0) when the tab has none of
+// it, so the pressed chip always explains why the agenda is filtered.
+export function kindOptions(
+  activities: CatalogActivity[],
+  tab: AgendaTab,
+  selected: string | null,
+): KindOption[] {
+  const shown = inTab(activities, tab);
+  const counts = new Map<string, number>();
+  for (const activity of shown) counts.set(activity.kind, (counts.get(activity.kind) ?? 0) + 1);
+  if (selected !== null && !counts.has(selected)) counts.set(selected, 0);
+  const rank = (kind: string) => {
+    const index = activityKinds.indexOf(kind as ActivityKind);
+    return index === -1 ? activityKinds.length : index;
+  };
+  const kinds = [...counts.keys()].sort((a, b) => rank(a) - rank(b) || a.localeCompare(b, 'es'));
+  return [
+    { kind: null, label: 'Todas', count: shown.length },
+    ...kinds.map((kind) => ({
+      kind,
+      label: isActivityKind(kind) ? kindChipLabels[kind] : kind,
+      count: counts.get(kind) ?? 0,
+    })),
+  ];
 }
 
 // Filters, then groups by calendar day on the event's clock (never the browser's), with days
@@ -62,7 +89,7 @@ export function agendaDays(
   timeZone: string,
 ): AgendaDay[] {
   const query = searchable(filters.query);
-  const matches = visible(activities, filters.showArchived)
+  const matches = inTab(activities, filters.tab)
     .filter((activity) => filters.kind === null || activity.kind === filters.kind)
     .filter((activity) => !query || searchable(activity.name).includes(query))
     .sort(
@@ -96,4 +123,63 @@ export function formatTimeRange(activity: CatalogActivity, timeZone: string): st
   );
   if (days <= 0) return range;
   return `${range} (+${days} ${days === 1 ? 'día' : 'días'})`;
+}
+
+// Other active activities in the same venue whose times overlap this one ("Mismo horario que …").
+// Back-to-back times do not overlap. Informative only: saving is never blocked.
+export function overlapping(
+  target: Pick<CatalogActivity, 'id' | 'venueId' | 'startsAt' | 'endsAt' | 'status'>,
+  activities: CatalogActivity[],
+): CatalogActivity[] {
+  if (target.status !== 'active') return [];
+  const start = Date.parse(target.startsAt);
+  const end = Date.parse(target.endsAt);
+  return activities.filter(
+    (other) =>
+      other.id !== target.id &&
+      other.status === 'active' &&
+      other.venueId === target.venueId &&
+      Date.parse(other.startsAt) < end &&
+      start < Date.parse(other.endsAt),
+  );
+}
+
+// Inscritos per activity from the attendee-lists snapshot: the registrations (confirmed or
+// pending payment) with access to it. Read a row's count with `enrolledCount`.
+export function enrollmentCounts(lists: AttendeeLists): Map<string, number> {
+  const counts = new Map(lists.activities.map((activity) => [activity.id, 0]));
+  for (const registration of lists.registrations)
+    for (const { activityId } of registration.activities)
+      if (counts.has(activityId)) counts.set(activityId, (counts.get(activityId) ?? 0) + 1);
+  return counts;
+}
+
+// The snapshot only lists the activities someone has access to, so an active competition or
+// workshop it leaves out has none. Social and archived activities are never counted.
+export function enrolledCount(
+  counts: Map<string, number> | null,
+  activity: Pick<CatalogActivity, 'id' | 'kind' | 'status'>,
+): number | undefined {
+  if (!counts || activity.status !== 'active') return undefined;
+  if (!(attendeeListActivityKinds as readonly string[]).includes(activity.kind)) return undefined;
+  return counts.get(activity.id) ?? 0;
+}
+
+export const enrolledLabel = (count: number) =>
+  count === 0 ? 'Sin inscritos' : count === 1 ? '1 inscrito' : `${count} inscritos`;
+
+// The active passes that give access to the activity, in catalog order.
+export const passNames = (passTypes: CatalogPassType[], activityId: string) =>
+  passTypes
+    .filter(
+      (passType) =>
+        passType.status === 'active' &&
+        passType.activities.some((link) => link.activityId === activityId),
+    )
+    .map((passType) => passType.name);
+
+// "Horas de Ciudad de México. El evento va del 21 al 22 de noviembre de 2026."
+export function agendaFooter(timeZone: string, eventWindow: EventWindow | null): string {
+  const clock = `${historyClockLabel(timeZone)}.`;
+  return eventWindow ? `${clock} ${formatEventWindow(eventWindow, timeZone)}` : clock;
 }

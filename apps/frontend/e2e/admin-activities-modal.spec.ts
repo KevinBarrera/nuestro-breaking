@@ -160,7 +160,9 @@ test('reviews an edit as before → after, and "Volver a editar" keeps the edits
   release();
 
   await expect(page.getByRole('dialog')).toHaveCount(0);
-  await expect(page.getByRole('status')).toContainText('Actividad actualizada');
+  await expect(page.getByRole('status')).toContainText(
+    'Guardaste los cambios de Batalla de crews.',
+  );
   expect(body).toEqual({
     expectedVersion: 3,
     name: 'Batalla de crews',
@@ -189,7 +191,7 @@ test('reviews a new activity against empty values before creating it', async ({ 
   await expect(review.getByRole('term')).toHaveText(['Nombre', 'Tipo', 'Sede', 'Inicio', 'Fin']);
   await expect(review.getByRole('definition').nth(1)).toContainText('—→cambia aSocial');
   await review.getByRole('button', { name: 'Guardar cambios' }).click();
-  await expect(page.getByRole('status')).toContainText('Actividad creada');
+  await expect(page.getByRole('status')).toContainText('Creaste Cypher.');
 });
 
 test('a stale version closes the dialogs and keeps the reload alert visible', async ({ page }) => {
@@ -211,41 +213,4 @@ test('a stale version closes the dialogs and keeps the reload alert visible', as
   await expect(page.getByRole('alert')).toContainText('Conflicto');
   await expect(page.getByRole('button', { name: 'Recargar' })).toBeVisible();
   await expect(page.getByText('Actividad actualizada')).toHaveCount(0);
-});
-
-test('archives only after the confirmation dialog, which blocks repeats while pending', async ({
-  page,
-}) => {
-  const bodies: unknown[] = [];
-  let release: () => void = () => {};
-  const held = new Promise<void>((resolve) => (release = resolve));
-  await mockCatalog(page, async (route) => {
-    bodies.push(route.request().postDataJSON());
-    await held;
-    await route.fulfill({ json: { ...battle, status: 'archived', version: 4 } });
-  });
-  await page.goto(activitiesPath);
-  const row = page.getByRole('listitem').filter({ hasText: 'Batalla de crews' });
-
-  await row.getByRole('button', { name: 'Archivar' }).click();
-  const confirm = page.getByRole('alertdialog', { name: '¿Archivar Batalla de crews?' });
-  await expect(confirm).toContainText('Dejará de estar disponible para nuevos pases.');
-  await confirm.getByRole('button', { name: 'Cancelar' }).click();
-  await expect(confirm).toHaveCount(0);
-  await expect(row.getByRole('button', { name: 'Archivar' })).toBeFocused();
-  expect(bodies).toEqual([]);
-
-  await row.getByRole('button', { name: 'Archivar' }).click();
-  await confirm.getByRole('button', { name: 'Archivar' }).click();
-  await expect(confirm.getByRole('button', { name: 'Archivando…' })).toBeDisabled();
-  await expect(confirm.getByRole('button', { name: 'Cancelar' })).toBeDisabled();
-  await page.keyboard.press('Escape');
-  await expect(confirm).toBeVisible();
-  release();
-
-  await expect(confirm).toHaveCount(0);
-  await expect(page.getByRole('status')).toContainText('Actividad archivada');
-  // The archived row's button goes away, so focus lands on the page heading, not the body.
-  await expect(page.getByRole('heading', { name: 'Actividades', level: 1 })).toBeFocused();
-  expect(bodies).toEqual([{ expectedVersion: 3 }]);
 });

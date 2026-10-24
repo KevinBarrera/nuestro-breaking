@@ -6,16 +6,19 @@ import {
 } from '@/entities/admin-registration';
 import { emptyParticipantForm } from '@/entities/participant';
 import {
-  activitySummary,
   createFailureMessage,
   duplicateMatchRows,
+  listCountText,
+  liveSearchQuery,
+  noMatchTitle,
   participantDisplayName,
   readRegistrationContext,
+  readStatusFilter,
+  registrationRow,
   registrationServerErrors,
   registrationStatusLabel,
-  resultsCount,
   searchPageNavigation,
-  searchQueryHint,
+  statusChips,
 } from './registration-model';
 import { validateSaleParticipant } from './sale-participant-model';
 
@@ -31,26 +34,112 @@ describe('registrationStatusLabel', () => {
   });
 });
 
-describe('searchQueryHint', () => {
-  it('asks for at least 2 characters once trimmed', () => {
-    expect(searchQueryHint('')).toBe('Escribe al menos 2 caracteres para buscar.');
-    expect(searchQueryHint('  a ')).toBe('Escribe al menos 2 caracteres para buscar.');
-  });
-
-  it('rejects more than 200 characters', () => {
-    expect(searchQueryHint('a'.repeat(201))).toBe('Usa máximo 200 caracteres.');
-  });
-
-  it('accepts 2 to 200 characters', () => {
-    expect(searchQueryHint(' Lu ')).toBeNull();
-    expect(searchQueryHint('a'.repeat(200))).toBeNull();
+describe('liveSearchQuery', () => {
+  it('lists everything for blank text, waits on one character and searches from two', () => {
+    expect(liveSearchQuery('')).toBe('');
+    expect(liveSearchQuery('   ')).toBe('');
+    expect(liveSearchQuery(' a ')).toBeNull();
+    expect(liveSearchQuery(' Lu ')).toBe('Lu');
+    expect(liveSearchQuery('a'.repeat(200))).toBe('a'.repeat(200));
   });
 });
 
-describe('resultsCount', () => {
-  it('counts registrations in singular and plural', () => {
-    expect(resultsCount(1)).toBe('1 inscripción');
-    expect(resultsCount(45)).toBe('45 inscripciones');
+describe('readStatusFilter', () => {
+  it('reads a known status from the URL and ignores anything else', () => {
+    expect(readStatusFilter('confirmed')).toBe('confirmed');
+    expect(readStatusFilter('pending_payment')).toBe('pending_payment');
+    expect(readStatusFilter('voided')).toBe('voided');
+    for (const value of [null, '', 'todas', 'paid']) expect(readStatusFilter(value)).toBeNull();
+  });
+});
+
+describe('statusChips', () => {
+  const counts = { all: 7, pending_payment: 1, confirmed: 5, voided: 1 };
+
+  it('offers every status in the design order with its count', () => {
+    expect(statusChips(counts, null)).toEqual([
+      { status: null, label: 'Todas', count: 7, selected: true },
+      { status: 'confirmed', label: 'Confirmadas', count: 5, selected: false },
+      { status: 'pending_payment', label: 'Pendientes de pago', count: 1, selected: false },
+      { status: 'voided', label: 'Anuladas', count: 1, selected: false },
+    ]);
+  });
+
+  it('marks only the chosen status', () => {
+    expect(
+      statusChips(counts, 'voided')
+        .filter((chip) => chip.selected)
+        .map((chip) => chip.label),
+    ).toEqual(['Anuladas']);
+  });
+});
+
+describe('listCountText', () => {
+  it('counts registrations, or results while searching, in singular and plural', () => {
+    expect(listCountText(1, false)).toBe('1 inscripción');
+    expect(listCountText(45, false)).toBe('45 inscripciones');
+    expect(listCountText(1, true)).toBe('1 resultado');
+    expect(listCountText(0, true)).toBe('0 resultados');
+  });
+});
+
+describe('noMatchTitle', () => {
+  it('names the search, or the filter when there is none', () => {
+    expect(noMatchTitle('zz')).toBe('No encontramos a nadie con “zz”');
+    expect(noMatchTitle('')).toBe('No hay inscripciones con este filtro');
+  });
+});
+
+describe('registrationRow', () => {
+  const result = {
+    participant: { id: 'p1', fullName: 'Ale Ferman', email: null, stageName: 'Alesita' },
+    registration: {
+      id: id(1),
+      eventId: id(9),
+      folio: 'EV-P8TA',
+      status: 'confirmed' as const,
+      checkedInAt: null,
+    },
+    // The backend sorts by name; the row puts the base pass before its add-ons.
+    passes: [
+      { name: 'Open Styles', passClass: 'add_on' as const },
+      { name: 'Pase completo Locking', passClass: 'full' as const },
+    ],
+    activities: [
+      { id: 'a1', name: 'Open Styles 1vs1', kind: 'competition', checkedInAt: null },
+      { id: 'a2', name: 'Taller de locking', kind: 'workshop', checkedInAt: null },
+      { id: 'a3', name: 'Locking 1v1', kind: 'competition', checkedInAt: null },
+    ],
+  };
+
+  it('shows the passes joined and only the competitions', () => {
+    expect(registrationRow(result)).toEqual({
+      name: 'Ale Ferman',
+      aka: 'AKA Alesita',
+      folio: 'EV-P8TA',
+      passes: 'Pase completo Locking + Open Styles',
+      competitions: 'Open Styles 1vs1, Locking 1v1',
+      status: 'Confirmada',
+      accessibleName: 'Ale Ferman, EV-P8TA, Confirmada. Ver inscripción',
+    });
+  });
+
+  it('says what is missing', () => {
+    const bare = {
+      ...result,
+      participant: { ...result.participant, stageName: null },
+      registration: { ...result.registration, folio: null, status: 'pending_payment' as const },
+      passes: [],
+      activities: [],
+    };
+    expect(registrationRow(bare)).toMatchObject({
+      aka: 'Sin AKA',
+      folio: null,
+      passes: 'Sin pases',
+      competitions: 'Sin competencias',
+      status: 'Pendiente de pago',
+      accessibleName: 'Ale Ferman, sin folio, Pendiente de pago. Ver inscripción',
+    });
   });
 });
 
@@ -88,13 +177,6 @@ describe('searchPageNavigation', () => {
     expect(
       searchPageNavigation({ total: 30, limit: 20, offset: 5, shown: 20 }).previousOffset,
     ).toBe(0);
-  });
-});
-
-describe('activitySummary', () => {
-  it('names the activities, or says there are none', () => {
-    expect(activitySummary([])).toBe('Sin actividades');
-    expect(activitySummary([{ name: 'Batalla' }, { name: 'Taller' }])).toBe('Batalla, Taller');
   });
 });
 

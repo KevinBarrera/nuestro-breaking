@@ -19,7 +19,7 @@ import {
   thirdRegistrationId,
 } from './support/registration-mocks.ts';
 
-// Inscripciones (#105). Status labels, query rules, server field errors and duplicate rows are
+// Inscripciones (#105, #345). Status labels, list rows and chips, query rules, server field errors and duplicate rows are
 // covered by `registration-model.test.ts`; these specs check the rendered flows.
 const sideNav = (page: Page) => page.getByRole('navigation', { name: 'Navegación administrativa' });
 const form = (page: Page) => page.getByRole('form', { name: 'Nueva inscripción' });
@@ -44,24 +44,30 @@ const expectedBody = {
   phone: '+52 3312345678',
 };
 
-test('searches registrations and opens one from the results', async ({ page }) => {
-  const { searches } = await mockRegistrations(page, {
-    search: () => ({
-      json: searchPage([
-        {
-          ...searchResult(registrationId, 'Luz Rivera', {
-            stageName: 'Luz',
-            folio: 'EV-7K3Q',
-            status: 'confirmed',
-          }),
-          activities: [
-            { id: 'a1', name: 'Batalla de crews', kind: 'competition', checkedInAt: null },
-            { id: 'a2', name: 'Taller de footwork', kind: 'workshop', checkedInAt: null },
-          ],
-        },
-        searchResult(otherRegistrationId, 'Luis Ruiz'),
-      ]),
+test('lists the roster, filters by status, searches live and opens one', async ({ page }) => {
+  const luz = {
+    ...searchResult(registrationId, 'Luz Rivera', {
+      stageName: 'Luz',
+      folio: 'EV-7K3Q',
+      status: 'confirmed',
     }),
+    passes: [
+      { name: 'Open Styles', passClass: 'add_on' },
+      { name: 'Pase completo', passClass: 'full' },
+    ],
+    activities: [
+      { id: 'a1', name: 'Batalla de crews', kind: 'competition', checkedInAt: null },
+      { id: 'a2', name: 'Taller de footwork', kind: 'workshop', checkedInAt: null },
+    ],
+  };
+  const luis = searchResult(otherRegistrationId, 'Luis Ruiz');
+  const counts = { all: 2, pending_payment: 1, confirmed: 1, voided: 0 };
+  const { searches } = await mockRegistrations(page, {
+    search: (url) => {
+      const status = url.searchParams.get('status');
+      const rows = [luz, luis].filter((row) => !status || row.registration.status === status);
+      return { json: searchPage(rows, { counts }) };
+    },
     entitlements: (id) => ({
       json: {
         registration: registrationSummary(id, {
@@ -83,29 +89,46 @@ test('searches registrations and opens one from the results', async ({ page }) =
     'page',
   );
 
-  await searchBox(page).fill(' Lu ');
-  await page.getByRole('button', { name: 'Buscar' }).click();
+  // The roster shows without searching.
   await expect(page.getByText('2 inscripciones')).toBeVisible();
-  expect(searches.map((url) => url.search)).toEqual(['?q=Lu&limit=20&offset=0']);
-  const results = page.getByRole('region', { name: 'Resultados' }).getByRole('listitem');
-  await expect(results).toHaveCount(2);
-  const luz = results.nth(0);
-  for (const text of ['Luz Rivera', 'AKA Luz', 'EV-7K3Q', 'Confirmada'])
-    await expect(luz).toContainText(text);
-  await expect(luz).toContainText('Batalla de crews, Taller de footwork');
-  await expect(results.nth(1)).toContainText('Sin folio');
-  await expect(results.nth(1)).toContainText('Pendiente de pago');
-  await expect(results.nth(1)).toContainText('Sin actividades');
-
-  await luz.getByRole('link').click();
-  await expect(page).toHaveURL(registrationPath(registrationId));
+  const rows = page.getByRole('list', { name: 'Inscripciones' }).getByRole('listitem');
+  await expect(rows).toHaveCount(2);
+  const luzRow = rows.nth(0).getByRole('link', {
+    name: 'Luz Rivera, EV-7K3Q, Confirmada. Ver inscripción',
+  });
+  for (const text of ['AKA Luz', 'Pase completo + Open Styles', 'Batalla de crews'])
+    await expect(luzRow).toContainText(text);
+  await expect(luzRow).not.toContainText('Taller de footwork');
   await expect(
-    page.getByRole('heading', { level: 1, name: 'Inscripción de Luz Rivera' }),
-  ).toBeVisible();
-  await expect(page.getByRole('main')).toContainText('Confirmada');
-  const passes = page.getByRole('region', { name: 'Pases' });
-  await expect(passes).toContainText('Pase completo');
-  await expect(passes).toContainText('$1,500.00');
+    rows
+      .nth(1)
+      .getByRole('link', { name: 'Luis Ruiz, sin folio, Pendiente de pago. Ver inscripción' }),
+  ).toContainText('Sin pases');
+
+  // The chips filter by status and keep every count.
+  const chips = page.getByRole('group', { name: 'Filtrar por estado' });
+  await expect(chips.getByRole('button', { name: 'Todas 2' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  await chips.getByRole('button', { name: 'Pendientes de pago 1' }).click();
+  await expect(page).toHaveURL(`${registrationsPath}?estado=pending_payment`);
+  await expect(rows).toHaveCount(1);
+  await expect(chips.getByRole('button', { name: 'Confirmadas 1' })).toHaveAttribute(
+    'aria-pressed',
+    'false',
+  );
+  await chips.getByRole('button', { name: 'Todas 2' }).click();
+  await expect(rows).toHaveCount(2);
+
+  // Typing searches once it settles, without a button.
+  await searchBox(page).fill(' Lu ');
+  await expect(page).toHaveURL(`${registrationsPath}?q=Lu`);
+  await expect(page.getByText('2 resultados')).toBeVisible();
+  expect(searches.at(-1)?.search).toBe('?q=Lu&limit=20&offset=0');
+
+  await luzRow.click();
+  await expect(page).toHaveURL(registrationPath(registrationId));
   await expect(sideNav(page).getByRole('link', { name: 'Inscripciones' })).toHaveAttribute(
     'aria-current',
     'page',
@@ -114,10 +137,14 @@ test('searches registrations and opens one from the results', async ({ page }) =
   // Back keeps the search in the URL, so the results come back.
   await page.goBack();
   await expect(searchBox(page)).toHaveValue('Lu');
+  await expect(page.getByText('2 resultados')).toBeVisible();
+  await page.getByRole('button', { name: 'Borrar búsqueda' }).click();
+  await expect(searchBox(page)).toHaveValue('');
+  await expect(page).toHaveURL(registrationsPath);
   await expect(page.getByText('2 inscripciones')).toBeVisible();
 });
 
-test('resumes the sale of a pending registration from the search', async ({ page }) => {
+test('opens a pending registration with its sale from the list', async ({ page }) => {
   const breaking = catalogActivity(
     'a1b2c3d4-1234-4567-89ab-123456789abc',
     'Breaking 1 vs 1',
@@ -146,14 +173,8 @@ test('resumes the sale of a pending registration from the search', async ({ page
     }),
     activities: () => ({ json: [breaking] }),
   });
-  await page.goto(`${registrationsPath}?q=Lu`);
-  const results = page.getByRole('region', { name: 'Resultados' }).getByRole('listitem');
-  // Only the pending registration offers to continue its sale.
-  await expect(results.nth(0)).not.toContainText('Continuar venta');
-  await results
-    .nth(1)
-    .getByRole('link', { name: /Continuar venta/ })
-    .click();
+  await page.goto(registrationsPath);
+  await page.getByRole('link', { name: /^Luis Ruiz, sin folio, Pendiente de pago/ }).click();
 
   await expect(page).toHaveURL(registrationPath(otherRegistrationId));
   await expect(
@@ -193,44 +214,74 @@ test('pages through results 20 at a time', async ({ page }) => {
   );
 });
 
-test('asks for 2 characters before searching', async ({ page }) => {
-  const { searches } = await mockRegistrations(page);
+test('waits for 2 characters before searching', async ({ page }) => {
+  const { searches } = await mockRegistrations(page, {
+    search: () => ({ json: searchPage([searchResult(registrationId, 'Luz Rivera')]) }),
+  });
   await page.goto(registrationsPath);
+  await expect(page.getByText('1 inscripción')).toBeVisible();
+  const before = searches.length;
   await searchBox(page).fill(' a ');
-  await page.getByRole('button', { name: 'Buscar' }).click();
-  await expect(page.getByText('Escribe al menos 2 caracteres para buscar.')).toBeVisible();
-  await expect(searchBox(page)).toHaveAttribute('aria-invalid', 'true');
-  expect(searches).toHaveLength(0);
+  // Longer than the search delay: one character never reaches the API.
+  await page.waitForTimeout(600);
+  expect(searches).toHaveLength(before);
+  await expect(page).toHaveURL(registrationsPath);
 });
 
 test('says when a search finds nothing', async ({ page }) => {
-  await mockRegistrations(page);
+  await mockRegistrations(page, {
+    search: (url) => ({
+      json: url.searchParams.get('q')
+        ? searchPage([], { counts: { all: 0, pending_payment: 0, confirmed: 0, voided: 0 } })
+        : searchPage([searchResult(registrationId, 'Luz Rivera')]),
+    }),
+  });
   await page.goto(registrationsPath);
   await searchBox(page).fill('zz');
-  await page.getByRole('button', { name: 'Buscar' }).click();
-  await expect(page.getByText('Sin resultados para «zz».')).toBeVisible();
+  await expect(page.getByText('No encontramos a nadie con “zz”')).toBeVisible();
+  await expect(page.getByText('0 resultados')).toBeVisible();
+  await page.getByRole('link', { name: 'Inscribir a una persona nueva' }).click();
+  await expect(page).toHaveURL(newRegistrationPath);
 });
 
-test('searching again with the same text retries a failed search', async ({ page }) => {
+test('explains how registrations arrive when the event has none', async ({ page }) => {
+  await mockRegistrations(page);
+  await page.goto(registrationsPath);
+  await expect(page.getByRole('heading', { name: 'Aún no hay inscripciones' })).toBeVisible();
+  await expect(searchBox(page)).toHaveCount(0);
+  await expect(page.getByRole('group', { name: 'Filtrar por estado' })).toHaveCount(0);
+  for (const [name, path] of [
+    ['Catálogo › Actividades', 'activities'],
+    ['Catálogo › Pases', 'passes'],
+  ])
+    await expect(page.getByRole('link', { name })).toHaveAttribute(
+      'href',
+      `/admin/events/${eventId}/${path}`,
+    );
+  await expect(page.getByRole('link', { name: 'Resumen del evento' })).toHaveAttribute(
+    'href',
+    `/admin/events/${eventId}`,
+  );
+  await page.getByRole('link', { name: 'Inscribir a alguien en mesa' }).click();
+  await expect(page).toHaveURL(newRegistrationPath);
+});
+
+test('retries a list that failed to load', async ({ page }) => {
   let failing = true;
-  const { searches } = await mockRegistrations(page, {
+  await mockRegistrations(page, {
     search: () =>
       failing
         ? { abort: true }
         : { json: searchPage([searchResult(registrationId, 'Luz Rivera')]) },
   });
   await page.goto(registrationsPath);
-  await searchBox(page).fill('Luz');
-  await page.getByRole('button', { name: 'Buscar' }).click();
   await expect(
-    page.getByText('No pudimos buscar las inscripciones. Intenta de nuevo.'),
+    page.getByText('No pudimos cargar las inscripciones. Intenta de nuevo.'),
   ).toBeVisible();
-
   failing = false;
-  const before = searches.length;
-  await page.getByRole('button', { name: 'Buscar' }).click();
+  await page.getByRole('button', { name: 'Reintentar' }).click();
   await expect(page.getByText('1 inscripción')).toBeVisible();
-  expect(searches.length).toBeGreaterThan(before);
+  await expect(page.getByText('No pudimos cargar las inscripciones.')).toHaveCount(0);
 });
 
 test('registers a participant and opens the new registration', async ({ page }) => {

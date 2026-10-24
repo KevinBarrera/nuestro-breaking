@@ -630,6 +630,9 @@ export const registrationSweepCases: {
           }),
         ]),
       ),
-    ready: (page) => page.getByRole('link', { name: /Continuar venta/ }).waitFor(),
+    ready: (page) =>
+      page
+        .getByRole('link', { name: /^Persona con un nombre muy largo.*Pendiente de pago/ })
+        .waitFor(),
   },
 ];

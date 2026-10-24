@@ -390,7 +390,7 @@ export async function revealControls(page: Page, name: AdminScreenName) {
     await page.getByRole('button', { name: /^Restaurar Pase archivado/ }).waitFor();
   }
   if (name === 'Inscripciones')
-    await page.getByRole('region', { name: 'Resultados' }).getByRole('link').first().waitFor();
+    await page.getByRole('list', { name: 'Inscripciones' }).getByRole('link').first().waitFor();
   // An empty submit shows the field errors, and Más datos is opened so its fields are measured.
   if (name === 'Nueva inscripción') {
     const form = page.getByRole('form', { name: 'Nueva inscripción' });

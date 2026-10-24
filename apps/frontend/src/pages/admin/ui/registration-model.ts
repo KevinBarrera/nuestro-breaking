@@ -203,6 +203,14 @@ export const duplicateMatchRows = (matches: readonly PossibleDuplicate[]): Dupli
     canContinue: match.status === 'pending_payment',
   }));
 
+// Why a registration's screen could not read it (#105).
+export function registrationLoadMessage(kind: AdminRegistrationFailure['kind']): string {
+  if (kind === 'unauthorized' || kind === 'forbidden')
+    return 'Sin acceso: tu cuenta no puede consultar las inscripciones de este evento.';
+  if (kind === 'not_found') return 'No encontramos esta inscripción en este evento.';
+  return 'No pudimos cargar la inscripción. Intenta de nuevo.';
+}
+
 export const registrationDeniedMessage =
   'Sin acceso: tu cuenta no puede registrar inscripciones en este evento.';
 export const unknownOutcomeMessage =
@@ -225,13 +233,28 @@ export function createFailureMessage(failure: AdminRegistrationFailure): string 
 }
 
 // What the search or the form already knows about a registration, passed in the navigation
-// state so its screen can name it before reading. A reload loses it.
-export type RegistrationContext = { participantName: string; status: RegistrationStatus };
+// state so its screen can name it before reading. A reload loses it. The new registration also
+// passes the contact it just sent (#346): the entitlements read carries no contact data.
+export type RegistrationContact = { email: string; phone: string };
+export type RegistrationContext = {
+  participantName: string;
+  status: RegistrationStatus;
+  contact?: RegistrationContact;
+};
+
+function readContact(value: unknown): RegistrationContact | null {
+  if (typeof value !== 'object' || value === null) return null;
+  const { email, phone } = value as Record<string, unknown>;
+  return typeof email === 'string' && typeof phone === 'string' ? { email, phone } : null;
+}
 
 export function readRegistrationContext(state: unknown): RegistrationContext | null {
   if (typeof state !== 'object' || state === null) return null;
-  const { participantName, status } = state as Record<string, unknown>;
+  const { participantName, status, contact } = state as Record<string, unknown>;
   if (typeof participantName !== 'string' || !participantName.trim()) return null;
   if (!registrationStatuses.some((known) => known === status)) return null;
-  return { participantName, status: status as RegistrationStatus };
+  const context: RegistrationContext = { participantName, status: status as RegistrationStatus };
+  const read = readContact(contact);
+  if (read) context.contact = read;
+  return context;
 }

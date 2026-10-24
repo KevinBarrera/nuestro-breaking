@@ -4,13 +4,19 @@ import type { CatalogActivity, CatalogPassType } from '@/entities/event-catalog'
 import {
   addOnState,
   chooseBase,
+  cobroFormErrors,
   cobroLines,
+  cobroPaymentInput,
+  confirmedLead,
+  contactLine,
   draftFromHeld,
   draftTotalCents,
   emptyPassDraft,
   passIncludes,
   passPlan,
+  passSummary,
   receivedAmountHint,
+  selectionPayload,
   stepperPasses,
   stepperSteps,
   toggleAddOn,
@@ -212,5 +218,60 @@ describe('stepperSteps', () => {
       { label: 'Pases', state: 'current' },
       { label: 'Cobro', state: 'pending' },
     ]);
+  });
+});
+
+describe('selectionPayload', () => {
+  it('sends the chosen competitions in the order shown, without ones no longer offered', () => {
+    expect(selectionPayload(options, 'popping', ['p2', 'old', 'p1'])).toEqual(['p1', 'p2']);
+    expect(selectionPayload(options, 'gone', ['p1'])).toEqual([]);
+  });
+});
+
+describe('cobro form', () => {
+  it('needs a readable amount above $0 and the receipt number', () => {
+    expect(cobroFormErrors({ amount: '', receipt: ' ', note: '' })).toEqual({
+      amount: 'Escribe un monto válido, por ejemplo 1500 o 1500.50.',
+      receipt: 'Escribe el número impreso en el recibo.',
+    });
+    expect(cobroFormErrors({ amount: '0', receipt: 'A1', note: '' })).toEqual({
+      amount: 'El monto debe ser mayor que $0.',
+    });
+    expect(
+      cobroFormErrors({ amount: '1500,50', receipt: 'x'.repeat(51), note: 'y'.repeat(501) }),
+    ).toEqual({ receipt: 'Usa máximo 50 caracteres.', note: 'Usa máximo 500 caracteres.' });
+    expect(cobroFormErrors({ amount: '2800.00', receipt: '08590', note: '' })).toEqual({});
+  });
+
+  it('sends the typed amount, the trimmed receipt and a note only when written', () => {
+    expect(cobroPaymentInput({ amount: '2500', receipt: ' 08590 ', note: ' ' })).toEqual({
+      amountCents: 250000,
+      receipt: '08590',
+    });
+    expect(cobroPaymentInput({ amount: '2800.5', receipt: 'A1', note: ' Pagó justo ' })).toEqual({
+      amountCents: 280050,
+      receipt: 'A1',
+      note: 'Pagó justo',
+    });
+  });
+});
+
+describe('confirmation copy', () => {
+  it('joins the contact line and the pass summary', () => {
+    expect(contactLine({ email: 'ana@example.org', phone: '+52 3312345678' })).toBe(
+      'ana@example.org · +52 3312345678',
+    );
+    expect(passSummary([held('popping', 'full'), held('open', 'add_on')])).toBe('popping + open');
+  });
+
+  it('names the email the folio goes to, or says "su correo" when it is unknown', () => {
+    expect(confirmedLead('Ana López', 'ana@example.org')).toEqual({
+      text: 'La inscripción de Ana López quedó lista. Le enviamos la confirmación y el folio a ',
+      email: 'ana@example.org',
+    });
+    expect(confirmedLead('Ana López', null)).toEqual({
+      text: 'La inscripción de Ana López quedó lista. Le enviamos la confirmación y el folio a su correo.',
+      email: null,
+    });
   });
 });

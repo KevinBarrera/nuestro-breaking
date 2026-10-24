@@ -26,23 +26,15 @@ import { ParticipantCorrectionDialog } from './participant-correction';
 import { canCorrectParticipant } from './participant-correction-model';
 import { statusTone } from './payments-review-model';
 import { akaLine, cashDifference, heldPassCompetitions } from './registration-detail-model';
-import { readRegistrationContext, registrationStatusLabel } from './registration-model';
+import {
+  readRegistrationContext,
+  registrationLoadMessage,
+  registrationStatusLabel,
+  type RegistrationContext,
+} from './registration-model';
 import { RegistrationVoid } from './registration-void';
 import { canVoidRegistration } from './registration-void-model';
-import { SaleCash } from './sale-cash';
 import { cashTotalCents, registrationViewMode } from './sale-cash-model';
-import { SaleComplimentary } from './sale-complimentary';
-import { isComplimentarySale } from './sale-complimentary-model';
-import { SaleCompetitions } from './sale-competitions';
-import {
-  unsavedCompetitionPasses,
-  unsavedCompetitionsHint,
-  withDraft,
-  type CompetitionDrafts,
-  type SaleCompetitionPass,
-} from './sale-competitions-model';
-import { SalePassPicker } from './sale-pass-picker';
-import { SalePassRemoval } from './sale-pass-remove';
 import { StatusPill } from './team-list';
 
 type LoadState =
@@ -56,12 +48,6 @@ type LoadState =
       activities: CatalogActivity[] | null;
     };
 
-const loadMessages = {
-  denied: 'Sin acceso: tu cuenta no puede consultar las inscripciones de este evento.',
-  notFound: 'No encontramos esta inscripción en este evento.',
-  error: 'No pudimos cargar la inscripción. Intenta de nuevo.',
-};
-
 export function AdminRegistrationPage() {
   const { eventId, registrationId } = useParams<'eventId' | 'registrationId'>();
   if (!eventId || !registrationId) return null;
@@ -74,9 +60,9 @@ export function AdminRegistrationPage() {
   );
 }
 
-// One registration (#105): what it holds and, while it is pending payment, the passes it can
-// still get, the competitions of each held pass and the cash payment, or the confirmation without
-// payment when its passes total $0 (#263); an in-person one can also be voided with a reason (#104).
+// One registration (#105): what it holds and, while it is pending payment, a "Continuar venta"
+// link to Nueva inscripción's pass and cash steps (#346), where its passes, competitions and
+// payment are sold; an in-person one can also be voided with a reason (#104).
 // A confirmed registration, led by its folio, only lets
 // the operator change a pass's competitions with a reason (#170) and, when paid in cash, shows
 // the amount and receipt and corrects them with a reason after checking the receipt (#104). Both can have the participant's
@@ -100,6 +86,7 @@ function RegistrationScreen({
   const passesTitleId = useId();
   const paymentTitleId = useId();
   const participantTitleId = useId();
+  const saleTitleId = useId();
 
   // A reload keeps the current data on screen until the new read answers.
   useEffect(() => {
@@ -117,14 +104,10 @@ function RegistrationScreen({
       .catch((error: unknown) => {
         if (controller.signal.aborted) return;
         setAnswered(revision);
-        const { kind } = adminRegistrationFailure(error);
-        const message =
-          kind === 'unauthorized' || kind === 'forbidden'
-            ? loadMessages.denied
-            : kind === 'not_found'
-              ? loadMessages.notFound
-              : loadMessages.error;
-        setState({ status: 'failed', message });
+        setState({
+          status: 'failed',
+          message: registrationLoadMessage(adminRegistrationFailure(error).kind),
+        });
       });
     return () => controller.abort();
   }, [eventId, registrationId, revision]);
@@ -136,8 +119,6 @@ function RegistrationScreen({
     );
   const reload = () => setRevision((value) => value + 1);
   const reloading = state.status === 'ready' && answered !== revision;
-  // What this screen just recorded, announced over the folio.
-  const [confirmedBy, setConfirmedBy] = useState<ConfirmedBy | null>(null);
   // The correction modal that is open, and the success notice the last one left in its card.
   const [correcting, setCorrecting] = useState<Correcting | null>(null);
   const [cardNotice, setCardNotice] = useState<CardNotice | null>(null);
@@ -165,17 +146,6 @@ function RegistrationScreen({
   useEffect(() => {
     if (voidedHere) headingRef.current?.focus();
   }, [voidedHere]);
-  // Unsaved competition checks by held pass; refreshes and reloads leave them untouched (#277).
-  const [drafts, setDrafts] = useState<CompetitionDrafts>({});
-  const changeDraft = (pass: SaleCompetitionPass, next: readonly string[] | null) =>
-    setDrafts((current) => withDraft(current, pass, next));
-  // A removed pass takes its unsaved checks with it (#282).
-  const removePassDraft = (pass: HeldPass) =>
-    setDrafts((current) =>
-      Object.fromEntries(
-        Object.entries(current).filter(([passId]) => passId !== pass.registrationPassId),
-      ),
-    );
 
   const summary = state.status === 'ready' ? state.entitlements.registration : null;
   const ready = state.status === 'ready' ? state : null;
@@ -199,11 +169,9 @@ function RegistrationScreen({
       : null;
   const participantName = summary?.participant.fullName ?? context?.participantName ?? null;
   const mode = summary ? registrationViewMode(summary.status) : null;
-  // Confirming waits until every held pass's checks are saved or discarded (#277).
-  const unsavedCompetitions =
-    state.status === 'ready'
-      ? unsavedCompetitionsHint(unsavedCompetitionPasses(state.entitlements.passes, drafts))
-      : null;
+  const saleState: RegistrationContext | null = summary
+    ? { participantName: summary.participant.fullName, status: summary.status }
+    : null;
 
   const corrected =
     (card: CardNotice['card'], text: string) => (next: RegistrationEntitlements) => {
@@ -252,14 +220,6 @@ function RegistrationScreen({
         {state.status === 'failed' && <Notice tone="danger">{state.message}</Notice>}
         {state.status === 'ready' && (
           <>
-            {confirmedBy && (
-              <p
-                role="status"
-                className="rounded-lg border border-success-fg bg-success px-4 py-3 text-sm font-semibold text-success-fg"
-              >
-                {confirmedMessages[confirmedBy]}
-              </p>
-            )}
             {mode === 'voided' && (
               <Notice title="Inscripción anulada">
                 {voidedHere
@@ -268,6 +228,32 @@ function RegistrationScreen({
               </Notice>
             )}
             <SummaryStrip entitlements={state.entitlements} />
+            {mode === 'sale' && (
+              <section
+                aria-labelledby={saleTitleId}
+                className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-line bg-surface px-6 py-5"
+              >
+                <div className="min-w-0 flex-[1_1_320px] space-y-1">
+                  <h2 id={saleTitleId} className="text-lg font-bold text-heading">
+                    Venta pendiente
+                  </h2>
+                  <p className="text-sm text-muted">
+                    Esta inscripción aún no está pagada. Sus pases, competencias y cobro se
+                    registran en los pasos de Nueva inscripción.
+                  </p>
+                </div>
+                <Link
+                  to={generatePath(routes.adminEventRegistrationSale, { eventId, registrationId })}
+                  state={saleState}
+                  className={buttonClass('primary', 'inline-flex items-center gap-2')}
+                >
+                  Continuar venta
+                  <svg {...svg} width="16" height="16" strokeWidth="2">
+                    <path d="M8 5l5 5-5 5" />
+                  </svg>
+                </Link>
+              </section>
+            )}
             <DetailCard
               titleId={passesTitleId}
               title="Pases"
@@ -307,74 +293,8 @@ function RegistrationScreen({
               }
             >
               {cardNotice?.card === 'passes' && <CardSuccess text={cardNotice.text} />}
-              {mode === 'sale' ? (
-                <SalePassRemoval
-                  eventId={eventId}
-                  entitlements={state.entitlements}
-                  passTypes={state.passTypes}
-                  onRemoved={(entitlements, removed) => {
-                    updateEntitlements(entitlements);
-                    removePassDraft(removed);
-                  }}
-                  onReload={reload}
-                >
-                  {(removeAction) => (
-                    <HeldPassList
-                      ready={state}
-                      // While selling, the competitions section shows them with their controls.
-                      showSelected={false}
-                      action={removeAction}
-                    />
-                  )}
-                </SalePassRemoval>
-              ) : (
-                <HeldPassList ready={state} showSelected />
-              )}
+              <HeldPassList ready={state} />
             </DetailCard>
-            {mode === 'sale' && (
-              <>
-                <SalePassPicker
-                  eventId={eventId}
-                  entitlements={state.entitlements}
-                  passTypes={state.passTypes}
-                  onAdded={updateEntitlements}
-                  onReload={reload}
-                />
-                <SaleCompetitions
-                  eventId={eventId}
-                  entitlements={state.entitlements}
-                  passTypes={state.passTypes}
-                  activities={state.activities}
-                  drafts={drafts}
-                  onDraftChange={changeDraft}
-                  onSaved={updateEntitlements}
-                  onReload={reload}
-                />
-                {isComplimentarySale(state.entitlements.passes) ? (
-                  <SaleComplimentary
-                    eventId={eventId}
-                    entitlements={state.entitlements}
-                    unsavedCompetitions={unsavedCompetitions}
-                    onConfirmed={(entitlements) => {
-                      updateEntitlements(entitlements);
-                      setConfirmedBy('complimentary');
-                    }}
-                    onReload={reload}
-                  />
-                ) : (
-                  <SaleCash
-                    eventId={eventId}
-                    entitlements={state.entitlements}
-                    unsavedCompetitions={unsavedCompetitions}
-                    onConfirmed={(entitlements) => {
-                      updateEntitlements(entitlements);
-                      setConfirmedBy('cash');
-                    }}
-                    onReload={reload}
-                  />
-                )}
-              </>
-            )}
             {state.entitlements.registration.cash && (
               <DetailCard
                 titleId={paymentTitleId}
@@ -484,8 +404,6 @@ function RegistrationScreen({
                   options={swapOptions}
                   onSwapped={(entitlements, targetName) => {
                     updateEntitlements(entitlements);
-                    // The held pass keeps its id, so its unsaved checks belong to the old pass.
-                    removePassDraft(swapSource);
                     setCardNotice({
                       card: 'passes',
                       text: `Se cambió a «${targetName}». El monto cobrado no cambia.`,
@@ -511,17 +429,10 @@ function RegistrationScreen({
   );
 }
 
-type ConfirmedBy = 'cash' | 'complimentary';
-
 type Correcting =
   { kind: 'cash' | 'participant' | 'discipline' } | { kind: 'competitions'; passId: string };
 
 type CardNotice = { card: 'passes' | 'cash' | 'participant'; text: string };
-
-const confirmedMessages: Record<ConfirmedBy, string> = {
-  cash: 'Pago registrado. La inscripción quedó confirmada.',
-  complimentary: 'La inscripción quedó confirmada sin cobro.',
-};
 
 const svg = {
   'aria-hidden': true,
@@ -672,15 +583,7 @@ function CashFacts({ entitlements }: { entitlements: RegistrationEntitlements })
   );
 }
 
-function HeldPassList({
-  ready,
-  showSelected,
-  action,
-}: {
-  ready: Extract<LoadState, { status: 'ready' }>;
-  showSelected: boolean;
-  action?: (pass: HeldPass) => ReactNode;
-}) {
+function HeldPassList({ ready }: { ready: Extract<LoadState, { status: 'ready' }> }) {
   if (ready.entitlements.passes.length === 0)
     return <p className="text-muted">Aún no tiene pases.</p>;
   return (
@@ -689,10 +592,7 @@ function HeldPassList({
         <PassRow
           key={pass.registrationPassId}
           pass={pass}
-          competitions={
-            showSelected ? heldPassCompetitions(pass, ready.passTypes, ready.activities) : null
-          }
-          action={action?.(pass)}
+          competitions={heldPassCompetitions(pass, ready.passTypes, ready.activities)}
         />
       ))}
     </ul>
@@ -702,11 +602,9 @@ function HeldPassList({
 function PassRow({
   pass,
   competitions,
-  action,
 }: {
   pass: HeldPass;
   competitions: ReturnType<typeof heldPassCompetitions>;
-  action?: ReactNode;
 }) {
   return (
     <li className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-3 py-3.5 first:pt-0 last:pb-0">
@@ -732,7 +630,6 @@ function PassRow({
             )}
           </>
         ))}
-      {action}
     </li>
   );
 }

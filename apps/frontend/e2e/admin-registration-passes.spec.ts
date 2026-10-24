@@ -4,6 +4,7 @@ import {
   heldPassId,
   mockRegistrations,
   registrationId,
+  registrationPath,
   registrationSummary,
   saleActivities,
   saleBackend,
@@ -22,6 +23,39 @@ const radio = (page: Page, name: string) =>
 const addOn = (page: Page) => passStep(page).getByRole('checkbox', { name: /^Open Styles/ });
 
 const { general, popping, breaking, openStyles } = salePassTypes;
+
+test('resumes a pending sale from its detail with what it holds', async ({ page }) => {
+  await mockRegistrations(
+    page,
+    saleBackend([heldOf(popping, [saleActivities.popping2.id]), heldOf(openStyles)]).mocks,
+  );
+  await page.goto(registrationPath(registrationId));
+  await page
+    .getByRole('region', { name: 'Venta pendiente' })
+    .getByRole('link', { name: 'Continuar venta' })
+    .click();
+
+  await expect(page).toHaveURL(salePath(registrationId));
+  await expect(
+    page.getByRole('list', { name: 'Pasos' }).getByRole('listitem').nth(1),
+  ).toHaveAttribute('aria-current', 'step');
+  // Base passes as radios, in catalog order, with what they include and their price.
+  await expect(passStep(page).getByRole('radio')).toHaveCount(3);
+  await expect(radio(page, 'Entrada general')).toHaveAccessibleDescription(
+    'Solo entrada al evento, sin competencias',
+  );
+  await expect(passStep(page)).toContainText('Pase completo Popping');
+  await expect(passStep(page)).toContainText('$2,000.00');
+  await expect(radio(page, 'Pase completo Popping')).toBeChecked();
+  const competitions = passStep(page).getByRole('group', {
+    name: 'Competencias de Pase completo Popping',
+  });
+  await expect(competitions.getByRole('checkbox', { name: 'Popping 2v2' })).toBeChecked();
+  await expect(competitions.getByRole('checkbox', { name: 'Popping 1v1' })).not.toBeChecked();
+  await expect(addOn(page)).toBeChecked();
+  await expect(passStep(page)).toContainText('+$800.00');
+  await expect(passStep(page)).toContainText('Total$2,800.00');
+});
 
 test('switches the base pass by removing the add-on and the old pass first', async ({ page }) => {
   const backend = saleBackend([heldOf(popping, [saleActivities.popping1.id]), heldOf(openStyles)]);

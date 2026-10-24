@@ -7,7 +7,8 @@ import type {
   RegistrationSummary,
 } from '@/entities/admin-registration';
 import { centsToInput, formatMxn, parseMxnToCents } from '@/entities/event-catalog';
-import { correctionReasonError } from './participant-correction-model';
+import { changedRows, type ChangeRow } from '@/shared/ui';
+import { correctionReasonError, noChangesMessage } from './participant-correction-model';
 import { cashFormErrors, cashTotalCents, receiptTakenMessage } from './sale-cash-model';
 import { reasonMaxLength } from './sale-complimentary-model';
 
@@ -40,7 +41,7 @@ export const initialCashCorrectionForm = (cash: CashPayment): CashCorrectionForm
 
 const amountMessage =
   'Escribe un monto válido en pesos, sin separadores de miles y con hasta 2 decimales, por ejemplo 1500 o 1500,50.';
-const receiptCheckMessage = 'Confirma que revisaste el recibo original antes de corregir.';
+const receiptCheckMessage = 'Confirma que revisaste el recibo antes de corregir.';
 
 export type CashCorrectionReview =
   | { ok: true; input: CashCorrectionInput }
@@ -68,7 +69,7 @@ export function reviewCashCorrection(
     return {
       ok: false,
       errors: {},
-      unchanged: 'No hay cambios: el monto y el recibo son los mismos.',
+      unchanged: noChangesMessage,
     };
   return {
     ok: true,
@@ -76,43 +77,42 @@ export function reviewCashCorrection(
   };
 }
 
-// A different amount is allowed (#104), but the operator sees the pass total before confirming.
-// Null while the typed amount is not readable.
-export function passTotalWarning(
+// A different amount is allowed (#104), but the operator sees how it compares with the pass total
+// while typing. Null while the typed amount is not readable.
+export function cashAmountHint(
   amountCents: number | null,
   passes: readonly HeldPass[],
-): string | null {
+): { tone: 'success' | 'warning'; text: string } | null {
+  if (amountCents === null) return null;
   const total = cashTotalCents(passes);
-  return amountCents === null || amountCents === total
-    ? null
-    : `El monto no coincide con el total de los pases (${formatMxn(total)}).`;
+  return amountCents === total
+    ? { tone: 'success', text: 'Coincide con el total de los pases.' }
+    : {
+        tone: 'warning',
+        text: `No coincide con el total de los pases (${formatMxn(total)}). Puedes guardarlo si así dice el recibo.`,
+      };
 }
 
 export const cashReasonHint = (reason: string) =>
-  `Queda en el historial. ${reason.trim().length} de ${reasonMaxLength} caracteres.`;
+  `${reason.trim().length} de ${reasonMaxLength} caracteres`;
 
-// The dialog restates the previous and new values before the POST.
-export function cashCorrectionConfirmation(
-  cash: CashPayment,
-  input: CashCorrectionInput,
-  participantName: string,
-  warning: string | null,
-) {
-  const amount =
-    input.amountCents === cash.amountCents
-      ? `Monto: ${formatMxn(cash.amountCents)} (sin cambio).`
-      : `Monto: ${formatMxn(cash.amountCents)} → ${formatMxn(input.amountCents)}.`;
-  const receipt =
-    input.receipt === cash.receipt
-      ? `Recibo: ${input.receipt} (sin cambio).`
-      : `Recibo: ${cash.receipt ?? 'sin número'} → ${input.receipt}.`;
-  return {
-    title: `¿Corregir el pago de ${participantName}?`,
-    consequence: [amount, receipt, warning, 'La corrección queda en el historial con su motivo.']
-      .filter(Boolean)
-      .join(' '),
-  };
-}
+// The review step's "Antes / Después" rows: only the values that change.
+export const cashCorrectionRows = (cash: CashPayment, input: CashCorrectionInput): ChangeRow[] =>
+  changedRows([
+    {
+      key: 'amount',
+      label: 'Monto',
+      before: cash.amountCents,
+      after: input.amountCents,
+      format: (cents) => formatMxn(cents as number),
+    },
+    {
+      key: 'receipt',
+      label: 'Número de recibo',
+      before: cash.receipt ?? 'Sin número',
+      after: input.receipt,
+    },
+  ]);
 
 const staleMessage = 'La inscripción cambió. Recarga para ver su estado.';
 

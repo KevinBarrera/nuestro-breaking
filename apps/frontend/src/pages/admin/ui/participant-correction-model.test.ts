@@ -8,6 +8,7 @@ import {
   correctionInput,
   correctionReasonError,
   correctionReasonHint,
+  correctionRows,
   crossEventWarning,
   initialCorrectionForm,
   legacyNameHint,
@@ -109,13 +110,13 @@ describe('correctionErrors', () => {
 
 describe('correctionReasonError and correctionReasonHint', () => {
   it('requires a reason of 1 to 500 characters once trimmed', () => {
-    expect(correctionReasonError('   ')).toBe('Escribe el motivo de la corrección.');
+    expect(correctionReasonError('   ')).toBe('Escribe el motivo. Queda en el historial.');
     expect(correctionReasonError('x'.repeat(501))).toBe('Usa máximo 500 caracteres.');
     expect(correctionReasonError(` ${'x'.repeat(500)} `)).toBeUndefined();
   });
 
-  it('says the reason stays in the history and counts the trimmed characters', () => {
-    expect(correctionReasonHint('  Typo ')).toBe('Queda en el historial. 4 de 500 caracteres.');
+  it('counts the trimmed characters of the reason', () => {
+    expect(correctionReasonHint('  Typo ')).toBe('4 de 500 caracteres');
   });
 });
 
@@ -232,5 +233,27 @@ describe('correctionFailure', () => {
       message: 'No pudimos guardar la corrección. Intenta de nuevo.',
       reload: false,
     });
+  });
+});
+
+describe('correctionRows', () => {
+  it('lists each changed part before and after, normalized as saved', () => {
+    expect(
+      correctionRows(
+        summary(),
+        form({ firstName: '  Anna ', secondLastName: '', stageName: 'Ana B' }),
+      ),
+    ).toEqual([
+      { key: 'firstName', label: 'Nombre(s)', before: 'Ana', after: 'Anna' },
+      { key: 'secondLastName', label: 'Segundo apellido', before: 'Ruiz', after: 'Sin dato' },
+      { key: 'stageName', label: 'AKA', before: 'Bgirl Ana', after: 'Ana B' },
+    ]);
+  });
+
+  it('shows a legacy registration without name parts as Sin dato', () => {
+    expect(correctionRows(legacy, form({ secondLastName: '', stageName: '' }))).toEqual([
+      { key: 'firstName', label: 'Nombre(s)', before: 'Sin dato', after: 'Ana' },
+      { key: 'firstLastName', label: 'Primer apellido', before: 'Sin dato', after: 'López' },
+    ]);
   });
 });

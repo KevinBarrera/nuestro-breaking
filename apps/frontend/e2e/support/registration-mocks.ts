@@ -515,7 +515,7 @@ export const registrationSweepCases: {
     path: registrationPath(registrationId),
     mock: (page) =>
       overrideRoute(page, '/entitlements', sweepEntitlements('confirmed', 'EB-7K3Q').json),
-    ready: (page) => page.getByRole('region', { name: 'Folio' }).waitFor(),
+    ready: (page) => page.getByRole('region', { name: 'Resumen' }).waitFor(),
   },
   {
     // The competition editor of a confirmed registration (#170), open with its reason field.
@@ -552,7 +552,7 @@ export const registrationSweepCases: {
     },
   },
   {
-    // The name and AKA correction of a confirmed registration (#104), open with its reason field.
+    // The name and AKA correction modal of a confirmed registration (#104, #345), with its reason.
     name: 'Inscripción confirmada corrigiendo nombre',
     path: registrationPath(registrationId),
     mock: (page) =>
@@ -592,8 +592,8 @@ export const registrationSweepCases: {
     },
   },
   {
-    // The cash correction of a confirmed cash registration (#104), open with an amount that differs
-    // from the pass total, so its warning shows too.
+    // The cash correction modal of a confirmed cash registration (#104, #345), with an amount that
+    // differs from the pass total, so its hint and the card's notice show too.
     name: 'Inscripción confirmada corrigiendo pago en efectivo',
     path: registrationPath(registrationId),
     mock: (page) =>
@@ -606,9 +606,9 @@ export const registrationSweepCases: {
         }).json,
       ),
     ready: async (page) => {
-      await page.getByRole('button', { name: 'Corregir pago en efectivo' }).click();
-      await page.getByRole('checkbox', { name: 'Revisé el recibo original' }).waitFor();
-      await page.getByText(/^El monto no coincide con el total de los pases/).waitFor();
+      await page.getByRole('button', { name: 'Corregir pago' }).click();
+      await page.getByRole('checkbox', { name: 'Revisé el recibo en papel' }).waitFor();
+      await page.getByText(/^No coincide con el total de los pases/).waitFor();
     },
   },
   {

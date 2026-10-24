@@ -5,6 +5,7 @@ import type {
   RegistrationSummary,
 } from '@/entities/admin-registration';
 import { emptyParticipantForm, validateParticipant } from '@/entities/participant';
+import { changedRows, type ChangeRow } from '@/shared/ui';
 import { registrationServerErrors } from './registration-model';
 import { reasonMaxLength } from './sale-complimentary-model';
 import { defaultSalePhoneMode, saleParticipantMessages } from './sale-participant-model';
@@ -64,13 +65,16 @@ export function correctionErrors(form: CorrectionForm): CorrectionErrors {
 // The backend's reason limit, checked on the trimmed text before sending.
 export function correctionReasonError(reason: string): string | undefined {
   const trimmed = reason.trim();
-  if (!trimmed) return 'Escribe el motivo de la corrección.';
+  if (!trimmed) return 'Escribe el motivo. Queda en el historial.';
   if (trimmed.length > reasonMaxLength) return `Usa máximo ${reasonMaxLength} caracteres.`;
   return undefined;
 }
 
 export const correctionReasonHint = (reason: string) =>
-  `Queda en el historial. ${reason.trim().length} de ${reasonMaxLength} caracteres.`;
+  `${reason.trim().length} de ${reasonMaxLength} caracteres`;
+
+// Every correction modal says the same when its form changes nothing (#345).
+export const noChangesMessage = 'No hay cambios que guardar. Modifica algo o cancela.';
 
 // The backend rejects a correction that changes nothing, so the form says so before sending.
 export const correctionHasChanges = (form: CorrectionForm, summary: RegistrationSummary) => {
@@ -89,6 +93,27 @@ export const correctionInput = (
   stageName: form.stageName.trim(),
   reason: reason.trim(),
 });
+
+const rowLabels: Record<CorrectionField, string> = {
+  firstName: 'Nombre(s)',
+  firstLastName: 'Primer apellido',
+  secondLastName: 'Segundo apellido',
+  stageName: 'AKA',
+};
+
+// The review step's "Antes / Después" rows: each part that changes, normalized as it is saved.
+export const correctionRows = (summary: RegistrationSummary, form: CorrectionForm): ChangeRow[] => {
+  const current = initialCorrectionForm(summary);
+  const shown = (value: string) => normalize(value) || 'Sin dato';
+  return changedRows(
+    correctionFields.map((field) => ({
+      key: field,
+      label: rowLabels[field],
+      before: shown(current[field]),
+      after: shown(form[field]),
+    })),
+  );
+};
 
 export const crossEventWarning = (otherEventCount: number) =>
   `Esta persona aparece en ${otherEventCount} ${otherEventCount === 1 ? 'evento' : 'eventos'} más. Esos registros no cambian.`;

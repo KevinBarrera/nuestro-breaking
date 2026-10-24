@@ -21,7 +21,7 @@ const confirmDialog = (page: Page) =>
   page.getByRole('alertdialog', { name: '¿Confirmar sin cobro la inscripción de Ana López?' });
 const dialogConfirm = (page: Page) =>
   confirmDialog(page).getByRole('button', { name: 'Confirmar sin cobro' });
-const folio = (page: Page) => page.getByRole('region', { name: 'Folio' });
+const folio = (page: Page) => page.getByRole('region', { name: 'Resumen' });
 
 const entitlements = (passes = [freeHeldPass]) => ({
   json: {
@@ -51,9 +51,12 @@ test('confirms a $0 registration without payment and shows the folio', async ({ 
   await dialogConfirm(page).click();
 
   await expect(folio(page)).toContainText('LMP-G0LD');
-  await expect(folio(page).getByRole('status')).toHaveText(
-    'La inscripción quedó confirmada sin cobro.',
-  );
+  await expect(
+    page
+      .getByRole('main')
+      .getByRole('status')
+      .filter({ hasText: 'La inscripción quedó confirmada sin cobro.' }),
+  ).toBeVisible();
   expect(complimentary).toEqual([
     {
       registrationId,

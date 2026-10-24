@@ -7,18 +7,17 @@ import {
   registrationSummary,
 } from './support/registration-mocks.ts';
 
-// Correcting the participant's name and AKA with a reason (#104). Field and reason rules, change
-// detection and failure messages are covered by `participant-correction-model.test.ts`; this spec
-// checks the rendered flow.
-const section = (page: Page) => page.getByRole('region', { name: 'Corregir nombre o AKA' });
+// Correcting the participant's name and AKA with a reason (#104) in the two-step modal (#345). Field
+// and reason rules, change detection, the review rows and failure messages are covered by
+// `participant-correction-model.test.ts`; this spec checks the rendered flow.
+const section = (page: Page) => page.getByRole('region', { name: 'Participante' });
 const openButton = (page: Page) =>
   section(page).getByRole('button', { name: 'Corregir nombre o AKA' });
+const dialog = (page: Page) => page.getByRole('dialog');
 const field = (page: Page, name: string) =>
-  section(page).getByRole('textbox', { name, exact: true });
-const saveButton = (page: Page) =>
-  section(page).getByRole('button', { name: 'Guardar corrección' });
-const crossEventDialog = (page: Page) =>
-  page.getByRole('alertdialog', { name: '¿Corregir el nombre de Ana López?' });
+  dialog(page).getByRole('textbox', { name, exact: true });
+const reviewButton = (page: Page) => dialog(page).getByRole('button', { name: 'Revisar cambios' });
+const changes = (page: Page) => dialog(page).getByRole('table', { name: 'Cambios' });
 
 const confirmed = { status: 'confirmed', folio: 'LMP-7K3Q' } as const;
 
@@ -44,21 +43,29 @@ test('corrects the name and AKA of a confirmed registration', async ({ page }) =
   });
   await page.goto(registrationPath(registrationId));
 
+  await expect(section(page)).toContainText('Ana López');
   await openButton(page).click();
   await expect(field(page, 'Nombre(s)')).toBeFocused();
   await expect(field(page, 'Nombre(s)')).toHaveValue('Ana');
   await expect(field(page, 'Primer apellido')).toHaveValue('López');
   await field(page, 'Nombre(s)').fill('Ana María');
-  await field(page, 'AKA / nombre artístico (opcional)').fill('Bgirl Ana');
+  await field(page, 'AKA (opcional)').fill('Bgirl Ana');
   await field(page, 'Motivo').fill('  Error de captura  ');
-  await saveButton(page).dblclick();
+  await reviewButton(page).click();
+  await expect(changes(page).getByRole('row')).toHaveText([
+    'DatoAntesDespués',
+    'Nombre(s)AnaAna María',
+    'AKASin datoBgirl Ana',
+  ]);
+  await dialog(page).getByRole('button', { name: 'Guardar corrección' }).dblclick();
 
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText(
-    'Inscripción de Ana María López',
+  await expect(dialog(page)).toHaveCount(0);
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Ana María López');
+  await expect(section(page).getByRole('status')).toHaveText(
+    'Se corrigió el nombre de la inscripción.',
   );
-  await expect(section(page).getByRole('status')).toHaveText('Se guardó la corrección.');
+  await expect(section(page)).toContainText('Bgirl Ana');
   await expect(openButton(page)).toBeFocused();
-  await expect(field(page, 'Motivo')).toHaveCount(0);
   expect(corrections).toEqual([
     {
       registrationId,
@@ -74,24 +81,27 @@ test('corrects the name and AKA of a confirmed registration', async ({ page }) =
   ]);
 });
 
-test('blocks a blank reason without calling the API', async ({ page }) => {
+test('blocks a blank reason or no change without calling the API', async ({ page }) => {
   const { corrections } = await mockRegistrations(page, {
     entitlements: () => entitlements(confirmed),
   });
   await page.goto(registrationPath(registrationId));
 
   await openButton(page).click();
+  await field(page, 'Motivo').fill('Error de captura');
+  await reviewButton(page).click();
+  await expect(dialog(page)).toContainText('No hay cambios que guardar. Modifica algo o cancela.');
+
   await field(page, 'Nombre(s)').fill('Ana María');
   await field(page, 'Motivo').fill('   ');
-  await saveButton(page).click();
-
+  await reviewButton(page).click();
   await expect(field(page, 'Motivo')).toHaveAttribute('aria-invalid', 'true');
-  await expect(section(page)).toContainText('Escribe el motivo de la corrección.');
+  await expect(dialog(page)).toContainText('Escribe el motivo. Queda en el historial.');
   await expect(field(page, 'Motivo')).toBeFocused();
   expect(corrections).toHaveLength(0);
 });
 
-test('asks to confirm when the person is in other events', async ({ page }) => {
+test('asks to confirm in the review when the person is in other events', async ({ page }) => {
   const { corrections } = await mockRegistrations(page, {
     entitlements: () => entitlements(),
     correction: (attempt) =>
@@ -112,17 +122,16 @@ test('asks to confirm when the person is in other events', async ({ page }) => {
   await openButton(page).click();
   await field(page, 'Nombre(s)').fill('Ana María');
   await field(page, 'Motivo').fill('Error de captura');
-  await saveButton(page).click();
+  await reviewButton(page).click();
+  await dialog(page).getByRole('button', { name: 'Guardar corrección' }).click();
 
-  await expect(crossEventDialog(page)).toContainText(
-    'Esta persona aparece en 2 eventos más. Esos registros no cambian.',
+  await expect(dialog(page)).toContainText(
+    'Esta persona aparece en 2 eventos más. Esos registros no cambian. La corrección solo se guarda en esta inscripción.',
   );
-  await crossEventDialog(page).getByRole('button', { name: 'Confirmar corrección' }).click();
+  await dialog(page).getByRole('button', { name: 'Confirmar corrección' }).click();
 
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText(
-    'Inscripción de Ana María López',
-  );
-  await expect(crossEventDialog(page)).toHaveCount(0);
+  await expect(dialog(page)).toHaveCount(0);
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Ana María López');
   expect(corrections.map(({ body }) => body)).toEqual([
     {
       firstName: 'Ana María',
@@ -142,7 +151,7 @@ test('asks to confirm when the person is in other events', async ({ page }) => {
   ]);
 });
 
-test('locks the correction after a rejection and focuses the reload action', async ({ page }) => {
+test('locks the correction after a rejection and offers a reload', async ({ page }) => {
   const { corrections } = await mockRegistrations(page, {
     entitlements: () => entitlements(confirmed),
     correction: () => ({
@@ -155,11 +164,15 @@ test('locks the correction after a rejection and focuses the reload action', asy
   await openButton(page).click();
   await field(page, 'Nombre(s)').fill('Ana María');
   await field(page, 'Motivo').fill('Error de captura');
-  await saveButton(page).click();
+  await reviewButton(page).click();
+  await dialog(page).getByRole('button', { name: 'Guardar corrección' }).click();
 
-  const reload = section(page).getByRole('alert').getByRole('button', { name: 'Recargar' });
-  await expect(reload).toBeFocused();
-  await expect(openButton(page)).toBeDisabled();
+  await expect(dialog(page).getByRole('alert')).toContainText(
+    'Esta inscripción se anuló y ya no se puede corregir.',
+  );
+  await expect(dialog(page).getByRole('button', { name: 'Guardar corrección' })).toBeDisabled();
+  await dialog(page).getByRole('button', { name: 'Recargar' }).click();
+  await expect(dialog(page)).toHaveCount(0);
   expect(corrections).toHaveLength(1);
 });
 

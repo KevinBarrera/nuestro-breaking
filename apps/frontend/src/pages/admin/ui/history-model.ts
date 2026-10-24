@@ -46,12 +46,18 @@ const fieldLabels: Record<string, string> = {
   stageName: 'AKA',
 };
 
+// The changed name fields in Spanish, each once, or null when none is known to have changed.
+export function changedFieldsLabel(changedFields: string[]): string | null {
+  const fields = [...new Set(changedFields.map((field) => fieldLabels[field] ?? 'otro dato'))];
+  return fields.length > 0 ? fields.join(', ') : null;
+}
+
 const unknownPass = 'pase desconocido';
 const passName = (name: string | null) => name ?? unknownPass;
-const statusLabel = (status: string) => statusLabels[status] ?? 'Otro estado';
+export const statusLabel = (status: string) => statusLabels[status] ?? 'Otro estado';
 const list = (names: string[]) => (names.length > 0 ? names.join(', ') : 'ninguna');
 
-function cashLine({ amountCents, receipt }: HistoryCashValues): string {
+export function cashLine({ amountCents, receipt }: HistoryCashValues): string {
   const amount = amountCents === null ? 'Sin monto' : formatMxn(amountCents);
   return `${amount}, ${receipt === null ? 'sin recibo' : `recibo ${receipt}`}`;
 }
@@ -96,10 +102,8 @@ export function historyDetailLine(details: HistoryDetails): string | null {
         ? `${statusLabel(details.fromStatus)} → ${statusLabel(details.toStatus)}`
         : null;
     case 'registration_correction': {
-      const fields = [
-        ...new Set(details.changedFields.map((field) => fieldLabels[field] ?? 'otro dato')),
-      ];
-      return fields.length > 0 ? `Cambió: ${fields.join(', ')}` : null;
+      const fields = changedFieldsLabel(details.changedFields);
+      return fields ? `Cambió: ${fields}` : null;
     }
     case 'registration_discipline_swap': {
       const passes = `${passName(details.fromPassTypeName)} → ${passName(details.toPassTypeName)}`;

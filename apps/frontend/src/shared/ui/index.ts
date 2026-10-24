@@ -1,3 +1,4 @@
+export { ActionMenu, type ActionMenuItem } from './action-menu';
 export { CheckIcon } from './check-icon';
 export { DataTable, TableChip, type TableColumn } from './data-table';
 export { Breadcrumbs, type BreadcrumbItem } from './breadcrumbs';

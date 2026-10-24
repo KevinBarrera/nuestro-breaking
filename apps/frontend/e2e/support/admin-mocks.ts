@@ -407,11 +407,7 @@ export async function revealControls(page: Page, name: AdminScreenName) {
   if (name === 'Pase' || name === 'Nuevo pase') await accessControls(page).first().waitFor();
   if (name === 'Actividades') await page.getByRole('button', { name: /^Todas/ }).waitFor();
   if (name === 'Equipo')
-    await page
-      .getByRole('table', { name: 'Miembros del equipo' })
-      .getByRole('cell')
-      .first()
-      .waitFor();
+    await page.getByRole('table', { name: 'Equipo' }).getByRole('cell').first().waitFor();
   if (name === 'Agregar administrador')
     await page.getByRole('group', { name: 'Eventos' }).getByRole('checkbox').first().waitFor();
   if (name === 'Resumen') {
@@ -519,7 +515,8 @@ export const adminDialogs: {
     name: 'deactivate access',
     screen: 'Equipo',
     open: async (page) => {
-      await page.getByRole('button', { name: 'Desactivar a Coordinación principal' }).click();
+      await page.getByRole('button', { name: 'Acciones para Coordinación principal' }).click();
+      await page.getByRole('menuitem', { name: 'Desactivar' }).click();
       const dialog = page.getByRole('alertdialog', {
         name: '¿Desactivar a Coordinación principal?',
       });
@@ -548,7 +545,8 @@ export const adminDialogs: {
     name: 'change access',
     screen: 'Equipo',
     open: async (page) => {
-      await page.getByRole('button', { name: /^Cambiar acceso de Persona de entrada/ }).click();
+      await page.getByRole('button', { name: /^Acciones para Persona de entrada/ }).click();
+      await page.getByRole('menuitem', { name: 'Cambiar acceso' }).click();
       const dialog = page.getByRole('dialog', { name: /^Cambiar acceso de Persona de entrada/ });
       await dialog.getByRole('checkbox').first().waitFor();
       return dialog;
@@ -558,9 +556,8 @@ export const adminDialogs: {
     name: 'cancel invitation',
     screen: 'Equipo',
     open: async (page) => {
-      await page
-        .getByRole('button', { name: /^Cancelar invitación de Persona de entrada/ })
-        .click();
+      await page.getByRole('button', { name: /^Acciones para Persona de entrada/ }).click();
+      await page.getByRole('menuitem', { name: 'Cancelar invitación' }).click();
       return page.getByRole('alertdialog', { name: /^¿Cancelar la invitación de/ });
     },
   },

@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { globalAdminSession, mockTeamApi } from './support/team-mocks.ts';
 
 const sideNav = (page: Page) => page.getByRole('navigation', { name: 'Navegación administrativa' });
-const members = (page: Page) => page.getByRole('table', { name: 'Miembros del equipo' });
+const members = (page: Page) => page.getByRole('table', { name: 'Equipo' });
 // Member rows only: the header row holds column headers, not cells.
 const memberRows = (page: Page) =>
   members(page)
@@ -28,29 +28,78 @@ test('a global admin reaches Equipo from the navigation and sees every status', 
   ]);
   const rows = memberRows(page);
   await expect(rows).toHaveCount(5);
-  await expect(rows.nth(0)).toContainText('Kevin Barrera (tú)');
+  await expect(rows.nth(0)).toContainText('Kevin Barrera');
+  await expect(rows.nth(0)).toContainText('Tú');
   // The person's own row offers no actions (D9).
   await expect(rows.nth(0).getByRole('button')).toHaveCount(0);
-  await expect(rows.nth(0).getByRole('cell').last()).toHaveText('—Sin acciones');
-  await expect(rows.nth(0)).toContainText('Todos los eventos');
+  await expect(rows.nth(0).getByRole('cell').last()).toHaveText('Tu cuenta');
+  await expect(rows.nth(0)).toContainText('Todos los eventosIncluye eventos nuevos y el equipo');
   await expect(rows.nth(0)).toContainText('Activo');
   await expect(rows.nth(2)).toContainText('Los más pesados - Preliminares - Noviembre 2026');
+  await expect(rows.nth(2)).toContainText('1 evento');
   await expect(rows.nth(2)).toContainText('Invitación pendiente');
   await expect(rows.nth(2)).toContainText('Vence en 2 días');
   await expect(rows.nth(3)).toContainText(
     'Los más pesados - Preliminares - Noviembre 2026, Nuestro Breaking Noviembre 2026',
   );
+  await expect(rows.nth(3)).toContainText('2 eventos');
   await expect(rows.nth(3)).toContainText('Invitación vencida');
   await expect(rows.nth(4)).toContainText('Desactivado');
+  await expect(page.getByText('5 personas', { exact: true })).toBeVisible();
 
-  // From `lg` up the actions share the row's line instead of wrapping under it.
+  // On a wide screen the actions share the row's line instead of stacking under it.
   await page.setViewportSize({ width: 1280, height: 800 });
   const chip = await rows.nth(1).getByText('Activo').boundingBox();
   const action = await rows
     .nth(1)
-    .getByRole('button', { name: /^Desactivar/ })
+    .getByRole('button', { name: /^Acciones para/ })
     .boundingBox();
   expect(action!.y).toBeLessThan(chip!.y + chip!.height);
+});
+
+test('search and status chips narrow the team, and Limpiar filtros brings everyone back', async ({
+  page,
+}) => {
+  await mockTeamApi(page);
+  await page.goto('/admin/team');
+  const chips = page.getByRole('group', { name: 'Filtrar por estado' }).getByRole('button');
+  await expect(chips).toHaveText(['Todos5', 'Activos2', 'Pendientes2', 'Desactivados1']);
+  await expect(chips.first()).toHaveAttribute('aria-pressed', 'true');
+
+  await chips.filter({ hasText: 'Pendientes' }).click();
+  await expect(memberRows(page)).toHaveCount(2);
+  await expect(page.getByText('Mostrando 2 de 5 personas')).toBeVisible();
+
+  // Accents and case do not matter.
+  await page.getByRole('searchbox', { name: 'Buscar en el equipo' }).fill('NOVIEMBRE');
+  await expect(memberRows(page)).toHaveCount(2);
+  await page.getByRole('searchbox', { name: 'Buscar en el equipo' }).fill('kevin');
+  await expect(memberRows(page)).toHaveCount(0);
+  await expect(page.getByText('Nadie coincide con la búsqueda')).toBeVisible();
+
+  await page.getByRole('button', { name: 'Limpiar filtros' }).click();
+  await expect(memberRows(page)).toHaveCount(5);
+  await expect(page.getByRole('searchbox', { name: 'Buscar en el equipo' })).toHaveValue('');
+  await expect(chips.first()).toHaveAttribute('aria-pressed', 'true');
+});
+
+test('the Acciones menu lists what each status allows', async ({ page }) => {
+  await mockTeamApi(page);
+  await page.goto('/admin/team');
+  const menuFor = async (name: string) => {
+    await page.getByRole('button', { name: `Acciones para ${name}` }).click();
+    const items = page.getByRole('menu', { name: `Acciones para ${name}` }).getByRole('menuitem');
+    const labels = await items.allTextContents();
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('button', { name: `Acciones para ${name}` })).toBeFocused();
+    return labels;
+  };
+  expect(await menuFor('Coordinación principal')).toEqual([
+    'Cambiar acceso',
+    'Generar nuevo enlace',
+    'Desactivar',
+  ]);
+  expect(await menuFor('Persona de caja')).toEqual(['Reactivar', 'Cambiar acceso']);
 });
 
 test('an event-scoped admin has no Equipo item and a direct visit shows Sin acceso', async ({

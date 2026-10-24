@@ -373,9 +373,8 @@ export async function revealControls(page: Page, name: AdminScreenName) {
     await venues.getByText('Escribe el nombre de la sede.').waitFor();
   }
   if (name === 'Check-in') {
-    await page.getByRole('textbox', { name: 'Buscar inscripción' }).fill('Luz');
-    await page.getByRole('button', { name: 'Buscar' }).click();
-    await page.getByRole('button', { name: /Luz Rivera/ }).click();
+    // The list opens on who is still to enter; the record opens in a dialog (#336).
+    await page.getByRole('button', { name: /^Persona con un nombre muy largo/ }).click();
     // Not general-entry-only: the activity action is the one shown (#126).
     await page.getByRole('button', { name: 'Registrar entrada a Batalla de crews' }).waitFor();
   }

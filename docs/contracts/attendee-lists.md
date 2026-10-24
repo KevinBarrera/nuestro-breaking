@@ -1,6 +1,6 @@
 # Attendee lists contract
 
-`GET /admin/events/:eventId/attendee-lists` (#65) returns the contact-free data an administrator prints, or saves as PDF, before the event for the paper fallback (see the [event-day runbook](../runbooks/event-day.md)). It is a read: no CSRF token is needed and nothing is written.
+`GET /admin/events/:eventId/attendee-lists` (#65) returns the contact-free data an administrator prints, or saves as PDF, before the event for the paper fallback (see the [event-day runbook](../runbooks/event-day.md)). It is a read: no CSRF token is needed and nothing is written. The check-in screen (#336) reads the same snapshot to list the event's registrations and their check-in state.
 
 ## Access
 

@@ -367,7 +367,6 @@ test('does not read the list again for the same unknown event id', async ({ page
   await expect.poll(reads).toBe(2);
   await expect(selectTrigger(page, 'Evento')).toHaveCount(0);
   // Another screen of the same event: no new read.
-  // (Pases, not Check-in: the check-in screen reads the list itself for the event name.)
   await sideNav(page).getByRole('link', { name: 'Pases' }).click();
   await expect(page).toHaveURL(new RegExp(`/admin/events/${firstId}/passes$`));
   await sideNav(page).getByRole('link', { name: 'Actividades' }).click();

@@ -14,8 +14,8 @@ import { CheckIcon } from './check-icon';
 export type SelectOption = { id: string; label: string; isDisabled?: boolean };
 
 // `field` sits in forms, `header` in the dark admin topbar, `nav` in the admin side navigation,
-// `chip` in dense list rows.
-export type SelectVariant = 'field' | 'header' | 'nav' | 'chip';
+// `chip` in dense list rows, `filter` in list toolbars with the label inside the button.
+export type SelectVariant = 'field' | 'header' | 'nav' | 'chip' | 'filter';
 
 type SelectProps = {
   label: string;
@@ -35,6 +35,8 @@ type SelectProps = {
   className?: string;
   // Extra trigger classes, e.g. the tone of a chip.
   triggerClassName?: string;
+  // Shorter text for the button than the selected option's label.
+  selectedLabel?: string;
 };
 
 const roots: Record<SelectVariant, string> = {
@@ -42,6 +44,7 @@ const roots: Record<SelectVariant, string> = {
   header: 'flex min-w-0 items-center gap-2 text-sm text-header-muted',
   nav: 'block min-w-0',
   chip: 'inline-block',
+  filter: 'inline-block',
 };
 
 const focusRing = 'outline-none data-focus-visible:outline-2 data-focus-visible:outline-offset-2';
@@ -52,6 +55,7 @@ const triggers: Record<SelectVariant, string> = {
   header: `flex min-h-11 max-w-[60vw] min-w-0 items-center gap-2 rounded-md border border-header-line bg-header-control pr-3 pl-3 font-semibold text-header-fg ${focusRing} data-focus-visible:outline-header-fg data-disabled:cursor-not-allowed data-disabled:opacity-60`,
   nav: `flex min-h-12 w-full items-center gap-2.5 rounded-lg border border-input-line bg-input px-3 py-2 text-left text-sm font-semibold text-fg ${focusRing} data-focus-visible:outline-focus`,
   chip: `inline-flex min-h-11 items-center gap-2 rounded-full border pr-3 pl-3 text-xs font-semibold ${focusRing} data-focus-visible:outline-focus data-disabled:cursor-wait data-disabled:opacity-60`,
+  filter: `inline-flex min-h-11 max-w-full items-center gap-2 rounded-lg border border-input-line bg-surface pr-3 pl-3.5 text-sm text-fg hover:bg-row ${focusRing} data-focus-visible:outline-focus`,
 };
 
 function ChevronIcon() {
@@ -87,7 +91,9 @@ export function Select({
   variant = 'field',
   className = '',
   triggerClassName = '',
+  selectedLabel,
 }: SelectProps) {
+  const filter = variant === 'filter';
   function change(key: Key | null) {
     // Like a native select, re-choosing the current option is not a change.
     if (key === null || String(key) === selectedKey) return;
@@ -104,13 +110,20 @@ export function Select({
       placeholder={placeholder}
       className={`${roots[variant]} ${className}`}
     >
-      <Label className={hideLabel ? 'sr-only' : undefined}>{label}</Label>
+      <Label className={hideLabel || filter ? 'sr-only' : undefined}>{label}</Label>
       <Button className={`${triggers[variant]} ${triggerClassName}`}>
+        {filter && (
+          <span aria-hidden="true" className="shrink-0 text-muted">
+            {label}:
+          </span>
+        )}
         {/* Text only: the option's check-mark layout must not leak into the trigger. */}
         <SelectValue
-          className={`min-w-0 flex-1 text-left data-placeholder:text-muted ${variant === 'nav' ? 'leading-5' : 'truncate'}`}
+          className={`min-w-0 flex-1 text-left data-placeholder:text-muted ${variant === 'nav' ? 'leading-5' : 'truncate'} ${filter ? 'font-semibold' : ''}`}
         >
-          {({ isPlaceholder, selectedText }) => (isPlaceholder ? placeholder : selectedText)}
+          {({ isPlaceholder, selectedText }) =>
+            isPlaceholder ? placeholder : (selectedLabel ?? selectedText)
+          }
         </SelectValue>
         <ChevronIcon />
       </Button>

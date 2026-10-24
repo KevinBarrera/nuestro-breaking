@@ -1,144 +1,123 @@
+import { attendeeListsFailure, fetchAttendeeLists } from '@/entities/attendee-list';
 import { apiUrl } from '@/shared/api';
-import { type FormEvent, useEffect, useRef, useState } from 'react';
-import { Link, useParams } from 'react-router';
 import { routes } from '@/shared/config';
 import { buttonClass } from '@/shared/ui';
+import { useEffect, useRef, useState } from 'react';
+import { Link, useParams } from 'react-router';
 import {
-  actionLabel,
   admissionNotice,
-  canAdmit,
-  checkInPlan,
-  escalationMessage,
-  formatCheckInTime,
   readAdmission,
-  readCheckInPage,
-  recordedAt,
   type AdmissionOutcome,
   type CheckInNotice,
-  type CheckInPage,
-  type CheckInRow,
-  type CheckInTarget,
 } from './admin-check-in-model';
-import { useEventName } from './use-event-name';
+import { CheckInDialog } from './check-in-dialog';
+import { CheckInList, CheckInProgress, type CheckInFilters } from './check-in-list';
+import { buildRoster, type RosterCheck, type RosterPerson } from './check-in-roster-model';
 
-type SearchState =
-  | { status: 'idle' | 'loading' | 'empty' | 'denied' | 'error' }
-  | ({ status: 'ready' } & CheckInPage);
+type LoadState =
+  { status: 'loading' | 'denied' | 'error' } | { status: 'ready'; roster: RosterPerson[] };
 
-const button =
-  'min-h-11 rounded-lg bg-primary px-4 py-2 font-semibold text-primary-fg hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus disabled:cursor-wait disabled:opacity-50';
-const admitButton = buttonClass('primary', 'w-full sm:w-auto');
-const chip = 'inline-flex rounded-full px-3 py-1 text-sm font-semibold';
-const statusBox = 'rounded-lg border p-4';
-const noticeStyles: Record<CheckInNotice['kind'], string> = {
-  success: 'border-success-fg bg-success text-success-fg',
-  already: 'border-warning-fg bg-warning text-warning-fg',
-  escalate: 'border-warning-fg bg-warning text-warning-fg',
-  error: 'border-danger-fg bg-danger text-danger-fg',
-};
+const statusBox = 'rounded-xl border p-4';
+const errorBox = `${statusBox} border-danger-fg bg-danger text-danger-fg`;
 const verifyFailure = 'No se pudo verificar el estado. Consulta al responsable antes de continuar.';
+const linkClass =
+  'font-semibold text-link underline underline-offset-3 hover:text-link-hover focus-visible:outline-2 focus-visible:outline-focus';
 
-function EntryState({ checkedInAt }: { checkedInAt: string | null }) {
+const eventPath = (route: string, eventId: string) => route.replace(':eventId', eventId);
+
+function InfoIcon() {
   return (
-    <p className={`${chip} ${checkedInAt ? 'bg-success text-success-fg' : 'bg-chip text-fg'}`}>
-      {checkedInAt
-        ? `Entrada registrada a las ${formatCheckInTime(checkedInAt)}`
-        : 'Entrada pendiente'}
-    </p>
+    <svg
+      aria-hidden="true"
+      width="18"
+      height="18"
+      viewBox="0 0 20 20"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.75"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="mt-px shrink-0"
+    >
+      <circle cx="10" cy="10" r="7.5" />
+      <path d="M10 9v4.5M10 6.5v.01" />
+    </svg>
   );
+}
+
+// The screen never lists or acts on another event's registrations.
+async function readRoster(eventId: string, signal: AbortSignal): Promise<RosterPerson[]> {
+  const lists = await fetchAttendeeLists(eventId, signal);
+  if (lists.event.id !== eventId) throw new Error('foreign event snapshot');
+  return buildRoster(lists);
 }
 
 export function AdminCheckInPage() {
   const { eventId } = useParams<'eventId'>();
-  return <EventCheckIn key={eventId} eventId={eventId} />;
+  return <EventCheckIn key={eventId} eventId={eventId ?? ''} />;
 }
 
-function EventCheckIn({ eventId }: { eventId: string | undefined }) {
-  const [query, setQuery] = useState('');
-  const [searched, setSearched] = useState('');
-  const [searchState, setSearchState] = useState<SearchState>({ status: 'idle' });
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+function EventCheckIn({ eventId }: { eventId: string }) {
+  const [load, setLoad] = useState<LoadState>({ status: 'loading' });
+  const [filters, setFilters] = useState<CheckInFilters>({
+    query: '',
+    status: 'pending',
+    activity: 'all',
+  });
+  const [openId, setOpenId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<CheckInNotice | null>(null);
   const controller = useRef<AbortController | null>(null);
   const locked = useRef(false);
-  const sequence = useRef(0);
-  const { name: eventName, state: eventNameState } = useEventName(eventId);
+  const searchRef = useRef<HTMLInputElement>(null);
+  const refocus = useRef(false);
 
   useEffect(() => {
-    // Cleanup must abort the latest request, not the one active when the effect ran.
-    return () => {
-      controller.current?.abort();
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-      sequence.current++;
-    };
-  }, [eventId]);
-
-  const selected =
-    searchState.status === 'ready'
-      ? searchState.results.find((row) => row.registration.id === selectedId)
-      : undefined;
-
-  async function read(q: string, signal: AbortSignal): Promise<CheckInPage> {
-    const response = await fetch(
-      apiUrl(
-        `/admin/events/${encodeURIComponent(eventId ?? '')}/participants?q=${encodeURIComponent(q)}&limit=20&offset=0`,
-      ),
-      {
-        credentials: 'include',
-        signal,
-      },
-    );
-    if (response.status === 401 || response.status === 403) throw new Error('denied');
-    if (!response.ok) throw new Error('read failed');
-    const page = readCheckInPage(await response.json(), eventId ?? '');
-    if (!page) throw new Error('invalid event projection');
-    return page;
-  }
-
-  async function search(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const q = query.trim();
-    if (q.length < 2 || q.length > 200 || busy || !eventId) return;
-    controller.current?.abort();
     const request = new AbortController();
     controller.current = request;
-    const version = ++sequence.current;
-    setSelectedId(null);
+    readRoster(eventId, request.signal)
+      .then((roster) => setLoad({ status: 'ready', roster }))
+      .catch((error: unknown) => {
+        if (request.signal.aborted) return;
+        setLoad({ status: attendeeListsFailure(error) === 'denied' ? 'denied' : 'error' });
+      });
+    // Cleanup must abort the latest request, not the one active when the effect ran.
+    return () => controller.current?.abort();
+  }, [eventId]);
+
+  const roster = load.status === 'ready' ? load.roster : [];
+  const open = roster.find((person) => person.registrationId === openId);
+
+  function close() {
+    if (locked.current) return;
+    setOpenId(null);
     setNotice(null);
-    setSearched(q);
-    setSearchState({ status: 'loading' });
-    try {
-      const page = await read(q, request.signal);
-      if (request.signal.aborted || version !== sequence.current) return;
-      setSearchState(page.results.length ? { status: 'ready', ...page } : { status: 'empty' });
-    } catch (error) {
-      if (!request.signal.aborted && version === sequence.current) {
-        setSearchState({
-          status: error instanceof Error && error.message === 'denied' ? 'denied' : 'error',
-        });
-      }
-    }
   }
 
-  async function admit(row: CheckInRow, target: CheckInTarget) {
-    if (
-      locked.current ||
-      !eventId ||
-      !searched ||
-      searchState.status !== 'ready' ||
-      row.registration.eventId !== eventId ||
-      !canAdmit(row, target)
-    )
-      return;
+  function next() {
+    refocus.current = true;
+    close();
+    setFilters((current) => ({ ...current, query: '' }));
+  }
+
+  // The dialog hands focus back to the row that opened it; the next search wants the field.
+  // Its restore runs in an animation frame after unmount, so this runs one frame later.
+  useEffect(() => {
+    if (openId || !refocus.current) return;
+    refocus.current = false;
+    const frame = requestAnimationFrame(() => searchRef.current?.focus());
+    return () => cancelAnimationFrame(frame);
+  }, [openId]);
+
+  async function admit(person: RosterPerson, check: RosterCheck) {
+    if (locked.current || !person.confirmed || check.checkedInAt) return;
     locked.current = true;
     setBusy(true);
     setNotice(null);
     const request = new AbortController();
     controller.current = request;
-    const version = ++sequence.current;
-    const activityId = target.kind === 'activity' ? target.activity.id : undefined;
-    const base = `/admin/events/${encodeURIComponent(eventId)}/registrations/${encodeURIComponent(row.registration.id)}`;
+    const activityId = check.activityId ?? undefined;
+    const base = `/admin/events/${encodeURIComponent(eventId)}/registrations/${encodeURIComponent(person.registrationId)}`;
     let outcome: AdmissionOutcome = { kind: 'error' };
     try {
       const session = await fetch(apiUrl('/auth/session'), {
@@ -163,7 +142,7 @@ function EventCheckIn({ eventId }: { eventId: string | undefined }) {
       else if (response.ok) {
         const admission = readAdmission(await response.json(), {
           eventId,
-          registrationId: row.registration.id,
+          registrationId: person.registrationId,
           activityId,
         });
         if (!admission) throw new Error('invalid admission response');
@@ -172,222 +151,166 @@ function EventCheckIn({ eventId }: { eventId: string | undefined }) {
           checkedInAt: admission.checkedInAt,
         };
       }
-      // Even a denial or a rejection can race another operator. The protected projection is authoritative.
-      const page = await read(searched, request.signal);
-      if (request.signal.aborted || version !== sequence.current) return;
-      const fresh = page.results.find((item) => item.registration.id === row.registration.id);
-      setSearchState(page.results.length ? { status: 'ready', ...page } : { status: 'empty' });
-      if (!fresh) {
-        setSelectedId(null);
+      // Even a denial or a rejection can race another operator. The snapshot is authoritative.
+      const fresh = await readRoster(eventId, request.signal);
+      if (request.signal.aborted) return;
+      setLoad({ status: 'ready', roster: fresh });
+      const refreshed = fresh.find((item) => item.registrationId === person.registrationId);
+      const target = refreshed?.checks.find((item) => item.activityId === check.activityId);
+      if (!refreshed || !target) {
         setNotice({ kind: 'error', text: verifyFailure });
         return;
       }
-      setNotice(admissionNotice(outcome, target, recordedAt(fresh, target)));
+      setNotice(admissionNotice(outcome, check, target.checkedInAt));
     } catch {
-      if (!request.signal.aborted && version === sequence.current) {
-        setSearchState({ status: 'error' });
-        setNotice({ kind: 'error', text: verifyFailure });
-      }
+      if (!request.signal.aborted) setNotice({ kind: 'error', text: verifyFailure });
     } finally {
       locked.current = false;
-      if (!request.signal.aborted && version === sequence.current) setBusy(false);
+      if (!request.signal.aborted) setBusy(false);
     }
   }
 
-  const plan = selected && checkInPlan(selected);
+  const hasData = load.status === 'ready' && roster.length > 0;
 
   return (
-    <main className="px-4 py-8 text-fg sm:px-8 lg:py-12">
-      <div className="mx-auto max-w-4xl space-y-6">
-        <header>
-          <p className="text-sm break-words text-muted" data-event-name-state={eventNameState}>
-            {eventName ? `Administración · ${eventName}` : 'Administración'}
-          </p>
-          <h1 className="mt-2 text-3xl font-extrabold tracking-tight text-heading">
-            Control de entrada
-          </h1>
-          <p className="mt-2 text-muted">
-            Verifica la inscripción antes de registrar cada entrada.
-          </p>
-        </header>
-        <form
-          onSubmit={(event) => void search(event)}
-          className="rounded-xl border border-line bg-surface p-4 sm:p-6"
-        >
-          <label htmlFor="registration-query" className="block font-semibold text-heading">
-            Buscar inscripción
-          </label>
-          <div className="mt-3 flex flex-col gap-3 sm:flex-row">
-            <input
-              id="registration-query"
-              value={query}
-              disabled={busy}
-              onChange={(event) => {
-                setQuery(event.target.value);
-                setSelectedId(null);
-                setNotice(null);
-                controller.current?.abort();
-                sequence.current++;
-                setSearchState({ status: 'idle' });
-              }}
-              minLength={2}
-              maxLength={200}
-              required
-              className="min-h-13 min-w-0 flex-1 rounded-lg border-2 border-input-line bg-input px-4 text-lg text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus disabled:opacity-50"
-              placeholder="Nombre, correo o folio"
-            />
-            <button
-              className={`${button} min-h-13 sm:px-6`}
-              type="submit"
-              disabled={busy || searchState.status === 'loading'}
-            >
-              Buscar
-            </button>
+    <main className="px-4 py-8 text-fg sm:px-8 lg:pt-10 lg:pb-16">
+      <div className="mx-auto max-w-[1080px] space-y-5">
+        <header className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4">
+          <div className="space-y-1.5">
+            <h1 className="text-3xl font-extrabold tracking-tight text-heading">Check-in</h1>
+            <p className="text-muted">Busca a la persona, abre su ficha y registra su entrada.</p>
           </div>
-        </form>
-        {searchState.status === 'loading' && (
+          {hasData && <CheckInProgress roster={roster} activity={filters.activity} />}
+        </header>
+
+        {load.status === 'loading' && (
           <p role="status" className={`${statusBox} border-line bg-surface text-muted`}>
-            Buscando inscripciones…
+            Cargando inscripciones…
           </p>
         )}
-        {searchState.status === 'empty' && (
-          <p role="status" className={`${statusBox} border-line bg-surface text-muted`}>
-            No se encontraron inscripciones.
-          </p>
-        )}
-        {searchState.status === 'denied' && (
-          <p role="alert" className={`${statusBox} ${noticeStyles.error}`}>
+        {load.status === 'denied' && (
+          <p role="alert" className={errorBox}>
             Acceso denegado para este evento. Consulta al responsable.
           </p>
         )}
-        {searchState.status === 'error' && (
-          <p role="alert" className={`${statusBox} ${noticeStyles.error}`}>
+        {load.status === 'error' && (
+          <p role="alert" className={errorBox}>
             No se pudo verificar la inscripción o el estado. Consulta al responsable antes de
             continuar.
           </p>
         )}
-        {searchState.status === 'ready' && (
-          <section aria-label="Resultados" className="space-y-3">
-            <h2 className="text-xl font-bold text-heading">Resultados ({searchState.total})</h2>
-            {searchState.results.map((row) => (
-              <button
-                key={row.registration.id}
-                type="button"
-                disabled={busy}
-                onClick={() => {
-                  setSelectedId(row.registration.id);
-                  setNotice(null);
-                }}
-                className={`flex min-h-14 w-full flex-wrap items-start justify-between gap-x-3 gap-y-1 rounded-xl border bg-surface p-4 text-left hover:border-focus focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus disabled:opacity-50 ${
-                  row.registration.id === selectedId
-                    ? 'border-focus ring-2 ring-focus'
-                    : 'border-line'
-                }`}
-              >
-                <span className="min-w-0">
-                  <span className="block text-lg leading-tight font-bold text-heading">
-                    {row.participant.fullName}
-                  </span>
-                  <span className="block text-sm break-words text-muted">
-                    {row.participant.stageName ?? row.participant.email ?? 'Sin alias'}
-                  </span>
-                </span>
-                <span className="rounded bg-chip px-2 py-1 font-mono text-sm text-fg">
-                  {row.registration.folio ?? 'Sin folio'}
-                </span>
-              </button>
-            ))}
-          </section>
-        )}
-        {selected && (
+
+        {load.status === 'ready' && !roster.length && (
           <section
-            aria-label="Inscripción seleccionada"
-            className="space-y-5 rounded-xl border border-line bg-surface p-4 sm:p-6"
+            aria-labelledby="check-in-empty"
+            className="flex flex-col items-center gap-3 rounded-xl border border-line bg-surface px-6 py-12 text-center"
           >
-            <h2 className="text-2xl leading-tight font-extrabold text-heading">
-              {selected.participant.fullName}
-            </h2>
-            <p
-              className={`${chip} ${
-                selected.registration.status === 'confirmed'
-                  ? 'bg-success text-success-fg'
-                  : 'bg-danger text-danger-fg'
-              }`}
+            <span
+              aria-hidden="true"
+              className="flex size-16 items-center justify-center rounded-full bg-chip text-heading"
             >
-              {selected.registration.status === 'confirmed'
-                ? 'Inscripción confirmada'
-                : 'Inscripción no confirmada · No registrar entrada'}
+              <svg
+                width="28"
+                height="28"
+                viewBox="0 0 20 20"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M4 17V3.5h9V17" />
+                <path d="M13 5.5h3V17" />
+                <path d="M2.5 17h15" />
+                <path d="M10 10.5v.01" />
+              </svg>
+            </span>
+            <h2 id="check-in-empty" className="mt-1 text-xl font-bold text-heading">
+              Aún no hay a quién registrar
+            </h2>
+            <p className="max-w-[480px] text-[15px] leading-[22px] text-muted">
+              Cuando alguien compre un pase en línea o lo inscribas en mesa, aparecerá aquí para
+              registrar su entrada.
             </p>
-            {plan?.escalate && (
-              <p className={`${statusBox} font-semibold ${noticeStyles.escalate}`}>
-                {escalationMessage}
-              </p>
-            )}
-            {plan?.event && (
-              <div className="space-y-3 border-t border-line pt-4">
-                <h3 className="font-bold text-heading">Entrada al evento</h3>
-                <EntryState checkedInAt={plan.event.checkedInAt} />
-                {!plan.event.checkedInAt && (
-                  <div>
-                    <button
-                      type="button"
-                      className={admitButton}
-                      disabled={busy}
-                      onClick={() => void admit(selected, { kind: 'event' })}
-                    >
-                      {busy ? 'Registrando…' : actionLabel({ kind: 'event' })}
-                    </button>
-                  </div>
+            <div className="mt-2 flex flex-wrap justify-center gap-3">
+              <Link
+                to={eventPath(routes.adminEventRegistrationNew, eventId)}
+                className={buttonClass(
+                  'primary',
+                  'flex min-h-12 items-center gap-2 px-5 text-[15px] font-bold',
                 )}
-              </div>
-            )}
-            {!!plan?.activities.length && (
-              <div className="space-y-3 border-t border-line pt-4">
-                <h3 className="font-bold text-heading">Actividades de sus pases</h3>
-                {plan.activities.map((activity) => (
-                  <div
-                    key={activity.id}
-                    className="space-y-3 rounded-lg border border-line bg-surface-inner p-4"
-                  >
-                    <h4 className="font-bold text-heading">{activity.name}</h4>
-                    <EntryState checkedInAt={activity.checkedInAt} />
-                    {!activity.checkedInAt && (
-                      <div>
-                        <button
-                          type="button"
-                          className={admitButton}
-                          disabled={busy}
-                          onClick={() => void admit(selected, { kind: 'activity', activity })}
-                        >
-                          {busy ? 'Registrando…' : actionLabel({ kind: 'activity', activity })}
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
+              >
+                <svg
+                  aria-hidden="true"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 20 20"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                >
+                  <path d="M10 4v12M4 10h12" />
+                </svg>
+                Nueva inscripción
+              </Link>
+              <Link
+                to={eventPath(routes.adminEventOverview, eventId)}
+                className={buttonClass('secondary', 'flex min-h-12 items-center bg-surface')}
+              >
+                Revisar la venta en línea
+              </Link>
+            </div>
+            <p className="mt-4 flex max-w-[480px] items-start gap-2 text-left text-sm text-muted">
+              <InfoIcon />
+              <span>
+                Antes de abrir puertas, imprime las{' '}
+                <Link to={eventPath(routes.adminEventLists, eventId)} className={linkClass}>
+                  listas de respaldo
+                </Link>{' '}
+                por si el sistema falla.
+              </span>
+            </p>
           </section>
         )}
-        {notice && (
-          <p
-            role={notice.kind === 'error' || notice.kind === 'escalate' ? 'alert' : 'status'}
-            className={`${statusBox} font-semibold ${noticeStyles[notice.kind]}`}
-          >
-            {notice.text}
-          </p>
+
+        {hasData && (
+          <>
+            <CheckInList
+              roster={roster}
+              filters={filters}
+              onFiltersChange={setFilters}
+              onOpen={(person) => {
+                setNotice(null);
+                setOpenId(person.registrationId);
+              }}
+              searchRef={searchRef}
+            />
+            <p className="flex items-start gap-2.5 text-sm text-muted">
+              <InfoIcon />
+              <span>
+                Si no puedes verificar a alguien, no registres la entrada: consulta al responsable o
+                revisa el{' '}
+                <Link to={eventPath(routes.adminEventOverview, eventId)} className={linkClass}>
+                  resumen del evento
+                </Link>
+                .
+              </span>
+            </p>
+          </>
         )}
-        <p className="border-t border-line pt-5 text-sm text-muted">
-          Si el estado no se puede verificar, no repitas la entrada. Consulta al responsable o
-          vuelve al{' '}
-          <Link
-            className="font-semibold text-link underline hover:text-link-hover focus-visible:outline-2 focus-visible:outline-focus"
-            to={eventId ? routes.adminEventOverview.replace(':eventId', eventId) : routes.admin}
-          >
-            resumen del evento
-          </Link>
-          .
-        </p>
+
+        {open && (
+          <CheckInDialog
+            person={open}
+            paymentsReviewHref={eventPath(routes.adminEventPaymentsReview, eventId)}
+            busy={busy}
+            notice={notice}
+            onAdmit={(check) => void admit(open, check)}
+            onClose={close}
+            onNext={next}
+          />
+        )}
       </div>
     </main>
   );

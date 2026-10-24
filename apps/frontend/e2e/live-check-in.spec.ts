@@ -71,7 +71,7 @@ async function stopChild(child: ChildProcess) {
 }
 
 test.setTimeout(240_000);
-test('browser session searches, checks in a pass activity in one action and persists no denied fact', async ({
+test('browser session finds, checks in a pass activity in one action and persists no denied fact', async ({
   page,
 }) => {
   const child = fork(server, [], {
@@ -109,16 +109,23 @@ test('browser session searches, checks in a pass activity in one action and pers
       .getByRole('link', { name: 'Check-in' })
       .click();
     await expect(page).toHaveURL(new RegExp(`/admin/events/${ready.event}/check-in$`));
-    await page.getByRole('textbox', { name: 'Buscar inscripción' }).fill('Allowed');
-    await page.getByRole('button', { name: 'Buscar' }).click();
+    // The screen lists the event's registrations; the search filters them as you type.
+    await page.getByRole('searchbox', { name: 'Buscar inscripción' }).fill('Allowed');
     await page.getByRole('button', { name: /Allowed Guest/ }).click();
-    await expect(page.getByText('Inscripción confirmada')).toBeVisible();
+    const dialog = page.getByRole('dialog', { name: 'Allowed Guest' });
+    await expect(dialog.getByText('Inscripción confirmada')).toBeVisible();
     // One action per pass activity; no event check-in comes first.
-    await expect(page.getByRole('button', { name: 'Registrar entrada al evento' })).toHaveCount(0);
-    await page.getByRole('button', { name: 'Registrar entrada a Live workshop' }).click();
-    await expect(page.getByText('Entrada a Live workshop registrada')).toBeVisible();
-    await expect(page.getByText(/^Entrada registrada a las \d{2}:\d{2}$/)).toBeVisible();
-    expect(requests.some((r) => r.url().includes('/participants?q=Allowed'))).toBe(true);
+    await expect(dialog.getByRole('button', { name: 'Registrar entrada al evento' })).toHaveCount(
+      0,
+    );
+    await dialog.getByRole('button', { name: 'Registrar entrada a Live workshop' }).click();
+    await expect(dialog.getByRole('status')).toHaveText(
+      /^Entrada a Live workshop registrada a las \d{2}:\d{2}\.$/,
+    );
+    await expect(dialog.getByText(/^Entró a las \d{2}:\d{2}$/)).toBeVisible();
+    expect(
+      requests.some((r) => r.url().endsWith(`/admin/events/${ready.event}/attendee-lists`)),
+    ).toBe(true);
     const admitted = requests.find((r) => r.method() === 'POST' && r.url().endsWith('/check-in'));
     expect(admitted?.url()).toBe(
       `${api}/admin/events/${ready.event}/registrations/${ready.registration}/activities/${ready.activity}/check-in`,

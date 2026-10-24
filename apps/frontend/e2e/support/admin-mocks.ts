@@ -73,7 +73,7 @@ const activities = [
     '2026-11-21T16:00:00.000Z',
     '2026-11-21T18:00:00.000Z',
   ),
-  // Hidden until "Mostrar archivadas"; it opens the restore confirmation.
+  // Listed under "Archivadas" on Actividades.
   {
     ...activity(
       cypherId,
@@ -439,8 +439,8 @@ export async function revealControls(page: Page, name: AdminScreenName) {
 }
 
 // The catalog dialogs, each opened from its screen (after `revealControls`) without writing:
-// the activity form modal, "Revisar cambios", the destructive archive confirmation, the
-// activity and pass restore confirmations and the unsaved-changes warning. `open` returns the open dialog.
+// the activity form modal, "Revisar cambios", the archive confirmations, the pass restore
+// confirmation and the unsaved-changes warning. `open` returns the open dialog.
 export const adminDialogs: {
   name: string;
   screen: AdminScreenName;
@@ -478,12 +478,14 @@ export const adminDialogs: {
     },
   },
   {
-    name: 'activity restore confirmation',
+    name: 'activity archive confirmation',
     screen: 'Actividades',
     open: async (page) => {
-      await page.getByRole('checkbox', { name: 'Mostrar archivadas' }).check();
-      await page.getByRole('button', { name: /^Restaurar Cypher archivado/ }).click();
-      return page.getByRole('alertdialog', { name: /^¿Restaurar Cypher archivado/ });
+      await page
+        .getByRole('button', { name: /^Archivar / })
+        .first()
+        .click();
+      return page.getByRole('alertdialog', { name: /^¿Archivar / });
     },
   },
   {

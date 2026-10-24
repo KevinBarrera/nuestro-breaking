@@ -1,4 +1,4 @@
-import type { AttendeeLists } from '@/entities/attendee-list';
+import { attendeeListActivityKinds, type AttendeeLists } from '@/entities/attendee-list';
 import {
   activityKinds,
   eventDayKey,
@@ -21,6 +21,10 @@ export type AgendaFilters = {
   kind: string | null;
   query: string;
 };
+
+// Ids that link the tabs to the panel the page renders.
+export const agendaPanelId = (id: string) => `${id}-panel`;
+export const agendaTabId = (id: string, tab: AgendaTab) => `${id}-${tab}`;
 
 export type KindOption = { kind: string | null; label: string; count: number };
 
@@ -141,14 +145,24 @@ export function overlapping(
 }
 
 // Inscritos per activity from the attendee-lists snapshot: the registrations (confirmed or
-// pending payment) with access to it. The snapshot only lists active competitions and workshops,
-// so any other activity has no count.
+// pending payment) with access to it. Read a row's count with `enrolledCount`.
 export function enrollmentCounts(lists: AttendeeLists): Map<string, number> {
   const counts = new Map(lists.activities.map((activity) => [activity.id, 0]));
   for (const registration of lists.registrations)
     for (const { activityId } of registration.activities)
       if (counts.has(activityId)) counts.set(activityId, (counts.get(activityId) ?? 0) + 1);
   return counts;
+}
+
+// The snapshot only lists the activities someone has access to, so an active competition or
+// workshop it leaves out has none. Social and archived activities are never counted.
+export function enrolledCount(
+  counts: Map<string, number> | null,
+  activity: Pick<CatalogActivity, 'id' | 'kind' | 'status'>,
+): number | undefined {
+  if (!counts || activity.status !== 'active') return undefined;
+  if (!(attendeeListActivityKinds as readonly string[]).includes(activity.kind)) return undefined;
+  return counts.get(activity.id) ?? 0;
 }
 
 export const enrolledLabel = (count: number) =>

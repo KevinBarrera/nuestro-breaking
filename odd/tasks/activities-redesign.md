@@ -21,12 +21,12 @@ Test runner: Vitest for pure logic and Playwright (`apps/frontend/e2e`) for flow
 
 ## Tasks
 
-| ID  | Specs      | Route  | Status  | Commit |
-| --- | ---------- | ------ | ------- | ------ |
-| T1  | S2–S5, S8  | inline | pending |        |
-| T2  | S2–S8, S12 | inline | pending |        |
-| T3  | S9–S11     | inline | pending |        |
-| T4  | S9–S12     | inline | pending |        |
+| ID  | Specs      | Route  | Status  | Commit  |
+| --- | ---------- | ------ | ------- | ------- |
+| T1  | S2–S5, S8  | inline | done    | 70077ee |
+| T2  | S2–S8, S12 | inline | done    | see L4  |
+| T3  | S9–S11     | inline | pending |         |
+| T4  | S9–S12     | inline | pending |         |
 
 T1 = list model (pure), T2 = list screen, T3 = form model (pure), T4 = form and review step.
 
@@ -34,3 +34,5 @@ T1 = list model (pure), T2 = list screen, T3 = form model (pure), T4 = form and 
 
 - **L1 (2026-10-24, user):** "Es un rediseño/mejora-completa para la sección de "Catálogo › Actividades", revisa y entiende por completo el nuevo diseño: https://claude.ai/artifact/EQBVYtnzLp7u9BX8caRxYf#page-e4a475467edc Crea el issue necesario en GH (o más de uno de ser necesario) para cumplir por completo con lo que el nuevo diseño indica Una vez todo este listo comienza a trabajar, tienes acceso a mi navegador para que te asegures que la implementación queda lo más parecida posible al nuevo diseño. Comencemos!"
 - **L2:** Checked the canvas note against the code. No endpoint returns inscritos per activity; the attendee-lists snapshot (`fetchAttendeeLists`) has per-registration access for active competitions and workshops only, so it gives the count (social and archived rows show none). `listPassTypes` returns each pass type's activities. The API allows activities that cross midnight (only end > start inside the event window), so "Termina otro día" stays. Deshacer only for archive/restore (one call with the returned version). The review warning uses "tenían" (plural agreement). Issues #367 (list) and #368 (form) created and added to #312. Route: inline for every task (one sequential chain).
+- **L3:** T1 (`feat/367-01-activities-model`, 70077ee): `activity-agenda-model.ts` gains tabs (`tabCounts`), plural chips from the kinds present (`kindOptions`), `overlapping`, `enrollmentCounts`, `enrolledLabel`, `passNames` and `agendaFooter` (reuses `historyClockLabel` and `formatEventWindow`); the workshop-only empty state is gone. RED 19 failing, then GREEN 29/29; the old page adapted just enough to build. Its e2e expectations change with T2, so T1 and T2 ship in one PR (#367). Assessed medium, `under_budget`.
+- **L4:** T2 (`feat/367-02-activities-screen`): screen rewritten from the artboards (`activity-agenda-filters.tsx` tabs + search + chips, `activity-list.tsx` rows with container query, `activity-feedback.tsx` notice with Deshacer, archive dialog and empty states). Found in Chrome: the snapshot only lists activities someone has access to, so `enrolledCount` reads a missing active competition or workshop as 0 (RED 2, GREEN 31/31). Deviations: an empty kind filter (selected chip at 0) says "Ninguna actividad de este tipo" / "Quita el filtro de tipo para ver las demás." (the design has no copy for it); focus goes to the heading after archive, restore and Deshacer. Specs: `admin-activity-agenda.spec.ts` rewritten, `admin-activity-restore.spec.ts` became `admin-activity-archive.spec.ts` (archive warning, Deshacer both ways, restore without confirmation, 409), the sweeps' restore dialog became the archive dialog, catalog spec copy updated. Checked in Chrome (light, dark, archive + Deshacer on the local event, Archivadas empty, phone width). `verify:pr` green (595 e2e).

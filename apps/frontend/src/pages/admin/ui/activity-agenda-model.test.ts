@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import {
   agendaDays,
   agendaFooter,
+  enrolledCount,
   enrolledLabel,
   enrollmentCounts,
   formatTimeRange,
@@ -238,8 +239,24 @@ describe('enrollmentCounts', () => {
     expect(enrollmentCounts({ ...lists, registrations: [] }).get('crews')).toBe(0);
   });
 
-  it('has no count for an activity the snapshot does not list', () => {
-    expect(enrollmentCounts(lists).has('nightly')).toBe(false);
+  it('only lists the activities someone has access to', () => {
+    expect(enrollmentCounts(lists).has('finale')).toBe(false);
+  });
+});
+
+describe('enrolledCount', () => {
+  const counts = new Map([['crews', 2]]);
+
+  it('reads an active competition or workshop missing from the snapshot as zero', () => {
+    expect(enrolledCount(counts, crews)).toBe(2);
+    expect(enrolledCount(counts, finale)).toBe(0);
+    expect(enrolledCount(counts, activity({ id: 'w', kind: 'workshop' }))).toBe(0);
+  });
+
+  it('has no count for social or archived activities, or without the snapshot', () => {
+    expect(enrolledCount(counts, nightly)).toBeUndefined();
+    expect(enrolledCount(counts, { ...crews, status: 'archived' })).toBeUndefined();
+    expect(enrolledCount(null, crews)).toBeUndefined();
   });
 });
 

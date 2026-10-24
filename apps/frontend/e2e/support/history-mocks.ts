@@ -64,6 +64,34 @@ export const expiry = historyItem('registration_expiry', {
   details: { kind: 'registration_expiry', fromStatus: 'pending_payment', toStatus: 'expired' },
 });
 
+// Its pass and cash payment, a minute apart: the screen groups them into one "Inscripción en mesa".
+export const onSitePass = historyItem('pass_assignment', {
+  occurredAt: '2026-11-14T17:01:00.000Z',
+  details: { kind: 'pass_assignment', passTypeName: 'Pase completo Breaking' },
+});
+
+export const onSiteCash = historyItem('cash_confirmation', {
+  occurredAt: '2026-11-14T17:02:00.000Z',
+  details: { kind: 'cash_confirmation', amountCents: 150000, receipt: 'A-1' },
+});
+
+export const selectionChange = historyItem('pass_selection_change', {
+  occurredAt: '2026-11-14T17:45:00.000Z',
+  reason: 'Cambio a la entrada',
+  details: {
+    kind: 'pass_selection_change',
+    passTypeName: 'Pase completo Breaking',
+    fromActivityNames: ['Breaking 1v1'],
+    toActivityNames: ['Breaking 2v2', 'Toprock'],
+  },
+});
+
+export const complimentary = historyItem('complimentary_confirmation', {
+  occurredAt: '2026-11-13T18:00:00.000Z',
+  reason: 'Ganador de torneo',
+  registration: { id: otherRegistrationId, folio: 'EB-0099', participantName: 'Beto Ruiz' },
+});
+
 // The longest wording of each part, so the sweeps measure wrapping at phone width.
 export const sweepHistory = {
   items: [
@@ -87,6 +115,8 @@ export const sweepHistory = {
       },
     }),
     onlinePurchase,
+    selectionChange,
+    complimentary,
   ],
   nextCursor: 'sweep-next-page',
   counts: { all: 12, corrections: 4, on_site: 2, complimentary: 1 },

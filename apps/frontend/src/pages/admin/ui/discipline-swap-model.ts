@@ -6,6 +6,7 @@ import type {
   RegistrationEntitlements,
 } from '@/entities/admin-registration';
 import { formatMxn, type CatalogActivity, type CatalogPassType } from '@/entities/event-catalog';
+import type { ChangeRow } from '@/shared/ui';
 import { selectionReasonError } from './confirmed-competitions-model';
 import { selectionSummary } from './sale-cash-model';
 import { saleCompetitionPasses, type SaleCompetitionChoice } from './sale-competitions-model';
@@ -133,19 +134,23 @@ const namesOf = (target: SwapTarget, ids: readonly string[]) => {
   const names = target.choices
     .filter((choice) => ids.includes(choice.activityId))
     .map((choice) => choice.name);
-  return names.length > 0 ? names.join(', ') : 'Sin competencias';
+  return names.length > 0 ? names.join(', ') : 'Ninguna';
 };
 
-// The operator checks the change and its reason before it is recorded.
-export const disciplineSwapConfirmation = (
+// The review step's "Antes / Después" rows (#345): the pass and its competitions, always both.
+export const disciplineSwapRows = (
   from: SwapSource,
   target: SwapTarget,
   draft: readonly string[],
-  reason: string,
-) => ({
-  title: `¿Cambiar «${from.name}» por «${target.name}»?`,
-  consequence: `Antes: ${from.name} (${from.selected ?? 'Sin competencias'}). Después: ${target.name} (${namesOf(target, draft)}). Motivo: ${reason.trim()}. El monto cobrado no cambia y el cambio quedará registrado con este motivo.`,
-});
+): ChangeRow[] => [
+  { key: 'pass', label: 'Pase', before: from.name, after: target.name },
+  {
+    key: 'competitions',
+    label: 'Competencias',
+    before: from.selected ?? 'Ninguna',
+    after: namesOf(target, draft),
+  },
+];
 
 const staleMessage = 'La inscripción cambió. Recarga para ver su estado.';
 

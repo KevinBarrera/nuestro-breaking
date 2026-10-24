@@ -9,16 +9,16 @@ import {
   registrationSummary,
 } from './support/registration-mocks.ts';
 
-// Swapping the only full pass for another discipline of the same price (#104). Target filtering,
-// reason rules and failure messages are covered by `discipline-swap-model.test.ts`; this spec
-// checks the rendered flow.
-const section = (page: Page) => page.getByRole('region', { name: 'Cambiar disciplina' });
-const openButton = (page: Page) =>
-  section(page).getByRole('button', { name: 'Cambiar disciplina' });
-const reasonField = (page: Page) => section(page).getByRole('textbox', { name: 'Motivo' });
-const reviewButton = (page: Page) => section(page).getByRole('button', { name: 'Revisar cambio' });
-const confirmDialog = (page: Page) =>
-  page.getByRole('alertdialog', { name: '¿Cambiar «Pase completo» por «Popping»?' });
+// Swapping the only full pass for another discipline of the same price (#104) in the two-step modal
+// (#345). Target filtering, reason rules, review rows and failure messages are covered by
+// `discipline-swap-model.test.ts`; this spec checks the rendered flow.
+const passes = (page: Page) => page.getByRole('region', { name: 'Pases' });
+const openButton = (page: Page) => passes(page).getByRole('button', { name: 'Cambiar disciplina' });
+const dialog = (page: Page) => page.getByRole('dialog');
+const reasonField = (page: Page) => dialog(page).getByRole('textbox', { name: 'Motivo' });
+const reviewButton = (page: Page) => dialog(page).getByRole('button', { name: 'Revisar cambios' });
+const confirmButton = (page: Page) =>
+  dialog(page).getByRole('button', { name: 'Cambiar disciplina' });
 
 const poppingId = 'f3b2c3d4-1234-4567-89ab-123456789abc';
 const popping1v1 = catalogActivity(
@@ -78,23 +78,30 @@ test('swaps a confirmed registration to another discipline of the same price', a
   await page.goto(registrationPath(registrationId));
 
   await openButton(page).click();
-  const target = section(page).getByRole('radio', { name: /^Popping/ });
+  const target = dialog(page).getByRole('radio', { name: /^Popping/ });
   await expect(target).toBeFocused();
-  await expect(section(page).getByRole('radio')).toHaveCount(1);
+  await expect(dialog(page).getByRole('radio')).toHaveCount(1);
   await target.check();
-  await section(page).getByRole('checkbox', { name: 'Popping 2 vs 2' }).check();
+  await dialog(page).getByRole('checkbox', { name: 'Popping 2 vs 2' }).check();
   await reasonField(page).fill('  Pidió cambiar de disciplina  ');
   await reviewButton(page).click();
 
-  await expect(confirmDialog(page)).toContainText(
-    'Antes: Pase completo (Sin competencias). Después: Popping (Popping 2 vs 2).',
+  await expect(dialog(page).getByRole('table', { name: 'Cambios' }).getByRole('row')).toHaveText([
+    'DatoAntesDespués',
+    'PasePase completoPopping',
+    'CompetenciasNingunaPopping 2 vs 2',
+  ]);
+  await expect(dialog(page)).toContainText(
+    'El monto cobrado no cambia: los dos pases cuestan lo mismo.',
   );
-  await confirmDialog(page).getByRole('button', { name: 'Cambiar disciplina' }).dblclick();
+  expect(swaps).toHaveLength(0);
+  await confirmButton(page).dblclick();
 
-  await expect(section(page).getByRole('status')).toHaveText(
-    'Se cambió «Pase completo» por «Popping».',
+  await expect(dialog(page)).toHaveCount(0);
+  await expect(passes(page).getByRole('status')).toHaveText(
+    'Se cambió a «Popping». El monto cobrado no cambia.',
   );
-  await expect(page.getByRole('region', { name: 'Pases' })).toContainText('Popping 2 vs 2');
+  await expect(passes(page)).toContainText('Popping 2 vs 2');
   await expect(openButton(page)).toBeFocused();
   expect(swaps).toEqual([
     {
@@ -109,7 +116,7 @@ test('swaps a confirmed registration to another discipline of the same price', a
   ]);
 });
 
-test('blocks a blank reason without calling the API', async ({ page }) => {
+test('asks for a pass and a reason without calling the API', async ({ page }) => {
   const { swaps } = await mockRegistrations(page, {
     ...catalog,
     entitlements: () => entitlements({ status: 'pending_payment', channel: 'online' }),
@@ -117,16 +124,18 @@ test('blocks a blank reason without calling the API', async ({ page }) => {
   await page.goto(registrationPath(registrationId));
 
   await openButton(page).click();
-  await section(page)
+  await reviewButton(page).click();
+  await expect(dialog(page)).toContainText('Elige el pase al que cambia.');
+
+  await dialog(page)
     .getByRole('radio', { name: /^Popping/ })
     .check();
   await reasonField(page).fill('   ');
   await reviewButton(page).click();
-
   await expect(reasonField(page)).toHaveAttribute('aria-invalid', 'true');
-  await expect(section(page)).toContainText('Escribe el motivo del cambio.');
+  await expect(dialog(page)).toContainText('Escribe el motivo. Queda en el historial.');
   await expect(reasonField(page)).toBeFocused();
-  await expect(confirmDialog(page)).toHaveCount(0);
+  await expect(dialog(page)).toContainText('Paso 1 de 2 · Cambios');
   expect(swaps).toHaveLength(0);
 });
 
@@ -146,19 +155,37 @@ test('shows why a checked-in registration cannot be swapped', async ({ page }) =
   await page.goto(registrationPath(registrationId));
 
   await openButton(page).click();
-  await section(page)
+  await dialog(page)
     .getByRole('radio', { name: /^Popping/ })
     .check();
   await reasonField(page).fill('Pidió cambiar de disciplina');
   await reviewButton(page).click();
-  await confirmDialog(page).getByRole('button', { name: 'Cambiar disciplina' }).click();
+  await confirmButton(page).click();
 
-  await expect(section(page).getByRole('alert')).toHaveText(
+  await expect(dialog(page).getByRole('alert')).toHaveText(
     'Esta persona ya registró su entrada al evento, así que su disciplina ya no se puede cambiar.',
   );
-  await expect(confirmDialog(page)).toHaveCount(0);
-  await expect(page.getByRole('region', { name: 'Pases' })).toContainText('Pase completo');
+  await expect(dialog(page)).toContainText('Paso 1 de 2 · Cambios');
+  await dialog(page).getByRole('button', { name: 'Cancelar' }).click();
+  await expect(passes(page)).toContainText('Pase completo');
   expect(swaps).toHaveLength(1);
+});
+
+test('explains when no other full pass costs the same', async ({ page }) => {
+  await mockRegistrations(page, {
+    passTypes: () => ({ json: [passTypes[0], passTypes[2]] }),
+    activities: () => ({ json: [] }),
+    entitlements: () => entitlements(),
+  });
+  await page.goto(registrationPath(registrationId));
+
+  await openButton(page).click();
+  await expect(dialog(page)).toContainText(
+    'El cambio de disciplina solo se hace entre pases del mismo precio actual.',
+  );
+  await expect(reviewButton(page)).toHaveCount(0);
+  await dialog(page).getByRole('button', { name: 'Cerrar' }).click();
+  await expect(dialog(page)).toHaveCount(0);
 });
 
 test('offers no swap for a voided registration', async ({ page }) => {
@@ -169,5 +196,5 @@ test('offers no swap for a voided registration', async ({ page }) => {
   await page.goto(registrationPath(registrationId));
 
   await expect(page.getByText('Inscripción anulada', { exact: true })).toBeVisible();
-  await expect(page.getByRole('region', { name: 'Cambiar disciplina' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Cambiar disciplina' })).toHaveCount(0);
 });

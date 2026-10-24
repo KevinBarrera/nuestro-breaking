@@ -4,7 +4,7 @@ import type { CatalogActivity, CatalogPassType } from '@/entities/event-catalog'
 import {
   editableCompetitionPass,
   reviewSelectionChange,
-  selectionChangeConfirmation,
+  selectionChangeRows,
   selectionChangeFailure,
   selectionReasonError,
   selectionReasonHint,
@@ -93,14 +93,14 @@ describe('editableCompetitionPass', () => {
 
 describe('selection change reason', () => {
   it('requires 1 to 500 characters once trimmed', () => {
-    expect(selectionReasonError('')).toBe('Escribe el motivo del cambio.');
-    expect(selectionReasonError('   ')).toBe('Escribe el motivo del cambio.');
+    expect(selectionReasonError('')).toBe('Escribe el motivo. Queda en el historial.');
+    expect(selectionReasonError('   ')).toBe('Escribe el motivo. Queda en el historial.');
     expect(selectionReasonError(` ${'a'.repeat(500)} `)).toBeUndefined();
     expect(selectionReasonError('a'.repeat(501))).toBe('Usa máximo 500 caracteres.');
   });
 
   it('counts the trimmed characters', () => {
-    expect(selectionReasonHint('  Cambio  ')).toBe('6 de 500 caracteres.');
+    expect(selectionReasonHint('  Cambio  ')).toBe('6 de 500 caracteres');
   });
 });
 
@@ -116,16 +116,16 @@ describe('reviewSelectionChange', () => {
   it('blocks a blank reason and an unchanged list, reporting both', () => {
     expect(reviewSelectionChange(pass, ['a2'], ' ')).toEqual({
       ok: false,
-      reasonError: 'Escribe el motivo del cambio.',
-      selectionError: 'Cambia al menos una competencia para guardar.',
+      reasonError: 'Escribe el motivo. Queda en el historial.',
+      selectionError: 'No hay cambios que guardar. Modifica algo o cancela.',
     });
     expect(reviewSelectionChange(pass, ['a2'], 'Motivo')).toEqual({
       ok: false,
-      selectionError: 'Cambia al menos una competencia para guardar.',
+      selectionError: 'No hay cambios que guardar. Modifica algo o cancela.',
     });
     expect(reviewSelectionChange(pass, [], '')).toEqual({
       ok: false,
-      reasonError: 'Escribe el motivo del cambio.',
+      reasonError: 'Escribe el motivo. Queda en el historial.',
     });
   });
 
@@ -142,22 +142,28 @@ describe('reviewSelectionChange', () => {
   });
 });
 
-describe('selectionChangeConfirmation', () => {
-  it('restates the competitions before and after and the reason', () => {
-    expect(selectionChangeConfirmation(pass, ['a1'], 'Pidió cambiar')).toEqual({
-      title: '¿Cambiar las competencias de «Pase completo»?',
-      consequence:
-        'Antes: Popping 1 vs 1. Después: Breaking 1 vs 1. Motivo: Pidió cambiar. El cambio quedará registrado con este motivo.',
-    });
+describe('selectionChangeRows', () => {
+  it('restates the competitions before and after', () => {
+    expect(selectionChangeRows(pass, ['a1'])).toEqual([
+      {
+        key: 'competitions',
+        label: 'Competencias',
+        before: 'Popping 1 vs 1',
+        after: 'Breaking 1 vs 1',
+      },
+    ]);
   });
 
-  it('names an empty list', () => {
-    expect(selectionChangeConfirmation({ ...pass, saved: [] }, ['a2', 'a1'], 'M').consequence).toBe(
-      'Antes: Sin competencias. Después: Breaking 1 vs 1, Popping 1 vs 1. Motivo: M. El cambio quedará registrado con este motivo.',
-    );
-    expect(selectionChangeConfirmation(pass, [], 'M').consequence).toMatch(
-      /^Antes: Popping 1 vs 1\. Después: Sin competencias\./,
-    );
+  it('names an empty list in the order shown', () => {
+    expect(selectionChangeRows({ ...pass, saved: [] }, ['a2', 'a1'])).toEqual([
+      {
+        key: 'competitions',
+        label: 'Competencias',
+        before: 'Ninguna',
+        after: 'Breaking 1 vs 1, Popping 1 vs 1',
+      },
+    ]);
+    expect(selectionChangeRows(pass, [])[0]).toMatchObject({ after: 'Ninguna' });
   });
 });
 

@@ -2,7 +2,9 @@ import {
   registrationStatuses,
   type AdminRegistrationFailure,
   type PossibleDuplicate,
+  type RegistrationSearchResult,
   type RegistrationStatus,
+  type RegistrationStatusCounts,
 } from '@/entities/admin-registration';
 import {
   participantFields,
@@ -13,8 +15,8 @@ import {
 } from '@/entities/participant';
 import { saleParticipantMessages, type SalePhoneMode } from './sale-participant-model';
 
-// Inscripciones (#105): copy and pure rules for the search, the in-person registration form and
-// its possible-duplicates confirmation.
+// Inscripciones (#105, #345): copy and pure rules for the roster, the in-person registration
+// form and its possible-duplicates confirmation.
 
 const statusLabels: Record<RegistrationStatus, string> = {
   pending_payment: 'Pendiente de pago',
@@ -27,16 +29,88 @@ export const registrationStatusLabel = (status: RegistrationStatus) => statusLab
 // The backend pages 20 at a time by default; the screen asks for that explicitly.
 export const registrationSearchLimit = 20;
 
-// The search query rule of `searchRegistrations`, checked before any request.
-export function searchQueryHint(q: string): string | null {
-  const query = q.trim();
-  if (query.length < 2) return 'Escribe al menos 2 caracteres para buscar.';
-  if (query.length > 200) return 'Usa máximo 200 caracteres.';
-  return null;
+// What the live search asks for: blank text lists the whole roster (''), one character waits
+// (null) and two or more search. The field caps the text at the backend's 200 characters.
+export function liveSearchQuery(text: string): string | null {
+  const query = text.trim();
+  if (!query) return '';
+  return query.length < 2 ? null : query;
 }
 
-export const resultsCount = (total: number) =>
-  total === 1 ? '1 inscripción' : `${total} inscripciones`;
+// The `?estado=` of the URL, when it names a status.
+export const readStatusFilter = (value: string | null): RegistrationStatus | null =>
+  registrationStatuses.find((status) => status === value) ?? null;
+
+const chipOrder: { status: RegistrationStatus | null; label: string }[] = [
+  { status: null, label: 'Todas' },
+  { status: 'confirmed', label: 'Confirmadas' },
+  { status: 'pending_payment', label: 'Pendientes de pago' },
+  { status: 'voided', label: 'Anuladas' },
+];
+
+export type StatusChip = {
+  status: RegistrationStatus | null;
+  label: string;
+  count: number;
+  selected: boolean;
+};
+
+// The "Filtrar por estado" chips; the counts ignore the chosen status, as the backend answers.
+export const statusChips = (
+  counts: RegistrationStatusCounts,
+  selected: RegistrationStatus | null,
+): StatusChip[] =>
+  chipOrder.map(({ status, label }) => ({
+    status,
+    label,
+    count: counts[status ?? 'all'],
+    selected: status === selected,
+  }));
+
+export const listCountText = (total: number, searching: boolean) =>
+  searching
+    ? `${total} ${total === 1 ? 'resultado' : 'resultados'}`
+    : `${total} ${total === 1 ? 'inscripción' : 'inscripciones'}`;
+
+export const noMatchTitle = (query: string) =>
+  query ? `No encontramos a nadie con “${query}”` : 'No hay inscripciones con este filtro';
+
+export type RegistrationRow = {
+  name: string;
+  aka: string;
+  folio: string | null;
+  passes: string;
+  competitions: string;
+  status: string;
+  accessibleName: string;
+};
+
+// One roster row: the held passes joined and only the competitions among the activities.
+export function registrationRow({
+  participant,
+  registration,
+  passes,
+  activities,
+}: RegistrationSearchResult): RegistrationRow {
+  const competitions = activities.filter((activity) => activity.kind === 'competition');
+  const status = registrationStatusLabel(registration.status);
+  // Base passes lead and add-ons follow, each group in the backend's name order.
+  const ordered = [
+    ...passes.filter((pass) => pass.passClass !== 'add_on'),
+    ...passes.filter((pass) => pass.passClass === 'add_on'),
+  ];
+  return {
+    name: participant.fullName,
+    aka: participant.stageName ? `AKA ${participant.stageName}` : 'Sin AKA',
+    folio: registration.folio,
+    passes: ordered.length ? ordered.map((pass) => pass.name).join(' + ') : 'Sin pases',
+    competitions: competitions.length
+      ? competitions.map((activity) => activity.name).join(', ')
+      : 'Sin competencias',
+    status,
+    accessibleName: `${participant.fullName}, ${registration.folio ?? 'sin folio'}, ${status}. Ver inscripción`,
+  };
+}
 
 // "Mostrando 21–40 de 45" and the offsets of the neighbour pages; null when there is none.
 export function searchPageNavigation({
@@ -59,11 +133,6 @@ export function searchPageNavigation({
     nextOffset,
   };
 }
-
-export const activitySummary = (activities: readonly { name: string }[]) =>
-  activities.length === 0
-    ? 'Sin actividades'
-    : activities.map((activity) => activity.name).join(', ');
 
 // The name the next screen shows before it has read anything, as the backend builds it.
 export const participantDisplayName = (form: ParticipantForm) =>

@@ -203,7 +203,7 @@ const flaggedPayments = {
   })),
 };
 
-// Contact-free attendee lists (#65) with a long name and every list kind.
+// Contact-free attendee lists (#65) with a long name, every list kind and a pending payment.
 const attendeeLists = {
   event: { id: eventId, name: 'Encuentro del barrio' },
   generatedAt: '2026-11-13T20:00:00.000Z',
@@ -235,6 +235,16 @@ const attendeeLists = {
         { activityId: battleId, checkedInAt: null },
         { activityId: workshopId, checkedInAt: '2026-11-14T19:05:00.000Z' },
       ],
+    },
+    {
+      registrationId: 'c2b2c3d4-1234-4567-89ab-123456789abc',
+      folio: null,
+      fullName: 'Luz Rivera',
+      stageName: null,
+      status: 'pending_payment',
+      eventCheckedInAt: null,
+      passTypeIds: [fullPassId],
+      activities: [],
     },
   ],
 };
@@ -409,7 +419,11 @@ export async function revealControls(page: Page, name: AdminScreenName) {
       .first()
       .waitFor();
   if (name === 'Listas de respaldo')
-    await page.getByRole('table', { name: 'Evento completo' }).getByRole('cell').first().waitFor();
+    await page
+      .getByRole('region', { name: 'Evento completo' })
+      .getByRole('listitem')
+      .first()
+      .waitFor();
   if (name === 'Historial')
     await page.getByRole('button', { name: 'Cargar días anteriores' }).waitFor();
   if (name === 'Pase' || name === 'Nuevo pase') await accessControls(page).first().waitFor();

@@ -148,15 +148,26 @@ The lists (#65) need an event administrator; judges get no data. See the
 ### Before the event
 
 1. Open "Listas de respaldo" from the side navigation ("Operación"). The page
-   reads one snapshot: press "Actualizar" for a fresh one.
-2. In "Lista", choose "Todas las listas" or one list: "Evento completo", one
-   per pass ("Pase · …") and one per competition or workshop. Press "Imprimir
-   o guardar PDF" and print or save each one. Each list starts on a new page.
-3. Every printed page shows the event, the list and "Generada el …". Note
-   that time: a list does not show anything that changed after it. Lists
-   include confirmed and pending-payment registrations with their status;
-   voided ones are left out. They carry no contact data.
-4. The empty "Marca" column is for handwritten attendance during an outage.
+   reads one snapshot and says how old it is: after 30 minutes the notice turns
+   to a warning; press "Actualizar datos" for a fresh one.
+2. In "Qué imprimir", check the lists the PDF should carry: "Evento completo"
+   (checked by default), one per pass and one per competition or workshop
+   ("Marcar todas" checks a whole group). Tap a list to preview it, with how
+   many people already entered and a search by name, AKA or folio. Press
+   "Imprimir N listas" and print or save the PDF.
+3. "Opciones del PDF" adds a cover ("Portada con índice": how to use the
+   lists, which lists the PDF carries and blank lines for the person in charge
+   and a coordination phone) and a sheet of blank rows for paper
+   registrations, both on by default. Lists flow one after another; "Cada
+   lista en hoja nueva" starts each one on its own sheet. "Tamaño aproximado"
+   estimates the letter sheets.
+4. Every sheet shows the event, "Datos al …" and "Hoja X de Y". Note that time:
+   a list does not show anything that changed after it. Lists include
+   confirmed and pending-payment registrations ("Pendiente de pago" under the
+   name); voided ones are left out. They carry no contact data. "Entró" has
+   the check-in time when the person entered before printing.
+5. The empty box at the start of each row is for handwritten attendance during
+   an outage.
 
 Only the main studio has a guaranteed printer, so print or save the PDFs
 there ahead of time. How copies are distributed across venues and who owns the
@@ -165,12 +176,12 @@ they take over on the day.
 
 ### During an outage
 
-1. Use the printed lists: check people against them and write in "Marca".
+1. Use the printed lists: check people against them and mark the box.
 2. Any administrator may take cash from a new person: hand over the numbered
    receipt in duplicate (the copy goes to the person, the original stays with
-   the team), write a temporary paper entry and grant provisional access. The
-   entry's fields are not an organizer decision yet; we suggest name, AKA,
-   pass, receipt number, amount, time and administrator.
+   the team), write the person on the "Inscripciones en papel" sheet (name,
+   AKA, pass and competitions, amount and receipt number) and grant
+   provisional access.
 3. Record other incidents on paper. Nothing on paper changes the platform: no
    registration, payment or check-in exists until it is entered after
    recovery.

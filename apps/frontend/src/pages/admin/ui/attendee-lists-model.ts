@@ -2,52 +2,52 @@ import type {
   AttendeeListActivityKind,
   AttendeeListRegistration,
   AttendeeLists,
-  AttendeeListStatus,
 } from '@/entities/attendee-list';
 import { formatCheckInTime } from './admin-check-in-model';
+import { matchesQuery } from './check-in-roster-model';
 
-// Listas de respaldo (#65): the printable, contact-free lists built from one snapshot.
+// Listas de respaldo (#65, #362): the printable, contact-free lists built from one snapshot.
 export type AttendeeListRow = {
   registrationId: string;
   fullName: string;
   stageName: string | null;
   folio: string | null;
-  status: string;
+  // `pending_payment`: listed so the paper fallback knows them, shown with a pill (#362).
+  pending: boolean;
   // Event check-in on the event and pass lists; that activity's check-in on an activity list.
   checkedInAt: string | null;
   passes: string[];
 };
 
+export type AttendeeListGroupId = 'event' | 'pass' | AttendeeListActivityKind;
+
 export type AttendeeListView = {
   id: string;
+  group: AttendeeListGroupId;
   title: string;
   // Only the event list names each person's passes.
   showPasses: boolean;
   rows: AttendeeListRow[];
 };
 
-export const allListsOption = 'all';
+export const eventListId = 'event';
 
-const statusLabels: Record<AttendeeListStatus, string> = {
-  confirmed: 'Confirmada',
-  pending_payment: 'Pendiente de pago',
-};
-
-const kindLabels: Record<AttendeeListActivityKind, string> = {
-  competition: 'Competencia',
-  workshop: 'Taller',
-};
+const byName = (a: AttendeeListRow, b: AttendeeListRow) =>
+  a.fullName.localeCompare(b.fullName, 'es', { sensitivity: 'base' });
 
 // Lists in print order: the whole event, each pass type (in the backend's order, archived ones
-// marked), then each activity. Names come from the event's own catalog.
+// marked), then each activity. Names come from the event's own catalog; rows go by name.
 export function buildAttendeeLists(data: AttendeeLists): AttendeeListView[] {
   const passNames = new Map(data.passTypes.map((pass) => [pass.id, pass.name]));
+  const people = [...data.registrations].sort((a, b) =>
+    a.fullName.localeCompare(b.fullName, 'es', { sensitivity: 'base' }),
+  );
   const row = (registration: AttendeeListRegistration, checkedInAt: string | null) => ({
     registrationId: registration.registrationId,
     fullName: registration.fullName,
     stageName: registration.stageName,
     folio: registration.folio,
-    status: statusLabels[registration.status],
+    pending: registration.status === 'pending_payment',
     checkedInAt,
     passes: registration.passTypeIds.flatMap((id) => passNames.get(id) ?? []),
   });
@@ -56,41 +56,129 @@ export function buildAttendeeLists(data: AttendeeLists): AttendeeListView[] {
 
   return [
     {
-      id: 'event',
+      id: eventListId,
+      group: 'event' as const,
       title: 'Evento completo',
       showPasses: true,
-      rows: data.registrations.map(eventRow),
+      rows: people.map(eventRow),
     },
     ...data.passTypes.map((pass) => ({
       id: `pass:${pass.id}`,
-      title: `Pase · ${pass.name}${pass.archived ? ' (archivado)' : ''}`,
+      group: 'pass' as const,
+      title: `${pass.name}${pass.archived ? ' (archivado)' : ''}`,
       showPasses: false,
-      rows: data.registrations
+      rows: people
         .filter((registration) => registration.passTypeIds.includes(pass.id))
         .map(eventRow),
     })),
     ...data.activities.map((activity) => ({
       id: `activity:${activity.id}`,
-      title: `${kindLabels[activity.kind]} · ${activity.name}`,
+      group: activity.kind,
+      title: activity.name,
       showPasses: false,
-      rows: data.registrations.flatMap((registration) => {
-        const access = registration.activities.find((entry) => entry.activityId === activity.id);
-        return access ? [row(registration, access.checkedInAt)] : [];
-      }),
+      rows: people
+        .flatMap((registration) => {
+          const access = registration.activities.find((entry) => entry.activityId === activity.id);
+          return access ? [row(registration, access.checkedInAt)] : [];
+        })
+        .sort(byName),
     })),
   ];
 }
 
-// A choice that no longer exists after "Actualizar" shows every list instead of none.
-export function visibleLists(lists: AttendeeListView[], selection: string) {
-  const chosen = lists.filter((list) => list.id === selection);
-  return chosen.length > 0 ? chosen : lists;
+const groups: { id: AttendeeListGroupId; label: string; kind: string }[] = [
+  { id: 'event', label: 'Evento', kind: 'Evento' },
+  { id: 'pass', label: 'Pases', kind: 'Pase' },
+  { id: 'competition', label: 'Competencias', kind: 'Competencia' },
+  { id: 'workshop', label: 'Talleres', kind: 'Taller' },
+];
+
+export type AttendeeListGroup = {
+  id: AttendeeListGroupId;
+  label: string;
+  lists: AttendeeListView[];
+};
+
+// The "Qué imprimir" groups, without the empty ones.
+export function groupAttendeeLists(lists: AttendeeListView[]): AttendeeListGroup[] {
+  return groups.flatMap(({ id, label }) => {
+    const members = lists.filter((list) => list.group === id);
+    if (members.length === 0) return [];
+    return [
+      { id, label: members.length > 1 ? `${label} · ${members.length}` : label, lists: members },
+    ];
+  });
 }
 
-// Staff are at the venue, so the browser zone is the default, as on the check-in screen.
-export function attendanceLabel(checkedInAt: string | null, timeZone?: string) {
-  return checkedInAt ? `Registrada ${formatCheckInTime(checkedInAt, timeZone)}` : '—';
+const kindOf = (group: AttendeeListGroupId) =>
+  groups.find((entry) => entry.id === group)?.kind ?? '';
+
+// "Competencia", or "Pase · Pase completo" style prefixes for the printout.
+export const listKind = (list: AttendeeListView) => kindOf(list.group);
+
+export function listKindLabel(list: AttendeeListView): string {
+  const kind = listKind(list);
+  if (list.group === 'competition' || list.group === 'workshop')
+    return `${kind} · la entrada se cuenta por ${kind.toLowerCase()}`;
+  return kind;
 }
+
+// After "Actualizar datos", a list that is gone drops out of the selection.
+export const keptSelection = (selection: string[], lists: AttendeeListView[]) =>
+  selection.filter((id) => lists.some((list) => list.id === id));
+
+export function printLabel(count: number): string {
+  if (count === 0) return 'Elige una lista para imprimir';
+  return `Imprimir ${count} ${count === 1 ? 'lista' : 'listas'}`;
+}
+
+// The snapshot stays "al día" for this long; after that the notice asks to refresh (#362).
+const freshMinutes = 30;
+
+const ago = (minutes: number) => {
+  const unit = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
+  if (minutes < 60) return unit(minutes, 'minuto', 'minutos');
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return unit(hours, 'hora', 'horas');
+  return unit(Math.floor(hours / 24), 'día', 'días');
+};
+
+export type Freshness = { tone: 'success' | 'warning'; title: string; text: string };
+
+export function freshness(generatedAt: string, now: Date, timeZone?: string): Freshness {
+  const minutes = Math.max(0, Math.floor((now.getTime() - Date.parse(generatedAt)) / 60_000));
+  const at = `Al ${formatGeneratedAt(generatedAt, timeZone)}.`;
+  if (minutes < freshMinutes)
+    return {
+      tone: 'success',
+      title: 'Datos al día',
+      text: `${at} Imprime ahora para llevar la versión más reciente.`,
+    };
+  return {
+    tone: 'warning',
+    title: `Datos de hace ${ago(minutes)}`,
+    text: `${at} Actualiza antes de imprimir para incluir las inscripciones y entradas más recientes.`,
+  };
+}
+
+export function listProgress(list: AttendeeListView) {
+  const total = list.rows.length;
+  const entered = list.rows.filter((row) => row.checkedInAt).length;
+  const people = total === 1 ? 'persona ya entró' : 'personas ya entraron';
+  return {
+    entered,
+    total,
+    percent: total ? Math.round((entered * 100) / total) : 0,
+    label: `${entered} de ${total} ${people} · ${total - entered} por entrar`,
+  };
+}
+
+export const searchList = (list: AttendeeListView, query: string) =>
+  list.rows.filter((row) => matchesQuery(row, query));
+
+// Staff are at the venue, so the browser zone is the default, as on the check-in screen.
+export const entryLabel = (checkedInAt: string | null, timeZone?: string) =>
+  checkedInAt ? `Entró ${formatCheckInTime(checkedInAt, timeZone)}` : 'Sin entrar';
 
 export const folioLabel = (folio: string | null) => folio ?? '—';
 

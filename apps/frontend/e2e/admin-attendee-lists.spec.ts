@@ -130,7 +130,7 @@ test('reaches the lists from the navigation and shows each list with its people'
     'EB-7K3Q',
     'Confirmada',
     'Pase completo',
-    /^Registrada \d{2}:\d{2}$/,
+    /^Entró \d{2}:\d{2}$/,
     '',
   ]);
   await expect(beto.getByRole('cell')).toHaveText(['', '—', 'Pendiente de pago', '', '—', '']);

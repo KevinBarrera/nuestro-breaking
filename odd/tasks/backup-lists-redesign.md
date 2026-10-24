@@ -1,0 +1,30 @@
+# Backup lists redesign
+
+Objective: the admin "Listas de respaldo" section follows the "9 · Listas de respaldo" design (#362, #363, epic #312): a list picker with checkboxes, a preview with progress and search, a freshness notice, and a compact printout with cover, paper sheet and our own header and footer.
+Branches: chained from `dev`, one per task (`feat/36N-0N-…`). Delivery: chained PRs per slice.
+Test runner: Vitest for pure logic and Playwright (`apps/frontend/e2e`) for flows; `pnpm verify:pr` at each slice. Visual check in Chrome at `localhost:5173`, light and dark, and a PDF saved from Chrome.
+
+## Specs
+
+- **S1** Design source: "9 · Listas de respaldo" on https://claude.ai/artifact/EQBVYtnzLp7u9BX8caRxYf (page "Listas de respaldo", artboards "Listas de respaldo", "Listas de respaldo · sin registros", "PDF · hoja 1, portada e índice", "PDF · hoja 2, evento completo", "PDF · hoja 3, competencias seguidas", "PDF · hoja 4, inscripciones en papel"), plus the canvas note "Listas de respaldo redesign, assumptions to confirm before building". No API change.
+- **S2** (#362) Header "Listas de respaldo" / "Imprímelas o guárdalas en PDF antes de abrir puertas. Si el sistema falla, la mesa sigue registrando entradas en papel. No incluyen correos ni teléfonos."; print button "Imprimir 1 lista" / "Imprimir N listas" / "Elige una lista para imprimir" (disabled).
+- **S3** (#362) Freshness notice: "Datos al día" (under 30 minutes) / "Datos de hace N minutos/horas" (warning), "Al <fecha>, <hora>. …", "Actualizar datos" keeps the checked and focused lists that still exist.
+- **S4** (#362) "Qué imprimir" / "Marca las listas del PDF. Toca una para verla.": groups Evento, Pases · N, Competencias · N (and Talleres · N), checkbox "Incluir <lista> en el PDF", row button with count, "Marcar todas" / "Quitar todas"; default only "Evento completo"; archived passes keep "(archivado)".
+- **S5** (#362) Preview: kind ("Competencia · la entrada se cuenta por competencia"), title, "Incluida en el PDF" / "No incluida en el PDF", progress "N de M personas ya entraron · K por entrar", search "Buscar en esta lista: nombre, AKA o folio", rows with number, name, "AKA …", folio, pases (only Evento completo), "Entró HH:mm" / "Sin entrar"; "Pendiente de pago" pill instead of the Estado column; "Nadie en esta lista coincide con “…”"; narrow width hides number, folio and pases.
+- **S6** (#362) Empty event: "Aún no hay listas que imprimir", "Las listas se arman con las inscripciones confirmadas o pendientes de pago del evento. En cuanto haya al menos una, podrás imprimirlas o guardarlas en PDF.", "Ir a Inscripciones", tip "Imprímelas el día anterior y otra vez justo antes de abrir puertas, para llevar la versión más reciente."; loading, failure, retry and denied as today.
+- **S7** (#363) "Opciones del PDF": "Portada con índice" (on), "Hoja para inscripciones en papel" (on), "Cada lista en hoja nueva" (off), with their help lines, and "Tamaño aproximado" "N hojas carta".
+- **S8** (#363) Printout: only checked lists, flowing with `break-inside: avoid` (or one per sheet), no browser header/footer, our header and footer ("Hoja X de Y" or "Hoja X"), columns box, Nombre, AKA, Folio, Pases (Evento completo), Entró; alphabetical, zebra; portada with the four steps, índice and blank lines; "Inscripciones en papel" with 18 blank rows.
+- **S9** `--nb-*` tokens in both themes, 44px targets, 4.5:1 contrast, no horizontal page scroll at phone width; `docs/contracts/attendee-lists.md`, `docs/runbooks/event-day.md` and `frontend-architecture.md` updated when behavior changes.
+
+## Tasks
+
+| ID  | Specs      | Route  | Status  | Commit |
+| --- | ---------- | ------ | ------- | ------ |
+| T1  | S3, S4, S5 | inline | pending |        |
+| T2  | S2–S6, S9  | inline | pending |        |
+| T3  | S7, S8, S9 | inline | pending |        |
+
+## Log
+
+- **L1 (2026-10-24, user):** "Es un rediseño/mejora-completa para la sección de "Listas de respaldo", revisa y entiende por completo el nuevo diseño: https://claude.ai/artifact/EQBVYtnzLp7u9BX8caRxYf#page-7ce43b032bfb Crea el issue necesario en GH (o más de uno de ser necesario) para cumplir por completo con lo que el nuevo diseño indica Una vez todo este listo comienza a trabajar, tienes acceso a mi navegador para que te asegures que la implementación queda lo más parecida posible al nuevo diseño. Comencemos!"
+- **L2:** Checked the canvas note against the code: the snapshot already has every list, per-activity check-in and `generatedAt`; it also lists `pending_payment` registrations (so a "Pendiente de pago" pill replaces the Estado column) and workshop activities (a Talleres group); neither the snapshot nor the session knows the admin's name, so "Generadas por …" is dropped. No backend work. Issues #362 (screen) and #363 (printout) created and added to #312. Route: inline for every task (one sequential chain). T1 = pure lists model, T2 = screen, T3 = printout and PDF options.

@@ -96,8 +96,11 @@ export function progress(roster: RosterPerson[], activity: ActivityFilter) {
 const normalize = (text: string) => text.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 const alphanumeric = (text: string) => normalize(text).replace(/[^a-z0-9]/g, '');
 
-// Name or alias as typed, folio with or without its hyphen.
-export function matchesQuery(person: RosterPerson, query: string): boolean {
+// Name or alias as typed, folio with or without its hyphen. Listas de respaldo searches too.
+export function matchesQuery(
+  person: Pick<RosterPerson, 'fullName' | 'stageName' | 'folio'>,
+  query: string,
+): boolean {
   const q = normalize(query.trim());
   if (!q) return true;
   if (normalize(`${person.fullName} ${person.stageName ?? ''}`).includes(q)) return true;

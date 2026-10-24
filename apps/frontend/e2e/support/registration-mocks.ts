@@ -16,6 +16,8 @@ export const thirdRegistrationId = 'c3b2c3d4-1234-4567-89ab-123456789abc';
 export const registrationsPath = `/admin/events/${eventId}/registrations`;
 export const newRegistrationPath = `${registrationsPath}/new`;
 export const registrationPath = (id: string) => `${registrationsPath}/${id}`;
+// Nueva inscripción's pass, cash and confirmed steps of a pending registration (#346).
+export const salePath = (id: string) => `${registrationsPath}/${id}/sale`;
 
 export const searchResult = (
   id: string,
@@ -181,13 +183,13 @@ export type RegistrationMocks = {
   // `attempt` counts the POSTs, starting at 1.
   create?: (attempt: number) => Answer;
   passTypes?: () => Answer;
-  // `attempt` counts the POSTs, starting at 1.
-  addPass?: (attempt: number) => Answer;
+  // `attempt` counts the POSTs, starting at 1; `sent` is what this one sent.
+  addPass?: (attempt: number, sent: SentPass) => Answer;
   activities?: () => Answer;
-  // `attempt` counts the PUTs, starting at 1.
-  selections?: (attempt: number) => Answer;
-  // `attempt` counts the DELETEs, starting at 1.
-  removePass?: (attempt: number) => Answer;
+  // `attempt` counts the PUTs, starting at 1; `sent` is what this one sent.
+  selections?: (attempt: number, sent: SentSelections) => Answer;
+  // `attempt` counts the DELETEs, starting at 1; `sent` is what this one sent.
+  removePass?: (attempt: number, sent: SentRemoval) => Answer;
   // `attempt` counts the POSTs, starting at 1.
   cash?: (attempt: number) => Answer;
   // `attempt` counts the POSTs, starting at 1.
@@ -235,6 +237,136 @@ export const freeHeldPass = {
   priceCents: 0,
   selections: [],
 };
+
+// The catalog of the stepper specs (#346): a general entry, two full passes with competitions
+// to choose and an add-on that requires a full pass and includes its own competition.
+export const saleActivities = {
+  popping1: catalogActivity(
+    'b1b2c3d4-1234-4567-89ab-123456789abc',
+    'Popping 1v1',
+    '2026-11-14T17:00:00Z',
+  ),
+  popping2: catalogActivity(
+    'b2b2c3d4-1234-4567-89ab-123456789abc',
+    'Popping 2v2',
+    '2026-11-14T18:00:00Z',
+  ),
+  breaking: catalogActivity(
+    'b3b2c3d4-1234-4567-89ab-123456789abc',
+    'Breaking Bboy',
+    '2026-11-14T16:00:00Z',
+  ),
+  openStyles: catalogActivity(
+    'b4b2c3d4-1234-4567-89ab-123456789abc',
+    'Open Styles 1vs1',
+    '2026-11-14T19:00:00Z',
+  ),
+};
+
+export const salePassTypes = {
+  general: catalogPassType(
+    'e1b2c3d4-1234-4567-89ab-123456789abc',
+    'Entrada general',
+    'general',
+    100000,
+  ),
+  popping: catalogPassType(
+    'e2b2c3d4-1234-4567-89ab-123456789abc',
+    'Pase completo Popping',
+    'full',
+    200000,
+    {
+      activities: [
+        { activityId: saleActivities.popping2.id, access: 'selectable' },
+        { activityId: saleActivities.popping1.id, access: 'selectable' },
+      ],
+    },
+  ),
+  breaking: catalogPassType(
+    'e3b2c3d4-1234-4567-89ab-123456789abc',
+    'Pase completo Breaking',
+    'full',
+    200000,
+    { activities: [{ activityId: saleActivities.breaking.id, access: 'selectable' }] },
+  ),
+  openStyles: catalogPassType(
+    'e4b2c3d4-1234-4567-89ab-123456789abc',
+    'Open Styles',
+    'add_on',
+    80000,
+    {
+      requiresPassClass: 'full',
+      activities: [{ activityId: saleActivities.openStyles.id, access: 'included' }],
+    },
+  ),
+};
+
+export type SaleHeldPass = {
+  registrationPassId: string;
+  passTypeId: string;
+  name: string;
+  passClass: string;
+  priceCents: number;
+  selections: string[];
+};
+
+// The id a held pass of this pass type gets: a UUID, as the entitlements reader requires.
+export const heldPassId = (passType: { id: string }) => `d${passType.id.slice(1)}`;
+
+// A held pass of a catalog pass type, as the entitlements list it.
+export const heldOf = (
+  passType: ReturnType<typeof catalogPassType>,
+  selections: string[] = [],
+): SaleHeldPass => ({
+  registrationPassId: heldPassId(passType),
+  passTypeId: passType.id,
+  name: passType.name,
+  passClass: passType.passClass,
+  priceCents: passType.priceCents,
+  selections,
+});
+
+// A pending registration whose passes follow the writes, as the backend answers them: each add,
+// removal and competition change answers with the current entitlements.
+export function saleBackend(
+  held: SaleHeldPass[] = [],
+  summary: Parameters<typeof registrationSummary>[1] = {},
+) {
+  const state = { held: [...held], summary };
+  const answer = (id: string, status = 200): Answer => ({
+    status,
+    json: {
+      registration: registrationSummary(id, state.summary),
+      passes: state.held,
+      accessibleActivityIds: [],
+    },
+  });
+  const passTypes = Object.values(salePassTypes);
+  const mocks: RegistrationMocks = {
+    passTypes: () => ({ json: passTypes }),
+    activities: () => ({ json: Object.values(saleActivities) }),
+    entitlements: (id) => answer(id),
+    addPass: (_attempt, sent) => {
+      const { passTypeId } = sent.body as { passTypeId: string };
+      state.held.push(heldOf(passTypes.find((passType) => passType.id === passTypeId)!));
+      return answer(sent.registrationId, 201);
+    },
+    removePass: (_attempt, sent) => {
+      state.held = state.held.filter((pass) => pass.registrationPassId !== sent.registrationPassId);
+      return answer(sent.registrationId);
+    },
+    selections: (_attempt, sent) => {
+      const { activityIds } = sent.body as { activityIds: string[] };
+      state.held = state.held.map((pass) =>
+        pass.registrationPassId === sent.registrationPassId
+          ? { ...pass, selections: activityIds }
+          : pass,
+      );
+      return answer(sent.registrationId);
+    },
+  };
+  return { state, mocks };
+}
 
 export async function mockRegistrations(page: Page, mocks: RegistrationMocks = {}) {
   const searches: URL[] = [];
@@ -297,12 +429,13 @@ export async function mockRegistrations(page: Page, mocks: RegistrationMocks = {
     (route) => {
       const request = route.request();
       const id = new URL(request.url()).pathname.split('/')[5];
-      addedPasses.push({
+      const sent = {
         registrationId: id,
-        body: request.postDataJSON(),
+        body: request.postDataJSON() as unknown,
         csrf: request.headers()['x-csrf-token'] ?? null,
-      });
-      const answer = mocks.addPass?.(addedPasses.length) ?? { status: 500, json: {} };
+      };
+      addedPasses.push(sent);
+      const answer = mocks.addPass?.(addedPasses.length, sent) ?? { status: 500, json: {} };
       return fulfill(route, withSummary(id, answer));
     },
   );
@@ -319,13 +452,14 @@ export async function mockRegistrations(page: Page, mocks: RegistrationMocks = {
     (route) => {
       const request = route.request();
       const segments = new URL(request.url()).pathname.split('/');
-      selections.push({
+      const sent = {
         registrationId: segments[5],
         registrationPassId: segments[7],
-        body: request.postDataJSON(),
+        body: request.postDataJSON() as unknown,
         csrf: request.headers()['x-csrf-token'] ?? null,
-      });
-      const answer = mocks.selections?.(selections.length) ?? { status: 500, json: {} };
+      };
+      selections.push(sent);
+      const answer = mocks.selections?.(selections.length, sent) ?? { status: 500, json: {} };
       return fulfill(route, withSummary(segments[5], answer));
     },
   );
@@ -337,12 +471,13 @@ export async function mockRegistrations(page: Page, mocks: RegistrationMocks = {
       const request = route.request();
       if (request.method() !== 'DELETE') return route.fallback();
       const segments = new URL(request.url()).pathname.split('/');
-      removedPasses.push({
+      const sent = {
         registrationId: segments[5],
         registrationPassId: segments[7],
         csrf: request.headers()['x-csrf-token'] ?? null,
-      });
-      const answer = mocks.removePass?.(removedPasses.length) ?? { status: 500, json: {} };
+      };
+      removedPasses.push(sent);
+      const answer = mocks.removePass?.(removedPasses.length, sent) ?? { status: 500, json: {} };
       return fulfill(route, withSummary(segments[5], answer));
     },
   );
@@ -461,7 +596,7 @@ export async function mockRegistrations(page: Page, mocks: RegistrationMocks = {
 const sweepEntitlements = (
   status: string,
   folio: string | null,
-  passes = [heldPass],
+  passes: SaleHeldPass[] = [heldPass],
   cash: { amountCents: number; receipt: string | null } | null = null,
 ) => ({
   json: {
@@ -485,6 +620,21 @@ async function overrideRoute(page: Page, suffix: string, json: unknown) {
   );
 }
 
+// A pending registration holding a full pass with one competition and the add-on, with the
+// stepper catalog, for the sale steps' sweeps.
+const mockSweepSale = () => async (page: Page) => {
+  await overrideRoute(
+    page,
+    '/entitlements',
+    sweepEntitlements('pending_payment', null, [
+      heldOf(salePassTypes.popping, [saleActivities.popping1.id]),
+      heldOf(salePassTypes.openStyles),
+    ]).json,
+  );
+  await overrideRoute(page, '/pass-types', Object.values(salePassTypes));
+  await overrideRoute(page, '/activities', Object.values(saleActivities));
+};
+
 export const registrationSweepCases: {
   name: string;
   path: string;
@@ -493,6 +643,7 @@ export const registrationSweepCases: {
   ready: (page: Page) => Promise<void>;
 }[] = [
   {
+    // A pending registration's detail leads to its sale (#346).
     name: 'Inscripción pendiente',
     path: registrationPath(registrationId),
     mock: (page) =>
@@ -509,6 +660,65 @@ export const registrationSweepCases: {
         sweepEntitlements('pending_payment', null, [freeHeldPass]).json,
       ),
     ready: (page) => page.getByRole('region', { name: 'Confirmación sin cobro' }).waitFor(),
+  },
+  {
+    // Nueva inscripción's pass step with a full pass, its competitions and an add-on (#346).
+    name: 'Nueva inscripción pases',
+    path: salePath(registrationId),
+    mock: mockSweepSale(),
+    ready: (page) =>
+      page.getByRole('group', { name: 'Competencias de Pase completo Popping' }).waitFor(),
+  },
+  {
+    // The read-only participant step of a registration that already exists.
+    name: 'Nueva inscripción participante guardado',
+    path: salePath(registrationId),
+    mock: mockSweepSale(),
+    ready: async (page) => {
+      await page.getByRole('button', { name: 'Atrás' }).click();
+      await page.getByRole('heading', { name: '¿Quién se inscribe?' }).waitFor();
+    },
+  },
+  {
+    // The cash step with an amount that differs from the total, so its warning shows too.
+    name: 'Nueva inscripción cobro',
+    path: salePath(registrationId),
+    mock: mockSweepSale(),
+    ready: async (page) => {
+      await page.getByRole('button', { name: 'Continuar al cobro' }).click();
+      await page.getByRole('textbox', { name: 'Monto recibido (MXN)' }).fill('1000');
+      await page.getByText(/^No coincide con el total/).waitFor();
+    },
+  },
+  {
+    // A $0 registration confirms without cash, with its reason (#263).
+    name: 'Nueva inscripción sin cobro',
+    path: salePath(registrationId),
+    mock: (page) =>
+      overrideRoute(
+        page,
+        '/entitlements',
+        sweepEntitlements('pending_payment', null, [freeHeldPass]).json,
+      ),
+    ready: async (page) => {
+      await page.getByRole('button', { name: 'Continuar al cobro' }).click();
+      await page.getByRole('textbox', { name: 'Motivo' }).waitFor();
+    },
+  },
+  {
+    // The confirmed step with its folio.
+    name: 'Nueva inscripción confirmada',
+    path: salePath(registrationId),
+    mock: async (page) => {
+      await mockSweepSale()(page);
+      await overrideRoute(page, '/cash-confirmation', cashConfirmed(registrationId, 'EB-7K3Q'));
+    },
+    ready: async (page) => {
+      await page.getByRole('button', { name: 'Continuar al cobro' }).click();
+      await page.getByRole('textbox', { name: 'Número de recibo' }).fill('08590');
+      await page.getByRole('button', { name: 'Confirmar inscripción' }).click();
+      await page.getByRole('heading', { name: 'Inscripción confirmada' }).waitFor();
+    },
   },
   {
     name: 'Inscripción confirmada',

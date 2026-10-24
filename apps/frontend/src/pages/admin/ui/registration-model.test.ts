@@ -13,6 +13,7 @@ import {
   noMatchTitle,
   participantDisplayName,
   readRegistrationContext,
+  registrationLoadMessage,
   readStatusFilter,
   registrationRow,
   registrationServerErrors,
@@ -347,9 +348,37 @@ describe('readRegistrationContext', () => {
     });
   });
 
+  it('reads the contact line the new registration passes to its sale (#346)', () => {
+    const contact = { email: 'ana@example.org', phone: '+52 3312345678' };
+    expect(
+      readRegistrationContext({ participantName: 'Ana López', status: 'pending_payment', contact }),
+    ).toEqual({ participantName: 'Ana López', status: 'pending_payment', contact });
+    expect(
+      readRegistrationContext({
+        participantName: 'Ana López',
+        status: 'pending_payment',
+        contact: { email: 'ana@example.org' },
+      }),
+    ).toEqual({ participantName: 'Ana López', status: 'pending_payment' });
+  });
+
   it('ignores missing or malformed state', () => {
     expect(readRegistrationContext(null)).toBeNull();
     expect(readRegistrationContext({ participantName: '', status: 'confirmed' })).toBeNull();
     expect(readRegistrationContext({ participantName: 'Ana', status: 'paid' })).toBeNull();
+  });
+});
+
+describe('registrationLoadMessage', () => {
+  it('explains why a registration could not be read', () => {
+    expect(registrationLoadMessage('forbidden')).toBe(
+      'Sin acceso: tu cuenta no puede consultar las inscripciones de este evento.',
+    );
+    expect(registrationLoadMessage('not_found')).toBe(
+      'No encontramos esta inscripción en este evento.',
+    );
+    expect(registrationLoadMessage('unknown')).toBe(
+      'No pudimos cargar la inscripción. Intenta de nuevo.',
+    );
   });
 });

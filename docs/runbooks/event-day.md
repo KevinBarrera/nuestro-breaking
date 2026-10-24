@@ -148,10 +148,13 @@ The lists (#65) need an event administrator; judges get no data. See the
 ### Before the event
 
 1. Open "Listas de respaldo" from the side navigation ("Operación"). The page
-   reads one snapshot: press "Actualizar" for a fresh one.
-2. In "Lista", choose "Todas las listas" or one list: "Evento completo", one
-   per pass ("Pase · …") and one per competition or workshop. Press "Imprimir
-   o guardar PDF" and print or save each one. Each list starts on a new page.
+   reads one snapshot and says how old it is: after 30 minutes the notice turns
+   to a warning; press "Actualizar datos" for a fresh one.
+2. In "Qué imprimir", check the lists the PDF should carry: "Evento completo"
+   (checked by default), one per pass and one per competition or workshop
+   ("Marcar todas" checks a whole group). Tap a list to preview it, with how
+   many people already entered and a search by name, AKA or folio. Press
+   "Imprimir N listas" and print or save the PDF.
 3. Every printed page shows the event, the list and "Generada el …". Note
    that time: a list does not show anything that changed after it. Lists
    include confirmed and pending-payment registrations with their status;

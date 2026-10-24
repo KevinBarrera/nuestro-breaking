@@ -192,7 +192,6 @@ for (const screen of adminScreens) {
 // the focused and selected option, in both themes.
 const popoverCases = [
   { name: 'topbar event selector', screen: adminScreens[0], trigger: 'Evento' },
-  { name: 'attendee list selector', screen: adminScreen('Listas de respaldo'), trigger: 'Lista' },
 ] as const;
 
 for (const theme of themes) {

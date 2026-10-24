@@ -54,10 +54,7 @@ for (const theme of themes) {
 
 // Open listboxes render in a popover: at 375px it stays inside the viewport in both themes.
 for (const theme of themes) {
-  for (const [screen, trigger, control] of [
-    [adminScreens[0], 'Evento', 'Evento'],
-    [adminScreen('Listas de respaldo'), 'Lista', 'Lista'],
-  ] as const) {
+  for (const [screen, trigger, control] of [[adminScreens[0], 'Evento', 'Evento']] as const) {
     test(`${screen.name} open listbox for ${control} fits ${width}px in the ${theme} theme`, async ({
       page,
     }) => {

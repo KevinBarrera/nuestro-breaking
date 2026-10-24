@@ -196,10 +196,21 @@ test('offers only a reload when the answer was lost', async ({ page }) => {
     'Recarga la inscripción antes de intentarlo de nuevo.',
   );
   await expect(confirmButton(page)).toBeDisabled();
+  // The reload is held, so the screen is still unconfirmed while it travels.
+  let release = () => {};
+  const held = new Promise<void>((resolve) => (release = resolve));
+  await page.route(/\/entitlements$/, async (route) => {
+    await held;
+    await route.fallback();
+  });
   const before = reads;
   await dialog(page).getByRole('button', { name: 'Recargar' }).click();
   await expect(dialog(page)).toHaveCount(0);
+  // No correction can be reopened until the reload says whether the first one landed.
+  await expect(openButton(page)).toBeDisabled();
+  release();
   await expect.poll(() => reads).toBeGreaterThan(before);
+  await expect(openButton(page)).toBeEnabled();
   expect(cashCorrections).toHaveLength(1);
 });
 

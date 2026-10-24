@@ -119,6 +119,8 @@ function RegistrationScreen({
     );
   const reload = () => setRevision((value) => value + 1);
   const reloading = state.status === 'ready' && answered !== revision;
+  // Corrections wait for a reload, which may show that the last write landed after a lost answer.
+  const correctionsLocked = reloading;
   // The correction modal that is open, and the success notice the last one left in its card.
   const [correcting, setCorrecting] = useState<Correcting | null>(null);
   const [cardNotice, setCardNotice] = useState<CardNotice | null>(null);
@@ -262,6 +264,7 @@ function RegistrationScreen({
                   {swapSource && swapOptions && swapOptions.status !== 'unavailable' && (
                     <button
                       type="button"
+                      disabled={correctionsLocked}
                       className={buttonClass('secondary')}
                       onClick={(event) => openCorrection({ kind: 'discipline' }, event)}
                     >
@@ -272,6 +275,7 @@ function RegistrationScreen({
                     <button
                       key={pass.registrationPassId}
                       type="button"
+                      disabled={correctionsLocked}
                       className={buttonClass('secondary')}
                       aria-label={`Editar competencias de «${pass.name}»`}
                       onClick={(event) =>
@@ -303,6 +307,7 @@ function RegistrationScreen({
                   canCorrectCash(state.entitlements.registration) && (
                     <button
                       type="button"
+                      disabled={correctionsLocked}
                       className={buttonClass('secondary')}
                       onClick={(event) => openCorrection({ kind: 'cash' }, event)}
                     >
@@ -322,6 +327,7 @@ function RegistrationScreen({
                 canCorrectParticipant(state.entitlements.registration) && (
                   <button
                     type="button"
+                    disabled={correctionsLocked}
                     className={buttonClass('secondary')}
                     onClick={(event) => openCorrection({ kind: 'participant' }, event)}
                   >

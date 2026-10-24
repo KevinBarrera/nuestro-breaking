@@ -75,7 +75,7 @@ test('changes the competitions of a confirmed registration with a reason', async
   await expect(passes(page).getByRole('status')).toHaveText(
     'Se cambiaron las competencias de «Pase completo».',
   );
-  await expect(passes(page)).toContainText('Competencias elegidas: Breaking 1 vs 1');
+  await expect(passes(page)).toContainText('Breaking 1 vs 1');
   await expect(editor(page)).toHaveCount(0);
   await expect(
     passes(page).getByRole('button', { name: 'Editar competencias de «Pase completo»' }),
@@ -108,7 +108,7 @@ test('a blank reason or an unchanged list sends nothing', async ({ page }) => {
 
   // Cancel keeps the saved list.
   await editor(page).getByRole('button', { name: 'Cancelar' }).click();
-  await expect(passes(page)).toContainText('Competencias elegidas: Popping 1 vs 1');
+  await expect(passes(page)).toContainText('Popping 1 vs 1');
 });
 
 test('a reason the backend rejects shows on the field and keeps the draft', async ({ page }) => {
@@ -169,6 +169,6 @@ test('a voided registration offers no competition changes', async ({ page }) => 
   });
   await page.goto(registrationPath(registrationId));
   await expect(page.getByText('Inscripción anulada', { exact: true })).toBeVisible();
-  await expect(passes(page)).toContainText('Competencias elegidas: Popping 1 vs 1');
+  await expect(passes(page)).toContainText('Popping 1 vs 1');
   await expect(passes(page).getByRole('button')).toHaveCount(0);
 });

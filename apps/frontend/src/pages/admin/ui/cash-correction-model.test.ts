@@ -6,10 +6,10 @@ import type {
 } from '@/entities/admin-registration';
 import {
   canCorrectCash,
-  cashCorrectionConfirmation,
+  cashAmountHint,
+  cashCorrectionRows,
   cashCorrectionFailure,
   initialCashCorrectionForm,
-  passTotalWarning,
   reviewCashCorrection,
   type CashCorrectionForm,
 } from './cash-correction-model';
@@ -108,8 +108,8 @@ describe('reviewCashCorrection', () => {
         amount:
           'Escribe un monto válido en pesos, sin separadores de miles y con hasta 2 decimales, por ejemplo 1500 o 1500,50.',
         receipt: 'Escribe el número del recibo en papel.',
-        reason: 'Escribe el motivo de la corrección.',
-        receiptChecked: 'Confirma que revisaste el recibo original antes de corregir.',
+        reason: 'Escribe el motivo. Queda en el historial.',
+        receiptChecked: 'Confirma que revisaste el recibo antes de corregir.',
       },
     });
     expect(
@@ -131,7 +131,7 @@ describe('reviewCashCorrection', () => {
     expect(reviewCashCorrection(form({ amount: '800', receipt: ' A-17 ' }), cash)).toEqual({
       ok: false,
       errors: {},
-      unchanged: 'No hay cambios: el monto y el recibo son los mismos.',
+      unchanged: 'No hay cambios que guardar. Modifica algo o cancela.',
     });
   });
 
@@ -142,39 +142,35 @@ describe('reviewCashCorrection', () => {
   });
 });
 
-describe('passTotalWarning', () => {
-  it('warns when the amount differs from the sum of the held passes, without blocking', () => {
+describe('cashAmountHint', () => {
+  it('compares the typed amount with the sum of the held passes, without blocking', () => {
     const passes = [pass(50000), pass(30000)];
-    expect(passTotalWarning(80000, passes)).toBeNull();
-    expect(passTotalWarning(75000, passes)).toBe(
-      'El monto no coincide con el total de los pases ($800.00).',
-    );
-    expect(passTotalWarning(null, passes)).toBeNull();
+    expect(cashAmountHint(80000, passes)).toEqual({
+      tone: 'success',
+      text: 'Coincide con el total de los pases.',
+    });
+    expect(cashAmountHint(75000, passes)).toEqual({
+      tone: 'warning',
+      text: 'No coincide con el total de los pases ($800.00). Puedes guardarlo si así dice el recibo.',
+    });
+    expect(cashAmountHint(null, passes)).toBeNull();
   });
 });
 
-describe('cashCorrectionConfirmation', () => {
+describe('cashCorrectionRows', () => {
   const input = { amountCents: 75000, receipt: 'A-18', reason: 'Motivo', receiptChecked: true };
 
-  it('restates the previous and new values', () => {
-    expect(cashCorrectionConfirmation(cash, input, 'Ana López', null)).toEqual({
-      title: '¿Corregir el pago de Ana López?',
-      consequence:
-        'Monto: $800.00 → $750.00. Recibo: A-17 → A-18. La corrección queda en el historial con su motivo.',
-    });
+  it('lists the changed values before and after', () => {
+    expect(cashCorrectionRows(cash, input)).toEqual([
+      { key: 'amount', label: 'Monto', before: '$800.00', after: '$750.00' },
+      { key: 'receipt', label: 'Número de recibo', before: 'A-17', after: 'A-18' },
+    ]);
   });
 
-  it('marks unchanged values, a legacy receipt and the pass-total warning', () => {
-    expect(
-      cashCorrectionConfirmation(
-        { amountCents: 75000, receipt: null },
-        input,
-        'Ana López',
-        'El monto no coincide con el total de los pases ($800.00).',
-      ).consequence,
-    ).toBe(
-      'Monto: $750.00 (sin cambio). Recibo: sin número → A-18. El monto no coincide con el total de los pases ($800.00). La corrección queda en el historial con su motivo.',
-    );
+  it('leaves out an unchanged value and names a legacy receipt', () => {
+    expect(cashCorrectionRows({ amountCents: 75000, receipt: null }, input)).toEqual([
+      { key: 'receipt', label: 'Número de recibo', before: 'Sin número', after: 'A-18' },
+    ]);
   });
 });
 
@@ -208,7 +204,7 @@ describe('cashCorrectionFailure', () => {
       reload: false,
     });
     expect(failure({ kind: 'invalid', fieldErrors: { receiptChecked: 'required' } })).toEqual({
-      fields: { receiptChecked: 'Confirma que revisaste el recibo original antes de corregir.' },
+      fields: { receiptChecked: 'Confirma que revisaste el recibo antes de corregir.' },
       message: 'Revisa los datos marcados.',
       reload: false,
     });

@@ -242,7 +242,7 @@ test('edits an activity with its expected version', async ({ page }) => {
   await form.getByLabel('Nombre').fill('Batalla 2 vs 2');
   await saveActivity(page);
   await expect(page.getByRole('status')).toContainText('Guardaste los cambios de ');
-  await expect(page.getByText('Batalla 2 vs 2')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Batalla 2 vs 2' })).toBeVisible();
   expect(body).toEqual({
     expectedVersion: 3,
     name: 'Batalla 2 vs 2',

@@ -41,7 +41,16 @@ test('several events show a picker built only from the returned events', async (
   });
   await page.route(
     (url) => url.port === '3000' && url.pathname.endsWith('/participants'),
-    (route) => route.fulfill({ json: { total: 0, limit: 20, offset: 0, results: [] } }),
+    (route) =>
+      route.fulfill({
+        json: {
+          total: 0,
+          limit: 20,
+          offset: 0,
+          counts: { all: 0, pending_payment: 0, confirmed: 0, voided: 0 },
+          results: [],
+        },
+      }),
   );
   await page.goto('/admin');
   await expect(main(page).getByRole('heading', { name: 'Eventos', level: 1 })).toBeVisible();

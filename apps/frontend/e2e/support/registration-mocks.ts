@@ -36,13 +36,24 @@ export const searchResult = (
     checkedInAt: null,
     generalEntryOnly: false,
   },
+  passes: [] as { name: string; passClass: string }[],
   activities: [] as { id: string; name: string; kind: string; checkedInAt: null }[],
 });
 
+// `counts` default to the statuses of the given results (#344).
 export const searchPage = (
   results: ReturnType<typeof searchResult>[],
-  { total = results.length, offset = 0 } = {},
-) => ({ total, limit: 20, offset, results });
+  {
+    total = results.length,
+    offset = 0,
+    counts = {
+      all: results.length,
+      pending_payment: results.filter((r) => r.registration.status === 'pending_payment').length,
+      confirmed: results.filter((r) => r.registration.status === 'confirmed').length,
+      voided: results.filter((r) => r.registration.status === 'voided').length,
+    },
+  } = {},
+) => ({ total, limit: 20, offset, counts, results });
 
 export const heldPass = {
   registrationPassId: 'f9b2c3d4-1234-4567-89ab-123456789abc',

@@ -178,6 +178,7 @@ describe('GET /admin/events/:eventId/participants (e2e)', () => {
       total: 2,
       limit: 20,
       offset: 0,
+      counts: { all: 2, pending_payment: 1, confirmed: 1, voided: 0 },
       results: [
         {
           participant: {
@@ -194,6 +195,7 @@ describe('GET /admin/events/:eventId/participants (e2e)', () => {
             checkedInAt: null,
             generalEntryOnly: false,
           },
+          passes: [{ name: 'Full', passClass: 'full' }],
           activities: [
             { id: battle.id, name: 'Battle', kind: 'competition', checkedInAt: null },
             { id: workshop.id, name: 'Workshop', kind: 'workshop', checkedInAt: null },
@@ -214,6 +216,7 @@ describe('GET /admin/events/:eventId/participants (e2e)', () => {
             checkedInAt: null,
             generalEntryOnly: false,
           },
+          passes: [],
           activities: [],
         },
       ],
@@ -222,12 +225,25 @@ describe('GET /admin/events/:eventId/participants (e2e)', () => {
       expect((await get(q)).body as unknown).toEqual({
         ...page,
         total: 1,
+        counts: { all: 1, pending_payment: 0, confirmed: 1, voided: 0 },
         results: [page.results[0]],
       });
     }
-    expect((await get('hidden')).body).toEqual({ total: 0, limit: 20, offset: 0, results: [] });
+    expect((await get('hidden')).body).toEqual({
+      total: 0,
+      limit: 20,
+      offset: 0,
+      counts: { all: 0, pending_payment: 0, confirmed: 0, voided: 0 },
+      results: [],
+    });
     // Folios are unique system-wide; the other event's folio is only found inside that event.
-    expect((await get('F-12')).body).toEqual({ total: 0, limit: 20, offset: 0, results: [] });
+    expect((await get('F-12')).body).toEqual({
+      total: 0,
+      limit: 20,
+      offset: 0,
+      counts: { all: 0, pending_payment: 0, confirmed: 0, voided: 0 },
+      results: [],
+    });
     expect(((await get('F-12', other.id)).body as { results: unknown[] }).results).toHaveLength(1);
     expect(JSON.stringify(result.body)).not.toMatch(
       /Private|admin_cash|confirmedAt|paymentProvider|actorUserId|sessionId|audit/,
@@ -468,10 +484,81 @@ describe('GET /admin/events/:eventId/participants (e2e)', () => {
     );
   });
 
-  it('bounds pages, validates parameters, and never treats blank or wildcard input as a roster search', async () => {
+  it('lists the whole roster without a query, filters by status and counts every status', async () => {
+    const { event, one, two } = await fixture();
+    const { cookie } = await session();
+    const [voidedPerson] = await client<{ id: string }[]>`
+      INSERT INTO participants (full_name, email) VALUES ('Zoe Void', 'zoe@example.com') RETURNING id
+    `;
+    const [voided] = await client<{ id: string }[]>`
+      INSERT INTO event_registrations (event_id, participant_id, status)
+      VALUES (${event.id}, ${voidedPerson.id}, 'voided') RETURNING id
+    `;
+    // An archived pass type still names what was bought; passes are sorted by name.
+    const [archivedPass] = await client<{ id: string }[]>`
+      INSERT INTO event_pass_types (event_id, name, pass_class, price_cents, status)
+      VALUES (${event.id}, 'Add-on old', 'add_on', 200, 'archived') RETURNING id
+    `;
+    await client`
+      INSERT INTO event_registration_passes (event_id, event_registration_id, pass_type_id, price_cents)
+      VALUES (${event.id}, ${one.id}, ${archivedPass.id}, 200)
+    `;
+    const get = (params: Record<string, string>) =>
+      request(app.getHttpServer())
+        .get(`/admin/events/${event.id}/participants`)
+        .query(params)
+        .set('Cookie', cookie)
+        .expect(200) as unknown as Promise<{ body: RegistrationSearchPage }>;
+    const counts = { all: 3, pending_payment: 1, confirmed: 1, voided: 1 };
+
+    for (const params of [{}, { q: ' ' }] as Record<string, string>[]) {
+      const { body } = await get(params);
+      expect(body).toMatchObject({ total: 3, limit: 20, offset: 0, counts });
+      // Same order as a search: full name, then folio and id; the other event never shows.
+      expect(body.results.map((result) => result.registration.id)).toEqual([
+        one.id,
+        two.id,
+        voided.id,
+      ]);
+      expect(body.results.map((result) => result.passes)).toEqual([
+        [
+          { name: 'Add-on old', passClass: 'add_on' },
+          { name: 'Full', passClass: 'full' },
+        ],
+        [],
+        [],
+      ]);
+    }
+
+    // The status narrows the results and the total; the counts keep every status.
+    const confirmed = (await get({ status: 'confirmed' })).body;
+    expect(confirmed).toMatchObject({ total: 1, counts });
+    expect(confirmed.results.map((result) => result.registration.id)).toEqual([one.id]);
+    const voidedOnly = (await get({ status: 'voided' })).body;
+    expect(voidedOnly.results.map((result) => result.registration.id)).toEqual([voided.id]);
+
+    // With a query, the counts follow the query and the status still narrows.
+    expect((await get({ q: 'alex' })).body).toMatchObject({
+      total: 2,
+      counts: { all: 2, pending_payment: 1, confirmed: 1, voided: 0 },
+    });
+    const pending = (await get({ q: 'alex', status: 'pending_payment' })).body;
+    expect(pending).toMatchObject({
+      total: 1,
+      counts: { all: 2, pending_payment: 1, confirmed: 1, voided: 0 },
+    });
+    expect(pending.results.map((result) => result.registration.id)).toEqual([two.id]);
+    expect((await get({ q: 'zoe', status: 'confirmed' })).body).toMatchObject({
+      total: 0,
+      results: [],
+      counts: { all: 1, pending_payment: 0, confirmed: 0, voided: 1 },
+    });
+  });
+
+  it('bounds pages, validates parameters, and never treats wildcard input as a match-all search', async () => {
     const { event } = await fixture();
     const { cookie } = await session();
-    const get = (params: { q?: string; limit?: string; offset?: string }) =>
+    const get = (params: { q?: string; limit?: string; offset?: string; status?: string }) =>
       request(app.getHttpServer())
         .get(`/admin/events/${event.id}/participants`)
         .query(params)
@@ -487,18 +574,19 @@ describe('GET /admin/events/:eventId/participants (e2e)', () => {
         total: 0,
         limit: 20,
         offset: 0,
+        counts: { all: 0, pending_payment: 0, confirmed: 0, voided: 0 },
         results: [],
       });
     }
     for (const params of [
-      {},
-      { q: ' ' },
       { q: 'a' },
       { q: '%' },
       { q: 'Alex', limit: '51' },
       { q: 'Alex', limit: '0' },
       { q: 'Alex', offset: '-1' },
       { q: 'Alex', limit: 'oops' },
+      { status: 'paid' },
+      { q: 'Alex', status: 'Confirmed' },
     ]) {
       const response = await get(params).expect(400);
       expect(JSON.stringify(response.body)).not.toMatch(/alex@example.com|Hidden Person/);

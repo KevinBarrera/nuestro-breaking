@@ -410,7 +410,8 @@ export async function revealControls(page: Page, name: AdminScreenName) {
       .waitFor();
   if (name === 'Listas de respaldo')
     await page.getByRole('table', { name: 'Evento completo' }).getByRole('cell').first().waitFor();
-  if (name === 'Historial') await page.getByRole('button', { name: 'Cargar más' }).waitFor();
+  if (name === 'Historial')
+    await page.getByRole('button', { name: 'Cargar días anteriores' }).waitFor();
   if (name === 'Pase' || name === 'Nuevo pase') await accessControls(page).first().waitFor();
   if (name === 'Actividades') await page.getByRole('button', { name: /^Todas/ }).waitFor();
   if (name === 'Equipo')

@@ -1,13 +1,14 @@
 import type { HistoryDetails } from '@/entities/registration-history';
 import { describe, expect, it } from 'vitest';
 import {
-  emptyHistoryMessage,
-  folioLabel,
   historyActorLabel,
-  historyClockNote,
+  historyChips,
   historyDetailLine,
+  historyNoMatchTitle,
   historyTitle,
-  reasonLine,
+  historyTypeHint,
+  readHistoryType,
+  typeParam,
 } from './history-model';
 
 describe('historyTitle', () => {
@@ -166,21 +167,37 @@ describe('historyDetailLine', () => {
   });
 });
 
-describe('labels', () => {
-  it('words the folio, the reason and the empty states', () => {
-    expect(folioLabel('EB-0042')).toBe('Folio EB-0042');
-    expect(folioLabel(null)).toBe('Sin folio');
-    expect(reasonLine('Recibo equivocado')).toBe('Motivo: Recibo equivocado');
-    expect(reasonLine(null)).toBeNull();
-    expect(reasonLine('   ')).toBeNull();
-    expect(emptyHistoryMessage('all')).toBe('Todavía no hay operaciones registradas.');
-    expect(emptyHistoryMessage('corrections')).toBe('Todavía no hay correcciones registradas.');
+describe('type filter', () => {
+  it('reads and writes the ?tipo= of the URL', () => {
+    expect(readHistoryType('correcciones')).toBe('corrections');
+    expect(readHistoryType('mesa')).toBe('on_site');
+    expect(readHistoryType('cortesias')).toBe('complimentary');
+    expect(readHistoryType('corrections')).toBe('all');
+    expect(readHistoryType(null)).toBe('all');
+    expect(typeParam('all')).toBeNull();
+    expect(typeParam('on_site')).toBe('mesa');
   });
 
-  it('says which clock the times use', () => {
-    expect(historyClockNote('America/Tijuana')).toBe(
-      'Horas en la zona horaria del evento: America/Tijuana.',
+  it('lists the chips with their counts and the selected one', () => {
+    const counts = { all: 9, corrections: 5, on_site: 3, complimentary: 1 };
+    expect(historyChips(counts, 'corrections')).toEqual([
+      { filter: 'all', label: 'Todo', count: 9, selected: false },
+      { filter: 'corrections', label: 'Correcciones', count: 5, selected: true },
+      { filter: 'on_site', label: 'Inscripciones en mesa', count: 3, selected: false },
+      { filter: 'complimentary', label: 'Cortesías', count: 1, selected: false },
+    ]);
+  });
+
+  it('explains the selected type and words the no-match state', () => {
+    expect(historyTypeHint('all')).toBeNull();
+    expect(historyTypeHint('corrections')).toBe(
+      'Anulaciones y cambios de nombre, disciplina, competencias o pago en inscripciones confirmadas.',
     );
-    expect(historyClockNote(null)).toBe('Horas en la zona horaria de este dispositivo.');
+    expect(historyTypeHint('on_site')).toBe(
+      'Cada inscripción en mesa junta el registro, sus pases y el pago en efectivo.',
+    );
+    expect(historyTypeHint('complimentary')).toBe('Pases sin costo y su motivo.');
+    expect(historyNoMatchTitle('Mau')).toBe('Nada en el historial coincide con “Mau”');
+    expect(historyNoMatchTitle('')).toBe('No hay movimientos de este tipo');
   });
 });

@@ -1,9 +1,11 @@
 import { formatMxn } from '@/entities/event-catalog';
-import type {
-  HistoryActor,
-  HistoryCashValues,
-  HistoryDetails,
-  HistoryFilter,
+import {
+  historyFilters,
+  type HistoryActor,
+  type HistoryCashValues,
+  type HistoryCounts,
+  type HistoryDetails,
+  type HistoryFilter,
 } from '@/entities/registration-history';
 
 // Historial (#104): Spanish copy for each operation of an event's registration history.
@@ -114,18 +116,50 @@ export function historyDetailLine(details: HistoryDetails): string | null {
   }
 }
 
-export const folioLabel = (folio: string | null) => (folio ? `Folio ${folio}` : 'Sin folio');
+// The `?tipo=` of the URL per filter (#357); `all` leaves it out.
+const typeParams: Record<HistoryFilter, string | null> = {
+  all: null,
+  corrections: 'correcciones',
+  on_site: 'mesa',
+  complimentary: 'cortesias',
+};
 
-export const reasonLine = (reason: string | null) =>
-  reason?.trim() ? `Motivo: ${reason.trim()}` : null;
+export const typeParam = (filter: HistoryFilter) => typeParams[filter];
 
-// Without the event's time zone the times fall back to the device clock, and say so.
-export const historyClockNote = (timeZone: string | null) =>
-  timeZone
-    ? `Horas en la zona horaria del evento: ${timeZone}.`
-    : 'Horas en la zona horaria de este dispositivo.';
+export const readHistoryType = (value: string | null): HistoryFilter =>
+  historyFilters.find((filter) => value !== null && typeParams[filter] === value) ?? 'all';
 
-export const emptyHistoryMessage = (filter: HistoryFilter) =>
-  filter === 'corrections'
-    ? 'Todavía no hay correcciones registradas.'
-    : 'Todavía no hay operaciones registradas.';
+const chipLabels: Record<HistoryFilter, string> = {
+  all: 'Todo',
+  corrections: 'Correcciones',
+  on_site: 'Inscripciones en mesa',
+  complimentary: 'Cortesías',
+};
+
+export type HistoryChip = {
+  filter: HistoryFilter;
+  label: string;
+  count: number;
+  selected: boolean;
+};
+
+export const historyChips = (counts: HistoryCounts, selected: HistoryFilter): HistoryChip[] =>
+  historyFilters.map((filter) => ({
+    filter,
+    label: chipLabels[filter],
+    count: counts[filter],
+    selected: filter === selected,
+  }));
+
+const typeHints: Record<HistoryFilter, string | null> = {
+  all: null,
+  corrections:
+    'Anulaciones y cambios de nombre, disciplina, competencias o pago en inscripciones confirmadas.',
+  on_site: 'Cada inscripción en mesa junta el registro, sus pases y el pago en efectivo.',
+  complimentary: 'Pases sin costo y su motivo.',
+};
+
+export const historyTypeHint = (filter: HistoryFilter) => typeHints[filter];
+
+export const historyNoMatchTitle = (searched: string) =>
+  searched ? `Nada en el historial coincide con “${searched}”` : 'No hay movimientos de este tipo';

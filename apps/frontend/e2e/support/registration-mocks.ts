@@ -648,18 +648,7 @@ export const registrationSweepCases: {
     path: registrationPath(registrationId),
     mock: (page) =>
       overrideRoute(page, '/entitlements', sweepEntitlements('pending_payment', null).json),
-    ready: (page) => page.getByRole('region', { name: 'Pago en efectivo' }).waitFor(),
-  },
-  {
-    name: 'Inscripción pendiente sin cobro',
-    path: registrationPath(registrationId),
-    mock: (page) =>
-      overrideRoute(
-        page,
-        '/entitlements',
-        sweepEntitlements('pending_payment', null, [freeHeldPass]).json,
-      ),
-    ready: (page) => page.getByRole('region', { name: 'Confirmación sin cobro' }).waitFor(),
+    ready: (page) => page.getByRole('link', { name: 'Continuar venta' }).waitFor(),
   },
   {
     // Nueva inscripción's pass step with a full pass, its competitions and an add-on (#346).

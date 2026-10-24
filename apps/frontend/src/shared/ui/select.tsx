@@ -30,6 +30,9 @@ type SelectProps = {
   // Blocks form submission while nothing is selected and then shows `requiredMessage`.
   isRequired?: boolean;
   requiredMessage?: string;
+  // A message from the form's own check: marks the select invalid and links the message as
+  // its description.
+  errorMessage?: string | null;
   placeholder?: string;
   variant?: SelectVariant;
   className?: string;
@@ -40,7 +43,7 @@ type SelectProps = {
 };
 
 const roots: Record<SelectVariant, string> = {
-  field: 'block text-sm font-semibold text-fg',
+  field: 'group block text-sm font-semibold text-fg',
   header: 'flex min-w-0 items-center gap-2 text-sm text-header-muted',
   nav: 'block min-w-0',
   chip: 'inline-block',
@@ -51,7 +54,7 @@ const focusRing = 'outline-none data-focus-visible:outline-2 data-focus-visible:
 
 // The chip variant is only disabled while its list saves, hence the wait cursor.
 const triggers: Record<SelectVariant, string> = {
-  field: `mt-1 flex min-h-11 w-full items-center justify-between gap-2 rounded-lg border border-input-line bg-input py-2 pr-3 pl-3 text-left text-base text-fg data-focus-visible:border-focus ${focusRing} data-focus-visible:outline-focus data-disabled:cursor-not-allowed data-disabled:opacity-60`,
+  field: `mt-1 flex min-h-11 w-full items-center justify-between gap-2 rounded-lg border border-input-line group-data-invalid:border-danger-fg bg-input py-2 pr-3 pl-3 text-left text-base text-fg data-focus-visible:border-focus ${focusRing} data-focus-visible:outline-focus data-disabled:cursor-not-allowed data-disabled:opacity-60`,
   header: `flex min-h-11 max-w-[60vw] min-w-0 items-center gap-2 rounded-md border border-header-line bg-header-control pr-3 pl-3 font-semibold text-header-fg ${focusRing} data-focus-visible:outline-header-fg data-disabled:cursor-not-allowed data-disabled:opacity-60`,
   nav: `flex min-h-12 w-full items-center gap-2.5 rounded-lg border border-input-line bg-input px-3 py-2 text-left text-sm font-semibold text-fg ${focusRing} data-focus-visible:outline-focus`,
   chip: `inline-flex min-h-11 items-center gap-2 rounded-full border pr-3 pl-3 text-xs font-semibold ${focusRing} data-focus-visible:outline-focus data-disabled:cursor-wait data-disabled:opacity-60`,
@@ -87,6 +90,7 @@ export function Select({
   isDisabled,
   isRequired,
   requiredMessage = 'Selecciona una opción.',
+  errorMessage,
   placeholder = 'Selecciona una opción',
   variant = 'field',
   className = '',
@@ -107,6 +111,7 @@ export function Select({
       name={name}
       isDisabled={isDisabled}
       isRequired={isRequired}
+      isInvalid={errorMessage ? true : undefined}
       placeholder={placeholder}
       className={`${roots[variant]} ${className}`}
     >
@@ -129,7 +134,7 @@ export function Select({
       </Button>
       {/* Native validation: the browser's own message would not be in Spanish. */}
       <FieldError className="mt-1 block text-sm font-normal text-danger-fg">
-        {requiredMessage}
+        {errorMessage || requiredMessage}
       </FieldError>
       <Popover
         offset={4}

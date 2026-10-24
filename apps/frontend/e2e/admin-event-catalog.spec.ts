@@ -325,6 +325,7 @@ test('requires a venue when the saved one is no longer among the event venues', 
 
   await page.getByRole('dialog').getByRole('button', { name: 'Revisar cambios' }).click();
   await expect(form.getByText('Elige la sede de la actividad.')).toBeVisible();
+  await expect(venue).toHaveAccessibleDescription('Elige la sede de la actividad.');
   await expect(page.getByText(/Guardaste los cambios/)).toHaveCount(0);
   expect(writes).toEqual([]);
 

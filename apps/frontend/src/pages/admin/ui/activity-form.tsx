@@ -163,9 +163,9 @@ export function ActivityForm({
             selectedKey={venues.some((venue) => venue.id === draft.venueId) ? draft.venueId : ''}
             isDisabled={noVenues}
             placeholder={noVenues ? 'Sin sedes' : 'Elige una sede'}
+            errorMessage={venueError}
             onSelectionChange={(venueId) => onChange({ venueId })}
           />
-          {venueError && <FieldError>{venueError}</FieldError>}
         </div>
       </div>
       {timeNote && (

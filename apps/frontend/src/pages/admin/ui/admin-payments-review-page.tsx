@@ -11,8 +11,8 @@ import { styles } from './catalog-copy';
 import {
   formatReceivedAt,
   reasonCopy,
-  reasonSummary,
   registrationStatusLabel,
+  reviewCases,
 } from './payments-review-model';
 import { useEventName } from './use-event-name';
 
@@ -97,12 +97,12 @@ function ReasonGuide({ payments }: { payments: FlaggedPayment[] }) {
         Qué hacer en cada caso
       </h2>
       <ul className="space-y-3 text-sm">
-        {reasonSummary(payments).map(({ reason, count }) => {
+        {reviewCases(payments).map(({ reason, payments: inCase }) => {
           const copy = reasonCopy[reason];
           return (
             <li key={reason} className="space-y-1">
               <p className="font-bold text-heading">
-                {copy.title} ({count})
+                {copy.title} ({inCase.length})
               </p>
               <p className="text-muted">{copy.detail}</p>
               <p className="font-semibold text-warning-fg">{copy.action}</p>

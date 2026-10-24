@@ -23,7 +23,7 @@ type ModalProps = {
   layout?: 'default' | 'sectioned' | 'card';
   // `lg` widens the dialog for forms with option cards, `xl` for records.
   size?: 'md' | 'lg' | 'xl';
-  // Shown before the title, e.g. an avatar.
+  // Shown before the title: beside it in a card (an avatar), above it otherwise (a step label).
   leading?: ReactNode;
   // Adds an icon button that closes the dialog, named by this label.
   closeLabel?: string;
@@ -77,17 +77,19 @@ export function Modal({
                 className={
                   card
                     ? 'flex items-start gap-3.5 border-b border-line pt-5 pr-4 pb-4 pl-6'
-                    : `${padX} ${sectioned ? 'pt-6' : 'pt-5'}`
+                    : `flex items-start gap-3 ${padX} ${sectioned ? 'pt-6' : 'pt-5'} ${closeLabel ? 'pr-4' : ''}`
                 }
               >
-                {leading}
+                {/* Beside the title in a card (an avatar); above it otherwise (a step label). */}
+                {card && leading}
                 <div className="min-w-0 flex-1">
+                  {!card && leading}
                   <Heading
                     slot="title"
                     className={
                       card
                         ? 'text-xl leading-7 font-extrabold text-heading'
-                        : 'text-lg font-bold text-heading'
+                        : `text-lg font-bold text-heading ${closeLabel ? 'pt-2' : ''}`
                     }
                   >
                     {title}

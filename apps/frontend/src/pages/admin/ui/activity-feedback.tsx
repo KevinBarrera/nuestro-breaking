@@ -1,7 +1,7 @@
 import type { CatalogActivity } from '@/entities/event-catalog';
 import { Modal, buttonClass } from '@/shared/ui';
 import { Button } from 'react-aria-components';
-import { WarningIcon } from './activity-list';
+import { PlusIcon, WarningIcon } from './activity-icons';
 import { styles } from './catalog-copy';
 
 type SuccessNoticeProps = {
@@ -157,7 +157,7 @@ export function ActivitiesEmpty({ onCreate }: { onCreate: () => void }) {
         Empieza por la agenda: agrega las competencias, talleres y sociales del evento. Después arma
         los pases con ellas.
       </p>
-      <button type="button" className={`${primaryLarge} mt-2`} onClick={onCreate}>
+      <button type="button" className={`${styles.primaryLarge} mt-2`} onClick={onCreate}>
         <PlusIcon />
         Agregar la primera actividad
       </button>
@@ -195,22 +195,3 @@ export function AgendaEmpty({ title, text, onCreate }: AgendaEmptyProps) {
     </div>
   );
 }
-
-// The page's main call to action: 48px tall, as in the design.
-export const primaryLarge =
-  'inline-flex min-h-12 items-center gap-2 rounded-lg bg-primary px-5 text-[15px] font-bold text-primary-fg hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus disabled:cursor-wait disabled:opacity-50';
-
-export const PlusIcon = () => (
-  <svg
-    aria-hidden="true"
-    width="16"
-    height="16"
-    viewBox="0 0 20 20"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-  >
-    <path d="M10 4v12M4 10h12" />
-  </svg>
-);

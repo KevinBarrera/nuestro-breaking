@@ -340,10 +340,18 @@ test('"Termina otro día" saves an activity that crosses midnight', async ({ pag
   await dialog.getByLabel('Empieza').fill('22:00');
   await dialog.getByLabel('Termina', { exact: true }).fill('01:00');
   await expect(dialog.getByRole('alert')).toHaveText('La hora de fin debe ser después del inicio.');
+  // The checkbox is a target only as wide as its label, not the whole dialog row.
+  const checkboxLabel = dialog.locator('label', { hasText: 'Termina otro día' });
+  const labelWidth = (await checkboxLabel.boundingBox())?.width ?? 0;
+  const dialogWidth = (await dialog.boundingBox())?.width ?? 0;
+  expect(labelWidth).toBeLessThan(dialogWidth / 2);
   await dialog.getByRole('checkbox', { name: 'Termina otro día' }).check();
-  const endDay = dialog.getByRole('group', { name: 'Día en que termina' });
-  await expect(endDay.getByRole('radio', { name: /Domingo/ })).toBeChecked();
-  await expect(dialog).toContainText('Dura 3 h.');
+  // The only later day needs no picker: the schedule note below names it.
+  await expect(dialog.getByRole('group', { name: 'Día en que termina' })).toHaveCount(0);
+  await expect(dialog).not.toContainText('Termina el domingo');
+  await expect(dialog).toContainText(
+    'Del sábado 14 de noviembre a las 22:00 al domingo 15 de noviembre a las 01:00. Dura 3 h.',
+  );
   await dialog.getByRole('button', { name: 'Crear actividad' }).click();
 
   await expect(page.getByRole('status')).toContainText('Creaste After.');

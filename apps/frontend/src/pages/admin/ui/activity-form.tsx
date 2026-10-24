@@ -2,7 +2,7 @@ import type { CatalogVenue, WindowField } from '@/entities/event-catalog';
 import { CheckboxField, CheckIcon, FieldError, Select } from '@/shared/ui';
 import { type FormEvent, type Ref, useId } from 'react';
 import {
-  durationLabel,
+  durationNote,
   type ActivityDraft,
   type DayOption,
   type TimeCheck,
@@ -77,7 +77,8 @@ export function ActivityForm({
         : tried && times.kind === 'missing'
           ? 'Escribe a qué hora empieza y termina.'
           : null);
-  const timeNote = timeError ?? (times.kind === 'ok' ? durationLabel(times.minutes) : null);
+  const timeNote =
+    timeError ?? (times.kind === 'ok' ? durationNote(draft, days, times.minutes) : null);
   // A skipped time cannot be told apart from here, so both fields are marked.
   const skipped = times.kind === 'skipped';
   const startInvalid =
@@ -168,15 +169,6 @@ export function ActivityForm({
           />
         </div>
       </div>
-      {timeNote && (
-        <p
-          id={timeId}
-          role={timeError ? 'alert' : 'status'}
-          className={`-mt-2 text-sm ${timeError ? 'font-semibold text-danger-fg' : 'text-muted'}`}
-        >
-          {timeNote}
-        </p>
-      )}
       {canEndOtherDay && (
         <div className="-mt-2 space-y-2">
           <CheckboxField
@@ -190,7 +182,8 @@ export function ActivityForm({
             }
           />
           {draft.endsOtherDay &&
-            (days.length > 0 ? (
+            // A single possible end day needs no picker: the schedule note below names it.
+            (laterDays.length === 1 ? null : days.length > 0 ? (
               <Segmented
                 legend="Día en que termina"
                 name={`${id}-end-day`}
@@ -210,6 +203,16 @@ export function ActivityForm({
               />
             ))}
         </div>
+      )}
+      {/* After "Termina otro día", so it reads the final schedule once every field is set. */}
+      {timeNote && (
+        <p
+          id={timeId}
+          role={timeError ? 'alert' : 'status'}
+          className={`-mt-2 text-sm ${timeError ? 'font-semibold text-danger-fg' : 'text-muted'}`}
+        >
+          {timeNote}
+        </p>
       )}
       {overlap && (
         <p className="flex items-start gap-2.5 rounded-lg border border-warning-fg bg-warning px-3.5 py-3 text-sm text-warning-fg">
@@ -259,16 +262,16 @@ function Segmented({ legend, name, value, options, error, onChange }: SegmentedP
           return (
             <label
               key={option.value}
-              className={`relative flex min-w-0 cursor-pointer items-center justify-center gap-1.5 rounded-lg border px-3 text-center hover:bg-row has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-focus ${
+              className={`relative flex min-w-0 cursor-pointer items-center justify-center gap-1.5 rounded-lg border px-3 text-center has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-focus ${
                 option.sub
                   ? 'min-h-12 flex-[1_1_160px] flex-col gap-0 py-1'
                   : 'min-h-11 flex-[1_1_120px]'
               } ${
                 checked
-                  ? 'border-chip-selected bg-chip-selected text-chip-selected-fg hover:bg-chip-selected'
+                  ? 'border-chip-selected bg-chip-selected text-chip-selected-fg'
                   : error
-                    ? 'border-danger-fg bg-input text-fg'
-                    : 'border-input-line bg-input text-fg'
+                    ? 'border-danger-fg bg-input text-fg hover:bg-row'
+                    : 'border-input-line bg-input text-fg hover:bg-row'
               }`}
             >
               <input

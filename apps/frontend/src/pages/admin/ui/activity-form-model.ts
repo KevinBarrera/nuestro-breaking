@@ -132,6 +132,17 @@ export function durationLabel(minutes: number): string {
   return rest ? `Dura ${hours} h ${rest} min.` : `Dura ${hours} h.`;
 }
 
+// The note under the times: the duration, preceded by both ends when the activity ends on
+// another day, so the final schedule is never left to be inferred from the separate fields.
+export function durationNote(draft: ActivityDraft, days: DayOption[], minutes: number): string {
+  const duration = durationLabel(minutes);
+  const from = days.find((day) => day.key === draft.day);
+  const to = days.find((day) => day.key === endDayOf(draft));
+  if (!from || !to || from === to) return duration;
+  const named = (day: DayOption) => `${day.label.toLowerCase()} ${day.sub}`;
+  return `Del ${named(from)} a las ${draft.start} al ${named(to)} a las ${draft.end}. ${duration}`;
+}
+
 // "Sáb 21 nov" for an instant on the event clock.
 function shortDay(iso: string, timeZone: string) {
   const key = eventDayKey(iso, timeZone);

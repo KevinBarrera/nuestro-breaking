@@ -5,6 +5,7 @@ import {
   checkTimes,
   draftWindow,
   durationLabel,
+  durationNote,
   editSummary,
   endDayOf,
   eventDayOptions,
@@ -166,6 +167,26 @@ describe('durationLabel', () => {
     [180, 'Dura 3 h.'],
   ])('reads %i minutes as %j', (minutes, label) => {
     expect(durationLabel(minutes)).toBe(label);
+  });
+});
+
+describe('durationNote', () => {
+  const days = eventDayOptions(eventWindow, timeZone);
+
+  it('is the duration alone when the activity ends the same day', () => {
+    expect(durationNote(draft(), days, 60)).toBe('Dura 1 h.');
+  });
+
+  it('spells out both ends when it ends on another day', () => {
+    const late = draft({ day: '2026-11-21', start: '22:00', endsOtherDay: true, end: '01:00' });
+    expect(durationNote(late, days, 180)).toBe(
+      'Del sábado 21 de noviembre a las 22:00 al domingo 22 de noviembre a las 01:00. Dura 3 h.',
+    );
+  });
+
+  it('falls back to the duration when the days are not event days', () => {
+    const late = draft({ day: '2026-12-01', endsOtherDay: true, endDay: '2026-12-02' });
+    expect(durationNote(late, days, 180)).toBe('Dura 3 h.');
   });
 });
 

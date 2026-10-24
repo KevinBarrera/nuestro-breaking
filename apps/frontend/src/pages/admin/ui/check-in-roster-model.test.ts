@@ -154,21 +154,24 @@ describe('rowStatus', () => {
     const utc = 'UTC';
     expect(rowStatus(person('r-dani'), 'all', utc)).toEqual({
       text: 'Pago por revisar',
-      tone: 'warn',
+      tone: 'warning',
     });
     expect(rowStatus(person('r-mau'), 'all', utc)).toEqual({ text: 'Por entrar', tone: 'neutral' });
-    expect(rowStatus(person('r-ale'), 'all', utc)).toEqual({ text: 'Entró 17:50', tone: 'ok' });
+    expect(rowStatus(person('r-ale'), 'all', utc)).toEqual({
+      text: 'Entró 17:50',
+      tone: 'success',
+    });
     expect(rowStatus(person('r-tonny'), 'all', utc)).toEqual({
       text: '1 de 2 actividades',
       tone: 'neutral',
     });
     expect(rowStatus(person('r-tonny'), 'a-bboy', utc)).toEqual({
       text: 'Entró 17:50',
-      tone: 'ok',
+      tone: 'success',
     });
     expect(rowStatus(person('r-none'), 'all', utc)).toEqual({
       text: 'Consultar coordinación',
-      tone: 'warn',
+      tone: 'warning',
     });
   });
 
@@ -177,7 +180,7 @@ describe('rowStatus', () => {
       ...person('r-tonny'),
       checks: person('r-tonny').checks.map((c) => ({ ...c, checkedInAt: at })),
     };
-    expect(rowStatus(done, 'all')).toEqual({ text: 'Completo', tone: 'ok' });
+    expect(rowStatus(done, 'all')).toEqual({ text: 'Completo', tone: 'success' });
   });
 });
 

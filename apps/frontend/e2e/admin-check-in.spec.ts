@@ -1,74 +1,111 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import { eventSummary } from './support/event-mocks.ts';
+import { chooseOption, selectTrigger } from './support/select.ts';
 
+// Check-in (#126, #336). Roster building, search, counts and row status are covered by
+// `check-in-roster-model.test.ts`; these specs check the rendered flow, the dialog, the
+// check-in requests and the failure states.
 const eventId = 'a1b2c3d4-1234-4567-89ab-123456789abc';
 const otherEvent = 'b1b2c3d4-1234-4567-89ab-123456789abc';
-const registrationId = 'c1b2c3d4-1234-4567-89ab-123456789abc';
-const activityId = 'd1b2c3d4-1234-4567-89ab-123456789abc';
+const luzId = 'c1b2c3d4-1234-4567-89ab-123456789abc';
+const mauId = 'c2b2c3d4-1234-4567-89ab-123456789abc';
+const daniId = 'c3b2c3d4-1234-4567-89ab-123456789abc';
+const battleId = 'd1b2c3d4-1234-4567-89ab-123456789abc';
 const workshopId = 'd0b2c3d4-1234-4567-89ab-123456789abc';
+const fullPass = 'f1b2c3d4-1234-4567-89ab-123456789abc';
+const generalPass = 'f2b2c3d4-1234-4567-89ab-123456789abc';
 const path = `/admin/events/${eventId}/check-in`;
 const api = (url: URL) => url.port === '3000';
 const escalation =
   'Envía a la persona a coordinación general. En la entrada no se hacen cambios de inscripción ni de competencias.';
-type Activity = { id: string; name: string; kind: string; checkedInAt: string | null };
-// The backend lists activities by id; the screen shows them by name.
-const passActivities = (): Activity[] => [
-  { id: workshopId, name: 'Taller de footwork', kind: 'workshop', checkedInAt: null },
-  { id: activityId, name: 'Batalla', kind: 'competition', checkedInAt: null },
-  { id: 'other', name: 'Fiesta', kind: 'social', checkedInAt: null },
-];
-const participant = ({
-  checkedInAt = null as string | null,
-  status = 'confirmed',
-  generalEntryOnly = false,
-  activities = passActivities(),
-} = {}) => ({
-  participant: { id: 'person', fullName: 'Luz Rivera', email: 'luz@example.org', stageName: 'Luz' },
-  registration: {
-    id: registrationId,
-    eventId,
-    folio: 'NB-42',
-    status,
-    checkedInAt,
-    generalEntryOnly,
-  },
-  activities,
+
+type Check = { battle?: string | null; workshop?: string | null; event?: string | null };
+type Registration = Record<string, unknown>;
+
+const luz = ({ battle = null, workshop = null }: Check = {}): Registration => ({
+  registrationId: luzId,
+  folio: 'NB-42AB',
+  fullName: 'Luz Rivera',
+  stageName: 'Luz',
+  status: 'confirmed',
+  eventCheckedInAt: battle ?? workshop ?? null,
+  passTypeIds: [fullPass],
+  // Listed in start order; the dialog sorts them by name.
+  activities: [
+    { activityId: workshopId, checkedInAt: workshop },
+    { activityId: battleId, checkedInAt: battle },
+  ],
 });
-const generalOnly = (checkedInAt: string | null = null) =>
-  participant({ checkedInAt, generalEntryOnly: true, activities: [] });
-const withActivityCheckIn = (checkedInAt: string) => ({
-  ...participant({ checkedInAt }),
-  activities: passActivities().map((a) => (a.id === activityId ? { ...a, checkedInAt } : a)),
+const mau = ({ event = null }: Check = {}): Registration => ({
+  registrationId: mauId,
+  folio: 'NB-7K3Q',
+  fullName: 'Mau Aczino',
+  stageName: 'Aczino',
+  status: 'confirmed',
+  eventCheckedInAt: event,
+  passTypeIds: [generalPass],
+  activities: [],
+});
+const dani: Registration = {
+  registrationId: daniId,
+  folio: null,
+  fullName: 'Dani Ruiz',
+  stageName: 'Dani R',
+  status: 'pending_payment',
+  eventCheckedInAt: null,
+  passTypeIds: [generalPass],
+  activities: [],
+};
+const snapshot = (registrations: Registration[], id = eventId) => ({
+  event: { id, name: 'Encuentro del barrio' },
+  generatedAt: '2026-11-14T15:00:00.000Z',
+  passTypes: [
+    { id: fullPass, name: 'Pase completo', passClass: 'full', status: 'active' },
+    { id: generalPass, name: 'Entrada general', passClass: 'general', status: 'active' },
+  ],
+  activities: [
+    {
+      id: workshopId,
+      name: 'Taller de footwork',
+      kind: 'workshop',
+      startsAt: '2026-11-14T16:00:00Z',
+    },
+    { id: battleId, name: 'Batalla', kind: 'competition', startsAt: '2026-11-14T18:00:00Z' },
+  ],
+  registrations,
 });
 const fact = (
+  registrationId: string,
   checkedInAt: string,
   alreadyCheckedIn = false,
-  activity: string | null = activityId,
+  activityId: string | null = battleId,
 ) => ({
   id: 'fact',
   eventId,
   registrationId,
-  ...(activity ? { activityId: activity } : {}),
+  ...(activityId ? { activityId } : {}),
   checkedInAt,
   alreadyCheckedIn,
 });
-const events = [
-  eventSummary(eventId, 'Encuentro del barrio'),
-  eventSummary(otherEvent, 'Batalla de otoño'),
-];
-const uuidPattern = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
-const results = (rows: unknown[] = [participant()]) => ({
-  total: rows.length,
-  limit: 20,
-  offset: 0,
-  results: rows,
-});
 
-async function search(page: import('@playwright/test').Page) {
-  await page.goto(path);
-  await page.getByRole('textbox', { name: 'Buscar inscripción' }).fill('Luz');
-  await page.getByRole('button', { name: 'Buscar' }).click();
+// Serves the snapshot the test currently holds, so a check-in can change what the refresh reads.
+async function mockRoster(page: Page, read: () => unknown) {
+  await page.route(
+    (url) => api(url) && url.pathname.endsWith('/attendee-lists'),
+    (route) => {
+      const answer = read();
+      return route.fulfill(
+        typeof answer === 'number'
+          ? { status: answer, json: { message: 'private' } }
+          : { json: answer },
+      );
+    },
+  );
 }
+
+const rows = (page: Page) => page.getByRole('list', { name: 'Inscripciones' }).getByRole('button');
+const search = (page: Page) => page.getByRole('searchbox', { name: 'Buscar inscripción' });
+const openRecord = (page: Page, name: string) => rows(page).filter({ hasText: name }).click();
 
 // Check-in times are shown in the browser zone; pin it so the clock times are stable.
 test.use({ timezoneId: 'America/Mexico_City' });
@@ -84,288 +121,230 @@ test.beforeEach(async ({ page }) => {
   );
   await page.route(
     (url) => api(url) && url.pathname === '/admin/events',
-    (route) => route.fulfill({ json: events }),
+    (route) =>
+      route.fulfill({
+        json: [
+          eventSummary(eventId, 'Encuentro del barrio'),
+          eventSummary(otherEvent, 'Batalla de otoño'),
+        ],
+      }),
   );
 });
 
-test('names the event instead of showing its UUID', async ({ page }) => {
-  await page.goto(path);
-  const main = page.getByRole('main');
-  await expect(main.getByText('Administración · Encuentro del barrio')).toBeVisible();
-  await expect(main.getByRole('heading', { name: 'Control de entrada' })).toBeVisible();
-  expect(await main.innerText()).not.toMatch(uuidPattern);
-});
-
-for (const [name, respond] of [
-  ['the event list fails', { status: 500, json: { message: 'error' } }],
-  ['the event is not in the list', { json: [events[1]] }],
-] as const) {
-  test(`shows only "Administración" without a UUID when ${name}`, async ({ page }) => {
-    // The admin shell's event selector requests the same list, so a served-request flag can
-    // flip before the page handled its own response. The eyebrow's settled state is set only by
-    // the check-in page after its own lookup finished, so wait for it before the negatives.
-    let served = 0;
-    await page.route(
-      (url) => api(url) && url.pathname === '/admin/events',
-      (route) => {
-        served++;
-        return route.fulfill(respond);
-      },
-    );
-    await page.goto(path);
-    const main = page.getByRole('main');
-    const eyebrow = main.locator('[data-event-name-state]');
-    await expect(eyebrow).toHaveAttribute('data-event-name-state', 'unavailable');
-    expect(served).toBeGreaterThanOrEqual(1);
-    await expect(eyebrow).toHaveText('Administración');
-    await expect(main.getByText(/Administración ·/)).toHaveCount(0);
-    expect(await main.innerText()).not.toMatch(uuidPattern);
-    // Stays settled: no late response replaces the fallback.
-    await page.waitForLoadState('networkidle');
-    await expect(eyebrow).toHaveAttribute('data-event-name-state', 'unavailable');
-    await expect(eyebrow).toHaveText('Administración');
-    expect(await main.innerText()).not.toMatch(uuidPattern);
-  });
-}
-
-test('requires session and never requests protected search when signed out', async ({ page }) => {
+test('requires a session and never reads the roster when signed out', async ({ page }) => {
   await page.route(
     (url) => api(url) && url.pathname === '/auth/session',
     (route) => route.fulfill({ status: 401, json: {} }),
   );
-  let requests = 0;
-  await page.route(
-    (url) => api(url) && url.pathname.includes('/participants'),
-    (route) => {
-      requests++;
-      return route.fulfill({ json: results() });
-    },
-  );
+  let reads = 0;
+  await mockRoster(page, () => {
+    reads++;
+    return snapshot([luz()]);
+  });
   await page.goto(path);
   await expect(page.getByRole('heading', { name: 'Iniciar sesión' })).toBeVisible();
-  expect(requests).toBe(0);
+  expect(reads).toBe(0);
 });
 
-test('one action checks in an activity without a prior event check-in, sorted by name', async ({
+test('lists who is still to enter, with status chips, progress and the activity filter', async ({
   page,
 }) => {
-  let current = participant();
-  const posts: string[] = [];
-  await page.route(
-    (url) => api(url) && url.pathname.includes('/participants'),
-    (route) => {
-      expect(new URL(route.request().url()).pathname).toBe(`/admin/events/${eventId}/participants`);
-      expect(new URL(route.request().url()).searchParams.get('q')).toBe('Luz');
-      return route.fulfill({ json: results([current]) });
-    },
+  await mockRoster(page, () =>
+    snapshot([
+      luz({ battle: '2026-11-14T15:30:00Z' }),
+      mau({ event: '2026-11-14T15:10:00Z' }),
+      dani,
+    ]),
   );
+  await page.goto(path);
+  const main = page.getByRole('main');
+  await expect(main.getByRole('heading', { name: 'Check-in', level: 1 })).toBeVisible();
+  await expect(search(page)).toBeFocused();
+  await expect(main.getByText('Entradas registradas')).toBeVisible();
+  // Pending payments are left out of the progress: Luz has 1 of 2 and Mau 1 of 1.
+  await expect(main.getByText('2 de 3')).toBeVisible();
+
+  const chips = main.getByRole('group', { name: 'Filtrar por entrada' });
+  await expect(chips.getByRole('button', { pressed: true })).toHaveText('Por entrar2');
+  await expect(chips.getByRole('button')).toHaveText(['Por entrar2', 'Ya entraron1', 'Todas3']);
+  await expect(rows(page)).toHaveCount(2);
+  await expect(rows(page).nth(0)).toContainText('Dani RuizDani R');
+  await expect(rows(page).nth(0)).toContainText('Pago por revisar');
+  await expect(rows(page).nth(1)).toContainText('Luz Rivera');
+  await expect(rows(page).nth(1)).toContainText('NB-42AB');
+  await expect(rows(page).nth(1)).toContainText('Pase completo');
+  await expect(rows(page).nth(1)).toContainText('1 de 2 actividades');
+
+  await chips.getByRole('button', { name: /Ya entraron/ }).click();
+  await expect(rows(page)).toHaveCount(1);
+  await expect(rows(page).first()).toContainText('Entró 09:10');
+  await expect(main.getByRole('status').filter({ hasText: 'persona' })).toHaveText('1 persona');
+
+  await chooseOption(selectTrigger(page, 'Actividad'), 'Batalla');
+  await expect(main.getByText('Entradas a Batalla')).toBeVisible();
+  await expect(main.getByText('1 de 1')).toBeVisible();
+  await expect(chips.getByRole('button')).toHaveText(['Por entrar0', 'Ya entraron1', 'Todas1']);
+  await expect(rows(page).first()).toContainText('Entró 09:30');
+
+  await chips.getByRole('button', { name: /Por entrar/ }).click();
+  await expect(main.getByText('Ya entraron todas las personas')).toBeVisible();
+
+  await chooseOption(selectTrigger(page, 'Actividad'), 'Entrada al evento (pase general)');
+  await expect(main.getByText('Entradas al evento')).toBeVisible();
+  await expect(rows(page)).toHaveCount(1);
+  await expect(rows(page).first()).toContainText('Dani Ruiz');
+});
+
+test('searches as you type by name, alias or folio and opens the only result with Enter', async ({
+  page,
+}) => {
+  await mockRoster(page, () => snapshot([luz(), mau({ event: '2026-11-14T15:10:00Z' })]));
+  await page.goto(path);
+  const main = page.getByRole('main');
+  await expect(main.getByRole('button', { name: 'Buscar', exact: true })).toHaveCount(0);
+
+  // The status chips are ignored while searching: Mau already entered.
+  await search(page).fill('aczino');
+  await expect(main.getByRole('group', { name: 'Filtrar por entrada' })).toHaveCount(0);
+  await expect(
+    main.getByText('Buscando en todas las inscripciones, hayan entrado o no.'),
+  ).toBeVisible();
+  await expect(rows(page)).toHaveCount(1);
+  await expect(main.getByText('1 resultado')).toBeVisible();
+  await expect(main.getByText('Presiona Enter para abrirla')).toBeVisible();
+
+  // Folio without its hyphen.
+  await search(page).fill('nb42');
+  await expect(rows(page)).toHaveCount(1);
+  await expect(rows(page).first()).toContainText('Luz Rivera');
+  await search(page).press('Enter');
+  const dialog = page.getByRole('dialog', { name: 'Luz Rivera' });
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole('button', { name: 'Cerrar' }).first().click();
+  await expect(dialog).toHaveCount(0);
+
+  await search(page).fill('nadie');
+  await expect(main.getByText('No encontramos a nadie con “nadie”')).toBeVisible();
+  await main.getByRole('button', { name: 'Borrar búsqueda' }).click();
+  await expect(search(page)).toHaveValue('');
+  await expect(main.getByRole('group', { name: 'Filtrar por entrada' })).toBeVisible();
+});
+
+test('checks in one activity of a pass from the dialog with the server time', async ({ page }) => {
+  let current = luz();
+  const posts: string[] = [];
+  await mockRoster(page, () => snapshot([current]));
   await page.route(
     (url) => api(url) && url.pathname.endsWith('/check-in'),
     (route) => {
       posts.push(new URL(route.request().url()).pathname);
       expect(route.request().headers()['x-csrf-token']).toBe('safe-token');
       expect(route.request().method()).toBe('POST');
-      // The backend records the event fact with the first activity check-in.
-      current = withActivityCheckIn('2026-11-14T15:30:00Z');
-      return route.fulfill({ status: 201, json: fact('2026-11-14T15:30:00Z') });
+      current = luz({ battle: '2026-11-14T15:30:00Z' });
+      return route.fulfill({ status: 201, json: fact(luzId, '2026-11-14T15:30:00Z') });
     },
   );
-  await search(page);
-  await expect(page.getByText('NB-42')).toBeVisible();
-  await page.getByRole('button', { name: /Luz Rivera/ }).click();
-  const selected = page.getByRole('region', { name: 'Inscripción seleccionada' });
-  await expect(selected.getByText('Inscripción confirmada')).toBeVisible();
-  await expect(selected.getByRole('heading', { level: 4 })).toHaveText([
-    'Batalla',
-    'Taller de footwork',
-  ]);
-  await expect(selected.getByText('Fiesta')).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Registrar entrada al evento' })).toHaveCount(0);
-  await expect(page.getByText(escalation)).toHaveCount(0);
-  await page.getByRole('button', { name: 'Registrar entrada a Batalla' }).click();
-  await expect(page.getByRole('status')).toHaveText('Entrada a Batalla registrada');
-  await expect(selected.getByText('Entrada registrada a las 09:30')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Registrar entrada a Batalla' })).toHaveCount(0);
+  await page.goto(path);
+  await openRecord(page, 'Luz Rivera');
+  const dialog = page.getByRole('dialog', { name: 'Luz Rivera' });
+  await expect(dialog.getByText('Inscripción confirmada')).toBeVisible();
+  await expect(dialog.getByText('Luz · NB-42AB')).toBeVisible();
+  await expect(dialog.getByRole('heading', { name: 'Actividades de sus pases' })).toBeVisible();
+  await expect(dialog.getByText('0 de 2 registradas')).toBeVisible();
+  await expect(dialog.getByRole('listitem')).toHaveText([/^Batalla/, /^Taller de footwork/]);
+  await expect(dialog.getByRole('button', { name: 'Registrar entrada al evento' })).toHaveCount(0);
+  await expect(dialog.getByRole('button', { name: 'Buscar a otra persona' })).toHaveCount(0);
+
+  await dialog.getByRole('button', { name: 'Registrar entrada a Batalla' }).click();
+  await expect(dialog.getByRole('status')).toHaveText('Entrada a Batalla registrada a las 09:30.');
+  await expect(dialog.getByText('Entró a las 09:30')).toBeVisible();
+  await expect(dialog.getByText('1 de 2 registradas')).toBeVisible();
+  await expect(dialog.getByRole('button', { name: 'Registrar entrada a Batalla' })).toHaveCount(0);
   await expect(
-    page.getByRole('button', { name: 'Registrar entrada a Taller de footwork' }),
+    dialog.getByRole('button', { name: 'Registrar entrada a Taller de footwork' }),
   ).toBeVisible();
   expect(posts).toEqual([
-    `/admin/events/${eventId}/registrations/${registrationId}/activities/${activityId}/check-in`,
+    `/admin/events/${eventId}/registrations/${luzId}/activities/${battleId}/check-in`,
   ]);
+  // The list behind follows the refreshed snapshot.
+  await page.keyboard.press('Escape');
+  await expect(rows(page).first()).toContainText('1 de 2 actividades');
 });
 
-test('general-entry-only registration gets only the event action', async ({ page }) => {
-  let current = generalOnly();
+test('a general pass checks in the event entry, then offers the next search', async ({ page }) => {
+  let current = mau();
   const posts: string[] = [];
-  await page.route(
-    (url) => api(url) && url.pathname.includes('/participants'),
-    (route) => route.fulfill({ json: results([current]) }),
-  );
+  await mockRoster(page, () => snapshot([current, luz()]));
   await page.route(
     (url) => api(url) && url.pathname.endsWith('/check-in'),
     (route) => {
       posts.push(new URL(route.request().url()).pathname);
-      current = generalOnly('2026-11-14T15:00:00Z');
-      return route.fulfill({ status: 201, json: fact('2026-11-14T15:00:00Z', false, null) });
+      current = mau({ event: '2026-11-14T15:12:00Z' });
+      return route.fulfill({ status: 201, json: fact(mauId, '2026-11-14T15:12:00Z', false, null) });
     },
-  );
-  await search(page);
-  await page.getByRole('button', { name: /Luz Rivera/ }).click();
-  await expect(page.getByRole('button', { name: /Registrar entrada a / })).toHaveCount(0);
-  await expect(page.getByText(escalation)).toHaveCount(0);
-  await page.getByRole('button', { name: 'Registrar entrada al evento' }).click();
-  await expect(page.getByRole('status')).toHaveText('Entrada al evento registrada');
-  await expect(page.getByText('Entrada registrada a las 09:00')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Registrar entrada al evento' })).toHaveCount(0);
-  expect(posts).toEqual([`/admin/events/${eventId}/registrations/${registrationId}/check-in`]);
-});
-
-test('does not announce before POST; a repeat shows the already-registered state', async ({
-  page,
-}) => {
-  let release!: () => void;
-  const held = new Promise<void>((resolve) => {
-    release = resolve;
-  });
-  let current = participant();
-  let postCount = 0;
-  await page.route(
-    (url) => api(url) && url.pathname.includes('/participants'),
-    (route) => route.fulfill({ json: results([current]) }),
-  );
-  await page.route(
-    (url) => api(url) && url.pathname.endsWith('/check-in'),
-    async (route) => {
-      postCount++;
-      await held;
-      // Another operator checked the person in first: the answer is the original fact.
-      current = withActivityCheckIn('2026-11-14T15:05:00Z');
-      await route.fulfill({ status: 201, json: fact('2026-11-14T15:05:00Z', true) });
-    },
-  );
-  await search(page);
-  await page.getByRole('button', { name: /Luz Rivera/ }).click();
-  await page.getByRole('button', { name: 'Registrar entrada a Batalla' }).click();
-  await expect(page.getByRole('button', { name: 'Registrando…' }).first()).toBeDisabled();
-  await expect(page.getByText('Entrada a Batalla registrada')).toHaveCount(0);
-  release();
-  await expect(page.getByRole('status')).toHaveText(
-    'Esta entrada ya estaba registrada a las 09:05.',
-  );
-  await expect(page.getByText('Entrada registrada a las 09:05')).toBeVisible();
-  await expect(page.getByText('Entrada a Batalla registrada')).toHaveCount(0);
-  await expect(page.getByRole('alert')).toHaveCount(0);
-  expect(postCount).toBe(1);
-});
-
-test('a registration already checked in shows its time and no action', async ({ page }) => {
-  let posts = 0;
-  await page.route(
-    (url) => api(url) && url.pathname.includes('/participants'),
-    (route) => route.fulfill({ json: results([withActivityCheckIn('2026-11-14T15:30:00Z')]) }),
-  );
-  await page.route(
-    (url) => api(url) && url.pathname.endsWith('/check-in'),
-    (route) => {
-      posts++;
-      return route.fulfill({ status: 201, json: {} });
-    },
-  );
-  await search(page);
-  await page.getByRole('button', { name: /Luz Rivera/ }).click();
-  await expect(page.getByText('Entrada registrada a las 09:30')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Registrar entrada a Batalla' })).toHaveCount(0);
-  expect(posts).toBe(0);
-});
-
-test('wrong event and denial never expose or submit a registration', async ({ page }) => {
-  let posts = 0;
-  await page.route(
-    (url) => api(url) && url.pathname.includes('/participants'),
-    (route) =>
-      route.fulfill({
-        json: results([
-          {
-            ...participant(),
-            registration: { ...participant().registration, eventId: otherEvent },
-          },
-        ]),
-      }),
-  );
-  await page.route(
-    (url) => api(url) && url.pathname.endsWith('/check-in'),
-    (route) => {
-      posts++;
-      return route.fulfill({ json: {} });
-    },
-  );
-  await search(page);
-  await expect(page.getByRole('alert')).toContainText('No se pudo verificar');
-  await expect(page.getByText('Luz Rivera')).toHaveCount(0);
-  expect(posts).toBe(0);
-  await page.route(
-    (url) => api(url) && url.pathname.includes('/participants'),
-    (route) => route.fulfill({ status: 403, json: { message: 'private' } }),
-  );
-  await page.getByRole('button', { name: 'Buscar' }).click();
-  await expect(page.getByRole('alert')).toContainText('Acceso denegado');
-  await expect(page.getByText('private')).toHaveCount(0);
-});
-
-test('loading, empty and refresh failure offer safe handoff', async ({ page }) => {
-  let release!: () => void;
-  const held = new Promise<void>((resolve) => {
-    release = resolve;
-  });
-  let reads = 0;
-  await page.route(
-    (url) => api(url) && url.pathname.includes('/participants'),
-    async (route) => {
-      reads++;
-      if (reads === 1) {
-        await held;
-        return route.fulfill({ json: results([]) });
-      }
-      if (reads === 2) return route.fulfill({ json: results() });
-      return route.fulfill({ status: 500, json: { message: 'private' } });
-    },
-  );
-  await page.route(
-    (url) => api(url) && url.pathname.endsWith('/check-in'),
-    (route) =>
-      route.fulfill({
-        status: 201,
-        json: fact('2026-11-14T15:30:00Z'),
-      }),
   );
   await page.goto(path);
-  await page.getByRole('textbox', { name: 'Buscar inscripción' }).fill('Luz');
-  await page.getByRole('button', { name: 'Buscar' }).click();
-  await expect(page.getByText('Buscando inscripciones…')).toBeVisible();
-  release();
-  await expect(page.getByText('No se encontraron inscripciones.')).toBeVisible();
-  await page.getByRole('button', { name: 'Buscar' }).click();
-  await page.getByRole('button', { name: /Luz Rivera/ }).click();
-  await page.getByRole('button', { name: 'Registrar entrada a Batalla' }).click();
-  await expect(page.getByRole('alert').last()).toContainText('No se pudo verificar el estado');
-  await expect(page.getByText('Entrada a Batalla registrada')).toHaveCount(0);
-  const overview = page.getByRole('main').getByRole('link', { name: 'resumen del evento' });
-  await expect(overview).toHaveAttribute('href', `/admin/events/${eventId}`);
-  await expect(page.getByRole('main')).toContainText(
-    'Consulta al responsable o vuelve al resumen del evento.',
-  );
-  await expect(page.getByRole('main').getByRole('link', { name: 'Inicio' })).toHaveCount(0);
+  await search(page).fill('mau');
+  await search(page).press('Enter');
+  const dialog = page.getByRole('dialog', { name: 'Mau Aczino' });
+  await expect(dialog.getByText('Entrada general', { exact: true })).toBeVisible();
+  await expect(dialog.getByText('Aún no entra')).toBeVisible();
+  await expect(
+    dialog.getByText('Su pase es de entrada general: solo se registra la entrada al evento.'),
+  ).toBeVisible();
+  await dialog.getByRole('button', { name: 'Registrar entrada al evento' }).click();
+  await expect(dialog.getByRole('status')).toHaveText('Entrada al evento registrada a las 09:12.');
+  await expect(dialog.getByText('Entró a las 09:12')).toBeVisible();
+  await expect(
+    dialog.getByText('Ya está adentro. No vuelvas a registrar su entrada.'),
+  ).toBeVisible();
+  expect(posts).toEqual([`/admin/events/${eventId}/registrations/${mauId}/check-in`]);
+
+  await dialog.getByRole('button', { name: 'Buscar a otra persona' }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(search(page)).toHaveValue('');
+  await expect(search(page)).toBeFocused();
 });
 
-test('unconfirmed registrations and registrations without access go to coordination', async ({
+test('does not announce before the answer; a repeat shows the first time', async ({ page }) => {
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let current = luz();
+  let posts = 0;
+  await mockRoster(page, () => snapshot([current]));
+  await page.route(
+    (url) => api(url) && url.pathname.endsWith('/check-in'),
+    async (route) => {
+      posts++;
+      await held;
+      // Another operator checked the person in first: the answer is the original fact.
+      current = luz({ battle: '2026-11-14T15:05:00Z' });
+      await route.fulfill({ status: 201, json: fact(luzId, '2026-11-14T15:05:00Z', true) });
+    },
+  );
+  await page.goto(path);
+  await openRecord(page, 'Luz Rivera');
+  const dialog = page.getByRole('dialog', { name: 'Luz Rivera' });
+  await dialog.getByRole('button', { name: 'Registrar entrada a Batalla' }).click();
+  await expect(dialog.getByRole('button', { name: /Registrar entrada a/ }).first()).toBeDisabled();
+  await expect(dialog.getByRole('status')).toHaveCount(0);
+  release();
+  await expect(dialog.getByRole('status')).toHaveText(
+    'Esta entrada ya estaba registrada a las 09:05.',
+  );
+  await expect(dialog.getByText('Entró a las 09:05')).toBeVisible();
+  await expect(dialog.getByRole('alert')).toHaveCount(0);
+  expect(posts).toBe(1);
+});
+
+test('pending payments and registrations without actions never get a check-in button', async ({
   page,
 }) => {
   let posts = 0;
-  let current = participant({ checkedInAt: '2026-11-14T15:00:00Z', status: 'pending' });
-  await page.route(
-    (url) => api(url) && url.pathname.includes('/participants'),
-    (route) => route.fulfill({ json: results([current]) }),
-  );
+  const noPasses = { ...luz(), passTypeIds: [], activities: [] };
+  await mockRoster(page, () => snapshot([dani, noPasses]));
   await page.route(
     (url) => api(url) && url.pathname.endsWith('/check-in'),
     (route) => {
@@ -373,94 +352,134 @@ test('unconfirmed registrations and registrations without access go to coordinat
       return route.fulfill({ json: {} });
     },
   );
-  await search(page);
-  await page.getByRole('button', { name: /Luz Rivera/ }).click();
-  await expect(page.getByText('Inscripción no confirmada · No registrar entrada')).toBeVisible();
-  await expect(page.getByText(escalation)).toBeVisible();
-  await expect(page.getByText('Fiesta')).toHaveCount(0);
-  await expect(page.getByRole('button', { name: /Registrar entrada/ })).toHaveCount(0);
+  await page.goto(path);
+  await openRecord(page, 'Dani Ruiz');
+  const dialog = page.getByRole('dialog', { name: 'Dani Ruiz' });
+  await expect(dialog.getByText('Dani R · Sin folio')).toBeVisible();
+  await expect(dialog.getByText('Pago por revisar')).toBeVisible();
+  await expect(dialog.getByRole('note')).toContainText('No registres su entrada todavía');
+  await expect(dialog.getByRole('link', { name: 'Ir a Pagos por revisar' })).toHaveAttribute(
+    'href',
+    `/admin/events/${eventId}/payments-review`,
+  );
+  await expect(dialog.getByRole('button', { name: /Registrar entrada/ })).toHaveCount(0);
+  await dialog.getByRole('button', { name: 'Cerrar' }).first().click();
 
   // Confirmed, but no general-only pass and no activity to check in.
-  current = participant({ activities: [passActivities()[2]] });
-  await page.getByRole('button', { name: 'Buscar' }).click();
-  await page.getByRole('button', { name: /Luz Rivera/ }).click();
-  await expect(page.getByText('Inscripción confirmada')).toBeVisible();
-  await expect(page.getByText(escalation)).toBeVisible();
-  await expect(page.getByRole('button', { name: /Registrar entrada/ })).toHaveCount(0);
+  await expect(rows(page).filter({ hasText: 'Luz Rivera' })).toContainText(
+    'Consultar coordinación',
+  );
+  await openRecord(page, 'Luz Rivera');
+  const other = page.getByRole('dialog', { name: 'Luz Rivera' });
+  await expect(other.getByText(escalation)).toBeVisible();
+  await expect(other.getByRole('button', { name: /Registrar entrada/ })).toHaveCount(0);
   expect(posts).toBe(0);
 });
 
-test('a check-in the backend rejects sends the person to coordination', async ({ page }) => {
-  await page.route(
-    (url) => api(url) && url.pathname.includes('/participants'),
-    (route) => route.fulfill({ json: results() }),
-  );
-  await page.route(
-    (url) => api(url) && url.pathname.endsWith('/check-in'),
-    (route) => route.fulfill({ status: 400, json: { message: 'private rule detail' } }),
-  );
-  await search(page);
-  await page.getByRole('button', { name: /Luz Rivera/ }).click();
-  await page.getByRole('button', { name: 'Registrar entrada a Batalla' }).click();
-  await expect(page.getByRole('alert')).toHaveText(escalation);
-  await expect(page.getByText('Entrada a Batalla registrada')).toHaveCount(0);
-  await expect(page.getByText('private rule detail')).toHaveCount(0);
-});
+for (const [name, answer, message] of [
+  ['a rejection sends the person to coordination', { status: 400 }, escalation],
+  [
+    'a denial never announces the admission',
+    { status: 403 },
+    'Acceso denegado para registrar esta entrada. Consulta al responsable.',
+  ],
+  [
+    'a 500 with a refreshed fact cannot claim a new success',
+    { status: 500 },
+    'No se pudo registrar la entrada. Consulta al responsable antes de continuar.',
+  ],
+] as const) {
+  test(`${name}`, async ({ page }) => {
+    let current = luz();
+    await mockRoster(page, () => snapshot([current]));
+    await page.route(
+      (url) => api(url) && url.pathname.endsWith('/check-in'),
+      (route) => {
+        if (answer.status === 500) current = luz({ battle: '2026-11-14T15:30:00Z' });
+        return route.fulfill({ status: answer.status, json: { message: 'private detail' } });
+      },
+    );
+    await page.goto(path);
+    await openRecord(page, 'Luz Rivera');
+    const dialog = page.getByRole('dialog', { name: 'Luz Rivera' });
+    await dialog.getByRole('button', { name: 'Registrar entrada a Batalla' }).click();
+    await expect(dialog.getByRole('alert')).toHaveText(message);
+    await expect(dialog.getByText(/registrada a las/)).toHaveCount(0);
+    await expect(page.getByText('private detail')).toHaveCount(0);
+  });
+}
 
-test('POST denial and missing CSRF token never announce admission', async ({ page }) => {
+test('a missing CSRF token or a failed refresh asks staff to verify', async ({ page }) => {
   let posts = 0;
-  await page.route(
-    (url) => api(url) && url.pathname.includes('/participants'),
-    (route) => route.fulfill({ json: results() }),
-  );
-  await page.route(
-    (url) => api(url) && url.pathname.endsWith('/check-in'),
-    (route) => {
-      posts++;
-      return route.fulfill({ status: 403, json: { message: 'private denial' } });
-    },
-  );
-  await search(page);
-  await page.getByRole('button', { name: /Luz Rivera/ }).click();
-  await page.getByRole('button', { name: 'Registrar entrada a Batalla' }).click();
-  await expect(page.getByRole('alert')).toContainText('Acceso denegado');
-  await expect(page.getByText('Entrada a Batalla registrada')).toHaveCount(0);
-  await expect(page.getByText('private denial')).toHaveCount(0);
-  expect(posts).toBe(1);
-
+  await mockRoster(page, () => (posts ? 500 : snapshot([luz()])));
   await page.route(
     (url) => api(url) && url.pathname === '/auth/session',
     (route) => route.fulfill({ json: { user: { id: 'admin', roles: ['admin'] } } }),
   );
-  await page.getByRole('button', { name: 'Buscar' }).click();
-  await page.getByRole('button', { name: /Luz Rivera/ }).click();
-  await page.getByRole('button', { name: 'Registrar entrada a Batalla' }).click();
-  await expect(page.getByRole('alert').last()).toContainText('No se pudo verificar');
-  expect(posts).toBe(1);
-});
-
-test('POST 500 with a refreshed attendance fact cannot claim a new success', async ({ page }) => {
-  let current = participant();
-  await page.route(
-    (url) => api(url) && url.pathname.includes('/participants'),
-    (route) => route.fulfill({ json: results([current]) }),
-  );
   await page.route(
     (url) => api(url) && url.pathname.endsWith('/check-in'),
     (route) => {
-      current = withActivityCheckIn('2026-11-14T15:30:00Z');
-      return route.fulfill({ status: 500, json: { message: 'private failure' } });
+      posts++;
+      return route.fulfill({ status: 201, json: fact(luzId, '2026-11-14T15:30:00Z') });
     },
   );
-  await search(page);
-  await page.getByRole('button', { name: /Luz Rivera/ }).click();
-  await page.getByRole('button', { name: 'Registrar entrada a Batalla' }).click();
-  await expect(page.getByRole('alert')).toContainText('No se pudo registrar la entrada');
-  await expect(page.getByText('Entrada a Batalla registrada')).toHaveCount(0);
-  await expect(page.getByText('private failure')).toHaveCount(0);
+  await page.goto(path);
+  await openRecord(page, 'Luz Rivera');
+  const dialog = page.getByRole('dialog', { name: 'Luz Rivera' });
+  await dialog.getByRole('button', { name: 'Registrar entrada a Batalla' }).click();
+  const verify = 'No se pudo verificar el estado. Consulta al responsable antes de continuar.';
+  await expect(dialog.getByRole('alert')).toHaveText(verify);
+  expect(posts).toBe(0);
+
+  await page.route(
+    (url) => api(url) && url.pathname === '/auth/session',
+    (route) =>
+      route.fulfill({
+        headers: { 'X-CSRF-Token': 'safe-token', 'Access-Control-Expose-Headers': 'X-CSRF-Token' },
+        json: { user: { id: 'admin', roles: ['admin'] } },
+      }),
+  );
+  await dialog.getByRole('button', { name: 'Registrar entrada a Batalla' }).click();
+  await expect(dialog.getByRole('alert')).toHaveText(verify);
+  await expect(dialog.getByText(/registrada a las/)).toHaveCount(0);
+  expect(posts).toBe(1);
 });
 
-test('switching events during an in-flight POST clears old data, notice, search and busy state', async ({
+for (const [name, answer, message] of [
+  ['denied', 403, 'Acceso denegado para este evento. Consulta al responsable.'],
+  ['failed', 500, 'No se pudo verificar la inscripción o el estado.'],
+  ['for another event', 'foreign', 'No se pudo verificar la inscripción o el estado.'],
+] as const) {
+  test(`a roster read ${name} shows no registration`, async ({ page }) => {
+    await mockRoster(page, () => (answer === 'foreign' ? snapshot([luz()], otherEvent) : answer));
+    await page.goto(path);
+    await expect(page.getByRole('alert')).toContainText(message);
+    await expect(page.getByText('Luz Rivera')).toHaveCount(0);
+    await expect(page.getByText('private')).toHaveCount(0);
+  });
+}
+
+test('an event with no registrations explains what to do', async ({ page }) => {
+  await mockRoster(page, () => snapshot([]));
+  await page.goto(path);
+  const empty = page.getByRole('region', { name: 'Aún no hay a quién registrar' });
+  await expect(empty).toBeVisible();
+  await expect(empty.getByRole('link', { name: 'Nueva inscripción' })).toHaveAttribute(
+    'href',
+    `/admin/events/${eventId}/registrations/new`,
+  );
+  await expect(empty.getByRole('link', { name: 'Revisar la venta en línea' })).toHaveAttribute(
+    'href',
+    `/admin/events/${eventId}`,
+  );
+  await expect(empty.getByRole('link', { name: 'listas de respaldo' })).toHaveAttribute(
+    'href',
+    `/admin/events/${eventId}/lists`,
+  );
+  await expect(page.getByRole('searchbox')).toHaveCount(0);
+});
+
+test('switching events during an in-flight check-in drops the old dialog and data', async ({
   page,
 }) => {
   let release!: () => void;
@@ -472,12 +491,12 @@ test('switching events during an in-flight POST clears old data, notice, search 
     postStarted = resolve;
   });
   await page.route(
-    (url) => api(url) && url.pathname.includes('/participants'),
+    (url) => api(url) && url.pathname.endsWith('/attendee-lists'),
     (route) =>
       route.fulfill({
-        json: new URL(route.request().url()).pathname.includes(otherEvent)
-          ? results([])
-          : results(),
+        json: route.request().url().includes(otherEvent)
+          ? snapshot([], otherEvent)
+          : snapshot([luz()]),
       }),
   );
   await page.route(
@@ -485,51 +504,40 @@ test('switching events during an in-flight POST clears old data, notice, search 
     async (route) => {
       postStarted();
       await held;
-      await route.fulfill({ status: 201, json: fact('2026-11-14T15:30:00Z') }).catch(() => {});
+      await route
+        .fulfill({ status: 201, json: fact(luzId, '2026-11-14T15:30:00Z') })
+        .catch(() => {});
     },
   );
-  await search(page);
-  await page.getByRole('button', { name: /Luz Rivera/ }).click();
+  await page.goto(path);
+  await openRecord(page, 'Luz Rivera');
   await page.getByRole('button', { name: 'Registrar entrada a Batalla' }).click();
   await started;
   await page.evaluate(
     `history.pushState({}, '', '/admin/events/${otherEvent}/check-in'); dispatchEvent(new PopStateEvent('popstate'))`,
   );
   release();
-  await expect(page.getByText('Administración · Batalla de otoño')).toBeVisible();
-  expect(await page.getByRole('main').innerText()).not.toMatch(uuidPattern);
-  await expect(page.getByRole('textbox', { name: 'Buscar inscripción' })).toHaveValue('');
-  await expect(page.getByRole('textbox', { name: 'Buscar inscripción' })).toBeEnabled();
-  await expect(page.getByRole('button', { name: 'Buscar' })).toBeEnabled();
+  await expect(page.getByRole('region', { name: 'Aún no hay a quién registrar' })).toBeVisible();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
   await expect(page.getByText('Luz Rivera')).toHaveCount(0);
-  await expect(page.getByText('Entrada a Batalla registrada')).toHaveCount(0);
-  await page.getByRole('textbox', { name: 'Buscar inscripción' }).fill('Luz');
-  await page.getByRole('button', { name: 'Buscar' }).click();
-  await expect(page.getByText('No se encontraron inscripciones.')).toBeVisible();
+  await expect(page.getByText(/registrada a las/)).toHaveCount(0);
 });
 
-test('mobile operator can search and hand off without horizontal overflow', async ({ page }) => {
+test('a phone operator can find and check in someone without horizontal overflow', async ({
+  page,
+}) => {
   await page.setViewportSize({ width: 375, height: 800 });
-  await page.route(
-    (url) => api(url) && url.pathname.includes('/participants'),
-    (route) => route.fulfill({ json: results() }),
-  );
-  await search(page);
-  await page.getByRole('button', { name: /Luz Rivera/ }).click();
+  await mockRoster(page, () => snapshot([luz(), mau()]));
+  await page.goto(path);
+  // Folio and pass columns give way to the name and the status on phones.
+  await expect(rows(page).first().getByText('NB-42AB')).toBeHidden();
+  await search(page).fill('Luz');
+  await search(page).press('Enter');
   const admit = page.getByRole('button', { name: 'Registrar entrada a Batalla' });
   await expect(admit).toBeVisible();
-  // The standard primary button: full width of its activity card on phones, with the usual size.
-  await expect(admit).toHaveCSS('font-size', '14px');
   const box = (await admit.boundingBox())!;
   expect(box.height).toBeGreaterThanOrEqual(44);
-  expect(box.height).toBeLessThan(56);
-  expect(box.width).toBeGreaterThan(250);
   expect(await page.evaluate<number>('document.documentElement.scrollWidth')).toBeLessThanOrEqual(
     375,
   );
-  await expect(
-    page
-      .getByRole('navigation', { name: 'Navegación administrativa' })
-      .getByRole('link', { name: 'Resumen' }),
-  ).toBeVisible();
 });

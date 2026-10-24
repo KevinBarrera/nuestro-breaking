@@ -136,7 +136,7 @@ test('aborts the credentialed event request when leaving the admin landing', asy
     history.pushState(null, '', '/admin/events/${firstId}/check-in');
     dispatchEvent(new PopStateEvent('popstate'));
   `);
-  await expect(page.getByRole('heading', { name: 'Control de entrada' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Check-in', level: 1 })).toBeVisible();
   await expect
     .poll(() => page.evaluate("sessionStorage.getItem('eventRequestAborted')"))
     .toBe('yes');

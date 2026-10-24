@@ -18,12 +18,14 @@ Test runner: Vitest for pure logic, Playwright (`apps/frontend/e2e`) for flows; 
 
 ## Tasks
 
-| ID  | Specs          | Route  | Status  | Commit |
-| --- | -------------- | ------ | ------- | ------ |
-| T1  | S3, S4, S5, S8 | inline | pending |        |
-| T2  | S2–S9          | inline | pending |        |
+| ID  | Specs          | Route  | Status | Commit  |
+| --- | -------------- | ------ | ------ | ------- |
+| T1  | S3, S4, S5, S8 | inline | done   | 687adb1 |
+| T2  | S2–S9          | inline | done   | bc6e3b2 |
 
 ## Log
 
 - **L1 (2026-10-23, user):** "Es un rediseño/mejora-completa para la sección de "Check-in", revisa y entiende por completo el nuevo diseño: https://claude.ai/artifact/EQBVYtnzLp7u9BX8caRxYf#page-6e41585e6db5 Crea el issue necesario en GH (o más de uno de ser necesario) para cumplir por completo con lo que el nuevo diseño indica Una vez todo este listo comienza a trabajar, tienes acceso a mi navegador para que te asegures que la implementación queda lo más parecida posible al nuevo diseño. Comencemos!"
 - **L2:** Issue #336 created and linked in #312. API check: `GET /participants` needs a 2+ character query (max 50 rows), so the default list reads the unpaginated `attendee-lists` snapshot (#65), which carries pass classes, event and activity check-in times. `pending_payment` exists and has no folio. Adaptations recorded as S8. T1 is the pure roster model; T2 the screen, modal, e2e and docs.
+- **L3:** T1 (`feat/336-01-check-in-model`): `check-in-roster-model.ts` builds the roster from the snapshot (general-entry-only gets "Entrada al evento", others their activities by name; pass names joined, "Sin pase"), plus search (accents and case ignored, folio alphanumeric), status and activity filters, counts, progress (pending payments excluded), row status, activity options, initials. Confirmed registrations without checks stay in the "all activities" pool with "Consultar coordinación" so they remain findable. 11 Vitest cases.
+- **L4:** T2 (`feat/336-02-check-in-screen`): `admin-check-in-page.tsx` loads the snapshot (rejects a foreign `event.id`), `check-in-list.tsx` (header progress, autofocused search, chips, `Select` variant `filter` with `selectedLabel`, rows by container query, 100 rows per page with "Mostrar más"), `check-in-dialog.tsx` on `Modal` with new `layout="card"`, `size="xl"`, `leading` and `closeLabel` (defaults unchanged; card opens near the top from `sm`). `admin-check-in-model.ts` keeps only admission reading and notices; success now says "… registrada a las HH:MM." from the refreshed snapshot. Event-name eyebrow dropped (not in the artboard). Single-card button keeps visible "Registrar entrada" with an accessible name naming the target. "Buscar a otra persona" refocuses the search one frame after the dialog restores focus. Progress fill uses `bg-heading` (the nav-active token vanished in dark). Checked in Chrome against the artboards: list, pase general, pase con actividades, search by folio without hyphen + Enter, activity filter, dark mode, narrow width (no overflow); no real check-in was posted on the local data. `admin-check-in.spec.ts` rewritten (17 tests), live spec and sweep preparation updated; live spec green against a disposable PostgreSQL. Docs: `frontend-architecture.md`, `operational-check-in.md`, `attendee-lists.md`.

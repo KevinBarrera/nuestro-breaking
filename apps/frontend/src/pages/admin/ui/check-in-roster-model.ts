@@ -18,7 +18,7 @@ export type RosterPerson = {
 export type StatusFilter = 'pending' | 'done' | 'all';
 // `all`, `event` (the event entry) or an activity id.
 export type ActivityFilter = string;
-export type RowTone = 'ok' | 'warn' | 'neutral';
+export type RowTone = 'success' | 'warning' | 'neutral';
 
 export const eventEntryName = 'Entrada al evento';
 
@@ -125,17 +125,17 @@ export function rowStatus(
   activity: ActivityFilter,
   timeZone?: string,
 ): { text: string; tone: RowTone } {
-  if (!person.confirmed) return { text: 'Pago por revisar', tone: 'warn' };
+  if (!person.confirmed) return { text: 'Pago por revisar', tone: 'warning' };
   const checks = relevantChecks(person, activity);
-  if (!checks.length) return { text: 'Consultar coordinación', tone: 'warn' };
+  if (!checks.length) return { text: 'Consultar coordinación', tone: 'warning' };
   if (checks.length === 1) {
     const [check] = checks;
     return check.checkedInAt
-      ? { text: `Entró ${formatCheckInTime(check.checkedInAt, timeZone)}`, tone: 'ok' }
+      ? { text: `Entró ${formatCheckInTime(check.checkedInAt, timeZone)}`, tone: 'success' }
       : { text: 'Por entrar', tone: 'neutral' };
   }
   const done = checks.filter((check) => check.checkedInAt).length;
-  if (done === checks.length) return { text: 'Completo', tone: 'ok' };
+  if (done === checks.length) return { text: 'Completo', tone: 'success' };
   return { text: `${done} de ${checks.length} actividades`, tone: 'neutral' };
 }
 

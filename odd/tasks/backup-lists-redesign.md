@@ -18,11 +18,11 @@ Test runner: Vitest for pure logic and Playwright (`apps/frontend/e2e`) for flow
 
 ## Tasks
 
-| ID  | Specs      | Route  | Status | Commit        |
-| --- | ---------- | ------ | ------ | ------------- |
-| T1  | S3, S4, S5 | inline | done   | 3bab8a3       |
-| T2  | S2–S6, S9  | inline | done   | 09bca64       |
-| T3  | S7, S8, S9 | inline | done   | (this commit) |
+| ID  | Specs      | Route  | Status | Commit  |
+| --- | ---------- | ------ | ------ | ------- |
+| T1  | S3, S4, S5 | inline | done   | 3bab8a3 |
+| T2  | S2–S6, S9  | inline | done   | 09bca64 |
+| T3  | S7, S8, S9 | inline | done   | 5809194 |
 
 ## Log
 
@@ -32,3 +32,4 @@ Test runner: Vitest for pure logic and Playwright (`apps/frontend/e2e`) for flow
 - **L4:** T2 (`feat/362-02-lists-screen`, 09bca64): screen rewritten from the artboard; `admin-attendee-lists.spec.ts` rewritten (8 tests); the sweeps' list Select cases removed and the readiness waits for the preview; `admin-mocks` gained a pending registration. Checked in Chrome (light, dark, a competition list, search). `verify:pr` green (588). Native review of T1+T2 (readability, reliability) stopped with `native_stop_required`: corroborated finding that T2 alone prints a blank page (the printout comes in T3). Fix: T3 lands the printout and the whole slice is reviewed again.
 - **L5:** T3 (`feat/363-01-lists-printout`): `attendee-lists-printout.tsx` and the "Opciones del PDF" card; model gains `estimateSheets`, `sheetsLabel`, `printIndex`, `printMeta`, `formatSnapshotStamp`, `cssString`. Verified in headless Chrome that defining `@page` margin boxes removes Chrome's own date/title/URL header and footer and that `counter(pages)` works, so the header, footer and "Hoja X de Y" live in margin boxes (16 mm margins) instead of the design's `margin: 0` + body padding. Deviations: the cover index drops the "Hoja" column (only the browser knows the breaks; allowed by #363) and its option help says "Cómo usar las listas y qué lleva el PDF."; "Generadas por …" dropped. Compared against the four PDF artboards with the design's own sample data printed through Playwright (`page.pdf`, 4 sheets, matching). Reading the real local snapshot into a file was denied (personal data), so the local data was only checked on screen ("3 hojas carta"). RED 6 failing, then GREEN 25/25; spec 12 tests; `verify:pr` green (838 unit, 592 e2e).
 - **L6:** T3 committed (5809194). The whole slice (`dev`..T3) was reviewed again (readability, reliability): approved and acknowledged; `review assess` reports `already_reviewed`. Non-blocking follow-ups: `buildAttendeeLists` repeats the name sort (activity rows sorted twice); the 30 lines per sheet estimate is uncalibrated; a failed "Actualizar datos" keeps the old snapshot and the alert with no test; the printed times use the browser zone (as the screen) and the e2e only checks `HH:mm`. Not pushed: push and PRs wait for the product owner. Chain: `feat/362-01-lists-model` → `feat/362-02-lists-screen` → `feat/363-01-lists-printout`.
+- **L7 (2026-10-24, user):** "Si" (push and open the PRs). Each branch must have its own review, and the screen branch alone prints a blank page, so the chain became two PRs: `feat/362-01-lists-model` → `dev` and `feat/363-01-lists-printout` (screen + printout) → `feat/362-01-lists-model`; the local `feat/362-02-lists-screen` pointer is not pushed. Both slices reviewed (readability, reliability): approved and acknowledged, `already_reviewed`. The stale candidate from the #168 merge base was declined twice, per the standing rule.

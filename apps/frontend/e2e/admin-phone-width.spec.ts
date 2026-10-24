@@ -103,7 +103,7 @@ for (const theme of themes) {
 }
 
 // Each catalog dialog fits a 375px screen in both themes: the dialog stays inside the
-// viewport, its buttons are fully visible, and the page never scrolls sideways.
+// viewport, its buttons are fully visible once scrolled to, and the page never scrolls sideways.
 for (const theme of themes) {
   for (const dialog of adminDialogs) {
     test(`${dialog.name} dialog fits ${width}px in the ${theme} theme`, async ({ page }) => {
@@ -118,8 +118,11 @@ for (const theme of themes) {
       expect(box.x).toBeGreaterThanOrEqual(0);
       expect(box.x + box.width).toBeLessThanOrEqual(width);
       expect(await open.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
-      for (const button of await open.getByRole('button').all())
+      // A tall body scrolls inside the dialog, so each button is scrolled to before measuring.
+      for (const button of await open.getByRole('button').all()) {
+        await button.scrollIntoViewIfNeeded();
         await expect(button).toBeInViewport({ ratio: 1 });
+      }
       expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
         width,
       );

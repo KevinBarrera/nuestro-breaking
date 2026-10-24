@@ -522,7 +522,7 @@ export const adminDialogs: {
       });
       // The empty-reason error shows too, so its text is measured.
       await dialog.getByRole('button', { name: 'Desactivar acceso' }).click();
-      await dialog.getByText('Escribe el motivo.').waitFor();
+      await dialog.getByText('Escribe el motivo para dejarlo en el historial.').waitFor();
       return dialog;
     },
   },

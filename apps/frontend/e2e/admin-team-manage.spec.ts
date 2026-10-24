@@ -169,7 +169,7 @@ test('deactivating requires a reason and reports the last global admin rule', as
   const dialog = page.getByRole('alertdialog', { name: '¿Desactivar a Coordinación principal?' });
   await expect(dialog).toContainText('Su sesión se cierra de inmediato');
   await dialog.getByRole('button', { name: 'Desactivar acceso' }).click();
-  await expect(dialog.getByText('Escribe el motivo.')).toBeVisible();
+  await expect(dialog.getByText('Escribe el motivo para dejarlo en el historial.')).toBeVisible();
   await expect(dialog.getByLabel('Motivo')).toBeFocused();
   expect(writes).toHaveLength(0);
 
@@ -200,7 +200,7 @@ test('a new link for a pending member is shown once on Equipo', async ({ page })
   await page.goto('/admin/team');
   await pick(page, pendingName, 'Generar nueva invitación');
   await page
-    .getByRole('alertdialog', { name: `¿Generar un nuevo enlace para ${pendingName}?` })
+    .getByRole('alertdialog', { name: `¿Generar una nueva invitación para ${pendingName}?` })
     .getByRole('button', { name: 'Generar enlace' })
     .click();
   await expect(page.getByRole('heading', { name: 'Nuevo enlace creado' })).toBeFocused();
@@ -248,8 +248,19 @@ test('cancels an invitation, reactivates and changes access', async ({ page }) =
   await expect(
     dialog.getByRole('checkbox', { name: 'Los más pesados - Preliminares - Noviembre 2026' }),
   ).toBeChecked();
+  await expect(dialog).toContainText('Ahora: Los más pesados - Preliminares - Noviembre 2026.');
+  // Nothing changed yet, so Guardar acceso stays off.
+  const save = dialog.getByRole('button', { name: 'Guardar acceso' });
+  await expect(dialog.getByText('Sin cambios todavía.')).toBeVisible();
+  await expect(save).toHaveAttribute('aria-disabled', 'true');
+  await expect(dialog.getByText('1 de 2 eventos elegidos')).toBeVisible();
+  await dialog.getByRole('button', { name: 'Elegir todos' }).click();
+  await expect(dialog.getByText('2 de 2 eventos elegidos')).toBeVisible();
+  await expect(dialog.getByText('Sin cambios todavía.')).toHaveCount(0);
+  await dialog.getByRole('button', { name: 'Quitar todos' }).click();
+  await expect(dialog.getByRole('checkbox', { checked: true })).toHaveCount(0);
   await dialog.getByText('Todos los eventos', { exact: true }).click();
-  await dialog.getByRole('button', { name: 'Guardar acceso' }).click();
+  await save.click();
   await expect(page.getByRole('status')).toHaveText(`Se cambió el acceso de ${pendingName}.`);
   expect(changes.map((request) => request.postDataJSON() as unknown)).toEqual([
     { access: { kind: 'global' } },

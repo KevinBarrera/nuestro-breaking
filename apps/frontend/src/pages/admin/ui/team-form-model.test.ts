@@ -1,6 +1,9 @@
+import type { TeamAccess } from '@/entities/admin-team';
 import { describe, expect, it } from 'vitest';
 import {
   accessDraftFrom,
+  accessUnchanged,
+  currentAccessText,
   accessError,
   accessInput,
   inviteMayExist,
@@ -119,7 +122,7 @@ describe('serverFieldErrors', () => {
 
 describe('reasonError', () => {
   it('requires 1 to 500 characters without control characters', () => {
-    expect(reasonError('  ')).toBe('Escribe el motivo.');
+    expect(reasonError('  ')).toBe('Escribe el motivo para dejarlo en el historial.');
     expect(reasonError('x'.repeat(501))).toBe('Escribe un motivo de hasta 500 caracteres.');
     expect(reasonError('Terminó su participación')).toBeNull();
   });
@@ -147,5 +150,40 @@ describe('accessError', () => {
     expect(accessError({ scope: 'events', eventIds: [] })).toBe('Elige al menos un evento.');
     expect(accessError({ scope: 'events', eventIds: ['e1'] })).toBeNull();
     expect(accessError({ scope: 'global', eventIds: [] })).toBeNull();
+  });
+});
+
+describe('accessUnchanged', () => {
+  const events = (...ids: string[]): TeamAccess => ({
+    kind: 'events',
+    events: ids.map((id) => ({ id, name: id })),
+  });
+
+  it('compares the scope and the chosen events in any order', () => {
+    expect(accessUnchanged({ scope: 'global', eventIds: [] }, { kind: 'global' })).toBe(true);
+    expect(accessUnchanged({ scope: 'events', eventIds: ['a'] }, { kind: 'global' })).toBe(false);
+    expect(accessUnchanged({ scope: 'events', eventIds: ['b', 'a'] }, events('a', 'b'))).toBe(true);
+    expect(accessUnchanged({ scope: 'events', eventIds: ['a'] }, events('a', 'b'))).toBe(false);
+    expect(accessUnchanged({ scope: 'global', eventIds: [] }, events('a'))).toBe(false);
+  });
+
+  it('treats any choice as a change for someone without access', () => {
+    expect(accessUnchanged({ scope: 'events', eventIds: [] }, { kind: 'none' })).toBe(false);
+  });
+});
+
+describe('currentAccessText', () => {
+  it('says what the person can operate now', () => {
+    expect(currentAccessText({ kind: 'global' })).toBe('Ahora: todos los eventos.');
+    expect(
+      currentAccessText({
+        kind: 'events',
+        events: [
+          { id: 'a', name: 'Preliminares' },
+          { id: 'b', name: 'Final' },
+        ],
+      }),
+    ).toBe('Ahora: Preliminares, Final.');
+    expect(currentAccessText({ kind: 'none' })).toBe('Ahora: sin acceso.');
   });
 });

@@ -164,6 +164,7 @@ export function AdminTeamNewPage() {
                     </p>
                   </section>
                   <AccessFieldset
+                    variant="form"
                     value={draft.access}
                     onChange={(access) => setDraft({ ...draft, access })}
                     events={events}

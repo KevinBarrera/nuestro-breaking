@@ -18,6 +18,10 @@ type ModalProps = {
   isDismissable?: boolean;
   // Blocks Esc, e.g. while a save is in flight.
   isKeyboardDismissDisabled?: boolean;
+  // `sectioned`: wider padding and the actions in a footer under a divider.
+  layout?: 'default' | 'sectioned';
+  // `lg` widens the dialog for forms with option cards.
+  size?: 'md' | 'lg';
 };
 
 // Themed modal dialog on React Aria: focus is trapped inside, Esc closes it and focus
@@ -33,8 +37,12 @@ export function Modal({
   role = 'dialog',
   isDismissable = false,
   isKeyboardDismissDisabled = false,
+  layout = 'default',
+  size = 'md',
 }: ModalProps) {
   const descriptionId = useId();
+  const sectioned = layout === 'sectioned';
+  const padX = sectioned ? 'px-6' : 'px-5';
 
   return (
     <ModalOverlay
@@ -44,7 +52,9 @@ export function Modal({
       isKeyboardDismissDisabled={isKeyboardDismissDisabled}
       className="fixed inset-0 z-50 flex items-center justify-center bg-header/70 p-4"
     >
-      <AriaModal className="flex max-h-[calc(100dvh-2rem)] w-full max-w-lg min-w-0 flex-col rounded-xl border border-line bg-surface text-fg shadow-lg">
+      <AriaModal
+        className={`flex max-h-[calc(100dvh-2rem)] w-full ${size === 'lg' ? 'max-w-[560px]' : sectioned ? 'max-w-[520px]' : 'max-w-lg'} min-w-0 flex-col rounded-xl border border-line bg-surface text-fg shadow-lg`}
+      >
         <Dialog
           role={role}
           className="flex min-h-0 flex-1 flex-col outline-none"
@@ -52,23 +62,30 @@ export function Modal({
         >
           {({ close }) => (
             <>
-              <div className="px-5 pt-5">
+              <div className={`${padX} ${sectioned ? 'pt-6' : 'pt-5'}`}>
                 <Heading slot="title" className="text-lg font-bold text-heading">
                   {title}
                 </Heading>
                 {description && (
-                  <p id={descriptionId} className="mt-2 text-sm text-fg">
+                  <p
+                    id={descriptionId}
+                    className={`text-sm ${sectioned ? 'mt-1 text-muted' : 'mt-2 text-fg'}`}
+                  >
                     {description}
                   </p>
                 )}
               </div>
               {children && (
-                <div className="mt-3 min-h-0 flex-1 overflow-y-auto px-5 break-words">
+                <div
+                  className={`${sectioned ? 'mt-4' : 'mt-3'} min-h-0 flex-1 overflow-y-auto ${padX} break-words`}
+                >
                   {children}
                 </div>
               )}
               {actions && (
-                <div className="flex flex-col-reverse gap-2 px-5 pt-4 pb-5 sm:flex-row sm:justify-end">
+                <div
+                  className={`flex flex-col-reverse sm:flex-row sm:justify-end ${sectioned ? 'mt-6 gap-3 border-t border-line px-6 py-4 sm:items-center' : 'gap-2 px-5 pt-4 pb-5'}`}
+                >
                   {typeof actions === 'function' ? actions(close) : actions}
                 </div>
               )}

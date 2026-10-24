@@ -10,13 +10,19 @@ import {
 } from '@/entities/admin-team';
 import { useSessionStore } from '@/entities/session';
 import { routes } from '@/shared/config';
-import { ConfirmDialog, Notice } from '@/shared/ui';
+import { Notice } from '@/shared/ui';
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router';
 import { styles } from './catalog-copy';
 import { InvitationCreated } from './invitation-created';
 import { teamDenied } from './team-copy';
-import { ChangeAccessDialog, DeactivateDialog } from './team-dialogs';
+import {
+  CancelInvitationDialog,
+  ChangeAccessDialog,
+  DeactivateDialog,
+  NewLinkDialog,
+  ReactivateDialog,
+} from './team-dialogs';
 import { accessInput, teamFailureMessage, type AccessDraft } from './team-form-model';
 import { type MemberAction } from './team-model';
 import { TeamList } from './team-list';
@@ -199,34 +205,20 @@ export function AdminTeamPage() {
       </div>
 
       {member && open.action === 'regenerate' && (
-        <ConfirmDialog
-          isOpen
-          onOpenChange={(isOpen) => !isOpen && close()}
-          title={`¿Generar un nuevo enlace para ${name}?`}
-          consequence={
-            member.status === 'active'
-              ? 'El enlace anterior, si había uno, deja de funcionar. Su contraseña actual sigue sirviendo hasta que use el nuevo enlace.'
-              : 'El enlace anterior, si había uno, deja de funcionar.'
-          }
-          confirmLabel="Generar enlace"
-          pendingLabel="Generando…"
+        <NewLinkDialog
+          member={member}
           isPending={pending}
+          onClose={close}
           onConfirm={() =>
             void run(async () => ({ name, link: await regenerateInvitation(member.id) }), false)
           }
         />
       )}
       {member && open.action === 'cancel-invitation' && (
-        <ConfirmDialog
-          isOpen
-          onOpenChange={(isOpen) => !isOpen && close()}
-          tone="destructive"
-          title={`¿Cancelar la invitación de ${name}?`}
-          consequence="El enlace deja de funcionar. Puedes generar uno nuevo cuando quieras."
-          confirmLabel="Cancelar invitación"
-          cancelLabel="Volver"
-          pendingLabel="Cancelando…"
+        <CancelInvitationDialog
+          member={member}
           isPending={pending}
+          onClose={close}
           onConfirm={() =>
             void run(async () => {
               await cancelInvitation(member.id);
@@ -236,14 +228,10 @@ export function AdminTeamPage() {
         />
       )}
       {member && open.action === 'reactivate' && (
-        <ConfirmDialog
-          isOpen
-          onOpenChange={(isOpen) => !isOpen && close()}
-          title={`¿Reactivar a ${name}?`}
-          consequence="Recupera el mismo acceso que tenía. Si nunca activó su cuenta, necesitará un enlace nuevo."
-          confirmLabel="Reactivar"
-          pendingLabel="Reactivando…"
+        <ReactivateDialog
+          member={member}
           isPending={pending}
+          onClose={close}
           onConfirm={() =>
             void run(async () => {
               const status = await reactivateMember(member.id);

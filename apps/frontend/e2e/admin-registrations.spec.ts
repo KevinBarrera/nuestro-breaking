@@ -1,6 +1,8 @@
 import { expect, test, type Page } from '@playwright/test';
 import {
   cashConfirmed,
+  catalogActivity,
+  catalogPassType,
   created,
   duplicateMatch,
   eventId,
@@ -148,6 +150,57 @@ test('lists the roster, filters by status, searches live and opens one', async (
   await expect(searchBox(page)).toHaveValue('');
   await expect(page).toHaveURL(registrationsPath);
   await expect(page.getByText('2 inscripciones')).toBeVisible();
+});
+
+test('opens a pending registration with its sale from the list', async ({ page }) => {
+  const breaking = catalogActivity(
+    'a1b2c3d4-1234-4567-89ab-123456789abc',
+    'Breaking 1 vs 1',
+    '2026-11-14T18:00:00.000Z',
+  );
+  await mockRegistrations(page, {
+    search: () => ({
+      json: searchPage([
+        searchResult(registrationId, 'Luz Rivera', { folio: 'EV-7K3Q', status: 'confirmed' }),
+        searchResult(otherRegistrationId, 'Luis Ruiz'),
+      ]),
+    }),
+    entitlements: (id) => ({
+      json: {
+        registration: registrationSummary(id, { fullName: 'Luis Ruiz' }),
+        passes: [heldPass],
+        accessibleActivityIds: [],
+      },
+    }),
+    passTypes: () => ({
+      json: [
+        catalogPassType(heldPass.passTypeId, 'Pase completo', 'full', 150000, {
+          activities: [{ activityId: breaking.id, access: 'selectable' }],
+        }),
+      ],
+    }),
+    activities: () => ({ json: [breaking] }),
+  });
+  await page.goto(registrationsPath);
+  await page.getByRole('link', { name: /^Luis Ruiz, sin folio, Pendiente de pago/ }).click();
+
+  await expect(page).toHaveURL(registrationPath(otherRegistrationId));
+  await expect(page.getByRole('heading', { level: 1, name: 'Luis Ruiz' })).toBeVisible();
+  // The sale goes on in Nueva inscripción's steps (#346), not on the detail.
+  const sale = page.getByRole('region', { name: 'Venta pendiente' });
+  await expect(sale).toBeVisible();
+  for (const name of ['Agregar pase', 'Competencias', 'Pago en efectivo'])
+    await expect(page.getByRole('region', { name, exact: true })).toHaveCount(0);
+  await expect(page.getByRole('region', { name: 'Pases' })).toContainText(
+    'Sin competencias elegidas.',
+  );
+
+  await sale.getByRole('link', { name: 'Continuar venta' }).click();
+  await expect(page).toHaveURL(salePath(otherRegistrationId));
+  await expect(steps(page).nth(1)).toHaveAttribute('aria-current', 'step');
+  // The held pass and its competitions are already chosen.
+  await expect(page.getByRole('radio', { name: /^Pase completo/ })).toBeChecked();
+  await expect(page.getByRole('checkbox', { name: 'Breaking 1 vs 1' })).not.toBeChecked();
 });
 
 test('pages through results 20 at a time', async ({ page }) => {

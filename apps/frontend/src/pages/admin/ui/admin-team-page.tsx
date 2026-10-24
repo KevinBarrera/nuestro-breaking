@@ -10,11 +10,11 @@ import {
 } from '@/entities/admin-team';
 import { useSessionStore } from '@/entities/session';
 import { routes } from '@/shared/config';
-import { Notice } from '@/shared/ui';
+import { Breadcrumbs, Notice } from '@/shared/ui';
 import { useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router';
+import { Link, useLocation } from 'react-router';
 import { styles } from './catalog-copy';
-import { InvitationCreated } from './invitation-created';
+import { InvitationCreated, type LinkRecipient } from './invitation-created';
 import { teamDenied } from './team-copy';
 import {
   CancelInvitationDialog,
@@ -24,7 +24,7 @@ import {
   ReactivateDialog,
 } from './team-dialogs';
 import { accessInput, teamFailureMessage, type AccessDraft } from './team-form-model';
-import { type MemberAction } from './team-model';
+import { accessSummary, type MemberAction } from './team-model';
 import { TeamList } from './team-list';
 import { useTeamEvents } from './use-team-events';
 import { useTeamLoad } from './use-team-load';
@@ -38,7 +38,8 @@ export function TeamDenied() {
 }
 
 type OpenAction = { action: MemberAction; member: TeamMember };
-type Issued = { name: string; link: IssuedLink };
+type Issued = { recipient: LinkRecipient; link: IssuedLink };
+type ShownLink = Issued & { locationKey: string };
 
 // Equipo (#214): the admin team, for global admins only. Others (direct URL) see the same
 // "Sin acceso" pattern as the event list; the backend refuses their team requests anyway.
@@ -50,11 +51,16 @@ export function AdminTeamPage() {
   const [pending, setPending] = useState(false);
   const [dialogError, setDialogError] = useState<string | null>(null);
   const [notice, setNotice] = useState<{ tone: 'info' | 'danger'; text: string } | null>(null);
-  const [issued, setIssued] = useState<Issued | null>(null);
+  const [shownLink, setShownLink] = useState<ShownLink | null>(null);
   const { events, retry } = useTeamEvents(allowed && open?.action === 'change-access');
   const heading = useRef<HTMLHeadingElement>(null);
   const sending = useRef(false);
   const [focusRequest, setFocusRequest] = useState(0);
+  const { key: locationKey } = useLocation();
+  // The breadcrumb's "Equipo" link stays on this route but starts a new history entry, so the
+  // link belongs to the entry it was issued on and is forgotten once the person follows it.
+  const issued = shownLink?.locationKey === locationKey ? shownLink : null;
+  const setIssued = (next: Issued | null) => setShownLink(next && { ...next, locationKey });
 
   // After an action the row's button may be gone, so the heading takes focus and the notice
   // under it is announced. It waits a frame, after the dialog's own focus restore.
@@ -112,8 +118,14 @@ export function AdminTeamPage() {
 
   return (
     <main className="px-4 py-8 text-fg sm:px-8 lg:pt-10 lg:pb-16">
-      <div className="mx-auto max-w-[1080px] space-y-6">
-        <header className="flex flex-wrap items-end justify-between gap-4">
+      <div className={`mx-auto ${issued ? 'max-w-[760px]' : 'max-w-[1080px]'} space-y-6`}>
+        {issued && (
+          <Breadcrumbs
+            variant="link"
+            items={[{ label: 'Equipo', to: routes.adminTeam }, { label: 'Enlace de activación' }]}
+          />
+        )}
+        <header className={issued ? 'hidden' : 'flex flex-wrap items-end justify-between gap-4'}>
           <div className="space-y-1.5">
             <h1
               ref={heading}
@@ -153,7 +165,7 @@ export function AdminTeamPage() {
         ) : issued ? (
           <InvitationCreated
             title="Nuevo enlace creado"
-            name={issued.name}
+            recipient={issued.recipient}
             link={issued.link}
             onDone={() => {
               setIssued(null);
@@ -210,7 +222,13 @@ export function AdminTeamPage() {
           isPending={pending}
           onClose={close}
           onConfirm={() =>
-            void run(async () => ({ name, link: await regenerateInvitation(member.id) }), false)
+            void run(
+              async () => ({
+                recipient: { name, email: member.email, access: accessSummary(member.access) },
+                link: await regenerateInvitation(member.id),
+              }),
+              false,
+            )
           }
         />
       )}

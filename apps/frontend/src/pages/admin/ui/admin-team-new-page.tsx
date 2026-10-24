@@ -14,11 +14,22 @@ import {
   serverFieldErrors,
   teamFailureMessage,
   validateInvite,
+  type AccessDraft,
   type InviteDraft,
   type InviteErrors,
 } from './team-form-model';
-import { InvitationCreated } from './invitation-created';
-import { useTeamEvents } from './use-team-events';
+import { InvitationCreated, type LinkRecipient } from './invitation-created';
+import { useTeamEvents, type TeamEventsState } from './use-team-events';
+
+// What the person can operate, by name, for the link screen.
+function accessText(access: AccessDraft, events: TeamEventsState): string {
+  if (access.scope === 'global') return 'Todos los eventos';
+  const names = events.status === 'ready' ? events.events : [];
+  return names
+    .filter((event) => access.eventIds.includes(event.id))
+    .map((event) => event.name)
+    .join(', ');
+}
 
 const emptyDraft: InviteDraft = {
   displayName: '',
@@ -35,7 +46,7 @@ export function AdminTeamNewPage() {
   const [failure, setFailure] = useState<string | null>(null);
   const [mayExist, setMayExist] = useState(false);
   const [sending, setSending] = useState(false);
-  const [issued, setIssued] = useState<{ name: string; link: IssuedLink } | null>(null);
+  const [issued, setIssued] = useState<{ recipient: LinkRecipient; link: IssuedLink } | null>(null);
   const { events, retry } = useTeamEvents(allowed && !issued);
   const pending = useRef(false);
   // The email of an invite whose answer was lost: a retry with it may get `email_in_use`
@@ -66,7 +77,7 @@ export function AdminTeamNewPage() {
         email,
         access: accessInput(draft.access),
       });
-      setIssued({ name, link });
+      setIssued({ recipient: { name, email, access: accessText(draft.access, events) }, link });
     } catch (error) {
       const reason = teamFailure(error);
       const sameEmail = unknownEmail.current === email.toLowerCase();
@@ -86,26 +97,29 @@ export function AdminTeamNewPage() {
   }
 
   return (
-    <main className="px-4 py-8 text-fg sm:px-8 lg:py-12">
-      <div className="mx-auto max-w-5xl space-y-6">
+    <main className="px-4 py-8 text-fg sm:px-8 lg:pt-8 lg:pb-16">
+      <div className="mx-auto max-w-[760px] space-y-6">
         <Breadcrumbs
           variant="link"
-          items={[{ label: 'Equipo', to: routes.adminTeam }, { label: 'Agregar administrador' }]}
+          items={[
+            { label: 'Equipo', to: routes.adminTeam },
+            { label: issued ? 'Enlace de activación' : 'Agregar administrador' },
+          ]}
         />
         {issued ? (
           <InvitationCreated
             title="Invitación creada"
-            name={issued.name}
+            recipient={issued.recipient}
             link={issued.link}
             onDone={() => void navigate(routes.adminTeam)}
           />
         ) : (
           <>
-            <header className="space-y-1">
+            <header className="space-y-1.5">
               <h1 className="text-3xl font-extrabold tracking-tight text-heading">
                 Agregar administrador
               </h1>
-              <p className="max-w-2xl text-muted">
+              <p className="text-muted">
                 La persona recibirá un enlace para crear su propia contraseña. Nadie más la conoce.
               </p>
             </header>
@@ -114,55 +128,60 @@ export function AdminTeamNewPage() {
             ) : (
               <form
                 aria-label="Agregar administrador"
+                autoComplete="off"
                 noValidate
                 onSubmit={(event) => void submit(event)}
-                className={`${styles.card} space-y-6 sm:p-8`}
+                className="rounded-xl border border-line bg-surface"
               >
-                {failure && <Notice tone="danger">{failure}</Notice>}
-                {mayExist && (
-                  <Notice tone="danger">
-                    {inviteMayExistMessage}{' '}
-                    <Link
-                      to={routes.adminTeam}
-                      className="inline-flex min-h-11 items-center font-bold underline"
-                    >
-                      Ir a Equipo
-                    </Link>
-                  </Notice>
+                {(failure || mayExist) && (
+                  <div className="space-y-3 px-5 pt-6 sm:px-7">
+                    {failure && <Notice tone="danger">{failure}</Notice>}
+                    {mayExist && (
+                      <Notice tone="danger">
+                        {inviteMayExistMessage}{' '}
+                        <Link
+                          to={routes.adminTeam}
+                          className="inline-flex min-h-11 items-center font-bold underline"
+                        >
+                          Ir a Equipo
+                        </Link>
+                      </Notice>
+                    )}
+                  </div>
                 )}
-                <div className="grid gap-8 md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] md:items-start">
-                  <section aria-labelledby="team-new-person" className="space-y-5">
-                    <h2 id="team-new-person" className="text-lg font-extrabold text-heading">
-                      Datos de la persona
-                    </h2>
-                    <TextField
-                      label="Nombre"
-                      name="displayName"
-                      autoComplete="off"
-                      value={draft.displayName}
-                      error={errors.displayName}
-                      disabled={sending}
-                      onChange={(event) =>
-                        setDraft({ ...draft, displayName: event.currentTarget.value })
-                      }
-                    />
-                    <TextField
-                      label="Correo"
-                      name="email"
-                      type="email"
-                      autoComplete="off"
-                      hint="Con este correo iniciará sesión."
-                      hintPlacement="below"
-                      value={draft.email}
-                      error={errors.email}
-                      disabled={sending}
-                      onChange={(event) => setDraft({ ...draft, email: event.currentTarget.value })}
-                    />
-                    <p className="rounded-xl bg-surface-inner p-4 text-sm text-fg">
-                      Al crear la invitación verás un enlace de activación y cuándo vence. Envíalo
-                      por un medio privado; sirve una sola vez.
-                    </p>
-                  </section>
+                <section aria-labelledby="team-new-person" className="space-y-6 px-5 py-6 sm:p-7">
+                  <h2 id="team-new-person" className="text-lg font-bold text-heading">
+                    Datos de la persona
+                  </h2>
+                  <TextField
+                    label="Nombre"
+                    name="displayName"
+                    autoComplete="off"
+                    placeholder="Ej. Ana Torres"
+                    hint="Así aparece en Equipo y en el historial."
+                    hintPlacement="below"
+                    value={draft.displayName}
+                    error={errors.displayName}
+                    disabled={sending}
+                    onChange={(event) =>
+                      setDraft({ ...draft, displayName: event.currentTarget.value })
+                    }
+                  />
+                  <TextField
+                    label="Correo"
+                    name="email"
+                    type="email"
+                    autoComplete="off"
+                    placeholder="nombre@correo.com"
+                    hint="Con este correo iniciará sesión."
+                    hintPlacement="below"
+                    value={draft.email}
+                    error={errors.email}
+                    disabled={sending}
+                    onChange={(event) => setDraft({ ...draft, email: event.currentTarget.value })}
+                  />
+                </section>
+                <div className="border-t border-line px-5 py-6 sm:p-7">
                   <AccessFieldset
                     variant="form"
                     value={draft.access}
@@ -173,7 +192,27 @@ export function AdminTeamNewPage() {
                     disabled={sending}
                   />
                 </div>
-                <div className="flex flex-col-reverse gap-3 border-t border-row pt-5 sm:flex-row sm:justify-end">
+                <p className="mx-5 flex items-start gap-2.5 text-sm sm:mx-7">
+                  <svg
+                    aria-hidden="true"
+                    width="18"
+                    height="18"
+                    viewBox="0 0 20 20"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.75"
+                    strokeLinecap="round"
+                    className="mt-px shrink-0"
+                  >
+                    <circle cx="10" cy="10" r="7.5" />
+                    <path d="M10 9v4.5M10 6.5v.01" />
+                  </svg>
+                  <span>
+                    Al crear la invitación verás un enlace de activación para enviárselo por un
+                    medio privado. Vence en 72 horas y sirve una sola vez.
+                  </span>
+                </p>
+                <div className="mt-6 flex flex-col-reverse gap-3 border-t border-line px-5 py-4 sm:flex-row sm:justify-end sm:px-7">
                   <Link
                     to={routes.adminTeam}
                     className={`${styles.secondary} inline-flex items-center justify-center`}

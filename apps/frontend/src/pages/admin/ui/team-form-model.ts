@@ -72,7 +72,7 @@ export function currentAccessText(access: TeamAccess): string {
 export type InviteDraft = { displayName: string; email: string; access: AccessDraft };
 export type InviteErrors = Partial<Record<'displayName' | 'email' | 'access', string>>;
 
-const emailMessage = 'Escribe un correo válido, por ejemplo nombre@dominio.com.';
+const emailMessage = 'Escribe un correo válido.';
 const noEventMessage = 'Elige al menos un evento.';
 const reasonMessage = 'Escribe un motivo de hasta 500 caracteres.';
 
@@ -85,7 +85,7 @@ export function accessError(access: AccessDraft): string | null {
 export function validateInvite(draft: InviteDraft): InviteErrors {
   const errors: InviteErrors = {};
   const name = draft.displayName.trim();
-  if (!name) errors.displayName = 'Escribe el nombre.';
+  if (!name) errors.displayName = 'Escribe su nombre.';
   else if (name.length > 200) errors.displayName = 'Usa 200 caracteres o menos.';
   const email = draft.email.trim();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) errors.email = emailMessage;

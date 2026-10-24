@@ -84,12 +84,21 @@ test('inviting shows the link once, copies it and returns to Equipo', async ({ p
   });
   expect(invites[0].headers()['x-csrf-token']).toBe('csrf-token');
   await expect(page.getByLabel('Enlace de activación')).toHaveValue(link);
-  await expect(page.getByText('Se muestra una sola vez.')).toBeVisible();
+  await expect(page.getByText('Se muestra una sola vez', { exact: true })).toBeVisible();
+  // Who the link is for, and what they can operate.
+  const created = page.getByRole('region', { name: 'Invitación creada' });
+  await expect(created).toContainText('staff1@example.org');
+  await expect(created).toContainText('AccesoLos más pesados - Preliminares - Noviembre 2026');
+  await expect(
+    page.getByText('Copia el enlace antes de salir: no se vuelve a mostrar.'),
+  ).toBeVisible();
   // The link never reaches the address bar.
   expect(page.url()).not.toContain('#');
 
   await page.getByRole('button', { name: 'Copiar enlace' }).click();
   await expect(page.getByRole('status').filter({ hasText: 'Enlace copiado.' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Copiado' })).toBeVisible();
+  await expect(page.getByText('Copia el enlace antes de salir')).toHaveCount(0);
   expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(link);
 
   await page.getByRole('button', { name: 'Volver a Equipo' }).click();
@@ -204,6 +213,10 @@ test('a new link for a pending member is shown once on Equipo', async ({ page })
     .getByRole('button', { name: 'Generar enlace' })
     .click();
   await expect(page.getByRole('heading', { name: 'Nuevo enlace creado' })).toBeFocused();
+  await expect(page.getByRole('navigation', { name: 'Ruta de navegación' })).toContainText(
+    'Enlace de activación',
+  );
+  await expect(page.getByRole('heading', { level: 1, name: 'Equipo' })).toBeHidden();
   await expect(page.getByLabel('Enlace de activación')).toHaveValue(link);
   expect(writes).toHaveLength(1);
   await page.getByRole('button', { name: 'Volver a Equipo' }).click();

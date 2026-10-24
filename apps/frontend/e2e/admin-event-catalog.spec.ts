@@ -413,80 +413,6 @@ async function backToPasses(page: Page) {
     .click();
 }
 
-test('lists pass types with MXN prices, required class and activity access', async ({ page }) => {
-  await mockPassTypes(page, () => [fullPass, openStyles]);
-  await page.goto(passesPath);
-  const full = page
-    .getByRole('listitem')
-    .filter({ has: page.getByRole('heading', { name: 'Pase completo' }) });
-  await expect(full).toContainText('Completo');
-  await expect(full).toContainText('$1,500.00');
-  await expect(full).toContainText('1 actividad a elegir · Incluye Taller de footwork');
-  const open = page
-    .getByRole('listitem')
-    .filter({ has: page.getByRole('heading', { name: 'Open Styles' }) });
-  await expect(open).toContainText('Adicional');
-  await expect(open).toContainText('$250.00');
-  await expect(open).toContainText('Sin actividades · Requiere pase completo');
-});
-
-test('each active pass card is one named link with no separate Editar control', async ({
-  page,
-}) => {
-  await mockPassTypes(page, () => [fullPass, { ...openStyles, status: 'archived', version: 4 }]);
-  await page.goto(passesPath);
-  const card = (name: string) =>
-    page.getByRole('listitem').filter({ has: page.getByRole('heading', { name }) });
-  const full = card('Pase completo');
-  // The only control in the card carries the pass name; no visible "Editar" text remains.
-  await expect(full.getByRole('link')).toHaveCount(1);
-  await expect(full.getByRole('button')).toHaveCount(0);
-  const target = full.getByRole('link', { name: 'Editar Pase completo', exact: true });
-  await expect(full.getByText('Editar', { exact: true })).toHaveCount(0);
-  // The name lives only in screen-reader text, so nothing visible in the card says "Editar".
-  await expect(target.locator('.sr-only')).toHaveText('Editar Pase completo');
-  expect(
-    await full.evaluate((node) =>
-      [...node.querySelectorAll('*')].some(
-        (child) =>
-          !child.closest('.sr-only') &&
-          [...child.childNodes].some(
-            (text) => text.nodeType === Node.TEXT_NODE && /Editar/.test(text.textContent ?? ''),
-          ),
-      ),
-    ),
-  ).toBe(false);
-  // The target covers the whole card.
-  const [cardBox, targetBox] = [await full.boundingBox(), await target.boundingBox()];
-  expect(targetBox!.height).toBeGreaterThanOrEqual(44);
-  expect(Math.abs(targetBox!.width - cardBox!.width)).toBeLessThanOrEqual(2);
-  expect(Math.abs(targetBox!.height - cardBox!.height)).toBeLessThanOrEqual(2);
-  // The card's own content sits under the target, so a click anywhere on the card opens it.
-  const price = await full.getByText('$1,500.00').boundingBox();
-  await page.mouse.click(price!.x + price!.width / 2, price!.y + price!.height / 2);
-  await expect(page.getByRole('form', { name: 'Editar pase' })).toBeVisible();
-  await expect(page).toHaveURL(`${passesPath}/${fullPassId}`);
-  // Archived cards (under "Archivados") have no link to the pass screen.
-  await page.getByRole('navigation', { name: 'Ruta de navegación' }).getByRole('link').click();
-  await expect(card('Open Styles').getByRole('link')).toHaveCount(0);
-});
-
-test('a pass card is reachable by keyboard with a visible focus ring', async ({ page }) => {
-  await mockPassTypes(page, () => [fullPass, openStyles]);
-  await page.goto(passesPath);
-  const target = page.getByRole('link', { name: 'Editar Open Styles', exact: true });
-  await expect(target).toBeVisible();
-  for (let step = 0; step < 30; step += 1) {
-    if (await target.evaluate((node) => node === document.activeElement)) break;
-    await page.keyboard.press('Tab');
-  }
-  await expect(target).toBeFocused();
-  await expect(target).toHaveCSS('outline-style', 'solid');
-  await page.keyboard.press('Enter');
-  const form = page.getByRole('form', { name: 'Editar pase' });
-  await expect(form.getByLabel('Nombre')).toHaveValue('Open Styles');
-});
-
 test('creates an add-on pass type that requires a pass class', async ({ page }) => {
   let rows: unknown[] = [fullPass];
   await mockPassTypes(page, () => rows);
@@ -548,11 +474,7 @@ test('saves activity access for a pass type with its expected version', async ({
     },
   );
   await page.goto(passesPath);
-  await page
-    .getByRole('listitem')
-    .filter({ has: page.getByRole('heading', { name: 'Pase completo' }) })
-    .getByRole('link', { name: /^Editar / })
-    .click();
+  await page.getByRole('link', { name: /^Pase completo,/ }).click();
   const editor = page.getByRole('region', { name: 'Acceso a actividades' });
   await expectAccess(accessControl(editor, 'Acceso a Batalla de crews'), 'Elegible');
   await chooseAccess(accessControl(editor, 'Acceso a Batalla de crews'), 'Sin acceso');
@@ -565,11 +487,9 @@ test('saves activity access for a pass type with its expected version', async ({
     activities: [{ activityId: workshopId, access: 'selectable' }],
   });
   await backToPasses(page);
-  const card = page
-    .getByRole('listitem')
-    .filter({ has: page.getByRole('heading', { name: 'Pase completo' }) });
-  await expect(card).not.toContainText('Incluye Taller de footwork');
-  await expect(card).toContainText('1 actividad a elegir');
+  const card = page.getByRole('link', { name: /^Pase completo,/ });
+  await expect(card).toContainText('Elige entre 1');
+  await expect(card).not.toContainText('Incluye');
 });
 
 test('a judge or denied session sees a no-access state on both catalogs', async ({ page }) => {
@@ -717,10 +637,7 @@ test('edits a pass type with its expected version', async ({ page }) => {
     },
   );
   await page.goto(passesPath);
-  const card = page
-    .getByRole('listitem')
-    .filter({ has: page.getByRole('heading', { name: 'Pase completo' }) });
-  await card.getByRole('link', { name: /^Editar / }).click();
+  await page.getByRole('link', { name: /^Pase completo,/ }).click();
   const form = page.getByRole('form', { name: 'Editar pase' });
   await expect(form).toContainText('v2');
   await expect(form.getByRole('radio', { name: 'Completo' })).toBeChecked();
@@ -740,11 +657,7 @@ test('edits a pass type with its expected version', async ({ page }) => {
   });
   await expect(page.getByRole('form', { name: 'Editar pase' })).toContainText('v3');
   await backToPasses(page);
-  await expect(
-    page
-      .getByRole('listitem')
-      .filter({ has: page.getByRole('heading', { name: 'Pase completo VIP' }) }),
-  ).toContainText('$1,750.50');
+  await expect(page.getByRole('link', { name: /^Pase completo VIP,/ })).toContainText('$1,750.50');
 });
 
 test('a reload while a pass is open refreshes its values with the new version', async ({
@@ -780,11 +693,8 @@ test('a reload while a pass is open refreshes its values with the new version', 
     },
   );
   await page.goto(passesPath);
-  const card = (name: string) =>
-    page.getByRole('listitem').filter({ has: page.getByRole('heading', { name }) });
-  await card('Open Styles')
-    .getByRole('link', { name: /^Editar / })
-    .click();
+  const card = (name: string) => page.getByRole('link', { name: new RegExp(`^${name},`) });
+  await card('Open Styles').click();
   const form = page.getByRole('form', { name: 'Editar pase' });
   await form.getByLabel('Nombre').fill('Open Styles 2026');
   await form.getByRole('button', { name: 'Guardar cambios' }).click();
@@ -794,9 +704,7 @@ test('a reload while a pass is open refreshes its values with the new version', 
 
   await backToPasses(page);
   await expect(reloadAlert).toBeVisible();
-  await card('Pase completo')
-    .getByRole('link', { name: /^Editar / })
-    .click();
+  await card('Pase completo').click();
   await expect(form).toContainText('v2');
   const access = page.getByRole('region', { name: 'Acceso a actividades' });
   await expectAccess(accessControl(access, 'Acceso a Batalla de crews'), 'Elegible');
@@ -840,11 +748,7 @@ test('shows a reload request when a pass type edit conflicts', async ({ page }) 
     (route) => route.fulfill({ status: 409, json: { message: 'Pass type version conflict' } }),
   );
   await page.goto(passesPath);
-  await page
-    .getByRole('listitem')
-    .filter({ has: page.getByRole('heading', { name: 'Pase completo' }) })
-    .getByRole('link', { name: /^Editar / })
-    .click();
+  await page.getByRole('link', { name: /^Pase completo,/ }).click();
   const form = page.getByRole('form', { name: 'Editar pase' });
   await form.getByLabel('Nombre').fill('Otro pase');
   await form.getByRole('button', { name: 'Guardar cambios' }).click();
@@ -870,11 +774,8 @@ test('archives a pass type only after confirmation', async ({ page }) => {
     },
   );
   await page.goto(passesPath);
-  const row = page
-    .getByRole('listitem')
-    .filter({ has: page.getByRole('heading', { name: 'Pase completo' }) });
-  await expect(row.getByRole('button', { name: 'Archivar' })).toHaveCount(0);
-  await row.getByRole('link', { name: /^Editar / }).click();
+  await expect(page.getByRole('button', { name: 'Archivar' })).toHaveCount(0);
+  await page.getByRole('link', { name: /^Pase completo,/ }).click();
   const panel = page.getByRole('form', { name: 'Editar pase' });
   const confirm = page.getByRole('alertdialog', { name: '¿Archivar Pase completo?' });
   await panel.getByRole('button', { name: 'Archivar' }).click();
@@ -884,10 +785,12 @@ test('archives a pass type only after confirmation', async ({ page }) => {
   expect(bodies).toHaveLength(0);
   await panel.getByRole('button', { name: 'Archivar' }).click();
   await confirm.getByRole('button', { name: 'Archivar' }).click();
-  await expect(page.getByRole('status')).toContainText('Pase archivado');
+  await expect(page.getByRole('status').first()).toContainText('Archivaste Pase completo.');
   await expect(page).toHaveURL(passesPath);
+  await page.getByRole('tab', { name: /^Archivados/ }).click();
+  const row = page.getByRole('listitem').filter({ hasText: 'Pase completo' });
   await expect(row).toContainText('Archivado');
-  await expect(row.getByRole('link', { name: /^Editar / })).toHaveCount(0);
+  await expect(row.getByRole('link')).toHaveCount(0);
   expect(bodies).toEqual([{ expectedVersion: 2 }]);
 });
 

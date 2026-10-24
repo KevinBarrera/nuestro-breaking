@@ -394,11 +394,8 @@ export async function revealControls(page: Page, name: AdminScreenName) {
     // Not general-entry-only: the activity action is the one shown (#126).
     await page.getByRole('button', { name: 'Registrar entrada a Batalla de crews' }).waitFor();
   }
-  // The list holds cards: links to each pass's own screen and "Restaurar" on archived ones.
-  if (name === 'Pases') {
-    await page.getByRole('link', { name: 'Editar Pase completo' }).waitFor();
-    await page.getByRole('button', { name: /^Restaurar Pase archivado/ }).waitFor();
-  }
+  // The list holds rows: each active one links to the pass's own screen.
+  if (name === 'Pases') await page.getByRole('link', { name: /^Pase completo,/ }).waitFor();
   if (name === 'Inscripciones')
     await page.getByRole('list', { name: 'Inscripciones' }).getByRole('link').first().waitFor();
   // An empty submit shows the field errors, and Más datos is opened so its fields are measured.
@@ -486,14 +483,6 @@ export const adminDialogs: {
         .first()
         .click();
       return page.getByRole('alertdialog', { name: /^¿Archivar / });
-    },
-  },
-  {
-    name: 'pass restore confirmation',
-    screen: 'Pases',
-    open: async (page) => {
-      await page.getByRole('button', { name: /^Restaurar Pase archivado/ }).click();
-      return page.getByRole('alertdialog', { name: /^¿Restaurar Pase archivado/ });
     },
   },
   {

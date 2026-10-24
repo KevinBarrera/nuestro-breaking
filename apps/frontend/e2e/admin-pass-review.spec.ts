@@ -319,7 +319,7 @@ test('archives a pass only from the confirmation dialog, which blocks repeats wh
   await expect(confirm).toBeVisible();
   release();
   await expect(page).toHaveURL(passesPath);
-  await expect(page.getByRole('status')).toContainText('Pase archivado');
+  await expect(page.getByRole('status').first()).toContainText('Archivaste');
   expect(writes).toEqual([
     {
       method: 'POST',
@@ -438,7 +438,7 @@ test('a save notice stays on its screen and does not come back after leaving it'
   await expect(page.getByRole('status')).toContainText('Pase actualizado');
   await breadcrumb(page).getByRole('link', { name: 'Pases' }).click();
   await expect(page.getByRole('status')).toHaveCount(0);
-  await page.getByRole('link', { name: 'Editar Pase VIP', exact: true }).click();
+  await page.getByRole('link', { name: /^Pase VIP,/ }).click();
   await expect(form(page).getByLabel('Nombre')).toHaveValue('Pase VIP');
   await expect(page.getByRole('status')).toHaveCount(0);
 });
@@ -486,11 +486,11 @@ test('sets and clears the online sales close time on the event clock, reviewed f
 test("the pass list shows a pass's online sales close time on the event clock (#240)", async ({
   page,
 }) => {
+  // Before the close date, so the pill still reads "En venta".
+  await page.clock.setFixedTime(new Date('2026-11-10T12:00:00.000Z'));
   await mockCatalog(page, () => [{ ...fullPass, onlineSalesClosesAt: '2026-11-20T16:00:00.000Z' }]);
   await page.goto(passesPath);
-  await expect(
-    page
-      .getByRole('listitem')
-      .filter({ has: page.getByRole('heading', { name: 'Pase completo' }) }),
-  ).toContainText('Venta en línea hasta el 20 nov 2026, 10:00');
+  await expect(page.getByRole('link', { name: /^Pase completo,/ })).toContainText(
+    'En ventaHasta 20 nov 2026, 10:00',
+  );
 });

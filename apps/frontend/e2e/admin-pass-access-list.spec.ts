@@ -108,11 +108,7 @@ async function selectPass(page: Page, name: string) {
     .getByRole('navigation', { name: 'Ruta de navegación' })
     .getByRole('link', { name: 'Pases' });
   if (await back.count()) await back.click();
-  await page
-    .getByRole('listitem')
-    .filter({ has: page.getByRole('heading', { name }) })
-    .getByRole('link', { name: `Editar ${name}`, exact: true })
-    .click();
+  await page.getByRole('link', { name: new RegExp(`^${name},`) }).click();
 }
 
 const list = (page: Page) => page.getByRole('region', { name: 'Acceso a actividades' });

@@ -11,6 +11,10 @@ import type { EventSales } from '@/entities/event-sales';
 
 // Pure derivations for the pass list (#372).
 
+// Ids that link the tabs to the panel the screen renders.
+export const passPanelId = (id: string) => `${id}-panel`;
+export const passTabId = (id: string, tab: CatalogStatus) => `${id}-${tab}`;
+
 export type PassGroup = {
   passClass: PassClass;
   label: string;

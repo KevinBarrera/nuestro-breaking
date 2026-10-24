@@ -1,3 +1,4 @@
+import { fetchAttendeeLists } from '@/entities/attendee-list';
 import {
   archivePassType,
   catalogFailure,
@@ -14,8 +15,10 @@ import {
   type PassTypeActivity,
   type PassTypeInput,
 } from '@/entities/event-catalog';
+import { getEventSales } from '@/entities/event-sales';
 import { type ReactNode, useCallback, useState } from 'react';
 import { Outlet, useLocation, useNavigate, useParams } from 'react-router';
+import { ActivitySuccessNotice } from './activity-feedback';
 import { passRestoreConflict } from './catalog-copy';
 import {
   CatalogLoadFailure,
@@ -23,6 +26,7 @@ import {
   CatalogRefreshFailure,
   type Notice,
 } from './catalog-notice';
+import { soldCounts } from './pass-catalog-model';
 import { PassesHeader } from './pass-screens';
 import { passDetailPath, passListPath, type PassesContext } from './passes-context';
 import { useCatalogLoad } from './use-catalog-load';
@@ -49,12 +53,23 @@ export function AdminEventPassesPage() {
 function EventPasses({ eventId }: { eventId: string }) {
   const load = useCallback(
     async (signal: AbortSignal) => {
-      const [passTypes, activities, event] = await Promise.all([
+      const [passTypes, activities, event, sold, sales] = await Promise.all([
         listPassTypes(eventId, signal),
         listActivities(eventId, signal),
         readCatalogEventContext(eventId, signal),
+        // Vendidos come from the attendee-lists snapshot and the sale pill reads the event's
+        // online sale; without them the column hides and only the pass date decides the pill.
+        fetchAttendeeLists(eventId, signal).then(soldCounts, () => null),
+        getEventSales(eventId, signal).catch(() => null),
       ]);
-      return { passTypes, activities, timeZone: event.timeZone };
+      return {
+        passTypes,
+        activities,
+        timeZone: event.timeZone,
+        eventWindow: event.eventWindow,
+        sold,
+        sales,
+      };
     },
     [eventId],
   );
@@ -145,7 +160,7 @@ function EventPasses({ eventId }: { eventId: string }) {
   function archive(passType: CatalogPassType) {
     return run(
       () => archivePassType(eventId, passType.id, passType.version),
-      'Pase archivado.',
+      `Archivaste ${passType.name}.`,
       () => passListPath(eventId),
     );
   }
@@ -155,7 +170,7 @@ function EventPasses({ eventId }: { eventId: string }) {
   function restore(passType: CatalogPassType) {
     return run(
       async () => replacePass(await restorePassType(eventId, passType.id, passType.version)),
-      'Pase restaurado.',
+      `Restauraste ${passType.name}. Vuelve a estar en venta.`,
       undefined,
       (failure) => (failure === 'conflict' ? passRestoreConflict : undefined),
     );
@@ -214,16 +229,24 @@ function EventPasses({ eventId }: { eventId: string }) {
       </PassesMain>
     );
 
+  const shown = notice?.at === pathname ? notice.notice : null;
   const context: PassesContext = {
     eventId,
     timeZone: state.data.timeZone,
+    eventWindow: state.data.eventWindow,
+    sold: state.data.sold,
+    sales: state.data.sales,
     passTypes: state.data.passTypes,
     activities: state.data.activities,
     loadedPassTypes: state.loaded.passTypes,
     busy,
     notices: (
       <>
-        <CatalogNotice notice={notice?.at === pathname ? notice.notice : null} onReload={refresh} />
+        {shown?.kind === 'success' ? (
+          <ActivitySuccessNotice text={shown.text} busy={busy} onClose={() => setNotice(null)} />
+        ) : (
+          <CatalogNotice notice={shown} onReload={refresh} />
+        )}
         <CatalogRefreshFailure failure={state.refreshFailure} onRetry={reload} />
       </>
     ),
@@ -246,8 +269,8 @@ function EventPasses({ eventId }: { eventId: string }) {
 
 function PassesMain({ children }: { children: ReactNode }) {
   return (
-    <main className="px-4 py-8 text-fg sm:px-8 lg:py-12">
-      <div className="mx-auto max-w-6xl space-y-6">{children}</div>
+    <main className="px-4 py-8 text-fg sm:px-8 lg:pt-10 lg:pb-16">
+      <div className="mx-auto max-w-[1120px] space-y-5">{children}</div>
     </main>
   );
 }

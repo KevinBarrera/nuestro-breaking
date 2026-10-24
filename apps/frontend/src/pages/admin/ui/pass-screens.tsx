@@ -1,17 +1,12 @@
 import type {
   CatalogActivity,
   CatalogPassType,
+  CatalogStatus,
   NewPassTypeInput,
   PassTypeActivity,
   PassTypeInput,
 } from '@/entities/event-catalog';
-import {
-  Breadcrumbs,
-  ConfirmDialog,
-  ReviewChangesDialog,
-  UnsavedChangesGuard,
-  type ChangeRow,
-} from '@/shared/ui';
+import { Breadcrumbs, ReviewChangesDialog, UnsavedChangesGuard, type ChangeRow } from '@/shared/ui';
 import { type Ref, useEffect, useId, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { styles } from './catalog-copy';
@@ -24,8 +19,23 @@ import {
 } from './pass-access-model';
 import { passAccessRows, passFieldRows } from './pass-changes';
 import { PassTypeForm } from './pass-type-form';
-import { ArchivedPassList, PassTypeList } from './pass-type-list';
-import { passDetailPath, passListPath, passNewPath, usePassesContext } from './passes-context';
+import { PlusIcon, WarningIcon } from './activity-icons';
+import {
+  misconfiguredNotice,
+  noAccess,
+  passGroups,
+  passPanelId,
+  passTabCounts,
+  passTabId,
+} from './pass-catalog-model';
+import { PassesEmpty, PassList, PassTabs } from './pass-list';
+import {
+  activitiesPath,
+  passDetailPath,
+  passListPath,
+  passNewPath,
+  usePassesContext,
+} from './passes-context';
 
 const headerClass = 'space-y-2 border-b border-line pb-6';
 const titleClass = 'text-3xl font-bold tracking-tight break-words text-heading';
@@ -37,98 +47,128 @@ type PassesHeaderProps = {
 };
 
 // The list header; "Nuevo pase" only shows once the catalog is readable. The heading takes
-// focus after a restore when the restored card is not shown.
+// focus after a restore, when the restored row leaves the Archivados tab.
 export function PassesHeader({ eventId, canCreate = false, headingRef }: PassesHeaderProps) {
   return (
-    <header className="flex flex-wrap items-end justify-between gap-4 border-b border-line pb-6">
-      <div className="min-w-0">
-        <h1 ref={headingRef} tabIndex={-1} className={`${titleClass} outline-none`}>
+    <div className="flex flex-wrap items-end justify-between gap-4">
+      <header className="max-w-[660px] space-y-1.5">
+        <h1
+          ref={headingRef}
+          tabIndex={-1}
+          className="text-3xl font-extrabold tracking-tight text-heading outline-none"
+        >
           Pases
         </h1>
-        <p className="mt-1 text-sm text-muted">
-          Qué se vende y a qué da acceso cada pase. Los cambios de precio no afectan lo ya vendido.
+        <p className="text-muted">
+          Lo que el público compra. Cada pase tiene un precio y define a qué actividades da acceso.
         </p>
-      </div>
+      </header>
       {canCreate && (
-        <Link to={passNewPath(eventId)} className={`${styles.primary} inline-flex items-center`}>
+        <Link to={passNewPath(eventId)} className={styles.primaryLarge}>
+          <PlusIcon />
           Nuevo pase
         </Link>
       )}
-    </header>
+    </div>
   );
 }
 
-// Active passes fill the main list; archived ones sit in "Archivados" below, each with a
-// "Restaurar" that asks first. A confirmed restore moves the pass to the main list, and focus
-// goes to its card link (the "Restaurar" that opened the dialog is gone), or to the heading.
+// Activos / Archivados tabs over the passes grouped by class. Archived rows restore right away
+// (like Actividades); the restored row leaves the tab, so focus goes to the heading.
 export function PassListScreen() {
-  const { eventId, timeZone, passTypes, activities, busy, notices, restore } = usePassesContext();
-  const [restoring, setRestoring] = useState<CatalogPassType | null>(null);
-  const [focusPass, setFocusPass] = useState<{ id: string } | null>(null);
+  const { eventId, timeZone, passTypes, activities, sold, sales, busy, notices, restore } =
+    usePassesContext();
+  const [tab, setTab] = useState<CatalogStatus>('active');
+  const [focusRequest, setFocusRequest] = useState(0);
+  // The sale pill compares pass close dates with the time the list was opened.
+  const [now] = useState(() => Date.now());
   const headingRef = useRef<HTMLHeadingElement>(null);
-  const listRef = useRef<HTMLElement>(null);
-  const archivedHeadingId = useId();
+  const tabsId = useId();
   const activityById = new Map(activities.map((activity) => [activity.id, activity]));
-  const active = passTypes.filter((passType) => passType.status === 'active');
-  const archived = passTypes.filter((passType) => passType.status !== 'active');
+  const groups = passGroups(passTypes, tab);
+  const notice =
+    tab === 'active'
+      ? misconfiguredNotice(
+          passTypes.filter(
+            (passType) => passType.status === 'active' && noAccess(passType, activityById),
+          ),
+        )
+      : null;
 
-  // On the next frame, after the dialog's own focus restore.
   useEffect(() => {
-    if (!focusPass) return;
-    const frame = requestAnimationFrame(() => {
-      const link = listRef.current?.querySelector<HTMLAnchorElement>(
-        `[data-pass-link="${CSS.escape(focusPass.id)}"]`,
-      );
-      (link ?? headingRef.current)?.focus();
-    });
+    if (!focusRequest) return;
+    const frame = requestAnimationFrame(() => headingRef.current?.focus());
     return () => cancelAnimationFrame(frame);
-  }, [focusPass]);
+  }, [focusRequest]);
 
-  // A failure closes the dialog too, so the alert under the header is in view.
-  async function confirmRestore(passType: CatalogPassType) {
-    const restored = await restore(passType);
-    setRestoring(null);
-    if (restored) setFocusPass({ id: passType.id });
+  async function restoreNow(passType: CatalogPassType) {
+    if (await restore(passType)) setFocusRequest((value) => value + 1);
   }
 
   return (
     <>
       <PassesHeader eventId={eventId} canCreate headingRef={headingRef} />
       {notices}
-      <section ref={listRef} aria-label="Lista de pases">
-        <PassTypeList
-          passTypes={active}
-          activities={activityById}
-          timeZone={timeZone}
-          detailPath={(passTypeId) => passDetailPath(eventId, passTypeId)}
-          emptyText={
-            archived.length > 0 ? 'No hay pases activos.' : 'Aún no hay pases para este evento.'
-          }
-        />
-      </section>
-      {archived.length > 0 && (
-        <section aria-labelledby={archivedHeadingId} className="space-y-3">
-          <h2 id={archivedHeadingId} className="text-lg font-bold text-heading">
-            Archivados
-          </h2>
-          <ArchivedPassList passTypes={archived} busy={busy} onRestore={setRestoring} />
-        </section>
-      )}
-      {restoring && (
-        <ConfirmDialog
-          isOpen
-          onOpenChange={(open) => {
-            if (!open && !busy) setRestoring(null);
-          }}
-          title={`¿Restaurar ${restoring.name}?`}
-          consequence="Volverá a estar activo con los mismos accesos que tenía y se podrá asignar de nuevo."
-          confirmLabel="Restaurar"
-          pendingLabel="Restaurando…"
-          isPending={busy}
-          onConfirm={() => void confirmRestore(restoring)}
-        />
+      {passTypes.length === 0 ? (
+        <PassesEmpty newPath={passNewPath(eventId)} activitiesPath={activitiesPath(eventId)} />
+      ) : (
+        <>
+          <PassTabs id={tabsId} tab={tab} counts={passTabCounts(passTypes)} onChange={setTab} />
+          <section
+            role="tabpanel"
+            id={passPanelId(tabsId)}
+            aria-labelledby={passTabId(tabsId, tab)}
+            className="min-w-0 space-y-5"
+          >
+            {notice && (
+              <p
+                role="status"
+                className="flex items-start gap-2.5 rounded-lg border border-warning-fg bg-warning px-4 py-3 text-sm text-warning-fg"
+              >
+                <span className="mt-px shrink-0">
+                  <WarningIcon size={18} />
+                </span>
+                <span>
+                  <b>{notice.title}</b> {notice.text}
+                </span>
+              </p>
+            )}
+            {groups.length > 0 ? (
+              <PassList
+                groups={groups}
+                activityById={activityById}
+                sold={tab === 'active' ? sold : null}
+                sales={sales}
+                now={now}
+                timeZone={timeZone}
+                detailPath={(passTypeId) => passDetailPath(eventId, passTypeId)}
+                busy={busy}
+                onRestore={(passType) => void restoreNow(passType)}
+              />
+            ) : tab === 'archived' ? (
+              <ListEmpty
+                title="No hay pases archivados"
+                text="Cuando archives un pase aparecerá aquí. Quien ya lo compró lo conserva."
+              />
+            ) : (
+              <ListEmpty
+                title="Aún no hay pases activos"
+                text="Crea lo que vas a vender o restaura un pase desde Archivados."
+              />
+            )}
+          </section>
+        </>
       )}
     </>
+  );
+}
+
+function ListEmpty({ title, text }: { title: string; text: string }) {
+  return (
+    <div className="flex flex-col items-center gap-2 rounded-xl border border-line bg-surface px-6 py-10 text-center">
+      <p className="font-bold text-heading">{title}</p>
+      <p className="max-w-[440px] text-sm text-muted">{text}</p>
+    </div>
   );
 }
 
@@ -342,7 +382,7 @@ function PassNotFound({ eventId }: { eventId: string }) {
       </header>
       <p className="text-muted">
         Puede que el enlace esté incompleto o que el pase esté archivado. Los pases archivados están
-        en la sección «Archivados» de la lista de pases, donde puedes restaurarlos para volver a
+        en la pestaña «Archivados» de la lista de pases, donde puedes restaurarlos para volver a
         editarlos.
       </p>
       <Link to={passListPath(eventId)} className={`${styles.secondary} inline-flex items-center`}>

@@ -255,3 +255,19 @@ test('a restore 409 shows a visible alert with "Recargar" and no success', async
   await expect(page.getByText('Restauraste')).toHaveCount(0);
   await expect(row(page, 'Cypher cancelado')).toBeVisible();
 });
+
+test('opening the editor drops the "Deshacer" notice, so no undo sends an older version', async ({
+  page,
+}) => {
+  const api = store([battle, { ...cypher, status: 'active' }]);
+  await mockCatalog(page, api.rows, api.write);
+  await page.goto(activitiesPath);
+
+  await page.getByRole('button', { name: 'Archivar Cypher cancelado' }).click();
+  await page.getByRole('alertdialog').getByRole('button', { name: 'Archivar' }).click();
+  await expect(page.getByRole('button', { name: 'Deshacer' })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Editar Batalla de crews' }).click();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('button', { name: 'Deshacer' })).toHaveCount(0);
+});

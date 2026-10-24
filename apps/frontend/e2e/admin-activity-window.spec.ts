@@ -1,9 +1,8 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
-import { chooseOption, selectTrigger } from './support/select.ts';
 
-// The activity form keeps "Inicio" and "Fin" inside a bounded event's dates (#295): the pickers
-// are limited, a wrong field is marked before anything is sent, and a server answer that names
-// the failing fields marks them and brings the current event dates.
+// The activity form keeps "Empieza" and "Termina" inside a bounded event's dates (#295): "Día"
+// offers only the event days, a time outside the event is marked before anything is sent, and a
+// server answer that names the failing fields marks them and brings the current event dates.
 const eventId = 'a1b2c3d4-1234-4567-89ab-123456789abc';
 const venueId = 'e1b2c3d4-1234-4567-89ab-123456789abc';
 const activitiesPath = `/admin/events/${eventId}/activities`;
@@ -17,7 +16,6 @@ const eventDates = {
 
 const outsideStart = 'El inicio debe estar dentro de las fechas del evento.';
 const outsideEnd = 'El fin debe estar dentro de las fechas del evento.';
-const notAfterStart = 'El fin debe ser posterior al inicio.';
 
 function foundation(dates: { startsAt: string | null; endsAt: string | null }) {
   return {
@@ -58,98 +56,78 @@ async function mockCatalog(
   );
 }
 
+// A valid create answer; its values do not matter to these checks.
+const created = {
+  id: 'd9b2c3d4-1234-4567-89ab-123456789abc',
+  eventId,
+  venueId,
+  kind: 'social',
+  name: 'Cypher',
+  startsAt: '2026-11-14T16:00:00.000Z',
+  endsAt: '2026-11-14T17:00:00.000Z',
+  status: 'active',
+  version: 1,
+};
+
 async function openNewActivity(page: Page) {
   await page.goto(activitiesPath);
   await page.getByRole('button', { name: 'Nueva actividad' }).click();
   const dialog = page.getByRole('dialog', { name: 'Nueva actividad' });
   await dialog.getByLabel('Nombre').fill('Cypher');
-  await chooseOption(selectTrigger(dialog, 'Tipo'), 'Social');
+  await dialog.getByRole('radio', { name: 'Social' }).check();
   return dialog;
 }
 
-const save = (dialog: ReturnType<Page['getByRole']>) =>
-  dialog.getByRole('button', { name: 'Guardar', exact: true }).click();
+const create = (dialog: ReturnType<Page['getByRole']>) =>
+  dialog.getByRole('button', { name: 'Crear actividad' }).click();
+const startOf = (dialog: ReturnType<Page['getByRole']>) => dialog.getByLabel('Empieza');
+const endOf = (dialog: ReturnType<Page['getByRole']>) =>
+  dialog.getByLabel('Termina', { exact: true });
 
-test('limits the pickers to the event dates and says them under the fields', async ({ page }) => {
+test('offers the event days on the event clock for "Día"', async ({ page }) => {
   await mockCatalog(page);
   const dialog = await openNewActivity(page);
-  const start = dialog.getByLabel('Inicio');
-  const end = dialog.getByLabel('Fin');
 
-  await expect(start).toHaveAttribute('min', '2026-11-14T09:00');
-  await expect(start).toHaveAttribute('max', '2026-11-15T23:00');
-  await expect(end).toHaveAttribute('min', '2026-11-14T09:00');
-  await expect(end).toHaveAttribute('max', '2026-11-15T23:00');
-  await expect(dialog.getByText('El evento va del 14 al 15 de noviembre de 2026.')).toBeVisible();
-
-  await start.fill('2026-11-14T12:30');
-  await expect(end).toHaveAttribute('min', '2026-11-14T12:30');
+  await expect(dialog.getByRole('group', { name: 'Día' }).getByRole('radio')).toHaveCount(2);
+  await expect(dialog.getByRole('radio', { name: 'Sábado 14 de noviembre' })).toBeChecked();
+  await expect(dialog.getByRole('radio', { name: 'Domingo 15 de noviembre' })).not.toBeChecked();
+  await expect(startOf(dialog)).toHaveAttribute('step', '300');
 });
 
 test('blocks a start and end outside the event, marks them and sends nothing', async ({ page }) => {
-  const writes: string[] = [];
+  const writes: unknown[] = [];
   await mockCatalog(page, foundation(eventDates), (route) => {
-    writes.push(route.request().method());
-    return route.fulfill({ status: 500, json: {} });
+    writes.push(route.request().postDataJSON());
+    return route.fulfill({ status: 201, json: created });
   });
   const dialog = await openNewActivity(page);
-  const start = dialog.getByLabel('Inicio');
-  const end = dialog.getByLabel('Fin');
 
-  await start.fill('2026-11-14T08:00');
-  await end.fill('2026-11-16T01:00');
-  await save(dialog);
-
-  await expect(start).toHaveAttribute('aria-invalid', 'true');
-  await expect(start).toHaveAccessibleDescription(new RegExp(outsideStart));
-  await expect(end).toHaveAttribute('aria-invalid', 'true');
-  await expect(end).toHaveAccessibleDescription(new RegExp(outsideEnd));
-  await expect(start).toBeFocused();
-  // "Inicio" has the focus, which recolors its border; "Fin" shows the danger state at rest.
-  await expect(end).toHaveCSS('border-top-color', await dangerColor(dialog));
-  await expect(page.getByRole('dialog', { name: 'Revisar cambios' })).toHaveCount(0);
+  // Saturday opens at 09:00.
+  await startOf(dialog).fill('08:00');
+  await endOf(dialog).fill('10:00');
+  await create(dialog);
+  await expect(startOf(dialog)).toHaveAttribute('aria-invalid', 'true');
+  await expect(startOf(dialog)).toHaveAccessibleDescription(new RegExp(outsideStart));
+  await expect(startOf(dialog)).toBeFocused();
   expect(writes).toEqual([]);
 
-  // Fixing the start clears only its own mark; the end stays wrong and takes the focus.
-  await start.fill('2026-11-14T10:00');
-  await expect(start).not.toHaveAttribute('aria-invalid');
-  await expect(dialog.getByText(outsideStart)).toHaveCount(0);
-  await save(dialog);
-  await expect(end).toBeFocused();
-  await expect(start).not.toHaveAttribute('aria-invalid');
-
-  await end.fill('2026-11-14T12:00');
-  await save(dialog);
-  await expect(page.getByRole('dialog', { name: 'Revisar cambios' })).toBeVisible();
+  // Sunday closes at 23:00.
+  await dialog.getByRole('radio', { name: /Domingo/ }).check();
+  await startOf(dialog).fill('22:30');
+  await endOf(dialog).fill('23:30');
+  await create(dialog);
+  await expect(endOf(dialog)).toHaveAttribute('aria-invalid', 'true');
+  await expect(endOf(dialog)).toHaveAccessibleDescription(new RegExp(outsideEnd));
+  await expect(endOf(dialog)).toBeFocused();
+  await expect(startOf(dialog)).not.toHaveAttribute('aria-invalid');
   expect(writes).toEqual([]);
-});
 
-// The danger border is a `--nb-*` token, so read it from the page instead of hard-coding a color.
-async function dangerColor(dialog: ReturnType<Page['getByRole']>) {
-  return dialog.evaluate((node) => {
-    const probe = document.createElement('span');
-    probe.className = 'border border-danger-fg';
-    node.append(probe);
-    const color = getComputedStyle(probe).borderTopColor;
-    probe.remove();
-    return color;
-  });
-}
-
-test('marks only "Fin" when it is not after "Inicio"', async ({ page }) => {
-  await mockCatalog(page);
-  const dialog = await openNewActivity(page);
-  const start = dialog.getByLabel('Inicio');
-  const end = dialog.getByLabel('Fin');
-
-  await start.fill('2026-11-14T12:00');
-  await end.fill('2026-11-14T12:00');
-  await save(dialog);
-
-  await expect(end).toHaveAttribute('aria-invalid', 'true');
-  await expect(end).toHaveAccessibleDescription(new RegExp(notAfterStart));
-  await expect(end).toBeFocused();
-  await expect(start).not.toHaveAttribute('aria-invalid');
+  // Editing a time clears the mark.
+  await endOf(dialog).fill('23:00');
+  await expect(endOf(dialog)).not.toHaveAttribute('aria-invalid');
+  await create(dialog);
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  expect(writes).toHaveLength(1);
 });
 
 test('a server answer naming the fields marks them and updates the event dates', async ({
@@ -165,47 +143,54 @@ test('a server answer naming the fields marks them and updates the event dates',
       json: {
         statusCode: 400,
         message: 'Invalid activity window',
-        fieldErrors: { endsAt: 'outside_event_window' },
+        fieldErrors: { startsAt: 'outside_event_window', endsAt: 'outside_event_window' },
         eventWindow: shorter,
       },
     });
   });
   const dialog = await openNewActivity(page);
-  await dialog.getByLabel('Inicio').fill('2026-11-14T20:00');
-  await dialog.getByLabel('Fin').fill('2026-11-15T10:00');
-  await save(dialog);
-  await page
-    .getByRole('dialog', { name: 'Revisar cambios' })
-    .getByRole('button', { name: 'Guardar cambios' })
-    .click();
+  await dialog.getByRole('radio', { name: /Domingo/ }).check();
+  await startOf(dialog).fill('12:00');
+  await endOf(dialog).fill('13:00');
+  await create(dialog);
 
-  const end = dialog.getByLabel('Fin');
-  await expect(page.getByRole('dialog', { name: 'Revisar cambios' })).toHaveCount(0);
-  await expect(end).toHaveAttribute('aria-invalid', 'true');
-  await expect(end).toHaveAccessibleDescription(new RegExp(outsideEnd));
-  await expect(end).toBeFocused();
-  await expect(dialog.getByLabel('Inicio')).not.toHaveAttribute('aria-invalid');
-  await expect(end).toHaveAttribute('max', '2026-11-14T23:00');
-  await expect(dialog.getByText('El evento es el 14 de noviembre de 2026.')).toBeVisible();
+  await expect(startOf(dialog)).toHaveAttribute('aria-invalid', 'true');
+  await expect(startOf(dialog)).toHaveAccessibleDescription(new RegExp(outsideStart));
+  await expect(endOf(dialog)).toHaveAttribute('aria-invalid', 'true');
+  await expect(startOf(dialog)).toBeFocused();
+  // "Día" now offers Saturday only.
+  await expect(dialog.getByRole('group', { name: 'Día' }).getByRole('radio')).toHaveCount(1);
   expect(bodies).toHaveLength(1);
 
-  // The new limits apply at once: the same wrong end is now caught without another request.
-  await save(dialog);
-  await expect(page.getByRole('dialog', { name: 'Revisar cambios' })).toHaveCount(0);
+  // The new dates apply at once: the same wrong day is now caught without another request.
+  await create(dialog);
+  await expect(startOf(dialog)).toHaveAttribute('aria-invalid', 'true');
   expect(bodies).toHaveLength(1);
 });
 
-test('an unbounded event offers no limits and no hint', async ({ page }) => {
-  await mockCatalog(page, foundation({ startsAt: null, endsAt: null }));
+test('an unbounded event asks for a date', async ({ page }) => {
+  const bodies: unknown[] = [];
+  await mockCatalog(page, foundation({ startsAt: null, endsAt: null }), (route) => {
+    bodies.push(route.request().postDataJSON());
+    return route.fulfill({ status: 201, json: created });
+  });
   const dialog = await openNewActivity(page);
 
-  await expect(dialog.getByLabel('Inicio')).not.toHaveAttribute('min');
-  await expect(dialog.getByLabel('Fin')).not.toHaveAttribute('max');
-  await expect(dialog.getByText(/El evento (va del|es el)/)).toHaveCount(0);
-
-  await dialog.getByLabel('Inicio').fill('2031-01-02T20:00');
-  await dialog.getByLabel('Fin').fill('2031-01-02T19:00');
-  await save(dialog);
-  await expect(dialog.getByLabel('Fin')).toHaveAttribute('aria-invalid', 'true');
-  await expect(dialog.getByLabel('Fin')).toHaveAccessibleDescription(new RegExp(notAfterStart));
+  await expect(dialog.getByRole('radio', { name: /Sábado/ })).toHaveCount(0);
+  await dialog.getByLabel('Día', { exact: true }).fill('2031-01-02');
+  await startOf(dialog).fill('20:00');
+  await endOf(dialog).fill('19:00');
+  await expect(dialog.getByRole('alert')).toHaveText('La hora de fin debe ser después del inicio.');
+  await endOf(dialog).fill('21:00');
+  await create(dialog);
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  expect(bodies).toEqual([
+    {
+      name: 'Cypher',
+      kind: 'social',
+      venueId,
+      startsAt: '2031-01-03T02:00:00.000Z',
+      endsAt: '2031-01-03T03:00:00.000Z',
+    },
+  ]);
 });

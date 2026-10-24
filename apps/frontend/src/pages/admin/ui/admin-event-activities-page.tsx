@@ -5,6 +5,7 @@ import {
   catalogFailure,
   createActivity,
   listActivities,
+  listPassTypes,
   readCatalogEventContext,
   restoreActivity,
   updateActivity,
@@ -13,7 +14,6 @@ import {
   type CatalogActivity,
   type CatalogFailure,
 } from '@/entities/event-catalog';
-import { buttonClass, Modal, ReviewChangesDialog, type ChangeRow } from '@/shared/ui';
 import { type ReactNode, useCallback, useEffect, useId, useRef, useState } from 'react';
 import { useParams } from 'react-router';
 import { ActivityAgendaFilters } from './activity-agenda-filters';
@@ -25,6 +25,7 @@ import {
   enrolledCount,
   enrollmentCounts,
   kindOptions,
+  passNames,
   tabCounts,
   type AgendaDay,
   type AgendaFilters,
@@ -34,12 +35,11 @@ import {
   ActivityArchiveDialog,
   ActivitySuccessNotice,
   AgendaEmpty,
-  PlusIcon,
-  primaryLarge,
 } from './activity-feedback';
-import { ActivityForm } from './activity-form';
+import { PlusIcon } from './activity-icons';
+import { ActivityEditor } from './activity-editor';
 import { ActivityList } from './activity-list';
-import { activityRestoreConflict } from './catalog-copy';
+import { activityRestoreConflict, styles } from './catalog-copy';
 import {
   CatalogLoadFailure,
   CatalogNotice,
@@ -49,7 +49,6 @@ import {
 import { useCatalogLoad } from './use-catalog-load';
 
 type Editor = { mode: 'create' } | { mode: 'edit'; activity: CatalogActivity } | null;
-type Review = { input: ActivityInput; rows: ChangeRow[] };
 // A confirmed write. Archive and restore can be undone with the opposite call, using the
 // version the server returned.
 type Success = {
@@ -79,21 +78,21 @@ export function AdminEventActivitiesPage() {
 function EventActivities({ eventId }: { eventId: string }) {
   const load = useCallback(
     async (signal: AbortSignal) => {
-      const [context, activities, enrolled] = await Promise.all([
+      const [context, activities, enrolled, passTypes] = await Promise.all([
         readCatalogEventContext(eventId, signal),
         listActivities(eventId, signal),
-        // Inscritos come from the attendee-lists snapshot; without it the column hides.
+        // Inscritos come from the attendee-lists snapshot and the passes per activity from the
+        // pass types; without them the column and the edit summary leave that part out.
         fetchAttendeeLists(eventId, signal).then(enrollmentCounts, () => null),
+        listPassTypes(eventId, signal).catch(() => null),
       ]);
-      return { context, activities, enrolled };
+      return { context, activities, enrolled, passTypes };
     },
     [eventId],
   );
   const { state, reload, update } = useCatalogLoad(load);
-  const formId = useId();
   const tabsId = useId();
   const [editor, setEditor] = useState<Editor>(null);
-  const [review, setReview] = useState<Review | null>(null);
   const [archiving, setArchiving] = useState<CatalogActivity | null>(null);
   const [busy, setBusy] = useState(false);
   // The last server answer that named the failing fields of an activity window (#295).
@@ -121,7 +120,6 @@ function EventActivities({ eventId }: { eventId: string }) {
     try {
       const result = await action();
       setEditor(null);
-      setReview(null);
       setArchiving(null);
       setSuccess(done(result));
       reload();
@@ -134,14 +132,12 @@ function EventActivities({ eventId }: { eventId: string }) {
           ...current,
           context: { ...current.context, eventWindow: problem.eventWindow },
         }));
-        setReview(null);
         return;
       }
       const failure = catalogFailure(error);
       const text = failure === 'conflict' ? conflict : undefined;
       setNotice({ kind: 'failure', failure, ...(text && { text }) });
-      // Other failures go back to the form with the edits intact, where the alert is shown.
-      setReview(null);
+      // Other failures stay in the editor with the edits intact, where the alert is shown.
       setArchiving(null);
       if (needsReload(failure)) setEditor(null);
     } finally {
@@ -189,7 +185,7 @@ function EventActivities({ eventId }: { eventId: string }) {
     () =>
       action === 'restore' ? restore(activity, true) : archive(activity, true);
 
-  function save({ input }: Review) {
+  function save(input: ActivityInput) {
     if (editor?.mode === 'edit') {
       const { id, version } = editor.activity;
       void run(() => updateActivity(eventId, id, version, input), {
@@ -214,8 +210,10 @@ function EventActivities({ eventId }: { eventId: string }) {
   const refreshFailure = state.status === 'ready' ? state.refreshFailure : null;
   const venueNames = new Map(data?.context.venues.map((venue) => [venue.id, venue.name]));
 
+  // The "Deshacer" notice goes away too: an undo after an edit would send an older version.
   function openEditor(next: Editor) {
     setNotice(null);
+    setSuccess(null);
     setWindowProblem(null);
     setEditor(next);
   }
@@ -224,7 +222,6 @@ function EventActivities({ eventId }: { eventId: string }) {
   // button that opened it.
   function closeEditor() {
     setNotice(null);
-    setReview(null);
     setEditor(null);
   }
 
@@ -248,7 +245,7 @@ function EventActivities({ eventId }: { eventId: string }) {
             </p>
           </header>
           {data && (
-            <button type="button" className={primaryLarge} onClick={openCreate}>
+            <button type="button" className={styles.primaryLarge} onClick={openCreate}>
               <PlusIcon />
               Nueva actividad
             </button>
@@ -262,65 +259,28 @@ function EventActivities({ eventId }: { eventId: string }) {
             {!editor && <CatalogNotice notice={notice} onReload={refresh} />}
             <CatalogRefreshFailure failure={refreshFailure} onRetry={reload} />
             {editor && (
-              <Modal
-                title={editor.mode === 'edit' ? 'Editar actividad' : 'Nueva actividad'}
-                isOpen
-                onOpenChange={(open) => {
-                  if (!open && !busy) closeEditor();
-                }}
-                isKeyboardDismissDisabled={busy}
-                actions={
-                  <>
-                    <button
-                      type="button"
-                      disabled={busy}
-                      className={buttonClass('secondary')}
-                      onClick={closeEditor}
-                    >
-                      Cancelar
-                    </button>
-                    <button
-                      type="submit"
-                      form={formId}
-                      disabled={busy || data.context.venues.length === 0}
-                      className={buttonClass('primary')}
-                    >
-                      Guardar
-                    </button>
-                  </>
+              <ActivityEditor
+                key={editor.mode === 'edit' ? editor.activity.id : 'new'}
+                activity={editor.mode === 'edit' ? editor.activity : undefined}
+                activities={data.activities}
+                venues={data.context.venues}
+                timeZone={data.context.timeZone}
+                eventWindow={data.context.eventWindow}
+                enrolled={
+                  editor.mode === 'edit' ? enrolledCount(data.enrolled, editor.activity) : undefined
                 }
-              >
-                <div className="space-y-4 pb-1">
-                  <CatalogNotice notice={notice} onReload={refresh} />
-                  <ActivityForm
-                    key={editor.mode === 'edit' ? editor.activity.id : 'new'}
-                    id={formId}
-                    title={editor.mode === 'edit' ? 'Editar actividad' : 'Nueva actividad'}
-                    activity={editor.mode === 'edit' ? editor.activity : undefined}
-                    venues={data.context.venues}
-                    timeZone={data.context.timeZone}
-                    eventWindow={data.context.eventWindow}
-                    windowProblem={windowProblem}
-                    busy={busy}
-                    onReview={(input, rows) => {
-                      setNotice(null);
-                      setReview({ input, rows });
-                    }}
-                  />
-                </div>
-              </Modal>
+                passes={
+                  editor.mode === 'edit' && data.passTypes
+                    ? passNames(data.passTypes, editor.activity.id)
+                    : null
+                }
+                windowProblem={windowProblem}
+                notice={<CatalogNotice notice={notice} onReload={refresh} />}
+                busy={busy}
+                onClose={closeEditor}
+                onSave={save}
+              />
             )}
-            <ReviewChangesDialog
-              isOpen={review !== null}
-              onOpenChange={(open) => {
-                if (!open && !busy) setReview(null);
-              }}
-              rows={review?.rows ?? []}
-              onConfirm={() => {
-                if (review) save(review);
-              }}
-              isPending={busy}
-            />
             {archiving && (
               <ActivityArchiveDialog
                 activity={archiving}

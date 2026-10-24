@@ -72,6 +72,9 @@ const fieldClass =
 export const styles = {
   primary:
     'min-h-11 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-fg hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus disabled:cursor-wait disabled:opacity-50',
+  // A page's main call to action: 48px tall.
+  primaryLarge:
+    'inline-flex min-h-12 items-center gap-2 rounded-lg bg-primary px-5 text-[15px] font-bold text-primary-fg hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus disabled:cursor-wait disabled:opacity-50',
   secondary:
     'min-h-11 rounded-lg border border-line px-4 py-2 text-sm font-semibold text-fg hover:bg-row focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus disabled:cursor-wait disabled:opacity-50',
   danger:

@@ -21,12 +21,12 @@ Test runner: Vitest for pure logic and Playwright (`apps/frontend/e2e`) for flow
 
 ## Tasks
 
-| ID  | Specs      | Route  | Status  | Commit  |
-| --- | ---------- | ------ | ------- | ------- |
-| T1  | S2–S5, S8  | inline | done    | 70077ee |
-| T2  | S2–S8, S12 | inline | done    | f2ea529 |
-| T3  | S9–S11     | inline | pending |         |
-| T4  | S9–S12     | inline | pending |         |
+| ID  | Specs      | Route  | Status | Commit  |
+| --- | ---------- | ------ | ------ | ------- |
+| T1  | S2–S5, S8  | inline | done   | 70077ee |
+| T2  | S2–S8, S12 | inline | done   | f2ea529 |
+| T3  | S9–S11     | inline | done   | 563508a |
+| T4  | S9–S12     | inline | done   | see L7  |
 
 T1 = list model (pure), T2 = list screen, T3 = form model (pure), T4 = form and review step.
 
@@ -38,3 +38,4 @@ T1 = list model (pure), T2 = list screen, T3 = form model (pure), T4 = form and 
 - **L4:** T2 (`feat/367-02-activities-screen`): screen rewritten from the artboards (`activity-agenda-filters.tsx` tabs + search + chips, `activity-list.tsx` rows with container query, `activity-feedback.tsx` notice with Deshacer, archive dialog and empty states). Found in Chrome: the snapshot only lists activities someone has access to, so `enrolledCount` reads a missing active competition or workshop as 0 (RED 2, GREEN 31/31). Deviations: an empty kind filter (selected chip at 0) says "Ninguna actividad de este tipo" / "Quita el filtro de tipo para ver las demás." (the design has no copy for it); focus goes to the heading after archive, restore and Deshacer. Specs: `admin-activity-agenda.spec.ts` rewritten, `admin-activity-restore.spec.ts` became `admin-activity-archive.spec.ts` (archive warning, Deshacer both ways, restore without confirmation, 409), the sweeps' restore dialog became the archive dialog, catalog spec copy updated. Checked in Chrome (light, dark, archive + Deshacer on the local event, Archivadas empty, phone width). `verify:pr` green (595 e2e).
 - **L5:** T2 committed (f2ea529). Native review of the #367 slice (`dev`..f2ea529, readability and reliability; review_due was `under_budget`, run per the review-before-push rule, consent granted per the standing rule): approved and acknowledged. Non-blocking follow-ups taken into T4: move the shared icons and button class out of `activity-list.tsx` / `activity-feedback.tsx`; clear the "Deshacer" notice when the editor opens, so an undo never sends a version older than an edit made since. Left as is: `passNames` is used by T4; the overlap check needs no "same day" test (overlapping instants already are).
 - **L6:** T3 (`feat/368-01-activity-form-model`): `activity-form-model.ts` with `eventDayOptions`, `activityDraft`, `draftWindow`, `checkTimes`, `durationLabel`, `scheduleLabel`, `overlapNames`, `editSummary`, `reviewWarning`; `activityChangeRows` now lists Nombre, Tipo, Horario (one row for day and times), Sede. RED (module missing + 2 row tests), then GREEN 27/27. Two modal e2e expect the old review rows and the create review; T4 rewrites them, so T3 and T4 ship in one PR (#368).
+- **L7:** T4 (`feat/368-02-activity-form`): `activity-editor.tsx` owns the draft and the step (create saves with "Crear actividad"; edit reviews as step 2 of the same Modal, "Volver a editar" keeps the values); `activity-form.tsx` rewritten as fields (segmented Tipo and Día, time inputs with 5-minute step, "Termina otro día", duration, overlap, edit summary from attendee lists and pass types); `activity-window-field.tsx` removed; `activityChangeRows` requires the original. Shared `Modal`: the header is a row so `closeLabel` sits beside the title, and `leading` stays above the title outside cards (CorrectionDialog unchanged). Review follow-ups done: icons moved to `activity-icons.tsx` and `styles.primaryLarge`; opening the editor drops the Deshacer notice (new e2e). Deviations: native time inputs follow the browser locale (12 h in an English Chrome); an event without dates asks for a date. Checked in Chrome (new with overlap, edit summary, disabled "Revisar cambios", review with the inscritos warning, "Volver a editar", dark theme, phone width; nothing saved to the local event). Specs: `admin-activities-modal.spec.ts` and `admin-activity-window.spec.ts` rewritten, catalog spec adapted. `verify:pr` green (598 e2e, 470 admin unit).

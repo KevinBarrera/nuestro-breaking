@@ -7,6 +7,7 @@ import {
   overlapping,
   type AgendaDay,
 } from './activity-agenda-model';
+import { ArchiveIcon, RestoreIcon, WarningIcon } from './activity-icons';
 import { activityKindLabel, styles } from './catalog-copy';
 
 type ActivityListProps = {
@@ -148,34 +149,3 @@ function ActivityRow({
     </li>
   );
 }
-
-const iconProps = {
-  'aria-hidden': true,
-  viewBox: '0 0 20 20',
-  fill: 'none',
-  stroke: 'currentColor',
-  strokeWidth: 1.75,
-  strokeLinecap: 'round',
-  strokeLinejoin: 'round',
-} as const;
-
-export const WarningIcon = ({ size = 12 }: { size?: number }) => (
-  <svg {...iconProps} width={size} height={size} strokeWidth={size < 16 ? 2.25 : 1.75}>
-    <path d="M10 3l8 14H2z" />
-    <path d="M10 8.5v3.5M10 14.5v.01" />
-  </svg>
-);
-
-const ArchiveIcon = () => (
-  <svg {...iconProps} width="18" height="18">
-    <rect x="2.5" y="4" width="15" height="4" rx="1" />
-    <path d="M4 8v7.5A1.5 1.5 0 0 0 5.5 17h9a1.5 1.5 0 0 0 1.5-1.5V8M8 11h4" />
-  </svg>
-);
-
-const RestoreIcon = () => (
-  <svg {...iconProps} width="16" height="16">
-    <path d="M4 10a6 6 0 1 0 1.8-4.3" />
-    <path d="M4 3.5V7h3.5" />
-  </svg>
-);

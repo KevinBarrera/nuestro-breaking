@@ -126,13 +126,17 @@ async function confirmReview(page: Page) {
 
 // The activity form's "Guardar" sits in its dialog footer and opens "Revisar cambios"; only
 // "Guardar cambios" there writes.
+// An edit goes through "Revisa los cambios"; a new activity saves straight from the form.
 async function saveActivity(page: Page) {
-  await page.getByRole('dialog').getByRole('button', { name: 'Guardar', exact: true }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Revisar cambios' }).click();
   await page
-    .getByRole('dialog', { name: 'Revisar cambios' })
+    .getByRole('dialog', { name: 'Revisa los cambios' })
     .getByRole('button', { name: 'Guardar cambios' })
     .click();
 }
+
+const createActivity = (page: Page) =>
+  page.getByRole('dialog').getByRole('button', { name: 'Crear actividad' }).click();
 
 test.beforeEach(async ({ page }) => {
   await page.route(
@@ -198,11 +202,11 @@ test('creates an activity with CSRF and event-time instants, then refreshes the 
   await page.getByRole('button', { name: 'Nueva actividad' }).click();
   const form = page.getByRole('form', { name: 'Nueva actividad' });
   await form.getByLabel('Nombre').fill('Taller de toprock');
-  await chooseOption(selectTrigger(form, 'Tipo'), 'Taller');
+  await form.getByRole('radio', { name: 'Taller' }).check();
   await chooseOption(selectTrigger(form, 'Sede'), 'Centro cultural');
-  await form.getByLabel('Inicio').fill('2026-11-14T12:00');
-  await form.getByLabel('Fin').fill('2026-11-14T13:30');
-  await saveActivity(page);
+  await form.getByLabel('Empieza').fill('12:00');
+  await form.getByLabel('Termina', { exact: true }).fill('13:30');
+  await createActivity(page);
   await expect(page.getByRole('status')).toContainText('Creaste ');
   await expect(page.getByRole('heading', { level: 3, name: 'Taller de toprock' })).toBeVisible();
   expect(body).toEqual({
@@ -238,7 +242,7 @@ test('edits an activity with its expected version', async ({ page }) => {
     .getByRole('button', { name: 'Editar' })
     .click();
   const form = page.getByRole('form', { name: 'Editar actividad' });
-  await expect(form.getByLabel('Inicio')).toHaveValue('2026-11-14T10:00');
+  await expect(form.getByLabel('Empieza')).toHaveValue('10:00');
   await form.getByLabel('Nombre').fill('Batalla 2 vs 2');
   await saveActivity(page);
   await expect(page.getByRole('status')).toContainText('Guardaste los cambios de ');
@@ -273,22 +277,23 @@ test('picks the type from the list: editing preselects it and a new activity req
     .filter({ hasText: 'Batalla de crews' })
     .getByRole('button', { name: 'Editar' })
     .click();
-  await expectSelected(
-    selectTrigger(page.getByRole('form', { name: 'Editar actividad' }), 'Tipo'),
-    'Competencia',
-  );
-  await page.getByRole('dialog').getByRole('button', { name: 'Cancelar' }).click();
+  await expect(
+    page
+      .getByRole('form', { name: 'Editar actividad' })
+      .getByRole('radio', { name: 'Competencia' }),
+  ).toBeChecked();
+  await page.getByRole('dialog').getByRole('button', { name: 'Cancelar', exact: true }).click();
 
   await page.getByRole('button', { name: 'Nueva actividad' }).click();
   const form = page.getByRole('form', { name: 'Nueva actividad' });
-  const kind = selectTrigger(form, 'Tipo');
-  await expect(kind).toHaveText('Elige un tipo');
+  const kind = form.getByRole('group', { name: 'Tipo' });
+  for (const radio of await kind.getByRole('radio').all()) await expect(radio).not.toBeChecked();
   await form.getByLabel('Nombre').fill('Taller de toprock');
-  await form.getByLabel('Inicio').fill('2026-11-14T12:00');
-  await form.getByLabel('Fin').fill('2026-11-14T13:30');
-  await page.getByRole('dialog').getByRole('button', { name: 'Guardar', exact: true }).click();
-  await expect(form.getByText('Elige el tipo de la actividad.')).toBeVisible();
-  await expect(kind).toHaveAccessibleDescription('Elige el tipo de la actividad.');
+  await form.getByLabel('Empieza').fill('12:00');
+  await form.getByLabel('Termina', { exact: true }).fill('13:30');
+  await createActivity(page);
+  await expect(form.getByText('Elige un tipo.')).toBeVisible();
+  await expect(kind).toHaveAccessibleDescription('Elige un tipo.');
   expect(writes).toEqual([]);
 });
 
@@ -318,9 +323,8 @@ test('requires a venue when the saved one is no longer among the event venues', 
   await expect(venue).toHaveText('Elige una sede');
   await expect(form.getByText('Sin sedes')).toHaveCount(0);
 
-  await page.getByRole('dialog').getByRole('button', { name: 'Guardar', exact: true }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Revisar cambios' }).click();
   await expect(form.getByText('Elige la sede de la actividad.')).toBeVisible();
-  await expect(venue).toHaveAccessibleDescription('Elige la sede de la actividad.');
   await expect(page.getByText(/Guardaste los cambios/)).toHaveCount(0);
   expect(writes).toEqual([]);
 
@@ -617,7 +621,7 @@ test('an event without venues explains why activities cannot be saved', async ({
   const form = page.getByRole('form', { name: 'Nueva actividad' });
   await expect(form.getByText('El evento aún no tiene sedes')).toBeVisible();
   await expect(
-    page.getByRole('dialog').getByRole('button', { name: 'Guardar', exact: true }),
+    page.getByRole('dialog').getByRole('button', { name: 'Crear actividad' }),
   ).toBeDisabled();
   await expect(selectTrigger(form, 'Sede')).toBeDisabled();
   expect(writes).toBe(0);
@@ -644,10 +648,10 @@ test('keeps the success message when the refresh after a write fails', async ({ 
   await page.getByRole('button', { name: 'Nueva actividad' }).click();
   const form = page.getByRole('form', { name: 'Nueva actividad' });
   await form.getByLabel('Nombre').fill('Taller de toprock');
-  await chooseOption(selectTrigger(form, 'Tipo'), 'Competencia');
-  await form.getByLabel('Inicio').fill('2026-11-14T12:00');
-  await form.getByLabel('Fin').fill('2026-11-14T13:30');
-  await saveActivity(page);
+  await form.getByRole('radio', { name: 'Competencia' }).check();
+  await form.getByLabel('Empieza').fill('12:00');
+  await form.getByLabel('Termina', { exact: true }).fill('13:30');
+  await createActivity(page);
   const reloadAlert = page.getByRole('alert').filter({ hasText: 'No se pudo recargar' });
   await expect(reloadAlert).toBeVisible();
   await expect(page.getByRole('status')).toContainText('Creaste ');
@@ -688,7 +692,7 @@ test('editing an activity keeps stored seconds when the times are unchanged', as
   });
   await row.getByRole('button', { name: 'Editar' }).click();
   form = page.getByRole('form', { name: 'Editar actividad' });
-  await form.getByLabel('Fin').fill('2026-11-14T12:30');
+  await form.getByLabel('Termina', { exact: true }).fill('12:30');
   await saveActivity(page);
   await expect.poll(() => bodies.length).toBe(2);
   expect(bodies[1]).toMatchObject({

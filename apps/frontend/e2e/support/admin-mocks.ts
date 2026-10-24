@@ -394,9 +394,9 @@ export async function revealControls(page: Page, name: AdminScreenName) {
   // An empty submit shows the field errors, and Más datos is opened so its fields are measured.
   if (name === 'Nueva inscripción') {
     const form = page.getByRole('form', { name: 'Nueva inscripción' });
-    await form.getByRole('button', { name: 'Registrar' }).click();
+    await form.getByRole('button', { name: 'Continuar a pases' }).click();
     await form.getByText('Escribe el nombre.').first().waitFor();
-    await form.getByText('Más datos (opcional)').click();
+    await form.locator('summary').click();
     await form.getByLabel('Fecha de nacimiento').waitFor();
   }
   if (name === 'Inscripción') await page.getByRole('region', { name: 'Pases' }).waitFor();
@@ -542,7 +542,7 @@ export const adminDialogs: {
       await form.getByRole('textbox', { name: 'Primer apellido', exact: true }).fill('López');
       await form.getByRole('textbox', { name: 'Correo electrónico' }).fill('ana@example.org');
       await form.getByRole('textbox', { name: 'Teléfono celular' }).fill('3312345678');
-      await form.getByRole('button', { name: 'Registrar' }).click();
+      await form.getByRole('button', { name: 'Continuar a pases' }).click();
       const dialog = page.getByRole('alertdialog', { name: '¿Es la misma persona?' });
       await dialog.getByRole('listitem').nth(1).waitFor();
       return dialog;

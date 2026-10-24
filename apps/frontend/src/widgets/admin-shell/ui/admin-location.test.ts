@@ -15,6 +15,7 @@ describe('readAdminLocation', () => {
       `${base}/registrations`,
       `${base}/registrations/new`,
       `${base}/registrations/c1b2c3d4-1234-4567-89ab-123456789abc`,
+      `${base}/registrations/c1b2c3d4-1234-4567-89ab-123456789abc/sale`,
     ])
       expect(readAdminLocation(path)).toEqual({ eventId, section: 'registrations' });
   });

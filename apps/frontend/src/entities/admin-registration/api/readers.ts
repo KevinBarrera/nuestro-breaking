@@ -12,6 +12,7 @@ import {
   type RegistrationEntitlements,
   type RegistrationSearchPage,
   type RegistrationSearchResult,
+  type RegistrationStatusCounts,
   type RegistrationSummary,
 } from './types';
 
@@ -50,6 +51,21 @@ function readActivity(value: unknown): RegistrationSearchResult['activities'][nu
   return { id, name, kind, checkedInAt };
 }
 
+function readListedPass(value: unknown): RegistrationSearchResult['passes'][number] | null {
+  if (!isRecord(value)) return null;
+  const { name, passClass } = value;
+  if (!isText(name) || !oneOf(heldPassClasses, passClass)) return null;
+  return { name, passClass };
+}
+
+function readCounts(value: unknown): RegistrationStatusCounts | null {
+  if (!isRecord(value)) return null;
+  const { all, pending_payment, confirmed, voided } = value;
+  if (!isCount(all) || !isCount(pending_payment) || !isCount(confirmed) || !isCount(voided))
+    return null;
+  return { all, pending_payment, confirmed, voided };
+}
+
 function readSearchResult(value: unknown, eventId: string): RegistrationSearchResult | null {
   if (!isRecord(value) || !isRecord(value.participant) || !isRecord(value.registration))
     return null;
@@ -59,11 +75,13 @@ function readSearchResult(value: unknown, eventId: string): RegistrationSearchRe
   const { id, folio, status, checkedInAt } = value.registration;
   if (!isId(id) || value.registration.eventId !== eventId || !isTextOrNull(folio)) return null;
   if (!oneOf(registrationStatuses, status) || !isInstantOrNull(checkedInAt)) return null;
+  const passes = every(value.passes, readListedPass);
   const activities = every(value.activities, readActivity);
-  if (!activities) return null;
+  if (!passes || !activities) return null;
   return {
     participant: { id: participantId, fullName, email, stageName },
     registration: { id, eventId, folio, status, checkedInAt },
+    passes,
     activities,
   };
 }
@@ -72,8 +90,9 @@ export function readSearchPage(value: unknown, eventId: string): RegistrationSea
   if (!isRecord(value)) return null;
   const { total, limit, offset } = value;
   if (!isCount(total) || !isCount(limit) || !isCount(offset)) return null;
+  const counts = readCounts(value.counts);
   const results = every(value.results, (entry) => readSearchResult(entry, eventId));
-  return results && { total, limit, offset, results };
+  return counts && results && { total, counts, limit, offset, results };
 }
 
 export function readManualRegistration(value: unknown, eventId: string): ManualRegistration | null {

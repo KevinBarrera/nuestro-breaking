@@ -21,19 +21,31 @@ export type RegistrationSearchResult = {
     status: RegistrationStatus;
     checkedInAt: string | null;
   };
+  // The held passes, archived pass types included, sorted by name (#344).
+  passes: { name: string; passClass: HeldPassClass }[];
   activities: { id: string; name: string; kind: string; checkedInAt: string | null }[];
 };
 
+// Registrations matching `q` per status, ignoring the status filter; `total` counts both (#344).
+export type RegistrationStatusCounts = Record<RegistrationStatus | 'all', number>;
+
 export type RegistrationSearchPage = {
   total: number;
+  counts: RegistrationStatusCounts;
   limit: number;
   offset: number;
   results: RegistrationSearchResult[];
 };
 
 // `q` matches name, email, AKA, folio or cash receipt number; 2 to 200 characters once trimmed.
+// Without `q` (or a blank one) the whole roster is listed; `status` narrows it (#344).
 // The backend pages 20 at a time by default (at most 50).
-export type RegistrationSearchQuery = { q: string; limit?: number; offset?: number };
+export type RegistrationSearchQuery = {
+  q?: string;
+  status?: RegistrationStatus;
+  limit?: number;
+  offset?: number;
+};
 
 // The #58 participant fields of a manual registration. Optional text may be omitted or null.
 // Activity ids are never sent: activities come from the passes added afterwards.

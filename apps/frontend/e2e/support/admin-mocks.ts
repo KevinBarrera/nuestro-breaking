@@ -320,7 +320,13 @@ export async function mockAdminApi(page: Page) {
     [(url) => url.pathname.endsWith('/entitlements'), entitlements],
     [
       (url) => url.pathname.endsWith('/participants'),
-      { total: 1, limit: 20, offset: 0, results: [registration] },
+      {
+        total: 1,
+        limit: 20,
+        offset: 0,
+        counts: { all: 1, pending_payment: 0, confirmed: 1, voided: 0 },
+        results: [{ ...registration, passes: [] }],
+      },
     ],
   ];
   for (const [matches, json] of routes)

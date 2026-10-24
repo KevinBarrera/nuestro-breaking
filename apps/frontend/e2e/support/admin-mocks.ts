@@ -396,7 +396,7 @@ export async function revealControls(page: Page, name: AdminScreenName) {
   if (name === 'Inscripción') await page.getByRole('region', { name: 'Pases' }).waitFor();
   if (name === 'Pagos por revisar')
     await page
-      .getByRole('table', { name: 'Pagos por revisar' })
+      .getByRole('table', { name: /^Pagó dos veces/ })
       .getByRole('cell')
       .first()
       .waitFor();

@@ -394,9 +394,11 @@ export async function revealControls(page: Page, name: AdminScreenName) {
     await form.getByLabel('Fecha de nacimiento').waitFor();
   }
   if (name === 'Inscripción') await page.getByRole('region', { name: 'Pases' }).waitFor();
+  // `flaggedPayments` has one payment per case and fewer than 9 payments, so every case starts
+  // open and the duplicate-payment case renders its table.
   if (name === 'Pagos por revisar')
     await page
-      .getByRole('table', { name: 'Pagos por revisar' })
+      .getByRole('table', { name: /^Pagó dos veces/ })
       .getByRole('cell')
       .first()
       .waitFor();

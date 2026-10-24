@@ -27,8 +27,8 @@ Test runner: Vitest for pure logic and Playwright (`apps/frontend/e2e`) for flow
 
 | ID  | Specs      | Route  | Status  | Commit |
 | --- | ---------- | ------ | ------- | ------ |
-| T1  | S3–S7      | inline | pending |        |
-| T2  | S2–S8, S16 | inline | pending |        |
+| T1  | S3–S7      | inline | done    | a1f72a8 |
+| T2  | S2–S8, S16 | inline | done    | d57c3f9 |
 | T3  | S10–S14    | inline | pending |        |
 | T4  | S9–S16     | inline | pending |        |
 
@@ -38,3 +38,5 @@ T1 = list model (pure), T2 = list screen, T3 = editor model (pure), T4 = editor 
 
 - **L1 (2026-10-24, user):** "Es un rediseño/mejora-completa para la sección de "Catálogo › Pases", revisa y entiende por completo el nuevo diseño: https://claude.ai/artifact/EQBVYtnzLp7u9BX8caRxYf#page-8021ec9b1d38 Crea el issue necesario en GH (o más de uno de ser necesario) para cumplir por completo con lo que el nuevo diseño indica Una vez todo este listo comienza a trabajar, tienes acceso a mi navegador para que te asegures que la implementación queda lo más parecida posible al nuevo diseño. Esta sección es sumamente importante, entonces cuidemos la funcionalidad de la misma. Comencemos!"
 - **L2:** Checked the canvas note against the code. Vendidos: the attendee-lists snapshot has `passTypeIds` and `status` per registration. Event sale state: `GET /sales` (`state`, `reason`). The backend has no rule against activities on a general pass (entitlements come from access rows), so the General access section stays visible. The design drops "Requiere pase"; it stays for Adicional so no behavior is lost. The note says a switch for the close date; the artboards show radio cards with presets, which win. Restore follows Actividades (no confirmation). Issues #372 and #373 created and added to #312. Route: inline for every task (one sequential chain).
+- **L3:** T1 (`feat/372-01-passes-model`, a1f72a8): `pass-catalog-model.ts` with `passTabCounts`, `passGroups`, `passPriceLabel`, `passAccessSummary`, `noAccess`, `misconfiguredNotice`, `soldCounts`, `saleOpen`. RED (module missing), GREEN 15/15.
+- **L4:** T2 (`feat/372-02-passes-screen`, d57c3f9): `pass-list.tsx` (tabs, grouped table rows with container query, empty state), `PassListScreen` rewritten, layout loads attendee lists and event sales (both optional), success notice with "Cerrar aviso", "Archivaste <nombre>." / "Restauraste <nombre>. Vuelve a estar en venta.", restore without confirmation; `pass-type-list.tsx` removed. Deviation: a pass with its own future close date keeps "Hasta <fecha>" under the pill (the old list showed it, #240). Specs: `admin-pass-restore.spec.ts` became `admin-pass-list.spec.ts` (10 tests), the catalog card tests moved there, other specs open rows by link name. Checked in Chrome (light, dark, phone width, Archivados empty). `verify:pr` green (896 unit, 595 e2e). Native review of `dev`..d57c3f9 (readability, reliability; `under_budget`, run per the review-before-push rule, consent granted per the standing rule): approved and acknowledged. Follow-ups for T4: drop the unused `data-pass-link`, escape the pass name in the e2e link regex. Left as is: `now` fixed at mount (refreshes on remount), the optional reads share the catalog load (same as Actividades).

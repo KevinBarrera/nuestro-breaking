@@ -1,9 +1,15 @@
-export const HISTORY_FILTERS = ['all', 'corrections'] as const;
+export const HISTORY_FILTERS = ['all', 'corrections', 'on_site', 'complimentary'] as const;
 export type HistoryFilter = (typeof HISTORY_FILTERS)[number];
 
 export type HistoryCursor = { createdAt: string; id: string };
 
-export type HistoryQuery = { limit: number; cursor: HistoryCursor | null; filter: HistoryFilter };
+export type HistoryQuery = {
+  limit: number;
+  cursor: HistoryCursor | null;
+  filter: HistoryFilter;
+  // Trimmed search, 2 to 200 characters; null lists everything (#356).
+  q: string | null;
+};
 
 type CashValues = { amountCents: number | null; receipt: string | null };
 
@@ -50,4 +56,12 @@ export type HistoryItem = {
   details: HistoryDetails;
 };
 
-export type HistoryPage = { items: HistoryItem[]; nextCursor: string | null };
+// Operations per filter for the search, ignoring the filter and the cursor (#356). `on_site`
+// counts `manual_registration` facts, one per on-site registration.
+export type HistoryCounts = Record<Exclude<HistoryFilter, 'all'> | 'all', number>;
+
+export type HistoryPage = {
+  items: HistoryItem[];
+  nextCursor: string | null;
+  counts: HistoryCounts;
+};

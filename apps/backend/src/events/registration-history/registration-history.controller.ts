@@ -23,7 +23,7 @@ import {
 const LIMIT_DEFAULT = 50;
 const LIMIT_MAX = 100;
 
-function historyQuery(limit: unknown, cursor: unknown, filter: unknown): HistoryQuery {
+function historyQuery(limit: unknown, cursor: unknown, filter: unknown, q: unknown): HistoryQuery {
   const errors: Record<string, FieldErrorCode> = {};
   let pageSize = LIMIT_DEFAULT;
   if (limit !== undefined) {
@@ -36,13 +36,20 @@ function historyQuery(limit: unknown, cursor: unknown, filter: unknown): History
   if (cursor !== undefined && !after) errors.cursor = 'invalid';
   const scope = filter ?? 'all';
   if (!HISTORY_FILTERS.includes(scope as HistoryFilter)) errors.filter = 'invalid';
+  // A blank search lists everything, as in the registrations search (#344, #356).
+  const search = typeof q === 'string' ? q.trim() : '';
+  if (
+    q !== undefined &&
+    (typeof q !== 'string' || (search && (search.length < 2 || search.length > 200)))
+  )
+    errors.q = 'invalid';
   if (Object.keys(errors).length > 0)
     throw new BadRequestException({
       statusCode: 400,
       message: 'Invalid history query',
       fieldErrors: errors,
     });
-  return { limit: pageSize, cursor: after, filter: scope as HistoryFilter };
+  return { limit: pageSize, cursor: after, filter: scope as HistoryFilter, q: search || null };
 }
 
 /** Read-only, redacted registration history of the event for its administrators (#104). */
@@ -59,10 +66,11 @@ export class RegistrationHistoryController {
     @Query('limit') limit: unknown,
     @Query('cursor') cursor: unknown,
     @Query('filter') filter: unknown,
+    @Query('q') q: unknown,
     @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
   ): Promise<HistoryPage> {
     await this.sessions.authorizeEventAdmin(request, response, eventId);
-    return this.history.read(eventId, historyQuery(limit, cursor, filter));
+    return this.history.read(eventId, historyQuery(limit, cursor, filter, q));
   }
 }

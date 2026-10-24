@@ -1,7 +1,9 @@
 import {
   historyActorKinds,
+  historyFilters,
   type HistoryActor,
   type HistoryCashValues,
+  type HistoryCounts,
   type HistoryDetails,
   type HistoryItem,
   type HistoryPage,
@@ -132,14 +134,27 @@ function readItem(value: unknown): HistoryItem | null {
   };
 }
 
+function readCounts(value: unknown): HistoryCounts | null {
+  if (!isRecord(value)) return null;
+  const counts = {} as HistoryCounts;
+  for (const filter of historyFilters) {
+    const count = value[filter];
+    if (typeof count !== 'number' || !Number.isSafeInteger(count) || count < 0) return null;
+    counts[filter] = count;
+  }
+  return counts;
+}
+
 export function readHistoryPage(value: unknown): HistoryPage | null {
   if (!isRecord(value) || !Array.isArray(value.items) || !isTextOrNull(value.nextCursor))
     return null;
+  const counts = readCounts(value.counts);
+  if (!counts) return null;
   const items: HistoryItem[] = [];
   for (const entry of value.items) {
     const item = readItem(entry);
     if (!item) return null;
     items.push(item);
   }
-  return { items, nextCursor: value.nextCursor };
+  return { items, nextCursor: value.nextCursor, counts };
 }

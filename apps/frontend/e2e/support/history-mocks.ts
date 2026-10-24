@@ -89,4 +89,5 @@ export const sweepHistory = {
     onlinePurchase,
   ],
   nextCursor: 'sweep-next-page',
+  counts: { all: 12, corrections: 4, on_site: 2, complimentary: 1 },
 };

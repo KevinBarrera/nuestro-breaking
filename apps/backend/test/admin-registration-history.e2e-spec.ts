@@ -513,6 +513,100 @@ describe('admin registration history (e2e)', () => {
     expect((all.body as Page).items).toHaveLength(18);
   });
 
+  it('keeps on-site registrations and complimentary passes with counts per type (#356)', async () => {
+    const s = await seedEveryOperation();
+    const read = async (query: string) =>
+      (await history(s.f.event, query).set('Cookie', s.admin.cookie).expect(200)).body as Page & {
+        counts: Record<string, number>;
+      };
+    const counts = { all: 18, corrections: 5, on_site: 3, complimentary: 1 };
+    const onSite = await read('?filter=on_site');
+    expect(onSite.items.map((item) => [item.operationType, item.registration.id])).toEqual([
+      ['pass_assignment', s.reg3],
+      ['manual_registration', s.reg3],
+      ['pass_assignment', s.reg2],
+      ['manual_registration', s.reg2],
+      ['cash_confirmation', s.reg1],
+      ['pass_assignment', s.reg1],
+      ['manual_registration', s.reg1],
+    ]);
+    expect(onSite.counts).toEqual(counts);
+    const complimentary = await read('?filter=complimentary');
+    expect(complimentary.items.map((item) => [item.operationType, item.reason])).toEqual([
+      ['complimentary_confirmation', 'Golden ticket'],
+    ]);
+    expect(complimentary.counts).toEqual(counts);
+    // A pass added to an online sale is not an on-site registration.
+    await fact(s.online, s.f.event, { type: 'pass_assignment', kind: 'public' });
+    expect((await read('?filter=on_site')).items).toHaveLength(7);
+    expect((await read('?filter=corrections')).counts).toEqual({ ...counts, all: 19 });
+  });
+
+  it('searches names, AKA, folios, receipts and shown reasons (#356)', async () => {
+    const s = await seedEveryOperation();
+    const read = async (query: string) =>
+      (await history(s.f.event, query).set('Cookie', s.admin.cookie).expect(200)).body as Page & {
+        counts: Record<string, number>;
+      };
+    const types = (page: Page) => page.items.map((item) => item.operationType);
+    const reg1Types = [
+      'registration_discipline_swap',
+      'registration_correction',
+      'cash_correction',
+      'pass_selection_change',
+      'cash_confirmation',
+      'pass_selection_change',
+      'pass_assignment',
+      'manual_registration',
+    ];
+    // Name, case- and accent-insensitive, against the participant's current name.
+    await client`UPDATE participants SET full_name = 'Pérsón Dos' WHERE id =
+      (SELECT participant_id FROM event_registrations WHERE id = ${s.reg2})`;
+    const byName = await read(`?q=${encodeURIComponent('PERSON dos')}`);
+    expect(types(byName)).toEqual([
+      'complimentary_confirmation',
+      'pass_assignment',
+      'manual_registration',
+    ]);
+    expect(byName.counts).toEqual({ all: 3, corrections: 0, on_site: 1, complimentary: 1 });
+    // AKA.
+    await client`UPDATE participants SET stage_name = 'B-Boy Ñandú' WHERE id =
+      (SELECT participant_id FROM event_registrations WHERE id = ${s.reg3})`;
+    expect(types(await read('?q=nandu'))).toEqual([
+      'registration_void',
+      'pass_removal',
+      'pass_assignment',
+      'manual_registration',
+    ]);
+    // Folio, with or without its hyphen.
+    expect(s.folio).toMatch(/-/);
+    expect(types(await read(`?q=${encodeURIComponent(s.folio!)}`))).toEqual(reg1Types);
+    expect(types(await read(`?q=${s.folio!.replace(/-/g, '').toLowerCase()}`))).toEqual(reg1Types);
+    // Receipt numbers, including the previous and new receipt of a cash correction.
+    expect(types(await read('?q=R-1'))).toEqual(['cash_correction', 'cash_confirmation']);
+    expect(types(await read('?q=r-2'))).toEqual(['cash_correction']);
+    // A shown reason matches; the hidden cash confirmation note never does.
+    expect(types(await read('?q=g%C3%B3lden'))).toEqual(['complimentary_confirmation']);
+    expect(await read(`?q=${encodeURIComponent('Paid at door')}`)).toEqual({
+      items: [],
+      nextCursor: null,
+      counts: { all: 0, corrections: 0, on_site: 0, complimentary: 0 },
+    });
+    // LIKE metacharacters are literal.
+    expect((await read('?q=%25%25')).items).toEqual([]);
+    // Combined with a filter and the cursor; counts ignore both.
+    const corrections = await read(`?q=${encodeURIComponent(s.folio!)}&filter=corrections`);
+    expect(types(corrections)).toEqual(reg1Types.slice(0, 4));
+    const first = await read(`?q=${encodeURIComponent(s.folio!)}&limit=5`);
+    const rest = await read(
+      `?q=${encodeURIComponent(s.folio!)}&limit=5&cursor=${encodeURIComponent(first.nextCursor!)}`,
+    );
+    expect([...types(first), ...types(rest)]).toEqual(reg1Types);
+    expect(rest.nextCursor).toBeNull();
+    expect(rest.counts).toEqual(first.counts);
+    expect(first.counts).toEqual({ all: 8, corrections: 4, on_site: 1, complimentary: 0 });
+  });
+
   it('pages by cursor across equal timestamps without gaps or repeats (#104)', async () => {
     const f = await fixture();
     const admin = await session('admin', f.event);
@@ -641,9 +735,21 @@ describe('admin registration history (e2e)', () => {
           .expect(400)
       ).body,
     ).toEqual(invalid({ limit: 'invalid', filter: 'invalid' }));
+    for (const filter of ['on-site', 'ON_SITE', 'complimentaries'])
+      expect(
+        (await history(f.event, `?filter=${filter}`).set('Cookie', admin.cookie).expect(400)).body,
+      ).toEqual(invalid({ filter: 'invalid' }));
+    for (const q of ['a', '%20a%20', 'x'.repeat(201), 'ab&q=cd'])
+      expect(
+        (await history(f.event, `?q=${q}`).set('Cookie', admin.cookie).expect(400)).body,
+      ).toEqual(invalid({ q: 'invalid' }));
     const valid = encode('2026-10-21T12:00:00.123456Z|00000000-0000-4000-8000-000000000000');
+    const none = { all: 0, corrections: 0, on_site: 0, complimentary: 0 };
     await history(f.event, `?cursor=${valid}&limit=100&filter=corrections`)
       .set('Cookie', admin.cookie)
-      .expect(200, { items: [], nextCursor: null });
+      .expect(200, { items: [], nextCursor: null, counts: none });
+    await history(f.event, `?q=${'x'.repeat(200)}&filter=on_site`)
+      .set('Cookie', admin.cookie)
+      .expect(200, { items: [], nextCursor: null, counts: none });
   });
 });

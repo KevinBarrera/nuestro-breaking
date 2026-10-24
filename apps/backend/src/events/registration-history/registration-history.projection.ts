@@ -6,14 +6,15 @@ const CURSOR_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}Z$/;
 
 // Operation types whose `note` is the administrator's reason. The optional `cash_confirmation`
 // note is an operator remark captured at the till, not a reason, so it stays out of the history.
-const REASON_TYPES = new Set([
+export const REASON_TYPES = [
   'complimentary_confirmation',
   'pass_selection_change',
   'registration_void',
   'registration_correction',
   'registration_discipline_swap',
   'cash_correction',
-]);
+];
+const reasonTypes = new Set(REASON_TYPES);
 
 export type AuditFact = {
   operationType: string;
@@ -82,7 +83,7 @@ export function referencedIds(facts: AuditFact[]) {
 }
 
 export function reasonOf(fact: AuditFact): string | null {
-  return REASON_TYPES.has(fact.operationType) ? fact.note : null;
+  return reasonTypes.has(fact.operationType) ? fact.note : null;
 }
 
 export function detailsOf(fact: AuditFact, names: CatalogNames): HistoryDetails {

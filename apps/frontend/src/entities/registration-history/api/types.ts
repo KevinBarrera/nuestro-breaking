@@ -1,6 +1,6 @@
 // The redacted registration history of an event (#104): its audit facts, newest first, with a
 // whitelisted projection per operation type. See `GET /admin/events/:eventId/registration-history`.
-export const historyFilters = ['all', 'corrections'] as const;
+export const historyFilters = ['all', 'corrections', 'on_site', 'complimentary'] as const;
 export const historyActorKinds = ['admin', 'public', 'system'] as const;
 
 export type HistoryFilter = (typeof historyFilters)[number];
@@ -51,8 +51,17 @@ export type HistoryItem = {
   details: HistoryDetails;
 };
 
-export type HistoryPage = { items: HistoryItem[]; nextCursor: string | null };
+// Operations per filter for the search, whatever filter is selected (#356). `on_site` counts
+// on-site registrations, one per grouped entry.
+export type HistoryCounts = Record<HistoryFilter, number>;
 
-export type HistoryQuery = { filter: HistoryFilter; cursor?: string };
+export type HistoryPage = {
+  items: HistoryItem[];
+  nextCursor: string | null;
+  counts: HistoryCounts;
+};
+
+// `q` is the trimmed search (2 to 200 characters), left out to list everything.
+export type HistoryQuery = { filter: HistoryFilter; cursor?: string; q?: string };
 
 export type RegistrationHistoryFailure = 'denied' | 'not-found' | 'error';

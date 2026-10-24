@@ -15,6 +15,7 @@ import {
 const eventId = 'a1b2c3d4-1234-4567-89ab-123456789abc';
 const historyPath = `/admin/events/${eventId}/history`;
 const api = (url: URL) => url.port === '3000';
+const noCounts = { all: 0, corrections: 0, on_site: 0, complimentary: 0 };
 
 type Answer = { status?: number; json: unknown };
 type Query = { filter: string | null; cursor: string | null };
@@ -45,7 +46,12 @@ async function mockHistory(page: Page, answerFor: (query: Query) => Answer) {
       const query = { filter: params.get('filter'), cursor: params.get('cursor') };
       queries.push(query);
       const answer = resolve(query);
-      return route.fulfill({ status: answer.status ?? 200, json: answer.json });
+      // Pages carry the counts the backend adds since #356.
+      const json =
+        answer.status === undefined || answer.status === 200
+          ? { counts: noCounts, ...(answer.json as object) }
+          : answer.json;
+      return route.fulfill({ status: answer.status ?? 200, json });
     },
   );
   return {

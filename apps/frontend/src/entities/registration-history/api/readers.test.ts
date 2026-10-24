@@ -18,7 +18,8 @@ const item = {
     current: { amountCents: 120000, receipt: null },
   },
 };
-const page = (items: unknown[], nextCursor: unknown = null) => ({ items, nextCursor });
+const counts = { all: 3, corrections: 1, on_site: 1, complimentary: 0 };
+const page = (items: unknown[], nextCursor: unknown = null) => ({ items, nextCursor, counts });
 const withDetails = (details: unknown) => ({ ...item, details });
 
 describe('readHistoryPage', () => {
@@ -53,7 +54,7 @@ describe('readHistoryPage', () => {
     const read = readHistoryPage(page(details.map(withDetails), 'next-page'));
     expect(read?.nextCursor).toBe('next-page');
     expect(read?.items.map((entry) => entry.details)).toEqual(details);
-    expect(readHistoryPage(page([]))).toEqual({ items: [], nextCursor: null });
+    expect(readHistoryPage(page([]))).toEqual({ items: [], nextCursor: null, counts });
   });
 
   it('reads unknown or future operation kinds as other', () => {
@@ -72,6 +73,9 @@ describe('readHistoryPage', () => {
   it('rejects malformed pages and items', () => {
     expect(readHistoryPage(null)).toBeNull();
     expect(readHistoryPage({ items: [] })).toBeNull();
+    expect(readHistoryPage({ items: [], nextCursor: null })).toBeNull();
+    for (const bad of [{ ...counts, on_site: -1 }, { ...counts, all: 1.5 }, { all: 1 }, null])
+      expect(readHistoryPage({ items: [], nextCursor: null, counts: bad })).toBeNull();
     expect(readHistoryPage(page([], 7))).toBeNull();
     expect(readHistoryPage(page([{ ...item, occurredAt: 'yesterday' }]))).toBeNull();
     expect(readHistoryPage(page([{ ...item, actor: { kind: 'judge', name: null } }]))).toBeNull();

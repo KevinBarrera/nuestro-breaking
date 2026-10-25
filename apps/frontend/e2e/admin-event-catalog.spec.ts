@@ -116,13 +116,25 @@ async function mockActivityList(page: Page, rows: () => Activity[]) {
   return () => reads;
 }
 
-// Pass saves also go through "Revisar cambios"; only its "Guardar cambios" writes.
-async function confirmReview(page: Page) {
+// A pass edit goes through the "Cambios sin guardar" bar and one "Revisa los cambios" review;
+// only its "Guardar cambios" writes.
+async function savePass(page: Page) {
   await page
-    .getByRole('dialog', { name: 'Revisar cambios' })
+    .getByRole('region', { name: 'Cambios sin guardar' })
+    .getByRole('button', { name: 'Revisar cambios' })
+    .click();
+  await page
+    .getByRole('dialog', { name: 'Revisa los cambios' })
     .getByRole('button', { name: 'Guardar cambios' })
     .click();
 }
+
+// A new pass saves directly from its sticky "Crear pase" bar.
+const createPass = (page: Page) =>
+  page
+    .getByRole('region', { name: 'Crear pase' })
+    .getByRole('button', { name: 'Crear pase' })
+    .click();
 
 // The activity form's "Guardar" sits in its dialog footer and opens "Revisar cambios"; only
 // "Guardar cambios" there writes.
@@ -435,12 +447,13 @@ test('creates an add-on pass type that requires a pass class', async ({ page }) 
   await expect(form.getByRole('radio', { name: 'Completo' })).toBeChecked();
   await form.getByLabel('Nombre').fill('Open Styles');
   await form.getByRole('radio', { name: 'Adicional' }).check();
-  await form.getByLabel('Precio (MXN)').fill('250');
+  await form.getByLabel('Precio').fill('250');
   await expectSelected(selectTrigger(form, 'Requiere pase'), 'Ninguno');
   await chooseOption(selectTrigger(form, 'Requiere pase'), 'Completo');
-  await form.getByRole('button', { name: 'Guardar' }).click();
-  await confirmReview(page);
-  await expect(page.getByRole('status')).toContainText('Pase creado');
+  await createPass(page);
+  await expect(page.getByRole('status').filter({ hasText: 'Creaste Open Styles' })).toContainText(
+    'Creaste Open Styles. Ya está en venta.',
+  );
   await expect(page).toHaveURL(`${passesPath}/${openPassId}`);
   await expect(page.getByRole('form', { name: 'Editar pase' }).getByLabel('Nombre')).toHaveValue(
     'Open Styles',
@@ -459,6 +472,14 @@ test('saves activity access for a pass type with its expected version', async ({
   let current: typeof fullPass = fullPass;
   await mockPassTypes(page, () => [current]);
   let body: Record<string, unknown> | undefined;
+  let patches = 0;
+  await page.route(
+    (url) => api(url) && url.pathname === `${passTypesPath}/${fullPassId}`,
+    (route) => {
+      patches++;
+      return route.fulfill({ status: 500, json: {} });
+    },
+  );
   await page.route(
     (url) => api(url) && url.pathname === `${passTypesPath}/${fullPassId}/activities`,
     (route) => {
@@ -479,9 +500,12 @@ test('saves activity access for a pass type with its expected version', async ({
   await expectAccess(accessControl(editor, 'Acceso a Batalla de crews'), 'Elegible');
   await chooseAccess(accessControl(editor, 'Acceso a Batalla de crews'), 'Sin acceso');
   await chooseAccess(accessControl(editor, 'Acceso a Taller de footwork'), 'Elegible');
-  await editor.getByRole('button', { name: 'Guardar acceso' }).click();
-  await confirmReview(page);
-  await expect(page.getByRole('status')).toContainText('Acceso actualizado');
+  await savePass(page);
+  await expect(page.getByRole('status').filter({ hasText: 'Guardaste los cambios' })).toContainText(
+    'Guardaste los cambios de Pase completo.',
+  );
+  // Only the access changed, so the PUT goes out alone with the current version.
+  expect(patches).toBe(0);
   expect(body).toEqual({
     expectedVersion: 2,
     activities: [{ activityId: workshopId, access: 'selectable' }],
@@ -626,6 +650,14 @@ test('edits a pass type with its expected version', async ({ page }) => {
   let current: typeof fullPass = fullPass;
   await mockPassTypes(page, () => [current]);
   let body: Record<string, unknown> | undefined;
+  let puts = 0;
+  await page.route(
+    (url) => api(url) && url.pathname === `${passTypesPath}/${fullPassId}/activities`,
+    (route) => {
+      puts++;
+      return route.fulfill({ status: 500, json: {} });
+    },
+  );
   await page.route(
     (url) => api(url) && url.pathname === `${passTypesPath}/${fullPassId}`,
     (route) => {
@@ -639,14 +671,16 @@ test('edits a pass type with its expected version', async ({ page }) => {
   await page.goto(passesPath);
   await page.getByRole('link', { name: /^Pase completo,/ }).click();
   const form = page.getByRole('form', { name: 'Editar pase' });
-  await expect(form).toContainText('v2');
   await expect(form.getByRole('radio', { name: 'Completo' })).toBeChecked();
-  await expect(form.getByLabel('Precio (MXN)')).toHaveValue('1500.00');
+  await expect(form.getByLabel('Precio')).toHaveValue('1500.00');
   await form.getByLabel('Nombre').fill('Pase completo VIP');
-  await form.getByLabel('Precio (MXN)').fill('1750,50');
-  await form.getByRole('button', { name: 'Guardar cambios' }).click();
-  await confirmReview(page);
-  await expect(page.getByRole('status')).toContainText('Pase actualizado');
+  await form.getByLabel('Precio').fill('1750,50');
+  await savePass(page);
+  await expect(page.getByRole('status').filter({ hasText: 'Guardaste los cambios' })).toContainText(
+    'Guardaste los cambios de Pase completo VIP.',
+  );
+  // Only the fields changed, so no access PUT goes out.
+  expect(puts).toBe(0);
   expect(body).toEqual({
     expectedVersion: 2,
     name: 'Pase completo VIP',
@@ -655,7 +689,7 @@ test('edits a pass type with its expected version', async ({ page }) => {
     requiresPassClass: null,
     onlineSalesClosesAt: null,
   });
-  await expect(page.getByRole('form', { name: 'Editar pase' })).toContainText('v3');
+  await expect(page.getByRole('region', { name: 'Cambios sin guardar' })).toHaveCount(0);
   await backToPasses(page);
   await expect(page.getByRole('link', { name: /^Pase completo VIP,/ })).toContainText('$1,750.50');
 });
@@ -689,23 +723,23 @@ test('a reload while a pass is open refreshes its values with the new version', 
     (url) => api(url) && url.pathname === `${passTypesPath}/${fullPassId}`,
     (route) => {
       body = json(route);
-      return route.fulfill({ json: { ...fullPass, version: 6 } });
+      return route.fulfill({ json: { ...fullPass, name: body.name, version: 6 } });
     },
   );
   await page.goto(passesPath);
-  const card = (name: string) => page.getByRole('link', { name: new RegExp(`^${name},`) });
+  const escape = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const card = (name: string) => page.getByRole('link', { name: new RegExp(`^${escape(name)},`) });
   await card('Open Styles').click();
   const form = page.getByRole('form', { name: 'Editar pase' });
   await form.getByLabel('Nombre').fill('Open Styles 2026');
-  await form.getByRole('button', { name: 'Guardar cambios' }).click();
-  await confirmReview(page);
+  await savePass(page);
   const reloadAlert = page.getByRole('alert').filter({ hasText: 'No se pudo recargar' });
   await expect(reloadAlert).toBeVisible();
 
   await backToPasses(page);
   await expect(reloadAlert).toBeVisible();
   await card('Pase completo').click();
-  await expect(form).toContainText('v2');
+  await expect(form.getByLabel('Nombre')).toHaveValue('Pase completo');
   const access = page.getByRole('region', { name: 'Acceso a actividades' });
   await expectAccess(accessControl(access, 'Acceso a Batalla de crews'), 'Elegible');
   await chooseAccess(accessControl(access, 'Acceso a Batalla de crews'), 'Incluida');
@@ -723,14 +757,16 @@ test('a reload while a pass is open refreshes its values with the new version', 
   failReads = false;
   await reloadAlert.getByRole('button', { name: 'Recargar' }).click();
   await expect(reloadAlert).toHaveCount(0);
-  await expect(form).toContainText('v5');
+  // The newer version remounts the editor with the server values, dropping the stale draft.
   await expect(form.getByLabel('Nombre')).toHaveValue('Pase completo plus');
-  await expect(form.getByLabel('Precio (MXN)')).toHaveValue('1600.00');
+  await expect(form.getByLabel('Precio')).toHaveValue('1600.00');
   await expectAccess(accessControl(access, 'Acceso a Batalla de crews'), 'Sin acceso');
+  await expect(page.getByRole('region', { name: 'Cambios sin guardar' })).toHaveCount(0);
   await form.getByLabel('Nombre').fill('Pase completo plus 2');
-  await form.getByRole('button', { name: 'Guardar cambios' }).click();
-  await confirmReview(page);
-  await expect(page.getByRole('status')).toContainText('Pase actualizado');
+  await savePass(page);
+  await expect(page.getByRole('status').filter({ hasText: 'Guardaste los cambios' })).toContainText(
+    'Guardaste los cambios de Pase completo plus 2.',
+  );
   expect(body).toEqual({
     expectedVersion: 5,
     name: 'Pase completo plus 2',
@@ -751,11 +787,10 @@ test('shows a reload request when a pass type edit conflicts', async ({ page }) 
   await page.getByRole('link', { name: /^Pase completo,/ }).click();
   const form = page.getByRole('form', { name: 'Editar pase' });
   await form.getByLabel('Nombre').fill('Otro pase');
-  await form.getByRole('button', { name: 'Guardar cambios' }).click();
-  await confirmReview(page);
+  await savePass(page);
   await expect(page.getByRole('alert')).toContainText('Conflicto');
   await expect(page.getByText('Pass type version conflict')).toHaveCount(0);
-  await expect(page.getByText('Pase actualizado')).toHaveCount(0);
+  await expect(page.getByText('Guardaste los cambios')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Recargar' })).toBeVisible();
 });
 
@@ -778,13 +813,13 @@ test('archives a pass type only after confirmation', async ({ page }) => {
   await page.getByRole('link', { name: /^Pase completo,/ }).click();
   const panel = page.getByRole('form', { name: 'Editar pase' });
   const confirm = page.getByRole('alertdialog', { name: '¿Archivar Pase completo?' });
-  await panel.getByRole('button', { name: 'Archivar' }).click();
+  await panel.getByRole('button', { name: 'Archivar pase' }).click();
   await expect(confirm).toBeVisible();
   await confirm.getByRole('button', { name: 'Cancelar' }).click();
   await expect(confirm).toHaveCount(0);
   expect(bodies).toHaveLength(0);
-  await panel.getByRole('button', { name: 'Archivar' }).click();
-  await confirm.getByRole('button', { name: 'Archivar' }).click();
+  await panel.getByRole('button', { name: 'Archivar pase' }).click();
+  await confirm.getByRole('button', { name: 'Archivar', exact: true }).click();
   await expect(page.getByRole('status').first()).toContainText('Archivaste Pase completo.');
   await expect(page).toHaveURL(passesPath);
   await page.getByRole('tab', { name: /^Archivados/ }).click();
@@ -810,8 +845,9 @@ test('rejects ambiguous pass prices before sending them', async ({ page }) => {
   const form = page.getByRole('form', { name: 'Nuevo pase' });
   await form.getByLabel('Nombre').fill('Pase general');
   // Which prices are ambiguous is covered by `money.test.ts`; this checks the form wiring.
-  await form.getByLabel('Precio (MXN)').fill('1,500');
-  await form.getByRole('button', { name: 'Guardar' }).click();
-  await expect(form.getByRole('alert')).toContainText('separadores de miles');
+  await form.getByLabel('Precio').fill('1,500');
+  await createPass(page);
+  await expect(form).toContainText('separadores de miles');
+  await expect(form.getByLabel('Precio')).toBeFocused();
   expect(writes).toBe(0);
 });

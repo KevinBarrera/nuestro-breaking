@@ -84,7 +84,12 @@ export function AdminShell({ signingOut, signOutFailed, onSignOut, children }: A
           showTeam={globalAdmin}
           onTeam={pathname === routes.adminTeam || pathname.startsWith(`${routes.adminTeam}/`)}
         />
-        <div ref={content} className="min-w-0 flex-1 md:overflow-y-auto print:overflow-visible">
+        {/* Relative, so content positioned out of flow (screen-reader-only labels) is clipped
+            by this column instead of making the document itself scrollable. */}
+        <div
+          ref={content}
+          className="relative min-w-0 flex-1 md:overflow-y-auto print:overflow-visible"
+        >
           {children}
         </div>
       </div>

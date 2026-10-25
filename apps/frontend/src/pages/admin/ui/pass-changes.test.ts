@@ -50,9 +50,9 @@ describe('passFieldRows', () => {
       { key: 'requiresPassClass', label: 'Requiere pase', before: 'Ninguno', after: 'Completo' },
       {
         key: 'onlineSalesClosesAt',
-        label: 'Cierre de venta en línea',
-        before: 'Sigue la venta del evento',
-        after: '17 nov 2026, 09:00',
+        label: 'Venta en línea',
+        before: 'Mientras el evento venda',
+        after: 'Hasta el 17 nov 2026, 09:00',
       },
     ]);
   });
@@ -69,9 +69,9 @@ describe('passFieldRows', () => {
     ).toEqual([
       {
         key: 'onlineSalesClosesAt',
-        label: 'Cierre de venta en línea',
-        before: '20 nov 2026, 10:00',
-        after: 'Sigue la venta del evento',
+        label: 'Venta en línea',
+        before: 'Hasta el 20 nov 2026, 10:00',
+        after: 'Mientras el evento venda',
       },
     ]);
   });

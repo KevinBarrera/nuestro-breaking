@@ -31,19 +31,24 @@ export type PassesContext = {
   busy: boolean;
   // Write and refresh notices, placed by each screen under its header.
   notices: ReactNode;
-  // The pass whose access save hit a version conflict, if any.
-  accessConflictFor: string | null;
-  // Bumped by the conflict reload (discarding local edits) and by a confirmed access save,
-  // so the access editor restarts from the saved links.
-  accessReset: number;
   // Each write resolves to whether it succeeded, so the screen can close its dialog.
   create: (input: NewPassTypeInput) => Promise<boolean>;
-  update: (passType: CatalogPassType, input: PassTypeInput) => Promise<boolean>;
+  // Fields and access in one save; see `SaveResult`.
+  save: (
+    passType: CatalogPassType,
+    input: PassTypeInput | null,
+    access: PassTypeActivity[] | null,
+  ) => Promise<SaveResult>;
   archive: (passType: CatalogPassType) => Promise<boolean>;
   restore: (passType: CatalogPassType) => Promise<boolean>;
-  saveAccess: (passType: CatalogPassType, activities: PassTypeActivity[]) => Promise<boolean>;
-  reloadAccess: () => void;
 };
+
+// What a combined save did: both parts saved, only the fields (the access PUT failed after the
+// PATCH), or nothing. `passType` is the pass as the server last confirmed it.
+export type SaveResult =
+  | { status: 'saved'; passType: CatalogPassType }
+  | { status: 'partial'; passType: CatalogPassType }
+  | { status: 'failed' };
 
 export const usePassesContext = () => useOutletContext<PassesContext>();
 

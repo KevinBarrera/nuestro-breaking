@@ -237,6 +237,14 @@ test('an unknown event sale state leaves the pill to the pass date', async ({ pa
   await expect(row(page, 'Open Styles')).toContainText('Venta cerrada');
 });
 
+test("a pass's own future close date shows under the pill on the event clock (#240)", async ({
+  page,
+}) => {
+  await mockCatalog(page, () => [{ ...fullPass, onlineSalesClosesAt: '2026-11-20T16:00:00.000Z' }]);
+  await page.goto(passesPath);
+  await expect(row(page, 'Pase completo')).toContainText('En ventaHasta 20 nov 2026, 10:00');
+});
+
 test('warns about a full pass that gives access to no activity', async ({ page }) => {
   await mockCatalog(page, () => [fullPass, wacking, general]);
   await page.goto(passesPath);

@@ -255,7 +255,6 @@ function PassRow({
   return (
     <Link
       to={detailPath(passType.id)}
-      data-pass-link={passType.id}
       aria-label={`${label}${issue ? `. Atención: ${noAccessPill.toLowerCase()}` : ''}. Editar pase`}
       className={`${grid} hover:bg-surface-inner focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus`}
     >

@@ -25,12 +25,12 @@ Test runner: Vitest for pure logic and Playwright (`apps/frontend/e2e`) for flow
 
 ## Tasks
 
-| ID  | Specs      | Route  | Status  | Commit |
-| --- | ---------- | ------ | ------- | ------ |
+| ID  | Specs      | Route  | Status  | Commit  |
+| --- | ---------- | ------ | ------- | ------- |
 | T1  | S3–S7      | inline | done    | a1f72a8 |
 | T2  | S2–S8, S16 | inline | done    | d57c3f9 |
-| T3  | S10–S14    | inline | pending |        |
-| T4  | S9–S16     | inline | pending |        |
+| T3  | S10–S14    | inline | pending |         |
+| T4  | S9–S16     | inline | pending |         |
 
 T1 = list model (pure), T2 = list screen, T3 = editor model (pure), T4 = editor screens.
 
@@ -40,3 +40,5 @@ T1 = list model (pure), T2 = list screen, T3 = editor model (pure), T4 = editor 
 - **L2:** Checked the canvas note against the code. Vendidos: the attendee-lists snapshot has `passTypeIds` and `status` per registration. Event sale state: `GET /sales` (`state`, `reason`). The backend has no rule against activities on a general pass (entitlements come from access rows), so the General access section stays visible. The design drops "Requiere pase"; it stays for Adicional so no behavior is lost. The note says a switch for the close date; the artboards show radio cards with presets, which win. Restore follows Actividades (no confirmation). Issues #372 and #373 created and added to #312. Route: inline for every task (one sequential chain).
 - **L3:** T1 (`feat/372-01-passes-model`, a1f72a8): `pass-catalog-model.ts` with `passTabCounts`, `passGroups`, `passPriceLabel`, `passAccessSummary`, `noAccess`, `misconfiguredNotice`, `soldCounts`, `saleOpen`. RED (module missing), GREEN 15/15.
 - **L4:** T2 (`feat/372-02-passes-screen`, d57c3f9): `pass-list.tsx` (tabs, grouped table rows with container query, empty state), `PassListScreen` rewritten, layout loads attendee lists and event sales (both optional), success notice with "Cerrar aviso", "Archivaste <nombre>." / "Restauraste <nombre>. Vuelve a estar en venta.", restore without confirmation; `pass-type-list.tsx` removed. Deviation: a pass with its own future close date keeps "Hasta <fecha>" under the pill (the old list showed it, #240). Specs: `admin-pass-restore.spec.ts` became `admin-pass-list.spec.ts` (10 tests), the catalog card tests moved there, other specs open rows by link name. Checked in Chrome (light, dark, phone width, Archivados empty). `verify:pr` green (896 unit, 595 e2e). Native review of `dev`..d57c3f9 (readability, reliability; `under_budget`, run per the review-before-push rule, consent granted per the standing rule): approved and acknowledged. Follow-ups for T4: drop the unused `data-pass-link`, escape the pass name in the e2e link regex. Left as is: `now` fixed at mount (refreshes on remount), the optional reads share the catalog load (same as Actividades).
+- **L5:** T3 (`feat/373-01-pass-editor-model`, 7ac80ef): `pass-editor-model.ts` (draft, close presets and check, input, dirty, access days, counter, warning, change rows, price and archive notes, preview); "Venta en línea" review rows read "Mientras el evento venda" / "Hasta el …". RED (module missing), GREEN.
+- **L6:** T4 (`feat/373-02-pass-editor`): `pass-editor.tsx` shared by create and edit; layout `save` runs PATCH then PUT with one result and keeps the access edits on a PUT failure (no reload then); create saves directly; `pass-type-form.tsx` and `pass-access-list.tsx` removed, `pass-access-model.ts` trimmed. Bug found while reviewing: a saved link to an archived activity counted as a change on open; fixed in `draftChangeRows` (RED 1, GREEN). Route: e2e rewrite delegated (context backstop) to one writer: `admin-pass-editor.spec.ts` (28 tests) replaces `admin-pass-access-list` and `admin-pass-review`; routes, catalog and sweep mocks adapted. The sweep found 38/40px targets; raised to 44px. Review follow-ups from L4 done (`data-pass-link` removed, name RegExp escaped). Checked in Chrome (create, edit review, Descartar, archive dialog, dark, narrow; nothing saved). `verify:pr` green (914 unit, 594 e2e); sweeps 189 passed. Docs: `frontend-architecture.md`, `contracts/event-catalog.md`.

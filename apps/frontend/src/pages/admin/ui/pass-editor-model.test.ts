@@ -258,7 +258,7 @@ describe('accessDays', () => {
 
   it('sets every activity of one day at once', () => {
     const [saturday] = accessDays(activities, timeZone);
-    expect(setDayAccess(saturday!, { popping: 'included' }, 'selectable')).toEqual({
+    expect(setDayAccess(saturday, { popping: 'included' }, 'selectable')).toEqual({
       popping: 'included',
       toprock: 'selectable',
       footwork: 'selectable',
@@ -313,6 +313,33 @@ describe('draftChangeRows', () => {
       ['Venta en línea', 'Mientras el evento venda', 'Hasta el 20 nov 2026, 23:59'],
       ['Breaking Footwork', 'Elegible', 'Sin acceso'],
       ['Locking 1v1', 'Sin acceso', 'Incluida'],
+    ]);
+  });
+
+  it('ignores a link to an archived activity until the access changes, then lists its drop', () => {
+    const stale = {
+      ...pass,
+      activities: [...pass.activities, { activityId: 'old', access: 'included' as const }],
+    };
+    const rows = (choices: PassDraft['choices']) => {
+      const draft = { ...passDraft(stale, timeZone, eventWindow), choices };
+      const result = draftInput(draft, timeZone, eventWindow);
+      if (!result.ok) throw new Error('invalid');
+      return draftChangeRows(
+        stale,
+        result.input,
+        choices,
+        accessDays(activities, timeZone),
+        activities,
+        timeZone,
+      ).map((row) => [row.label, row.before, row.after]);
+    };
+    expect(rows(passDraft(stale, timeZone, eventWindow).choices)).toEqual([]);
+    expect(
+      rows({ toprock: 'selectable', footwork: 'selectable', popping: 'included', old: 'included' }),
+    ).toEqual([
+      ['Popping 1v1', 'Sin acceso', 'Incluida'],
+      ['Vieja', 'Incluida', 'Sin acceso'],
     ]);
   });
 

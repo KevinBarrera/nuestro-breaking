@@ -270,7 +270,8 @@ export const draftAccess = (days: AgendaDay[], choices: AccessChoices): PassType
   });
 
 // The review rows: changed fields, then each activity whose access changes in the access list
-// order (archived links that the save drops come last).
+// order. A link to an archived activity is not a change by itself (the editor cannot list it),
+// but a save of the access drops it, so once the access changes its drop is listed last.
 export function draftChangeRows(
   passType: CatalogPassType,
   input: PassTypeInput,
@@ -279,10 +280,19 @@ export function draftChangeRows(
   activities: CatalogActivity[],
   timeZone: string,
 ): ChangeRow[] {
-  const order = [...listed(days), ...activities.filter((activity) => activity.status !== 'active')];
+  const shown = listed(days);
+  const ids = new Set(shown.map((activity) => activity.id));
+  const after = draftAccess(days, choices);
+  const changed =
+    passAccessRows(
+      shown,
+      passType.activities.filter((link) => ids.has(link.activityId)),
+      after,
+    ).length > 0;
+  const order = [...shown, ...activities.filter((activity) => activity.status !== 'active')];
   return [
     ...passFieldRows(passType, input, timeZone),
-    ...passAccessRows(order, passType.activities, draftAccess(days, choices)),
+    ...(changed ? passAccessRows(order, passType.activities, after) : []),
   ];
 }
 

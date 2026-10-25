@@ -9,6 +9,7 @@ import type {
 import type { EventSales } from '@/entities/event-sales';
 import { routes } from '@/shared/config';
 import type { ReactNode } from 'react';
+import type { SaveResult } from './pass-editor';
 import { useOutletContext } from 'react-router';
 
 // What the passes layout (`AdminEventPassesPage`) hands its list, create and detail screens.
@@ -31,18 +32,16 @@ export type PassesContext = {
   busy: boolean;
   // Write and refresh notices, placed by each screen under its header.
   notices: ReactNode;
-  // The pass whose access save hit a version conflict, if any.
-  accessConflictFor: string | null;
-  // Bumped by the conflict reload (discarding local edits) and by a confirmed access save,
-  // so the access editor restarts from the saved links.
-  accessReset: number;
   // Each write resolves to whether it succeeded, so the screen can close its dialog.
   create: (input: NewPassTypeInput) => Promise<boolean>;
-  update: (passType: CatalogPassType, input: PassTypeInput) => Promise<boolean>;
+  // Fields and access in one save; see `SaveResult`.
+  save: (
+    passType: CatalogPassType,
+    input: PassTypeInput | null,
+    access: PassTypeActivity[] | null,
+  ) => Promise<SaveResult>;
   archive: (passType: CatalogPassType) => Promise<boolean>;
   restore: (passType: CatalogPassType) => Promise<boolean>;
-  saveAccess: (passType: CatalogPassType, activities: PassTypeActivity[]) => Promise<boolean>;
-  reloadAccess: () => void;
 };
 
 export const usePassesContext = () => useOutletContext<PassesContext>();

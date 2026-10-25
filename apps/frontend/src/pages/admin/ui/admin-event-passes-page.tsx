@@ -19,7 +19,8 @@ import { getEventSales } from '@/entities/event-sales';
 import { type ReactNode, useCallback, useState } from 'react';
 import { Outlet, useLocation, useNavigate, useParams } from 'react-router';
 import { ActivitySuccessNotice } from './activity-feedback';
-import { passRestoreConflict } from './catalog-copy';
+import { failureMessages, passRestoreConflict } from './catalog-copy';
+import type { SaveResult } from './pass-editor';
 import {
   CatalogLoadFailure,
   CatalogNotice,
@@ -41,6 +42,10 @@ type ScreenNotice = { at: string; notice: Notice };
 // without ruling out the fields.
 const invalidActivityText =
   'No se pudo crear el pase: lo más probable es que alguna actividad elegida ya no esté activa en este evento. Recarga para ver las actividades actuales y revisa el acceso y los datos antes de guardar.';
+
+// The PATCH went through and the PUT did not: say which half is saved, then why.
+const partialSaveText = (name: string, failure: CatalogFailure) =>
+  `Se guardaron los datos de ${name}, pero no el acceso a actividades. ${failureMessages[failure]} Tus cambios de acceso siguen en pantalla; revísalos y vuelve a guardar.`;
 
 // Layout route for the pass list, create and detail screens: it reads the catalog once and
 // runs every write, so moving between the screens keeps the data and the notices.
@@ -78,8 +83,6 @@ function EventPasses({ eventId }: { eventId: string }) {
   const navigate = useNavigate();
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<ScreenNotice | null>(null);
-  const [accessConflictFor, setAccessConflictFor] = useState<string | null>(null);
-  const [accessReset, setAccessReset] = useState(0);
 
   // Moving to another screen drops a notice filed for a different one (adjusted while
   // rendering, so the stale notice never paints on the new screen).
@@ -95,18 +98,18 @@ function EventPasses({ eventId }: { eventId: string }) {
   // `failureText` message when it gives one.
   async function run<T>(
     action: () => Promise<T>,
-    success: string,
+    success: string | ((result: T) => string),
     destination?: (result: T) => string,
     failureText?: (failure: CatalogFailure) => string | undefined,
   ): Promise<boolean> {
     if (busy) return false;
     setBusy(true);
     setNotice(null);
-    setAccessConflictFor(null);
     try {
       const result = await action();
       const to = destination?.(result);
-      setNotice({ at: to ?? pathname, notice: { kind: 'success', text: success } });
+      const text = typeof success === 'string' ? success : success(result);
+      setNotice({ at: to ?? pathname, notice: { kind: 'success', text } });
       if (to) void navigate(to);
       reload();
       return true;
@@ -133,21 +136,59 @@ function EventPasses({ eventId }: { eventId: string }) {
         }));
         return created;
       },
-      'Pase creado.',
+      (created) => `Creaste ${created.name}. Ya está en venta.`,
       (created) => passDetailPath(eventId, created.id),
       (failure) =>
         failure === 'invalid' && input.activities?.length ? invalidActivityText : undefined,
     );
   }
 
-  // The confirmed response (new version) is applied in place before the refresh, so the
-  // screen reads as saved at once and a following access save sends the new version.
-  function updatePass(passType: CatalogPassType, input: PassTypeInput) {
-    const { id, version } = passType;
-    return run(async () => {
-      const saved = await updatePassType(eventId, id, version, input);
-      replacePass(saved);
-    }, 'Pase actualizado.');
+  // One save for the fields and the access: the PATCH first (when the fields changed), then the
+  // PUT with the version the PATCH returned. Each confirmed response is applied in place. When
+  // the PUT fails after the PATCH, the fields stay saved and no reload runs, so the editor keeps
+  // the access edits for another try (a reload would bring the new version and reset it).
+  async function save(
+    passType: CatalogPassType,
+    input: PassTypeInput | null,
+    access: PassTypeActivity[] | null,
+  ): Promise<SaveResult> {
+    if (busy) return { status: 'failed' };
+    setBusy(true);
+    setNotice(null);
+    let current = passType;
+    try {
+      if (input) {
+        current = await updatePassType(eventId, current.id, current.version, input);
+        replacePass(current);
+      }
+    } catch (error) {
+      setNotice({ at: pathname, notice: { kind: 'failure', failure: catalogFailure(error) } });
+      setBusy(false);
+      return { status: 'failed' };
+    }
+    try {
+      if (access) {
+        current = await replacePassTypeActivities(eventId, current.id, current.version, access);
+        replacePass(current);
+      }
+    } catch (error) {
+      const failure = catalogFailure(error);
+      setNotice({
+        at: pathname,
+        notice: input
+          ? { kind: 'failure', failure, text: partialSaveText(current.name, failure) }
+          : { kind: 'failure', failure },
+      });
+      setBusy(false);
+      return input ? { status: 'partial', passType: current } : { status: 'failed' };
+    }
+    setNotice({
+      at: pathname,
+      notice: { kind: 'success', text: `Guardaste los cambios de ${current.name}.` },
+    });
+    setBusy(false);
+    reload();
+    return { status: 'saved', passType: current };
   }
 
   function replacePass(saved: CatalogPassType) {
@@ -176,47 +217,8 @@ function EventPasses({ eventId }: { eventId: string }) {
     );
   }
 
-  // Keeps the pass on screen and applies the confirmed response (new version) in place.
-  async function saveAccess(
-    passType: CatalogPassType,
-    activities: PassTypeActivity[],
-  ): Promise<boolean> {
-    if (busy) return false;
-    setBusy(true);
-    setNotice(null);
-    setAccessConflictFor(null);
-    try {
-      const saved = await replacePassTypeActivities(
-        eventId,
-        passType.id,
-        passType.version,
-        activities,
-      );
-      replacePass(saved);
-      // The editor restarts from the confirmed links, whatever the response holds.
-      setAccessReset((value) => value + 1);
-      setNotice({ at: pathname, notice: { kind: 'success', text: 'Acceso actualizado.' } });
-      return true;
-    } catch (error) {
-      const failure = catalogFailure(error);
-      if (failure === 'conflict') setAccessConflictFor(passType.id);
-      else setNotice({ at: pathname, notice: { kind: 'failure', failure } });
-      return false;
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  function reloadAccess() {
-    setNotice(null);
-    setAccessConflictFor(null);
-    setAccessReset((value) => value + 1);
-    reload();
-  }
-
   function refresh() {
     setNotice(null);
-    setAccessConflictFor(null);
     reload();
   }
 
@@ -250,14 +252,10 @@ function EventPasses({ eventId }: { eventId: string }) {
         <CatalogRefreshFailure failure={state.refreshFailure} onRetry={reload} />
       </>
     ),
-    accessConflictFor,
-    accessReset,
     create,
-    update: updatePass,
+    save,
     archive,
     restore,
-    saveAccess,
-    reloadAccess,
   };
 
   return (

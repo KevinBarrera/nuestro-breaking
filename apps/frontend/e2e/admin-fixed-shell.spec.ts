@@ -87,3 +87,25 @@ test('keeps the stacked layout without horizontal overflow at 390px', async ({ p
   const main = await page.getByRole('main').boundingBox();
   expect(nav!.y + nav!.height).toBeLessThanOrEqual(main!.y);
 });
+
+test('content positioned out of flow never makes the document itself scrollable at 1280px', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 700 });
+  await mockAdminApi(page);
+  await page.goto(adminScreens[2].path);
+  await expect(page.getByRole('main')).toBeVisible();
+  // A screen-reader-only label far down the content, like the editor's access search.
+  await page.getByRole('main').evaluate((main) => {
+    const spacer = document.createElement('div');
+    spacer.style.height = '2000px';
+    const label = document.createElement('span');
+    label.className = 'sr-only';
+    label.textContent = 'Buscar actividad';
+    main.append(spacer, label);
+  });
+
+  // Otherwise a scroll over the side navigation moves the whole shell, and the content
+  // column cannot scroll it back.
+  expect(await page.evaluate(() => document.scrollingElement!.scrollHeight)).toBe(700);
+});

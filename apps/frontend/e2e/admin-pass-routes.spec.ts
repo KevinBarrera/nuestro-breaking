@@ -83,8 +83,9 @@ async function mockCatalog(page: Page, rows: () => unknown[]) {
 
 const breadcrumb = (page: Page) => page.getByRole('navigation', { name: 'Ruta de navegación' });
 const sideNav = (page: Page) => page.getByRole('navigation', { name: 'Navegación administrativa' });
+const escape = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const passLink = (page: Page, name: string) =>
-  page.getByRole('link', { name: new RegExp(`^${name},`) });
+  page.getByRole('link', { name: new RegExp(`^${escape(name)},`) });
 
 async function expectPasesHighlighted(page: Page) {
   await expect(sideNav(page).getByRole('link', { name: 'Pases' })).toHaveAttribute(
@@ -130,7 +131,7 @@ test('a deep link to a pass loads it once the catalog is ready', async ({ page }
   await page.goto(`${passesPath}/${fullPassId}`);
   const form = page.getByRole('form', { name: 'Editar pase' });
   await expect(form.getByLabel('Nombre')).toHaveValue('Pase completo');
-  await expect(form).toContainText('v2');
+  await expect(page.getByRole('heading', { name: 'Pase completo', level: 1 })).toBeVisible();
 });
 
 for (const [label, id] of [
@@ -169,15 +170,13 @@ test('the create route saves a new pass and lands on its detail route', async ({
   const form = page.getByRole('form', { name: 'Nuevo pase' });
   await form.getByLabel('Nombre').fill('Entrada general');
   await form.getByRole('radio', { name: 'General' }).check();
-  await form.getByLabel('Precio (MXN)').fill('300');
-  await form.getByRole('button', { name: 'Guardar' }).click();
-  await page
-    .getByRole('dialog', { name: 'Revisar cambios' })
-    .getByRole('button', { name: 'Guardar cambios' })
-    .click();
+  await form.getByLabel('Precio').fill('300');
+  await form.getByRole('button', { name: 'Crear pase' }).click();
 
   await expect(page).toHaveURL(`${passesPath}/${createdPassId}`);
-  await expect(page.getByRole('status')).toContainText('Pase creado');
+  await expect(
+    page.getByRole('status').filter({ hasText: 'Creaste Entrada general' }),
+  ).toContainText('Creaste Entrada general. Ya está en venta.');
   await expect(page.getByRole('form', { name: 'Editar pase' }).getByLabel('Nombre')).toHaveValue(
     'Entrada general',
   );
@@ -187,8 +186,8 @@ test('cancel on the create route returns to the list', async ({ page }) => {
   await mockCatalog(page, () => [fullPass]);
   await page.goto(`${passesPath}/new`);
   await page
-    .getByRole('form', { name: 'Nuevo pase' })
-    .getByRole('button', { name: 'Cancelar' })
+    .getByRole('region', { name: 'Crear pase' })
+    .getByRole('link', { name: 'Cancelar' })
     .click();
   await expect(page).toHaveURL(passesPath);
 });
@@ -205,10 +204,10 @@ test('archiving a pass returns to the list with the success notice', async ({ pa
   );
   await page.goto(`${passesPath}/${fullPassId}`);
   const form = page.getByRole('form', { name: 'Editar pase' });
-  await form.getByRole('button', { name: 'Archivar' }).click();
+  await form.getByRole('button', { name: 'Archivar pase' }).click();
   await page
     .getByRole('alertdialog', { name: '¿Archivar Pase completo?' })
-    .getByRole('button', { name: 'Archivar' })
+    .getByRole('button', { name: 'Archivar', exact: true })
     .click();
   await expect(page).toHaveURL(passesPath);
   await expect(page.getByRole('status').first()).toContainText('Archivaste Pase completo.');

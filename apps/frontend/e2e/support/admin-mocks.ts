@@ -456,11 +456,17 @@ export const adminDialogs: {
     screen: 'Pase',
     open: async (page) => {
       const form = page.getByRole('form', { name: 'Editar pase' });
+      // Exact: an activity named "... con nombre largo" also labels an access radio group.
       await form
-        .getByLabel('Nombre')
+        .getByRole('textbox', { name: 'Nombre', exact: true })
         .fill('Pase completo con nombre largo para pantallas angostas');
-      await form.getByRole('button', { name: 'Guardar cambios' }).click();
-      return page.getByRole('dialog', { name: 'Revisar cambios' });
+      // A price change also shows the note about what buyers already paid.
+      await form.getByLabel('Precio').fill('1750');
+      await page
+        .getByRole('region', { name: 'Cambios sin guardar' })
+        .getByRole('button', { name: 'Revisar cambios' })
+        .click();
+      return page.getByRole('dialog', { name: 'Revisa los cambios' });
     },
   },
   {
@@ -468,8 +474,8 @@ export const adminDialogs: {
     screen: 'Pase',
     open: async (page) => {
       await page
-        .getByRole('form', { name: 'Editar pase' })
-        .getByRole('button', { name: 'Archivar' })
+        .getByRole('region', { name: 'Archivar pase' })
+        .getByRole('button', { name: 'Archivar pase' })
         .click();
       return page.getByRole('alertdialog', { name: '¿Archivar Pase completo?' });
     },
@@ -489,7 +495,10 @@ export const adminDialogs: {
     name: 'unsaved changes warning',
     screen: 'Pase',
     open: async (page) => {
-      await page.getByRole('form', { name: 'Editar pase' }).getByLabel('Nombre').fill('Pase VIP');
+      await page
+        .getByRole('form', { name: 'Editar pase' })
+        .getByRole('textbox', { name: 'Nombre', exact: true })
+        .fill('Pase VIP');
       await page
         .getByRole('navigation', { name: 'Ruta de navegación' })
         .getByRole('link', { name: 'Pases' })

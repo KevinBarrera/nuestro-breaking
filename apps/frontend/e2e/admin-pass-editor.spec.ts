@@ -450,6 +450,21 @@ test.describe('create', () => {
     expect(right.y).toBeGreaterThan(left.y);
     await expectNoHorizontalScroll(page, 375);
   });
+
+  test('the create bar spans the content column and rests on its bottom edge', async ({ page }) => {
+    await page.setViewportSize({ width: 1920, height: 700 });
+    await mockCatalog(page, () => [fullPass]);
+    await page.goto(newPath);
+    const main = (await page.getByRole('main').boundingBox())!;
+    const box = async () => (await createBar(page).boundingBox())!;
+    expect((await box()).x).toBeCloseTo(main.x, 0);
+    expect((await box()).width).toBeCloseTo(main.width, 0);
+    expect((await box()).y + (await box()).height).toBeCloseTo(700, 0);
+
+    // At the end of the page the bar stays flush with the bottom, with no gap under it.
+    await createBar(page).evaluate((node) => node.closest('main')?.parentElement?.scrollTo(0, 1e6));
+    await expect.poll(async () => Math.round((await box()).y + (await box()).height)).toBe(700);
+  });
 });
 
 test.describe('edit', () => {

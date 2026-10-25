@@ -278,7 +278,7 @@ function EventPasses({ eventId }: { eventId: string }) {
 
 function PassesMain({ children }: { children: ReactNode }) {
   return (
-    <main className="px-4 py-8 text-fg sm:px-8 lg:pt-10 lg:pb-16">
+    <main className="@container px-4 py-8 text-fg sm:px-8 lg:pt-10 lg:pb-16">
       <div className="mx-auto max-w-[1120px] space-y-5">{children}</div>
     </main>
   );

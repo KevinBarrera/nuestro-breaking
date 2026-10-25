@@ -193,46 +193,50 @@ export function PassEditor(props: PassEditorProps) {
         aria-label={passType ? 'Editar pase' : 'Nuevo pase'}
         noValidate
         onSubmit={(event) => void submit(event)}
-        className="@container"
       >
-        <div className="grid items-start gap-6 @min-[980px]:grid-cols-[minmax(0,1fr)_340px]">
-          <div className="min-w-0 space-y-5">
-            <PassFields draft={draft} errors={errors} editing={!!passType} onChange={update} />
-            <AccessSection draft={draft} passType={passType} days={days} onChange={update} />
-            {passType && (
-              <section
-                aria-labelledby="pass-archive"
-                className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 rounded-xl border border-line bg-surface p-5 sm:p-6"
-              >
-                <div className="min-w-0 flex-[1_1_320px] space-y-1">
-                  <h2 id="pass-archive" className="text-lg font-bold text-heading">
-                    Archivar pase
-                  </h2>
-                  <p className="text-sm text-muted">
-                    Deja de venderse en línea y en mesa. Quien ya lo compró lo conserva. Puedes
-                    restaurarlo desde Archivados.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  disabled={busy}
-                  className={styles.secondary}
-                  onClick={() => setArchiving(true)}
+        <div className="@container">
+          <div className="grid items-start gap-6 @min-[980px]:grid-cols-[minmax(0,1fr)_340px]">
+            <div className="min-w-0 space-y-5">
+              <PassFields draft={draft} errors={errors} editing={!!passType} onChange={update} />
+              <AccessSection draft={draft} passType={passType} days={days} onChange={update} />
+              {passType && (
+                <section
+                  aria-labelledby="pass-archive"
+                  className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 rounded-xl border border-line bg-surface p-5 sm:p-6"
                 >
-                  Archivar pase
-                </button>
-              </section>
-            )}
+                  <div className="min-w-0 flex-[1_1_320px] space-y-1">
+                    <h2 id="pass-archive" className="text-lg font-bold text-heading">
+                      Archivar pase
+                    </h2>
+                    <p className="text-sm text-muted">
+                      Deja de venderse en línea y en mesa. Quien ya lo compró lo conserva. Puedes
+                      restaurarlo desde Archivados.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    className={styles.secondary}
+                    onClick={() => setArchiving(true)}
+                  >
+                    Archivar pase
+                  </button>
+                </section>
+              )}
+            </div>
+            <PassPreviewCard draft={draft} />
           </div>
-          <PassPreviewCard draft={draft} />
         </div>
         {(passType ? dirty : true) && (
           <div
             role="region"
             aria-label={passType ? 'Cambios sin guardar' : 'Crear pase'}
-            className="sticky bottom-0 z-10 -mx-4 mt-8 border-t border-input-line bg-surface px-4 py-3 sm:-mx-8 sm:px-8"
+            // The bar spans the whole content column, flush with its bottom edge: 100cqw is the
+            // width of the page's <main> (the nearest container), and the negative margins
+            // cancel its padding.
+            className="sticky bottom-0 z-10 mx-[calc(50%-50cqw-1rem)] mt-8 -mb-8 border-t border-input-line bg-surface px-4 py-3 sm:mx-[calc(50%-50cqw-2rem)] sm:px-8 lg:-mb-16"
           >
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
+            <div className="mx-auto flex max-w-[1120px] flex-wrap items-center gap-x-4 gap-y-3">
               {passType ? (
                 <>
                   <p className="flex flex-[1_1_220px] items-center gap-2.5 text-sm font-semibold">

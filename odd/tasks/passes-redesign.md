@@ -25,12 +25,12 @@ Test runner: Vitest for pure logic and Playwright (`apps/frontend/e2e`) for flow
 
 ## Tasks
 
-| ID  | Specs      | Route  | Status  | Commit  |
-| --- | ---------- | ------ | ------- | ------- |
-| T1  | S3–S7      | inline | done    | a1f72a8 |
-| T2  | S2–S8, S16 | inline | done    | d57c3f9 |
-| T3  | S10–S14    | inline | pending |         |
-| T4  | S9–S16     | inline | pending |         |
+| ID  | Specs      | Route  | Status | Commit                                      |
+| --- | ---------- | ------ | ------ | ------------------------------------------- |
+| T1  | S3–S7      | inline | done   | a1f72a8                                     |
+| T2  | S2–S8, S16 | inline | done   | d57c3f9                                     |
+| T3  | S10–S14    | inline | done   | 7ac80ef                                     |
+| T4  | S9–S16     | inline | done   | 1eb2ac3, 2a91d76, 717d58d, 36351d3, e175506 |
 
 T1 = list model (pure), T2 = list screen, T3 = editor model (pure), T4 = editor screens.
 
@@ -43,3 +43,4 @@ T1 = list model (pure), T2 = list screen, T3 = editor model (pure), T4 = editor 
 - **L5:** T3 (`feat/373-01-pass-editor-model`, 7ac80ef): `pass-editor-model.ts` (draft, close presets and check, input, dirty, access days, counter, warning, change rows, price and archive notes, preview); "Venta en línea" review rows read "Mientras el evento venda" / "Hasta el …". RED (module missing), GREEN.
 - **L6:** T4 (`feat/373-02-pass-editor`): `pass-editor.tsx` shared by create and edit; layout `save` runs PATCH then PUT with one result and keeps the access edits on a PUT failure (no reload then); create saves directly; `pass-type-form.tsx` and `pass-access-list.tsx` removed, `pass-access-model.ts` trimmed. Bug found while reviewing: a saved link to an archived activity counted as a change on open; fixed in `draftChangeRows` (RED 1, GREEN). Route: e2e rewrite delegated (context backstop) to one writer: `admin-pass-editor.spec.ts` (28 tests) replaces `admin-pass-access-list` and `admin-pass-review`; routes, catalog and sweep mocks adapted. The sweep found 38/40px targets; raised to 44px. Review follow-ups from L4 done (`data-pass-link` removed, name RegExp escaped). Checked in Chrome (create, edit review, Descartar, archive dialog, dark, narrow; nothing saved). `verify:pr` green (914 unit, 594 e2e); sweeps 189 passed. Docs: `frontend-architecture.md`, `contracts/event-catalog.md`.
 - **L7:** The #373 slice exceeded the native review budget, so it was reviewed in four ranges (consent granted per the standing rule), all approved and acknowledged: d57c3f9..7ac80ef (T3; reliability, readability), 7ac80ef..1eb2ac3 (T4 code and docs; resilience, reliability, readability), 1eb2ac3..2a91d76 (T4 e2e), 2a91d76..717d58d (follow-up). T4 was split into code (1eb2ac3) and e2e (2a91d76) commits for that. Follow-ups done in 717d58d: the combined save releases `busy` in `finally`; an access PUT 409 after the PATCH asks for a reload instead of another save; `SaveResult` lives in `passes-context.ts`; `isAccessRow` names the access-row rule; e2e for the PUT conflict and for "Hasta …" on the list. Not done (advisory): shared e2e helpers for the regex escape and save flow. `verify:pr` green (914 unit, 596 e2e). Every slice reads `already_reviewed`. Next: the user decides push and PRs (#372 → `dev`, #373 → `feat/372-02-passes-screen`).
+- **L8 (2026-10-24, user):** UI fixes before push: "si hago scrolldown hasta abajo llego al límite inferior de la pantalla y hago el gesto de hacer más scrolldown hay un issue en el que la pantalla se desplaza" and "el contenedor de los botones ocupa todo el ancho libre simplemente evitando el sidenav y pegado al fondo inferior (como footer), pero eso no ocurre". Cause of the first: screen-reader-only (absolute) elements inside the shell's content column had their containing block outside it, so they made the document scrollable (1082px in a 740px window); a scroll over the side navigation moved the whole shell. Fixed with `relative` on the content column (36351d3, RED 2584 vs 700). The bar now spans the content column (`100cqw` of the `@container` main) and cancels the main's bottom padding (e175506, RED at 1920px). User confirmed both in Chrome. `verify:pr` green (914 unit, 598 e2e incl. 189 sweep checks). Native review of 717d58d..e175506 (readability, reliability; consent granted per the standing rule): approved and acknowledged. Advisory follow-ups: the bar's margins are coupled to `PassesMain` padding and max width; the bar test reaches the scroller through optional chaining; sm-breakpoint margins untested.

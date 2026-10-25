@@ -9,7 +9,6 @@ import type {
 import type { EventSales } from '@/entities/event-sales';
 import { routes } from '@/shared/config';
 import type { ReactNode } from 'react';
-import type { SaveResult } from './pass-editor';
 import { useOutletContext } from 'react-router';
 
 // What the passes layout (`AdminEventPassesPage`) hands its list, create and detail screens.
@@ -43,6 +42,13 @@ export type PassesContext = {
   archive: (passType: CatalogPassType) => Promise<boolean>;
   restore: (passType: CatalogPassType) => Promise<boolean>;
 };
+
+// What a combined save did: both parts saved, only the fields (the access PUT failed after the
+// PATCH), or nothing. `passType` is the pass as the server last confirmed it.
+export type SaveResult =
+  | { status: 'saved'; passType: CatalogPassType }
+  | { status: 'partial'; passType: CatalogPassType }
+  | { status: 'failed' };
 
 export const usePassesContext = () => useOutletContext<PassesContext>();
 

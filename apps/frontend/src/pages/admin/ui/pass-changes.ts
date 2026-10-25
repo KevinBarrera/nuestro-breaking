@@ -63,6 +63,11 @@ export function passFieldRows(
   ]);
 }
 
+const accessKey = 'access:';
+
+// Whether a review row is an access row (from `passAccessRows`) rather than a field row.
+export const isAccessRow = (row: ChangeRow) => row.key.startsWith(accessKey);
+
 // One row per activity whose access changes, labeled with the activity name and read as
 // "Sin acceso → Incluida". Rows follow `activities` (the access list order); a link to an
 // activity that is not in it is listed last under a generic name.
@@ -84,7 +89,7 @@ export function passAccessRows(
   );
   return changedRows(
     ids.map((id) => ({
-      key: `access:${id}`,
+      key: `${accessKey}${id}`,
       label: name(id),
       before: label(before, id),
       after: label(after, id),

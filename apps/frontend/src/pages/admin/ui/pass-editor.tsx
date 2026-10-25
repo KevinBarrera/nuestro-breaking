@@ -24,6 +24,7 @@ import { formatTimeRange } from './activity-agenda-model';
 import { WarningIcon } from './activity-icons';
 import { accessLabels, passClassLabels, styles } from './catalog-copy';
 import { droppedLinks, type AccessChoice } from './pass-access-model';
+import { isAccessRow } from './pass-changes';
 import { saleLabel, saleOpen, soldLabel } from './pass-catalog-model';
 import {
   accessCounter,
@@ -45,14 +46,7 @@ import {
   type PassDraft,
 } from './pass-editor-model';
 import { InfoIcon } from './pass-list';
-import { passListPath, usePassesContext } from './passes-context';
-
-// What a combined save did: both parts saved, only the fields (the access PUT failed after the
-// PATCH), or nothing. `passType` is the pass as the server last confirmed it.
-export type SaveResult =
-  | { status: 'saved'; passType: CatalogPassType }
-  | { status: 'partial'; passType: CatalogPassType }
-  | { status: 'failed' };
+import { passListPath, usePassesContext, type SaveResult } from './passes-context';
 
 type PassEditorProps =
   | {
@@ -150,7 +144,7 @@ export function PassEditor(props: PassEditorProps) {
     if (props.mode !== 'edit' || !result.ok || !passType) return;
     const fieldsChanged = passFieldsChanged(rows ?? []);
     const access = draftAccess(days, draft.choices);
-    const accessChanged = (rows ?? []).some((row) => row.key.startsWith('access:'));
+    const accessChanged = (rows ?? []).some(isAccessRow);
     const saved = await props.onSave(
       fieldsChanged ? result.input : null,
       accessChanged ? access : null,
@@ -336,7 +330,7 @@ export function PassEditor(props: PassEditorProps) {
   );
 }
 
-const passFieldsChanged = (rows: ChangeRow[]) => rows.some((row) => !row.key.startsWith('access:'));
+const passFieldsChanged = (rows: ChangeRow[]) => rows.some((row) => !isAccessRow(row));
 
 function EditStatus({ passType, sold }: { passType: CatalogPassType; sold: number | undefined }) {
   const { sales } = usePassesContext();

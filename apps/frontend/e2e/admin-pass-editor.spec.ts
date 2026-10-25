@@ -667,6 +667,26 @@ test.describe('edit', () => {
     ]);
   });
 
+  test('an access PUT conflict after the PATCH asks for a reload instead of another save', async ({
+    page,
+  }) => {
+    const server = store(fullPass);
+    await mockCatalog(page, server.rows, {
+      write: (route, write) =>
+        write.method === 'PUT'
+          ? route.fulfill({ status: 409, json: { message: 'Pass type version conflict' } })
+          : server.write(route, write),
+    });
+    await page.goto(detailPath);
+    await editForm(page).getByLabel('Nombre').fill('Pase VIP');
+    await chooseAccess(access(page, 'Batalla 2 vs 2'), 'Incluida');
+    await saveChanges(page);
+    const failure = page.getByRole('alert').filter({ hasText: 'Se guardaron los datos' });
+    await expect(failure).toContainText('Conflicto');
+    await expect(failure).not.toContainText('vuelve a guardar');
+    await expect(failure.getByRole('button', { name: 'Recargar' })).toBeVisible();
+  });
+
   test('a stale PATCH shows the conflict, skips the PUT, and "Recargar" brings the server values', async ({
     page,
   }) => {

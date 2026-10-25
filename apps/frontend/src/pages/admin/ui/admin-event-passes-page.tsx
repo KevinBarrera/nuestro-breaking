@@ -20,7 +20,6 @@ import { type ReactNode, useCallback, useState } from 'react';
 import { Outlet, useLocation, useNavigate, useParams } from 'react-router';
 import { ActivitySuccessNotice } from './activity-feedback';
 import { failureMessages, passRestoreConflict } from './catalog-copy';
-import type { SaveResult } from './pass-editor';
 import {
   CatalogLoadFailure,
   CatalogNotice,
@@ -29,7 +28,12 @@ import {
 } from './catalog-notice';
 import { soldCounts } from './pass-catalog-model';
 import { PassesHeader } from './pass-screens';
-import { passDetailPath, passListPath, type PassesContext } from './passes-context';
+import {
+  passDetailPath,
+  passListPath,
+  type PassesContext,
+  type SaveResult,
+} from './passes-context';
 import { useCatalogLoad } from './use-catalog-load';
 
 // A notice belongs to the screen it was raised for: a write that moves to another screen
@@ -44,8 +48,14 @@ const invalidActivityText =
   'No se pudo crear el pase: lo más probable es que alguna actividad elegida ya no esté activa en este evento. Recarga para ver las actividades actuales y revisa el acceso y los datos antes de guardar.';
 
 // The PATCH went through and the PUT did not: say which half is saved, then why.
+// A conflict means someone else changed the pass: only a reload (which drops the access edits)
+// can fix it, so that case does not ask to save again.
 const partialSaveText = (name: string, failure: CatalogFailure) =>
-  `Se guardaron los datos de ${name}, pero no el acceso a actividades. ${failureMessages[failure]} Tus cambios de acceso siguen en pantalla; revísalos y vuelve a guardar.`;
+  `Se guardaron los datos de ${name}, pero no el acceso a actividades. ${failureMessages[failure]}${
+    failure === 'conflict'
+      ? ''
+      : ' Tus cambios de acceso siguen en pantalla; revísalos y vuelve a guardar.'
+  }`;
 
 // Layout route for the pass list, create and detail screens: it reads the catalog once and
 // runs every write, so moving between the screens keeps the data and the notices.
@@ -157,38 +167,39 @@ function EventPasses({ eventId }: { eventId: string }) {
     setNotice(null);
     let current = passType;
     try {
-      if (input) {
-        current = await updatePassType(eventId, current.id, current.version, input);
-        replacePass(current);
+      try {
+        if (input) {
+          current = await updatePassType(eventId, current.id, current.version, input);
+          replacePass(current);
+        }
+      } catch (error) {
+        setNotice({ at: pathname, notice: { kind: 'failure', failure: catalogFailure(error) } });
+        return { status: 'failed' };
       }
-    } catch (error) {
-      setNotice({ at: pathname, notice: { kind: 'failure', failure: catalogFailure(error) } });
-      setBusy(false);
-      return { status: 'failed' };
-    }
-    try {
-      if (access) {
-        current = await replacePassTypeActivities(eventId, current.id, current.version, access);
-        replacePass(current);
+      try {
+        if (access) {
+          current = await replacePassTypeActivities(eventId, current.id, current.version, access);
+          replacePass(current);
+        }
+      } catch (error) {
+        const failure = catalogFailure(error);
+        setNotice({
+          at: pathname,
+          notice: input
+            ? { kind: 'failure', failure, text: partialSaveText(current.name, failure) }
+            : { kind: 'failure', failure },
+        });
+        return input ? { status: 'partial', passType: current } : { status: 'failed' };
       }
-    } catch (error) {
-      const failure = catalogFailure(error);
       setNotice({
         at: pathname,
-        notice: input
-          ? { kind: 'failure', failure, text: partialSaveText(current.name, failure) }
-          : { kind: 'failure', failure },
+        notice: { kind: 'success', text: `Guardaste los cambios de ${current.name}.` },
       });
+      reload();
+      return { status: 'saved', passType: current };
+    } finally {
       setBusy(false);
-      return input ? { status: 'partial', passType: current } : { status: 'failed' };
     }
-    setNotice({
-      at: pathname,
-      notice: { kind: 'success', text: `Guardaste los cambios de ${current.name}.` },
-    });
-    setBusy(false);
-    reload();
-    return { status: 'saved', passType: current };
   }
 
   function replacePass(saved: CatalogPassType) {

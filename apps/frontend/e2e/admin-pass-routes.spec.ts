@@ -83,8 +83,8 @@ async function mockCatalog(page: Page, rows: () => unknown[]) {
 
 const breadcrumb = (page: Page) => page.getByRole('navigation', { name: 'Ruta de navegación' });
 const sideNav = (page: Page) => page.getByRole('navigation', { name: 'Navegación administrativa' });
-const passCard = (page: Page, name: string) =>
-  page.getByRole('listitem').filter({ has: page.getByRole('heading', { name }) });
+const passLink = (page: Page, name: string) =>
+  page.getByRole('link', { name: new RegExp(`^${name},`) });
 
 async function expectPasesHighlighted(page: Page) {
   await expect(sideNav(page).getByRole('link', { name: 'Pases' })).toHaveAttribute(
@@ -103,8 +103,7 @@ test('a pass card opens its detail route and the breadcrumb leads back to the li
   await page.goto(passesPath);
   await expect(page.getByRole('heading', { name: 'Pases', level: 1 })).toBeVisible();
   await expectPasesHighlighted(page);
-  const card = passCard(page, 'Pase completo');
-  const target = card.getByRole('link', { name: 'Editar Pase completo', exact: true });
+  const target = passLink(page, 'Pase completo');
   await expect(target).toHaveAttribute('href', `${passesPath}/${fullPassId}`);
   await target.click();
 
@@ -123,7 +122,7 @@ test('a pass card opens its detail route and the breadcrumb leads back to the li
   expect((await back.boundingBox())!.height).toBeGreaterThanOrEqual(44);
   await back.click();
   await expect(page).toHaveURL(passesPath);
-  await expect(passCard(page, 'Pase completo')).toBeVisible();
+  await expect(passLink(page, 'Pase completo')).toBeVisible();
 });
 
 test('a deep link to a pass loads it once the catalog is ready', async ({ page }) => {
@@ -212,15 +211,18 @@ test('archiving a pass returns to the list with the success notice', async ({ pa
     .getByRole('button', { name: 'Archivar' })
     .click();
   await expect(page).toHaveURL(passesPath);
-  await expect(page.getByRole('status')).toContainText('Pase archivado');
-  await expect(passCard(page, 'Pase completo')).toContainText('Archivado');
+  await expect(page.getByRole('status').first()).toContainText('Archivaste Pase completo.');
+  await page.getByRole('tab', { name: /^Archivados/ }).click();
+  await expect(page.getByRole('listitem').filter({ hasText: 'Pase completo' })).toContainText(
+    'Archivado',
+  );
 });
 
 test('the old pass-types address redirects to the passes list', async ({ page }) => {
   await mockCatalog(page, () => [fullPass]);
   await page.goto(`/admin/events/${eventId}/pass-types`);
   await expect(page).toHaveURL(passesPath);
-  await expect(passCard(page, 'Pase completo')).toBeVisible();
+  await expect(passLink(page, 'Pase completo')).toBeVisible();
 });
 
 test('the pass detail and its breadcrumb fit a 375px viewport', async ({ page }) => {

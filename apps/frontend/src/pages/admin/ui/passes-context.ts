@@ -1,10 +1,12 @@
 import type {
   CatalogActivity,
   CatalogPassType,
+  EventWindow,
   NewPassTypeInput,
   PassTypeActivity,
   PassTypeInput,
 } from '@/entities/event-catalog';
+import type { EventSales } from '@/entities/event-sales';
 import { routes } from '@/shared/config';
 import type { ReactNode } from 'react';
 import { useOutletContext } from 'react-router';
@@ -16,6 +18,12 @@ export type PassesContext = {
   eventId: string;
   // The event's IANA time zone, for the pass's online close time (#240).
   timeZone: string;
+  // The event dates (null for an unbounded event), for the close-date shortcuts and warning.
+  eventWindow: EventWindow | null;
+  // Vendidos per pass from the attendee-lists snapshot; null when it could not be read.
+  sold: Map<string, number> | null;
+  // The event's online sale; null when it could not be read.
+  sales: EventSales | null;
   passTypes: CatalogPassType[];
   activities: CatalogActivity[];
   // The last server read; its versions key the pass form (see `PassDetailScreen`).
@@ -44,5 +52,6 @@ const fill = (pattern: string, params: Record<string, string>) =>
 
 export const passListPath = (eventId: string) => fill(routes.adminEventPasses, { eventId });
 export const passNewPath = (eventId: string) => fill(routes.adminEventPassNew, { eventId });
+export const activitiesPath = (eventId: string) => fill(routes.adminEventActivities, { eventId });
 export const passDetailPath = (eventId: string, passTypeId: string) =>
   fill(routes.adminEventPass, { eventId, passTypeId });

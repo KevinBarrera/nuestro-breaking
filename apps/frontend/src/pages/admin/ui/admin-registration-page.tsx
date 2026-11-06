@@ -11,6 +11,7 @@ import {
   type CatalogActivity,
   type CatalogPassType,
 } from '@/entities/event-catalog';
+import { formatCompetitorNumber } from '@/shared/lib';
 import { routes } from '@/shared/config';
 import { Breadcrumbs, buttonClass, Notice } from '@/shared/ui';
 import { useEffect, useId, useRef, useState, type MouseEvent, type ReactNode } from 'react';
@@ -344,6 +345,13 @@ function RegistrationScreen({
                 <Fact label="AKA">
                   {state.entitlements.registration.participant.stageName ?? 'Sin AKA'}
                 </Fact>
+                {state.entitlements.competitorNumber !== null && (
+                  <Fact label="Número de competidor">
+                    <span className="font-mono">
+                      {formatCompetitorNumber(state.entitlements.competitorNumber)}
+                    </span>
+                  </Fact>
+                )}
               </dl>
             </DetailCard>
             {canVoidRegistration(state.entitlements.registration) && (

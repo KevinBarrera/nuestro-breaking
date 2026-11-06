@@ -81,6 +81,26 @@ test('corrects the name and AKA of a confirmed registration', async ({ page }) =
   ]);
 });
 
+test('shows the competitor number of the registration, only when it has one (#377)', async ({
+  page,
+}) => {
+  let competitorNumber: number | null = 7;
+  await mockRegistrations(page, {
+    entitlements: () => ({
+      json: { ...entitlements(confirmed).json, competitorNumber },
+    }),
+  });
+  await page.goto(registrationPath(registrationId));
+  const number = section(page).getByRole('definition').filter({ hasText: '007' });
+  await expect(section(page)).toContainText('Número de competidor007');
+  await expect(number.locator('.font-mono')).toHaveText('007');
+
+  competitorNumber = null;
+  await page.reload();
+  await expect(section(page)).toContainText('Ana López');
+  await expect(section(page).getByText('Número de competidor')).toHaveCount(0);
+});
+
 test('blocks a blank reason or no change without calling the API', async ({ page }) => {
   const { corrections } = await mockRegistrations(page, {
     entitlements: () => entitlements(confirmed),

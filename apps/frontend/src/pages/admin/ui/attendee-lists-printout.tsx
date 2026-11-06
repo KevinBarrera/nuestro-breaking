@@ -1,5 +1,6 @@
 import { useId } from 'react';
 import {
+  competitorNumberLabel,
   cssString,
   folioLabel,
   formatGeneratedAt,
@@ -23,7 +24,7 @@ type PrintoutProps = {
 const paperRows = 18;
 
 const steps = [
-  'Busca a la persona por nombre, AKA o folio. Las listas van en orden alfabético.',
+  'Busca a la persona por nombre, AKA, folio o número. Primero van quienes tienen número, en orden, y luego el resto en orden alfabético.',
   <>
     Si la columna <b>Entró</b> ya tiene hora, la persona entró antes de imprimir: no la dejes pasar
     otra vez sin revisar.
@@ -154,17 +155,22 @@ function PrintedList({ list, newSheet }: { list: AttendeeListView; newSheet: boo
               <span className="sr-only">Marca</span>
               <span aria-hidden="true">✓</span>
             </th>
-            <th scope="col" className={`${th} ${list.showPasses ? 'w-[23%]' : 'w-[40%]'}`}>
+            <th scope="col" className={`${th} w-[64px]`}>
+              Número
+            </th>
+            {/* Letter portrait: the fixed columns take about a third, so "Nombre" and "AKA"
+                keep readable widths even on the event list, which also shows "Pases" (#377). */}
+            <th scope="col" className={`${th} ${list.showPasses ? 'w-[25%]' : 'w-[40%]'}`}>
               Nombre
             </th>
             <th scope="col" className={th}>
               AKA
             </th>
-            <th scope="col" className={`${th} w-[90px]`}>
+            <th scope="col" className={`${th} w-[84px]`}>
               Folio
             </th>
             {list.showPasses && (
-              <th scope="col" className={`${th} w-[38%]`}>
+              <th scope="col" className={`${th} w-[26%]`}>
                 Pases
               </th>
             )}
@@ -177,6 +183,9 @@ function PrintedList({ list, newSheet }: { list: AttendeeListView; newSheet: boo
           {list.rows.map((row) => (
             <tr key={row.registrationId} className="break-inside-avoid">
               <td className={td}>{markBox}</td>
+              <td className={`${td} font-mono text-sm`}>
+                {competitorNumberLabel(row.competitorNumber)}
+              </td>
               <th scope="row" className={`${td} text-left font-bold break-words`}>
                 {row.fullName}
                 {row.pending && (

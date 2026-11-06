@@ -744,7 +744,8 @@ export class RegistrationEntitlementsService {
   }
 
   // Row lock serializes entitlement writes per registration (duplicate and class checks included).
-  private async lockRegistration(
+  // Shared with the competitor number assignment (#377), the other registration operation.
+  async lockRegistration(
     tx: Transaction,
     eventId: string,
     registrationId: string,
@@ -793,12 +794,13 @@ export class RegistrationEntitlementsService {
     executor: Executor,
     eventId: string,
     registrationId: string,
-  ): Promise<RegistrationSummary> {
+  ): Promise<{ registration: RegistrationSummary; competitorNumber: number | null }> {
     const [row] = await executor
       .select({
         id: eventRegistrations.id,
         status: eventRegistrations.status,
         folio: eventRegistrations.folio,
+        competitorNumber: eventRegistrations.competitorNumber,
         expiresAt: eventRegistrations.expiresAt,
         fullName: participants.fullName,
         firstName: participants.firstName,
@@ -821,8 +823,17 @@ export class RegistrationEntitlementsService {
         and(eq(eventRegistrations.id, registrationId), eq(eventRegistrations.eventId, eventId)),
       );
     if (!row) throw new NotFoundException('Registration not found');
-    const { id, status, folio, expiresAt, cashAmountCents, cashReceipt, ...participant } = row;
-    return {
+    const {
+      id,
+      status,
+      folio,
+      competitorNumber,
+      expiresAt,
+      cashAmountCents,
+      cashReceipt,
+      ...participant
+    } = row;
+    const registration: RegistrationSummary = {
       id,
       status: status as RegistrationStatus,
       folio,
@@ -831,6 +842,7 @@ export class RegistrationEntitlementsService {
         cashAmountCents === null ? null : { amountCents: cashAmountCents, receipt: cashReceipt },
       participant,
     };
+    return { registration, competitorNumber };
   }
 
   private async entitlements(
@@ -838,7 +850,11 @@ export class RegistrationEntitlementsService {
     eventId: string,
     registrationId: string,
   ): Promise<RegistrationEntitlements> {
-    const registration = await this.summary(executor, eventId, registrationId);
+    const { registration, competitorNumber } = await this.summary(
+      executor,
+      eventId,
+      registrationId,
+    );
     const rows = await executor
       .select({
         registrationPassId: eventRegistrationPasses.id,
@@ -890,10 +906,12 @@ export class RegistrationEntitlementsService {
       registration,
       passes,
       accessibleActivityIds: await this.accessibleActivityIds(executor, eventId, registrationId),
+      competitorNumber,
     };
   }
 
-  private async audit(
+  // Shared with the competitor number assignment (#377).
+  async audit(
     tx: Transaction,
     actor: RegistrationAuditActor,
     registration: RegistrationRow,
@@ -905,7 +923,8 @@ export class RegistrationEntitlementsService {
         | 'registration_void'
         | 'registration_correction'
         | 'registration_discipline_swap'
-        | 'cash_correction';
+        | 'cash_correction'
+        | 'competitor_number_assignment';
       affectedActivityIds: string[];
       beforeState: Record<string, unknown>;
       afterState: Record<string, unknown>;

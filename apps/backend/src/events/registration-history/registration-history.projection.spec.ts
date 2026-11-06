@@ -59,6 +59,30 @@ describe('registration history projection', () => {
     });
   });
 
+  it('projects a competitor number assignment with the previous and new number', () => {
+    expect(
+      detailsOf(
+        fact({
+          operationType: 'competitor_number_assignment',
+          beforeState: { status: 'confirmed', competitorNumber: 3 },
+          afterState: { status: 'confirmed', competitorNumber: 7 },
+        }),
+        names,
+      ),
+    ).toEqual({ kind: 'competitor_number_assignment', previous: 3, current: 7 });
+    expect(
+      detailsOf(
+        fact({
+          operationType: 'competitor_number_assignment',
+          beforeState: { competitorNumber: null },
+          afterState: { competitorNumber: 'x' },
+        }),
+        names,
+      ),
+    ).toEqual({ kind: 'competitor_number_assignment', previous: null, current: null });
+    expect(reasonOf(fact({ operationType: 'competitor_number_assignment', note: 'n' }))).toBeNull();
+  });
+
   it('round-trips the cursors it issues and rejects anything else', () => {
     const cursor = {
       createdAt: '2026-10-21T12:00:00.123456Z',

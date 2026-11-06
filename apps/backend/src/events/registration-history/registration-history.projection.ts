@@ -118,6 +118,12 @@ export function detailsOf(fact: AuditFact, names: CatalogNames): HistoryDetails 
         previous: { amountCents: integer(before.amountCents), receipt: text(before.receipt) },
         current: { amountCents: integer(after.amountCents), receipt: text(after.receipt) },
       };
+    case 'competitor_number_assignment':
+      return {
+        kind: 'competitor_number_assignment',
+        previous: integer(before.competitorNumber),
+        current: integer(after.competitorNumber),
+      };
     case 'payment_approval':
       return {
         kind: 'payment_approval',

@@ -281,6 +281,20 @@
       "when": 1791936310337,
       "tag": "0039_event_location",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1791936370337,
+      "tag": "0040_competitor_number",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1791936430337,
+      "tag": "0041_competitor_number_audit",
+      "breakpoints": true
     }
   ]
 }

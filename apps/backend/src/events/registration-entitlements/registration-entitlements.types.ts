@@ -38,10 +38,12 @@ export type HeldPass = {
 };
 
 // Admin read model. `accessibleActivityIds` is sorted and derived only from entitlement data.
+// `competitorNumber` is the registration's competitor number (#377), null when it has none.
 export type RegistrationEntitlements = {
   registration: RegistrationSummary;
   passes: HeldPass[];
   accessibleActivityIds: string[];
+  competitorNumber: number | null;
 };
 
 // A participant name correction (#104): the normalized name parts and AKA that replace the stored

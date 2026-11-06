@@ -1,6 +1,7 @@
 export {
   addRegistrationPass,
   AdminRegistrationError,
+  assignCompetitorNumber,
   adminRegistrationFailure,
   confirmCashPayment,
   confirmComplimentary,
@@ -27,6 +28,7 @@ export type {
   CashCorrectionInput,
   CashPayment,
   CashPaymentInput,
+  CompetitorNumberAssignment,
   ComplimentaryConfirmation,
   ComplimentaryConfirmationInput,
   DisciplineSwapInput,

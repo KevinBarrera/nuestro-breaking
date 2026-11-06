@@ -20,6 +20,13 @@ const isInstantOrNull = (value: unknown): value is string | null =>
 const isStringOrNull = (value: unknown): value is string | null =>
   value === null || typeof value === 'string';
 
+const isPositiveInteger = (value: unknown): value is number =>
+  Number.isSafeInteger(value) && (value as number) > 0;
+
+// A missing competitor number (a backend before #377) reads as none; a malformed one is rejected.
+const readCompetitorNumber = (value: unknown): number | null | undefined =>
+  value === undefined || value === null ? null : isPositiveInteger(value) ? value : undefined;
+
 const isOneOf = <T extends string>(values: readonly T[], value: unknown): value is T =>
   values.some((known) => known === value);
 
@@ -57,12 +64,15 @@ function readRegistration(value: unknown): AttendeeListRegistration | null {
   if (!isStringOrNull(folio) || !isStringOrNull(stageName)) return null;
   if (!isOneOf(attendeeListStatuses, status) || !isInstantOrNull(eventCheckedInAt)) return null;
   if (!Array.isArray(value.passTypeIds) || !Array.isArray(value.activities)) return null;
+  const competitorNumber = readCompetitorNumber(value.competitorNumber);
+  if (competitorNumber === undefined) return null;
   const passTypeIds = value.passTypeIds.filter((id): id is string => typeof id === 'string');
   const activities = readAll(value.activities, readActivityCheckIn);
   if (passTypeIds.length !== value.passTypeIds.length || !activities) return null;
   return {
     registrationId,
     folio,
+    competitorNumber,
     fullName,
     stageName,
     status,

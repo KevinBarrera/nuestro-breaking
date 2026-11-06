@@ -211,6 +211,7 @@ describe('enrollmentCounts', () => {
   const registration = (id: string, activityIds: string[]) => ({
     registrationId: id,
     folio: null,
+    competitorNumber: null,
     fullName: id,
     stageName: null,
     status: 'confirmed' as const,

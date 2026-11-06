@@ -9,6 +9,7 @@ import {
   removeRegistrationPass,
   searchRegistrations,
   setPassSelections,
+  assignCompetitorNumber,
   correctCash,
   correctParticipant,
   swapDiscipline,
@@ -58,6 +59,7 @@ const entitlements = {
     },
   ],
   accessibleActivityIds: [],
+  competitorNumber: null,
 };
 const confirmed = { registrationId, eventId, status: 'confirmed', folio: 'LMP-7K3Q', auditId };
 
@@ -729,6 +731,62 @@ describe('correctCash', () => {
         correctCash(eventId, registrationId, { ...correction, receiptChecked: true }),
       ),
     ).toEqual({ kind: 'unknown' });
+  });
+});
+
+describe('assignCompetitorNumber', () => {
+  const assigned = { registrationId, competitorNumber: 8, previousCompetitorNumber: 3 };
+  const reject = (status: number, body: Record<string, unknown>) =>
+    stubFetch(() => Response.json({ statusCode: status, ...body }, { status }));
+
+  it('posts without a body with the CSRF token and reads the new number (#377)', async () => {
+    const fetchMock = stubFetch(() => Response.json(assigned, { status: 201 }));
+    expect(await assignCompetitorNumber(eventId, registrationId)).toEqual(assigned);
+    const [url, init] = call(fetchMock, 1);
+    expect(url).toMatch(new RegExp(`${base}/registrations/${registrationId}/competitor-number$`));
+    expect(init.method).toBe('POST');
+    expect((init.headers as Record<string, string>)['X-CSRF-Token']).toBe('csrf-token');
+    expect(init.body).toBeUndefined();
+  });
+
+  it('reads a first assignment without a previous number', async () => {
+    stubFetch(() =>
+      Response.json({ ...assigned, previousCompetitorNumber: null }, { status: 201 }),
+    );
+    expect((await assignCompetitorNumber(eventId, registrationId)).previousCompetitorNumber).toBe(
+      null,
+    );
+  });
+
+  it('maps the rejections and treats a malformed answer as an unknown outcome', async () => {
+    const answers = [
+      [404, { message: 'Not found' }, { kind: 'not_found' }],
+      [
+        409,
+        { message: 'Not confirmed', code: 'competitor_number_not_confirmed' },
+        { kind: 'rule', code: 'competitor_number_not_confirmed' },
+      ],
+      [
+        409,
+        { message: 'Not eligible', code: 'competitor_number_not_eligible' },
+        { kind: 'rule', code: 'competitor_number_not_eligible' },
+      ],
+    ] as const;
+    for (const [status, body, failure] of answers) {
+      reject(status, body);
+      expect(await failureOf(assignCompetitorNumber(eventId, registrationId))).toEqual(failure);
+    }
+    for (const bad of [
+      { ...assigned, registrationId: participantId },
+      { ...assigned, competitorNumber: null },
+      { ...assigned, competitorNumber: '008' },
+      { ...assigned, previousCompetitorNumber: 0 },
+    ]) {
+      stubFetch(() => Response.json(bad, { status: 201 }));
+      expect(await failureOf(assignCompetitorNumber(eventId, registrationId))).toEqual({
+        kind: 'unknown',
+      });
+    }
   });
 });
 

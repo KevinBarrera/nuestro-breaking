@@ -128,7 +128,19 @@ describe('readEntitlements', () => {
     registration,
     passes: [pass],
     accessibleActivityIds: ['act-1', 'act-2'],
+    competitorNumber: null,
   };
+
+  it('reads the competitor number, a missing one as none (#377)', () => {
+    expect(
+      readEntitlements({ ...entitlements, competitorNumber: 7 }, registrationId)?.competitorNumber,
+    ).toBe(7);
+    const legacy: Partial<typeof entitlements> = { ...entitlements };
+    delete legacy.competitorNumber;
+    expect(readEntitlements(legacy, registrationId)?.competitorNumber).toBeNull();
+    for (const competitorNumber of ['001', 0, -3, 1.5])
+      expect(readEntitlements({ ...entitlements, competitorNumber }, registrationId)).toBeNull();
+  });
 
   it('reads the registration summary, held passes and accessible activities', () => {
     expect(readEntitlements(entitlements, registrationId)).toEqual(entitlements);
@@ -149,10 +161,15 @@ describe('readEntitlements', () => {
     };
     expect(
       readEntitlements(
-        { registration: confirmed, passes: [], accessibleActivityIds: [] },
+        { registration: confirmed, passes: [], accessibleActivityIds: [], competitorNumber: 4 },
         registrationId,
       ),
-    ).toEqual({ registration: confirmed, passes: [], accessibleActivityIds: [] });
+    ).toEqual({
+      registration: confirmed,
+      passes: [],
+      accessibleActivityIds: [],
+      competitorNumber: 4,
+    });
   });
 
   it('reads the current cash payment, with a null receipt on a legacy confirmation (#104)', () => {
@@ -381,6 +398,14 @@ describe('readRegistrationFailure', () => {
       [409, 'Online registrations cannot lose a pass', 'online_registration_pass_locked'],
     ] as const)
       expect(readRegistrationFailure(status, { statusCode: status, message })).toEqual({
+        kind: 'rule',
+        code,
+      });
+  });
+
+  it('maps the competitor number conflicts by their codes (#377)', () => {
+    for (const code of ['competitor_number_not_confirmed', 'competitor_number_not_eligible'])
+      expect(readRegistrationFailure(409, { message: 'Conflict', code })).toEqual({
         kind: 'rule',
         code,
       });

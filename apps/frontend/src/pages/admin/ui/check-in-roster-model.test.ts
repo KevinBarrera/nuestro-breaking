@@ -34,6 +34,7 @@ const lists: AttendeeLists = {
       stageName: 'Tonnpresssss',
       status: 'confirmed',
       eventCheckedInAt: null,
+      competitorNumber: 7,
       passTypeIds: ['full', 'kids'],
       activities: [
         { activityId: 'a-foot', checkedInAt: null },
@@ -47,6 +48,7 @@ const lists: AttendeeLists = {
       stageName: 'Aczino',
       status: 'confirmed',
       eventCheckedInAt: null,
+      competitorNumber: null,
       passTypeIds: ['general'],
       activities: [],
     },
@@ -57,6 +59,7 @@ const lists: AttendeeLists = {
       stageName: null,
       status: 'confirmed',
       eventCheckedInAt: at,
+      competitorNumber: null,
       passTypeIds: ['general'],
       activities: [],
     },
@@ -67,6 +70,7 @@ const lists: AttendeeLists = {
       stageName: 'Dani R',
       status: 'pending_payment',
       eventCheckedInAt: null,
+      competitorNumber: null,
       passTypeIds: ['general'],
       activities: [],
     },
@@ -77,6 +81,7 @@ const lists: AttendeeLists = {
       stageName: null,
       status: 'confirmed',
       eventCheckedInAt: null,
+      competitorNumber: null,
       passTypeIds: [],
       activities: [],
     },
@@ -100,6 +105,18 @@ describe('buildRoster', () => {
       ],
     });
     expect(person('r-none')).toMatchObject({ pass: 'Sin pase', checks: [] });
+    expect(person('r-tonny').competitorNumber).toBe(7);
+    expect(person('r-mau').competitorNumber).toBeNull();
+  });
+
+  it('marks as competing only confirmed registrations with a competition (#377)', () => {
+    expect(person('r-tonny').competes).toBe(true);
+    expect(person('r-mau').competes).toBe(false);
+    const pending = buildRoster({
+      ...lists,
+      registrations: [{ ...lists.registrations[0], status: 'pending_payment' }],
+    });
+    expect(pending[0].competes).toBe(false);
     expect(person('r-dani').confirmed).toBe(false);
   });
 });
@@ -115,6 +132,26 @@ describe('matchesQuery', () => {
     expect(matchesQuery(person('r-tonny'), 'ev6dsb')).toBe(true);
     expect(matchesQuery(person('r-tonny'), 'EV-6D')).toBe(true);
     expect(matchesQuery(person('r-dani'), '-')).toBe(false);
+  });
+
+  it('matches the competitor number by numeric equality on a digits-only query (#377)', () => {
+    const numbered = (competitorNumber: number | null) => ({
+      fullName: 'Ana Paz',
+      stageName: null,
+      folio: 'EV-ABCD',
+      competitorNumber,
+    });
+    expect(matchesQuery(numbered(7), '7')).toBe(true);
+    expect(matchesQuery(numbered(7), '007')).toBe(true);
+    expect(matchesQuery(numbered(17), '7')).toBe(false);
+    expect(matchesQuery(numbered(70), '007')).toBe(false);
+    expect(matchesQuery(numbered(null), '7')).toBe(false);
+    expect(matchesQuery(numbered(7), 'ana')).toBe(true);
+  });
+
+  it('keeps matching digits inside the folio and name', () => {
+    expect(matchesQuery(person('r-tonny'), '6')).toBe(true);
+    expect(matchesQuery(person('r-none'), '000')).toBe(true);
   });
 });
 

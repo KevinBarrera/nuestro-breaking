@@ -11,6 +11,7 @@ const activity = {
 const registration = {
   registrationId: 'r1',
   folio: 'EB-7K3Q',
+  competitorNumber: 7,
   fullName: 'Ana López',
   stageName: 'Flash',
   status: 'confirmed',
@@ -33,6 +34,13 @@ describe('readAttendeeLists', () => {
     expect(lists?.generatedAt).toBe(body.generatedAt);
     expect(lists?.passTypes.map((pass) => pass.archived)).toEqual([false, true]);
     expect(lists?.registrations).toEqual([registration]);
+  });
+
+  it('reads a missing competitor number as none (#377)', () => {
+    const unnumbered: Partial<typeof registration> = { ...registration };
+    delete unnumbered.competitorNumber;
+    const [row] = readAttendeeLists({ ...body, registrations: [unnumbered] })!.registrations;
+    expect(row.competitorNumber).toBeNull();
   });
 
   it('reads an event without registrations', () => {
@@ -79,5 +87,9 @@ describe('readAttendeeLists', () => {
     expect(
       readAttendeeLists({ ...body, registrations: [{ ...registration, passTypeIds: [1] }] }),
     ).toBeNull();
+    for (const competitorNumber of ['007', 0, -1, 2.5])
+      expect(
+        readAttendeeLists({ ...body, registrations: [{ ...registration, competitorNumber }] }),
+      ).toBeNull();
   });
 });

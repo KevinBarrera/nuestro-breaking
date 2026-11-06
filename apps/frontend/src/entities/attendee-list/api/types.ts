@@ -25,6 +25,8 @@ export type AttendeeListActivity = {
 export type AttendeeListRegistration = {
   registrationId: string;
   folio: string | null;
+  // The per-event competitor number (#377), or null when the registration has none.
+  competitorNumber: number | null;
   fullName: string;
   stageName: string | null;
   status: AttendeeListStatus;

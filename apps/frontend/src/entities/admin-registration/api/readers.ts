@@ -6,6 +6,7 @@ import {
   type AdminRegistrationRuleCode,
   type CashConfirmation,
   type CashPayment,
+  type CompetitorNumberAssignment,
   type HeldPass,
   type ManualRegistration,
   type PossibleDuplicate,
@@ -29,6 +30,9 @@ const isInstantOrNull = (value: unknown): value is string | null =>
 
 const isCount = (value: unknown): value is number =>
   Number.isSafeInteger(value) && (value as number) >= 0;
+
+const isPositiveInteger = (value: unknown): value is number =>
+  Number.isSafeInteger(value) && (value as number) > 0;
 
 const oneOf = <T extends string>(values: readonly T[], value: unknown): value is T =>
   values.some((known) => known === value);
@@ -166,9 +170,24 @@ export function readEntitlements(
   const accessibleActivityIds = every(value.accessibleActivityIds, (id) =>
     isText(id) ? id : null,
   );
+  // A missing competitor number (a backend before #377) reads as none; a malformed one is rejected.
+  const competitorNumber = value.competitorNumber ?? null;
+  if (competitorNumber !== null && !isPositiveInteger(competitorNumber)) return null;
   return registration && passes && accessibleActivityIds
-    ? { registration, passes, accessibleActivityIds }
+    ? { registration, passes, accessibleActivityIds, competitorNumber }
     : null;
+}
+
+export function readCompetitorNumberAssignment(
+  value: unknown,
+  registrationId: string,
+): CompetitorNumberAssignment | null {
+  if (!isRecord(value) || value.registrationId !== registrationId) return null;
+  const { competitorNumber, previousCompetitorNumber } = value;
+  if (!isPositiveInteger(competitorNumber)) return null;
+  if (previousCompetitorNumber !== null && !isPositiveInteger(previousCompetitorNumber))
+    return null;
+  return { registrationId, competitorNumber, previousCompetitorNumber };
 }
 
 function readPossibleDuplicate(value: unknown): PossibleDuplicate | null {
@@ -233,6 +252,8 @@ const ruleCodes: readonly AdminRegistrationRuleCode[] = [
   'discipline_swap_checked_in',
   'discipline_swap_price_mismatch',
   'cash_correction_not_cash',
+  'competitor_number_not_confirmed',
+  'competitor_number_not_eligible',
 ];
 
 const messageOf = (body: unknown) =>

@@ -3,6 +3,7 @@ import type {
   AttendeeListRegistration,
   AttendeeLists,
 } from '@/entities/attendee-list';
+import { formatCompetitorNumber } from '@/shared/lib';
 import { formatCheckInTime } from './admin-check-in-model';
 import { matchesQuery } from './check-in-roster-model';
 
@@ -12,6 +13,8 @@ export type AttendeeListRow = {
   fullName: string;
   stageName: string | null;
   folio: string | null;
+  // The competitor number (#377), or null.
+  competitorNumber: number | null;
   // `pending_payment`: listed so the paper fallback knows them, shown with a pill (#362).
   pending: boolean;
   // Event check-in on the event and pass lists; that activity's check-in on an activity list.
@@ -32,21 +35,30 @@ export type AttendeeListView = {
 
 export const eventListId = 'event';
 
-const byName = (a: AttendeeListRow, b: AttendeeListRow) =>
-  a.fullName.localeCompare(b.fullName, 'es', { sensitivity: 'base' });
+// The backend's row order (#377): numbered competitors first by number, then everyone else by name.
+const byListOrder = (
+  a: Pick<AttendeeListRow, 'fullName' | 'competitorNumber'>,
+  b: Pick<AttendeeListRow, 'fullName' | 'competitorNumber'>,
+) => {
+  if (a.competitorNumber !== null && b.competitorNumber !== null)
+    return a.competitorNumber - b.competitorNumber;
+  if (a.competitorNumber !== null) return -1;
+  if (b.competitorNumber !== null) return 1;
+  return a.fullName.localeCompare(b.fullName, 'es', { sensitivity: 'base' });
+};
 
 // Lists in print order: the whole event, each pass type (in the backend's order, archived ones
-// marked), then each activity. Names come from the event's own catalog; rows go by name.
+// marked), then each activity. Names come from the event's own catalog; rows go numbered
+// competitors first by number, then by name.
 export function buildAttendeeLists(data: AttendeeLists): AttendeeListView[] {
   const passNames = new Map(data.passTypes.map((pass) => [pass.id, pass.name]));
-  const people = [...data.registrations].sort((a, b) =>
-    a.fullName.localeCompare(b.fullName, 'es', { sensitivity: 'base' }),
-  );
+  const people = [...data.registrations].sort(byListOrder);
   const row = (registration: AttendeeListRegistration, checkedInAt: string | null) => ({
     registrationId: registration.registrationId,
     fullName: registration.fullName,
     stageName: registration.stageName,
     folio: registration.folio,
+    competitorNumber: registration.competitorNumber,
     pending: registration.status === 'pending_payment',
     checkedInAt,
     passes: registration.passTypeIds.flatMap((id) => passNames.get(id) ?? []),
@@ -81,7 +93,7 @@ export function buildAttendeeLists(data: AttendeeLists): AttendeeListView[] {
           const access = registration.activities.find((entry) => entry.activityId === activity.id);
           return access ? [row(registration, access.checkedInAt)] : [];
         })
-        .sort(byName),
+        .sort(byListOrder),
     })),
   ];
 }
@@ -181,6 +193,9 @@ export const entryLabel = (checkedInAt: string | null, timeZone?: string) =>
   checkedInAt ? `Entró ${formatCheckInTime(checkedInAt, timeZone)}` : 'Sin entrar';
 
 export const folioLabel = (folio: string | null) => folio ?? '—';
+
+export const competitorNumberLabel = (value: number | null) =>
+  value === null ? '—' : formatCompetitorNumber(value);
 
 export function formatGeneratedAt(iso: string, timeZone?: string) {
   const date = new Date(iso);

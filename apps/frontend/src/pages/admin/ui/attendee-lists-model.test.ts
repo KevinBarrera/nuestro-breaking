@@ -6,6 +6,7 @@ import {
   entryLabel,
   estimateSheets,
   folioLabel,
+  competitorNumberLabel,
   formatGeneratedAt,
   formatSnapshotStamp,
   freshness,
@@ -30,6 +31,7 @@ const person = (
 ): AttendeeListRegistration => ({
   registrationId,
   folio: null,
+  competitorNumber: null,
   fullName,
   stageName: null,
   status: 'confirmed',
@@ -90,6 +92,30 @@ describe('buildAttendeeLists', () => {
       ['Ángela López'],
       ['Ángela López', 'Beto Ruiz'],
     ]);
+  });
+
+  it('lists numbered competitors first by number, then everyone else by name (#377)', () => {
+    const numbered = buildAttendeeLists({
+      ...snapshot,
+      registrations: [
+        person('a', 'Zoe Sol', { competitorNumber: 12, passTypeIds: ['full'] }),
+        person('b', 'Ana Paz', { passTypeIds: ['full'] }),
+        person('c', 'Yuri Mar', { competitorNumber: 3, passTypeIds: ['full'] }),
+        person('d', 'Beto Ríos', {
+          passTypeIds: ['full'],
+          activities: [{ activityId: 'battle', checkedInAt: null }],
+        }),
+        person('e', 'Ximena Luz', {
+          competitorNumber: 1,
+          activities: [{ activityId: 'battle', checkedInAt: null }],
+        }),
+      ],
+    });
+    const order = (index: number) => numbered[index].rows.map((row) => row.registrationId);
+    expect(order(0)).toEqual(['e', 'c', 'a', 'b', 'd']);
+    expect(order(1)).toEqual(['c', 'a', 'b', 'd']);
+    expect(order(3)).toEqual(['e', 'd']);
+    expect(numbered[0].rows.map((row) => row.competitorNumber)).toEqual([1, 3, 12, null, null]);
   });
 
   it('shows the passes only on the event list', () => {
@@ -215,6 +241,21 @@ describe('preview', () => {
     expect(names('nadie')).toEqual([]);
   });
 
+  it('searches the competitor number by numeric equality (#377)', () => {
+    const list = buildAttendeeLists({
+      ...snapshot,
+      registrations: [
+        person('a', 'Ana Paz', { competitorNumber: 7 }),
+        person('b', 'Beto Ríos', { competitorNumber: 17 }),
+        person('c', 'Carla Sol', { competitorNumber: 70 }),
+      ],
+    })[0];
+    const names = (query: string) => searchList(list, query).map((row) => row.fullName);
+    expect(names('7')).toEqual(['Ana Paz']);
+    expect(names('007')).toEqual(['Ana Paz']);
+    expect(names('carla')).toEqual(['Carla Sol']);
+  });
+
   it('labels the entry with the check-in time', () => {
     expect(entryLabel('2026-11-14T15:05:00Z', zone)).toBe('Entró 09:05');
     expect(entryLabel(null, zone)).toBe('Sin entrar');
@@ -222,6 +263,12 @@ describe('preview', () => {
 });
 
 describe('labels', () => {
+  it('shows the competitor number with three digits, or a dash (#377)', () => {
+    expect(competitorNumberLabel(null)).toBe('—');
+    expect(competitorNumberLabel(7)).toBe('007');
+    expect(competitorNumberLabel(1234)).toBe('1234');
+  });
+
   it('shows a dash for a missing folio', () => {
     expect(folioLabel(null)).toBe('—');
     expect(folioLabel('EB-7K3Q')).toBe('EB-7K3Q');

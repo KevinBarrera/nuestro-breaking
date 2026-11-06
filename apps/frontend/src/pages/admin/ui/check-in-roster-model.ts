@@ -1,6 +1,7 @@
 // Pure logic of the check-in list (#336): the event's registrations from the attendee-lists
 // snapshot, the checks each one owns, the search, the filters, the counts and the row status.
 import type { AttendeeLists } from '@/entities/attendee-list';
+import { matchesCompetitorNumber } from '@/shared/lib';
 import { formatCheckInTime } from './admin-check-in-model';
 
 // `activityId` null is the event entry, which only general-entry-only registrations own (#126).
@@ -8,9 +9,13 @@ export type RosterCheck = { activityId: string | null; name: string; checkedInAt
 export type RosterPerson = {
   registrationId: string;
   folio: string | null;
+  competitorNumber: number | null;
   fullName: string;
   stageName: string | null;
   confirmed: boolean;
+  // Confirmed with a competition among its activities: the screen offers the competitor number
+  // action (#377). The backend stays the authority on eligibility.
+  competes: boolean;
   generalEntryOnly: boolean;
   pass: string;
   checks: RosterCheck[];
@@ -40,12 +45,19 @@ export function buildRoster(lists: AttendeeLists): RosterPerson[] {
             return activity ? [{ activityId, name: activity.name, checkedInAt }] : [];
           })
           .sort(byName);
+    const confirmed = registration.status === 'confirmed';
     return {
       registrationId: registration.registrationId,
       folio: registration.folio,
+      competitorNumber: registration.competitorNumber,
       fullName: registration.fullName,
       stageName: registration.stageName,
-      confirmed: registration.status === 'confirmed',
+      confirmed,
+      competes:
+        confirmed &&
+        registration.activities.some(
+          ({ activityId }) => activities.get(activityId)?.kind === 'competition',
+        ),
       generalEntryOnly,
       pass: held.map((pass) => pass.name).join(', ') || 'Sin pase',
       checks,
@@ -96,13 +108,15 @@ export function progress(roster: RosterPerson[], activity: ActivityFilter) {
 const normalize = (text: string) => text.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 const alphanumeric = (text: string) => normalize(text).replace(/[^a-z0-9]/g, '');
 
-// Name or alias as typed, folio with or without its hyphen. Listas de respaldo searches too.
+// Name or alias as typed, folio with or without its hyphen, and the competitor number by numeric
+// equality for a digits-only query (#377). Listas de respaldo searches too.
 export function matchesQuery(
-  person: Pick<RosterPerson, 'fullName' | 'stageName' | 'folio'>,
+  person: Pick<RosterPerson, 'fullName' | 'stageName' | 'folio' | 'competitorNumber'>,
   query: string,
 ): boolean {
   const q = normalize(query.trim());
   if (!q) return true;
+  if (matchesCompetitorNumber(person.competitorNumber, q)) return true;
   if (normalize(`${person.fullName} ${person.stageName ?? ''}`).includes(q)) return true;
   const folio = alphanumeric(q);
   return !!folio && !!person.folio && alphanumeric(person.folio).includes(folio);

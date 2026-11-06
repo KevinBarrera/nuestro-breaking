@@ -186,6 +186,7 @@ describe('soldCounts', () => {
   const registration = (id: string, status: 'confirmed' | 'pending_payment', ids: string[]) => ({
     registrationId: id,
     folio: null,
+    competitorNumber: null,
     fullName: id,
     stageName: null,
     status,

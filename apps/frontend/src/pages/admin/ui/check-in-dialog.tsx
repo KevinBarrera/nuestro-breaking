@@ -1,7 +1,9 @@
+import { formatCompetitorNumber } from '@/shared/lib';
 import { buttonClass, Modal } from '@/shared/ui';
 import { Link } from 'react-router';
 import { escalationMessage, formatCheckInTime, type CheckInNotice } from './admin-check-in-model';
 import { initials, type RosterCheck, type RosterPerson } from './check-in-roster-model';
+import { competitorNumberAction } from './competitor-number-model';
 import { StatusPill } from './team-list';
 
 const svg = {
@@ -32,9 +34,49 @@ type CheckInDialogProps = {
   busy: boolean;
   notice: CheckInNotice | null;
   onAdmit: (check: RosterCheck) => void;
+  // Opens the confirmation of "Asignar número" / "Cambiar número" (#377).
+  onRequestNumber: () => void;
   onClose: () => void;
   onNext: () => void;
 };
+
+// The competitor number (#377): shown when the registration has one, with the action for a
+// confirmed competitor. The backend decides eligibility and answers a 409 otherwise.
+function CompetitorNumber({
+  person,
+  busy,
+  onRequestNumber,
+}: Pick<CheckInDialogProps, 'person' | 'busy' | 'onRequestNumber'>) {
+  const { competitorNumber, competes } = person;
+  if (competitorNumber === null && !competes) return null;
+  return (
+    <section
+      aria-label="Número de competidor"
+      className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-surface px-4 py-3"
+    >
+      <span className="flex flex-col gap-0.5">
+        <span className="text-sm font-semibold text-muted">Número de competidor</span>
+        {competitorNumber === null ? (
+          <span className="text-base text-muted">Sin número todavía</span>
+        ) : (
+          <span className="text-xl font-extrabold text-heading">
+            Número <span className="font-mono">{formatCompetitorNumber(competitorNumber)}</span>
+          </span>
+        )}
+      </span>
+      {competes && (
+        <button
+          type="button"
+          disabled={busy}
+          className={buttonClass('secondary')}
+          onClick={onRequestNumber}
+        >
+          {competitorNumberAction(competitorNumber).label}
+        </button>
+      )}
+    </section>
+  );
+}
 
 export function CheckInDialog({
   person,
@@ -42,6 +84,7 @@ export function CheckInDialog({
   busy,
   notice,
   onAdmit,
+  onRequestNumber,
   onClose,
   onNext,
 }: CheckInDialogProps) {
@@ -103,6 +146,8 @@ export function CheckInDialog({
       }
     >
       <div className="flex flex-col gap-4">
+        <CompetitorNumber person={person} busy={busy} onRequestNumber={onRequestNumber} />
+
         {!confirmed && (
           <div
             role="note"

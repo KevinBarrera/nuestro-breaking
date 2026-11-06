@@ -124,7 +124,7 @@ export function CheckInList({
           value={filters.query}
           onChange={(event) => set({ query: event.target.value })}
           onKeyDown={onKeyDown}
-          placeholder="Nombre, alias o folio"
+          placeholder="Nombre, alias, folio o número"
           className="min-h-13 min-w-0 flex-1 bg-transparent text-lg text-fg outline-none placeholder:text-muted [&::-webkit-search-cancel-button]:hidden"
         />
         {searching && (

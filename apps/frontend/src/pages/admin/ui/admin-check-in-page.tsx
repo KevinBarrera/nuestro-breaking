@@ -1,7 +1,8 @@
+import { adminRegistrationFailure, assignCompetitorNumber } from '@/entities/admin-registration';
 import { attendeeListsFailure, fetchAttendeeLists } from '@/entities/attendee-list';
 import { apiUrl } from '@/shared/api';
 import { routes } from '@/shared/config';
-import { buttonClass } from '@/shared/ui';
+import { buttonClass, ConfirmDialog } from '@/shared/ui';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import {
@@ -13,6 +14,11 @@ import {
 import { CheckInDialog } from './check-in-dialog';
 import { CheckInList, CheckInProgress, type CheckInFilters } from './check-in-list';
 import { buildRoster, type RosterCheck, type RosterPerson } from './check-in-roster-model';
+import {
+  competitorNumberAction,
+  competitorNumberFailureText,
+  competitorNumberSuccess,
+} from './competitor-number-model';
 
 type LoadState =
   { status: 'loading' | 'denied' | 'error' } | { status: 'ready'; roster: RosterPerson[] };
@@ -67,6 +73,7 @@ function EventCheckIn({ eventId }: { eventId: string }) {
   const [openId, setOpenId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<CheckInNotice | null>(null);
+  const [confirmingNumber, setConfirmingNumber] = useState(false);
   const controller = useRef<AbortController | null>(null);
   const locked = useRef(false);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -92,6 +99,7 @@ function EventCheckIn({ eventId }: { eventId: string }) {
     if (locked.current) return;
     setOpenId(null);
     setNotice(null);
+    setConfirmingNumber(false);
   }
 
   function next() {
@@ -149,6 +157,7 @@ function EventCheckIn({ eventId }: { eventId: string }) {
         outcome = {
           kind: admission.alreadyCheckedIn ? 'repeat' : 'recorded',
           checkedInAt: admission.checkedInAt,
+          competitorNumber: admission.competitorNumber,
         };
       }
       // Even a denial or a rejection can race another operator. The snapshot is authoritative.
@@ -170,7 +179,42 @@ function EventCheckIn({ eventId }: { eventId: string }) {
     }
   }
 
+  // "Asignar número" / "Cambiar número" (#377): the 201 answer is authoritative, so the row takes
+  // the new number without reading the snapshot again.
+  async function assignNumber(person: RosterPerson) {
+    if (locked.current) return;
+    locked.current = true;
+    setBusy(true);
+    setNotice(null);
+    try {
+      const assigned = await assignCompetitorNumber(eventId, person.registrationId);
+      setLoad((current) =>
+        current.status === 'ready'
+          ? {
+              status: 'ready',
+              roster: current.roster.map((item) =>
+                item.registrationId === assigned.registrationId
+                  ? { ...item, competitorNumber: assigned.competitorNumber }
+                  : item,
+              ),
+            }
+          : current,
+      );
+      setNotice({ kind: 'success', text: competitorNumberSuccess(assigned) });
+    } catch (error) {
+      setNotice({
+        kind: 'error',
+        text: competitorNumberFailureText(adminRegistrationFailure(error)),
+      });
+    } finally {
+      locked.current = false;
+      setBusy(false);
+      setConfirmingNumber(false);
+    }
+  }
+
   const hasData = load.status === 'ready' && roster.length > 0;
+  const numberAction = open ? competitorNumberAction(open.competitorNumber) : null;
 
   return (
     <main className="px-4 py-8 text-fg sm:px-8 lg:pt-10 lg:pb-16">
@@ -307,8 +351,26 @@ function EventCheckIn({ eventId }: { eventId: string }) {
             busy={busy}
             notice={notice}
             onAdmit={(check) => void admit(open, check)}
+            onRequestNumber={() => {
+              setNotice(null);
+              setConfirmingNumber(true);
+            }}
             onClose={close}
             onNext={next}
+          />
+        )}
+        {open && numberAction && (
+          <ConfirmDialog
+            isOpen={confirmingNumber}
+            onOpenChange={(isOpen) => {
+              if (!locked.current) setConfirmingNumber(isOpen);
+            }}
+            title={numberAction.title}
+            consequence={numberAction.consequence}
+            confirmLabel={numberAction.label}
+            pendingLabel={numberAction.pendingLabel}
+            isPending={busy}
+            onConfirm={() => void assignNumber(open)}
           />
         )}
       </div>

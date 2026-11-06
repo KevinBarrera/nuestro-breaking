@@ -1,11 +1,18 @@
 // Pure logic of the check-in screen (#126, #336): the answer of a check-in and the notice that
 // follows it. The list itself lives in `check-in-roster-model.ts`.
+import { formatCompetitorNumber } from '@/shared/lib';
 
 // What a check-in targets: the event entry (`activityId` null) or one activity.
 export type CheckInTarget = { activityId: string | null; name: string };
-export type Admission = { checkedInAt: string; alreadyCheckedIn: boolean };
+// `competitorNumber` is the registration's number after the check-in (#377), or null.
+export type Admission = {
+  checkedInAt: string;
+  alreadyCheckedIn: boolean;
+  competitorNumber: number | null;
+};
 export type AdmissionOutcome =
-  { kind: 'recorded' | 'repeat'; checkedInAt: string } | { kind: 'rejected' | 'denied' | 'error' };
+  | { kind: 'recorded' | 'repeat'; checkedInAt: string; competitorNumber?: number | null }
+  | { kind: 'rejected' | 'denied' | 'error' };
 export type CheckInNotice = { kind: 'success' | 'already' | 'escalate' | 'error'; text: string };
 
 export const escalationMessage =
@@ -26,7 +33,14 @@ export function readAdmission(
   if (eventId !== expected.eventId || registrationId !== expected.registrationId) return null;
   if (expected.activityId !== undefined && activityId !== expected.activityId) return null;
   if (!isInstant(checkedInAt) || typeof alreadyCheckedIn !== 'boolean') return null;
-  return { checkedInAt, alreadyCheckedIn };
+  // A missing number (a backend before #377) reads as none; a malformed one is rejected.
+  const competitorNumber = value.competitorNumber ?? null;
+  if (
+    competitorNumber !== null &&
+    !(Number.isSafeInteger(competitorNumber) && (competitorNumber as number) > 0)
+  )
+    return null;
+  return { checkedInAt, alreadyCheckedIn, competitorNumber: competitorNumber as number | null };
 }
 
 // Staff are at the venue, so the browser zone is the default.
@@ -47,15 +61,18 @@ export function admissionNotice(
   refreshed: string | null,
   timeZone?: string,
 ): CheckInNotice {
+  // The number the check-in assigned or kept (#377), after the entry sentence.
+  const number = (value: number | null | undefined) =>
+    value ? ` Número ${formatCompetitorNumber(value)}.` : '';
   if (outcome.kind === 'recorded' && refreshed)
     return {
       kind: 'success',
-      text: `${target.activityId ? `Entrada a ${target.name}` : 'Entrada al evento'} registrada a las ${formatCheckInTime(refreshed, timeZone)}.`,
+      text: `${target.activityId ? `Entrada a ${target.name}` : 'Entrada al evento'} registrada a las ${formatCheckInTime(refreshed, timeZone)}.${number(outcome.competitorNumber)}`,
     };
   if (outcome.kind === 'repeat' && refreshed)
     return {
       kind: 'already',
-      text: `Esta entrada ya estaba registrada a las ${formatCheckInTime(outcome.checkedInAt, timeZone)}.`,
+      text: `Esta entrada ya estaba registrada a las ${formatCheckInTime(outcome.checkedInAt, timeZone)}.${number(outcome.competitorNumber)}`,
     };
   if (outcome.kind === 'rejected') return { kind: 'escalate', text: escalationMessage };
   if (outcome.kind === 'denied')

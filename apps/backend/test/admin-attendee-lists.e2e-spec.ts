@@ -22,6 +22,7 @@ type AttendeeLists = {
   registrations: {
     registrationId: string;
     folio: string | null;
+    competitorNumber: number | null;
     fullName: string;
     stageName: string | null;
     status: string;
@@ -118,6 +119,7 @@ describe('admin attendee lists (e2e)', () => {
       openBattle: openBattle.id,
       breaking: breaking.id,
       afro: afro.id,
+      krump: krump.id,
       toprock: toprock.id,
       openStyles: openStyles.id,
       general: general.id,
@@ -255,6 +257,7 @@ describe('admin attendee lists (e2e)', () => {
         ? {
             registrationId: f.ana,
             folio: null,
+            competitorNumber: null,
             fullName: 'Ana Pérez',
             stageName: null,
             status: 'pending_payment',
@@ -265,6 +268,7 @@ describe('admin attendee lists (e2e)', () => {
         : {
             registrationId: f.anaTwin,
             folio: 'LMP-0003',
+            competitorNumber: null,
             fullName: 'Ana Pérez',
             stageName: null,
             status: 'confirmed',
@@ -307,22 +311,12 @@ describe('admin attendee lists (e2e)', () => {
           startsAt: '2026-11-20T21:00:00.000Z',
         },
       ],
+      // Carla got competitor number 1 on her battle check-in (#377), so she comes first.
       registrations: [
-        ana(firstAna),
-        ana(secondAna),
-        {
-          registrationId: f.beto,
-          folio: 'LMP-0001',
-          fullName: 'beto Gómez',
-          stageName: null,
-          status: 'confirmed',
-          eventCheckedInAt: eventCheckIn(f.beto),
-          passTypeIds: [f.oldPass],
-          activities: [{ activityId: f.toprock, checkedInAt: null }],
-        },
         {
           registrationId: f.carla,
           folio: 'LMP-0002',
+          competitorNumber: 1,
           fullName: 'Carla Ruiz',
           stageName: 'La Carla',
           status: 'confirmed',
@@ -335,6 +329,19 @@ describe('admin attendee lists (e2e)', () => {
             { activityId: f.openBattle, checkedInAt: null },
           ],
         },
+        ana(firstAna),
+        ana(secondAna),
+        {
+          registrationId: f.beto,
+          folio: 'LMP-0001',
+          competitorNumber: null,
+          fullName: 'beto Gómez',
+          stageName: null,
+          status: 'confirmed',
+          eventCheckedInAt: eventCheckIn(f.beto),
+          passTypeIds: [f.oldPass],
+          activities: [{ activityId: f.toprock, checkedInAt: null }],
+        },
       ],
     });
     expect(eventCheckIn(f.beto)).toEqual(expect.any(String));
@@ -342,6 +349,47 @@ describe('admin attendee lists (e2e)', () => {
     const serialized = JSON.stringify(body);
     for (const value of Object.values(CONTACT)) expect(serialized).not.toContain(value);
     expect(serialized).not.toMatch(/Dani Anulada|Solo anulado|Foráneo|Foreign|Cypher|Retired/);
+  });
+
+  // The screen builds every list (event, pass, competition, workshop) by filtering these rows, so
+  // each one keeps the order: competitor numbers ascending, then the rest alphabetically (#377).
+  it('lists competitors first by number, then everyone else by name, on every list kind', async () => {
+    const f = await attendees();
+    const cookie = await session('admin', f.event);
+    const zoe = await registration(f.event, {
+      fullName: 'Zoe Luna',
+      status: 'confirmed',
+      folio: 'LMP-0004',
+    });
+    await holdPass(f.event, zoe, f.fullBreaking, [f.krump]);
+    await holdPass(f.event, f.anaTwin, f.fullBreaking, [f.afro]);
+    const assign = (id: string) =>
+      server()
+        .post(`/admin/events/${f.event}/registrations/${id}/competitor-number`)
+        .set(headers(cookie))
+        .expect(201);
+    // Zoe 1, Carla 2, Ana 3 then changed to 4, so number 3 is a gap.
+    for (const id of [zoe, f.carla, f.anaTwin, f.anaTwin]) await assign(id);
+
+    const body = (await read(f.event).set('Cookie', cookie).expect(200)).body as AttendeeLists;
+
+    const rows = body.registrations;
+    expect(rows.map((row) => [row.registrationId, row.competitorNumber])).toEqual([
+      [zoe, 1],
+      [f.carla, 2],
+      [f.anaTwin, 4],
+      [f.ana, null],
+      [f.beto, null],
+    ]);
+    const ids = (keep: (row: AttendeeLists['registrations'][number]) => boolean) =>
+      rows.filter(keep).map((row) => row.registrationId);
+    const holding = (passTypeId: string) => ids((row) => row.passTypeIds.includes(passTypeId));
+    const attending = (activityId: string) =>
+      ids((row) => row.activities.some((entry) => entry.activityId === activityId));
+    expect(holding(f.fullBreaking)).toEqual([zoe, f.carla, f.anaTwin]);
+    expect(holding(f.general)).toEqual([f.ana]);
+    expect(attending(f.afro)).toEqual([f.carla, f.anaTwin]);
+    expect(attending(f.toprock)).toEqual([zoe, f.carla, f.anaTwin, f.beto]);
   });
 
   it('lets a global administrator read any event and answers 404 for an unknown one', async () => {

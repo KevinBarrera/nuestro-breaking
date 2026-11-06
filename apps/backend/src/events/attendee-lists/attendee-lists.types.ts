@@ -20,6 +20,8 @@ export type AttendeeListActivity = {
 export type AttendeeListRegistration = {
   registrationId: string;
   folio: string | null;
+  // Competitor number (#377), null when the registration has none.
+  competitorNumber: number | null;
   fullName: string;
   stageName: string | null;
   status: string;
@@ -30,6 +32,7 @@ export type AttendeeListRegistration = {
 
 // One unpaginated snapshot of the `confirmed` and `pending_payment` registrations of an event, with
 // the held pass types and the accessible `competition`/`workshop` activities to group them by.
+// Registrations with a competitor number come first by number, then the rest by name (#377).
 export type AttendeeLists = {
   event: { id: string; name: string };
   generatedAt: string;

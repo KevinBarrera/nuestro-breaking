@@ -44,6 +44,7 @@ export class AttendeeListsService {
       .select({
         registrationId: eventRegistrations.id,
         folio: eventRegistrations.folio,
+        competitorNumber: eventRegistrations.competitorNumber,
         fullName: participants.fullName,
         stageName: participants.stageName,
         status: eventRegistrations.status,
@@ -64,7 +65,12 @@ export class AttendeeListsService {
           inArray(eventRegistrations.status, LISTED_STATUSES),
         ),
       )
-      .orderBy(asc(sql`lower(${participants.fullName})`), asc(eventRegistrations.id));
+      // Competitors first by number (#377), then everyone else alphabetically.
+      .orderBy(
+        sql`${eventRegistrations.competitorNumber} ASC NULLS LAST`,
+        asc(sql`lower(${participants.fullName})`),
+        asc(eventRegistrations.id),
+      );
     const registrationIds = rows.map((row) => row.registrationId);
 
     const [held, accessible] = await Promise.all([
@@ -133,6 +139,7 @@ export class AttendeeListsService {
         return {
           registrationId: row.registrationId,
           folio: row.folio,
+          competitorNumber: row.competitorNumber,
           fullName: row.fullName,
           stageName: row.stageName,
           status: row.status,

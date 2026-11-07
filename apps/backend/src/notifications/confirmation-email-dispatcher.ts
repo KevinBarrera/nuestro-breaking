@@ -184,6 +184,9 @@ export class ConfirmationEmailDispatcher {
         eventName: events.name,
         eventTimeZone: events.timeZone,
         eventStartsAt: events.startsAt,
+        eventCity: events.city,
+        eventState: events.state,
+        eventCountry: events.country,
       })
       .from(eventRegistrations)
       .innerJoin(participants, eq(participants.id, eventRegistrations.participantId))
@@ -217,6 +220,14 @@ export class ConfirmationEmailDispatcher {
       eventName: registration.eventName,
       eventTimeZone: registration.eventTimeZone,
       eventStartsAt: registration.eventStartsAt,
+      eventLocation:
+        registration.eventCity && registration.eventState && registration.eventCountry
+          ? {
+              city: registration.eventCity,
+              state: registration.eventState,
+              country: registration.eventCountry,
+            }
+          : null,
       folio: registration.folio,
       passes,
       payment: charged

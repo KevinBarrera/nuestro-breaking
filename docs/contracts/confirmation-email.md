@@ -56,6 +56,7 @@ Hola, Ana:
 Tu inscripción a Los más pesados está confirmada. ¡Gracias por ser parte!
 
 Fecha: viernes, 20 de noviembre de 2026, 9:00 a.m.
+Lugar: Guadalajara, Jalisco
 
 Tu folio: LMP-AB12
 Muestra este folio en la entrada del evento para recibir tu acceso.
@@ -73,6 +74,7 @@ Tus pases:
 | Greeting        | The participant's first name; the first word of the display name when only that is stored.                                                                                                                                                                                                                         |
 | Event           | The event name.                                                                                                                                                                                                                                                                                                    |
 | Date            | The event start in the event's time zone. Left out when the event has no start date.                                                                                                                                                                                                                               |
+| Place           | Where the event happens (#330), right after the date and formatted like the admin panel: the city and its state, then the country name outside Mexico ("Bogotá, Cundinamarca, Colombia"); the state is left out when it repeats the city. Escaped in the HTML body. Left out when the event has no location.       |
 | Folio           | Shown prominently, with a line asking the buyer to show it at the entrance.                                                                                                                                                                                                                                        |
 | Passes          | Pass names in purchase order, each with its selected competitions ordered by start time; none listed when the pass has none.                                                                                                                                                                                       |
 | Payment summary | Online purchases with a service charge only (#239): "Resumen de pago" with the passes total, "Cargo por servicio" and "Total pagado … MXN", from the pass price snapshots and the service charge of the checkout behind the approved payment. Left out for cash and manual registrations and when the charge is 0. |

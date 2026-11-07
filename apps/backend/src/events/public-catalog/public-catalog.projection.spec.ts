@@ -9,6 +9,9 @@ const event = (overrides: Partial<CatalogEventRow> = {}): CatalogEventRow => ({
   timeZone: 'America/Bogota',
   startsAt: new Date('2026-11-20T14:00:00Z'),
   endsAt: null,
+  city: null,
+  state: null,
+  country: null,
   salesEnabled: true,
   salesOpensAt: new Date('2026-10-15T15:00:00Z'),
   salesClosesAt: null,
@@ -40,6 +43,20 @@ const link = (
 });
 
 describe('toPublicCatalog', () => {
+  it('shows where the event happens, or null for each field while it has no location (#330)', () => {
+    const located = event({ city: 'Guadalajara', state: 'Jalisco', country: 'MX' });
+    expect(toPublicCatalog(located, [], [], now).event).toMatchObject({
+      city: 'Guadalajara',
+      state: 'Jalisco',
+      country: 'MX',
+    });
+    expect(toPublicCatalog(event(), [], [], now).event).toMatchObject({
+      city: null,
+      state: null,
+      country: null,
+    });
+  });
+
   it('hides a $0 pass type, which is granted in person only (#263)', () => {
     const free = { ...pass('free', 'Golden ticket', 'full'), priceCents: 0 };
     const catalog = toPublicCatalog(
@@ -84,6 +101,9 @@ describe('toPublicCatalog', () => {
       timeZone: 'America/Bogota',
       startsAt: '2026-11-20T14:00:00.000Z',
       endsAt: null,
+      city: null,
+      state: null,
+      country: null,
     });
     expect(catalog.sales).toEqual({
       state: 'open',

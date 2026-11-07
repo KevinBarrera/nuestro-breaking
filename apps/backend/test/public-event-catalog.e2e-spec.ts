@@ -115,6 +115,9 @@ describe('public event catalog (e2e)', () => {
         timeZone: 'America/Bogota',
         startsAt: '2026-11-20T14:00:00.000Z',
         endsAt: '2026-11-22T04:00:00.000Z',
+        city: null,
+        state: null,
+        country: null,
       },
       sales: { state: 'open', reason: null, opensAt, closesAt: null },
       // The e2e environment's placeholder rates (#239): 3.49% + $4.00 before 16% VAT.
@@ -202,6 +205,16 @@ describe('public event catalog (e2e)', () => {
       expect(JSON.stringify(body)).not.toMatch(FORBIDDEN);
     },
   );
+
+  it('shows where the event happens once it has a location (#330)', async () => {
+    const ids = await fixture();
+    await client`UPDATE events SET city = 'Guadalajara', state = 'Jalisco', country = 'MX'
+      WHERE id = ${ids.event}`;
+
+    const body = (await catalog(SLUG).expect(200)).body as PublicEventCatalog;
+
+    expect(body.event).toMatchObject({ city: 'Guadalajara', state: 'Jalisco', country: 'MX' });
+  });
 
   it('lists a pass whose online sales closed as not on sale, while the event stays open (#240)', async () => {
     const ids = await fixture();

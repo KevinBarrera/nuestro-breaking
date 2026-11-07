@@ -59,6 +59,9 @@ export function toPublicCatalog(
       timeZone: event.timeZone,
       startsAt: event.startsAt?.toISOString() ?? null,
       endsAt: event.endsAt?.toISOString() ?? null,
+      city: event.city,
+      state: event.state,
+      country: event.country,
     },
     sales: {
       ...state,

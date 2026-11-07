@@ -106,9 +106,10 @@ describe('Confirmation email dispatch (e2e)', () => {
       { id: string }[]
     >`INSERT INTO organizations (name) VALUES ('Org') RETURNING id`;
     const [{ id: eventId }] = await client<{ id: string }[]>`
-      INSERT INTO events (organization_id, name, time_zone, slug, folio_prefix, starts_at, ends_at)
+      INSERT INTO events (organization_id, name, time_zone, slug, folio_prefix, starts_at, ends_at,
+          city, state, country)
       VALUES (${org}, 'Los más pesados', 'America/Mexico_City', 'lmp', 'LMP',
-        '2026-11-20T15:00:00Z', '2026-11-21T05:00:00Z') RETURNING id`;
+        '2026-11-20T15:00:00Z', '2026-11-21T05:00:00Z', 'Guadalajara', 'Jalisco', 'MX') RETURNING id`;
     const [{ id: venue }] = await client<{ id: string }[]>`
       INSERT INTO venues (organization_id, name) VALUES (${org}, 'Hall') RETURNING id`;
     await client`INSERT INTO event_venues (organization_id, event_id, venue_id)
@@ -297,6 +298,7 @@ describe('Confirmation email dispatch (e2e)', () => {
       expect(body).toContain('Hola, Ana');
       expect(body).toContain(folio);
       expect(body).toContain('viernes, 20 de noviembre de 2026');
+      expect(body).toContain('Guadalajara, Jalisco');
       expect(body).toContain('Pase completo Breaking');
       // Competitions in start order.
       expect(body).toContain('Popping 1v1, Breaking 1v1');

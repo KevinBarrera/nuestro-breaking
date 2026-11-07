@@ -1,5 +1,5 @@
 import type { CreateEventInput } from '@/entities/admin-event';
-import { fromZonedInput } from '@/entities/event-catalog';
+import { countryLabel, fromZonedInput } from '@/entities/event-catalog';
 import { hasControlCharacters } from '@/shared/lib';
 
 // Pure form logic and Spanish messages for Nuevo evento (#213). The rules mirror the backend
@@ -27,30 +27,25 @@ export const timeZoneOptions = [
   { id: 'America/Tijuana', label: 'Tijuana (America/Tijuana)' },
 ];
 
-const countryName = new Intl.DisplayNames(['es-MX'], { type: 'region' });
-
 // Where events usually happen: Mexico first, then the rest of Latin America, the United States,
 // Canada and Spain by name. The backend accepts any ISO 3166-1 alpha-2 country.
 export const countryOptions = [
   'MX',
   ...['AR', 'BO', 'BR', 'CA', 'CL', 'CO', 'CR', 'CU', 'DO', 'EC', 'SV', 'ES', 'US', 'GT', 'HN']
     .concat(['NI', 'PA', 'PY', 'PE', 'PR', 'UY', 'VE'])
-    .sort((a, b) => (countryName.of(a) ?? a).localeCompare(countryName.of(b) ?? b, 'es')),
-].map((id) => ({ id, label: countryName.of(id) ?? id }));
+    .sort((a, b) => countryLabel(a).localeCompare(countryLabel(b), 'es')),
+].map((id) => ({ id, label: countryLabel(id) }));
 
 // The country list, plus the stored country first when the list lacks it (set through the API),
 // so the current value stays selectable.
 export function countryOptionsFor(storedCountry: string | null) {
   return !storedCountry || countryOptions.some((option) => option.id === storedCountry)
     ? countryOptions
-    : [
-        { id: storedCountry, label: countryName.of(storedCountry) ?? storedCountry },
-        ...countryOptions,
-      ];
+    : [{ id: storedCountry, label: countryLabel(storedCountry) }, ...countryOptions];
 }
 
 // The country's name in Spanish (`CO` is "Colombia").
-export const countryLabel = (country: string) => countryName.of(country) ?? country;
+export { countryLabel };
 
 // Dates are `datetime-local` values on the chosen zone's clock, empty when not set.
 export type EventDraft = {

@@ -1,5 +1,5 @@
 import type { AdminEventErrorCode, AdminEventFailure, AdminEvent } from '@/entities/admin-event';
-import { countryLabel, slugTakenMessage, timeZoneOptions } from './event-form-model';
+import { slugTakenMessage, timeZoneOptions } from './event-form-model';
 
 // Pure logic and Spanish copy for the event list (#213).
 
@@ -71,19 +71,8 @@ export function eventZoneName(timeZone: string): string {
   return option ? option.label.replace(/ \(.*\)$/, '') : timeZone;
 }
 
-// Where the event happens (#322): the city and its state, then the country outside Mexico. The
-// state is left out when it repeats the city ("Ciudad de México"). Null without a location, so
-// the screens hide the line instead of showing the time zone.
-export function eventLocation(
-  event: Pick<AdminEvent, 'city' | 'state' | 'country'>,
-): string | null {
-  const { city, state, country } = event;
-  if (!city || !state || !country) return null;
-  const parts = [city];
-  if (state.localeCompare(city, 'es', { sensitivity: 'base' }) !== 0) parts.push(state);
-  if (country !== 'MX') parts.push(countryLabel(country));
-  return parts.join(', ');
-}
+// Where the event happens (#322); shared with the public pages (#330).
+export { eventLocation } from '@/entities/event-catalog';
 
 // The card chip follows the sales switch only: the list does not carry the sales window, so
 // an event with sales on but outside its window still reads "Venta abierta" here. The event

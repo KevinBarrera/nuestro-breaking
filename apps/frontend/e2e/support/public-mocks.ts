@@ -75,6 +75,12 @@ export const openCatalog = {
   passes,
 };
 
+// The open catalog of an event with a location (#330); the default catalog has none.
+export const locatedCatalog = (city: string, state: string, country: string) => ({
+  ...openCatalog,
+  event: { ...event, city, state, country },
+});
+
 export const closedCatalog = (reason: 'disabled' | 'not_yet_open' | 'ended', opensAt?: string) => ({
   event,
   sales: { state: 'closed', reason, opensAt: opensAt ?? null, closesAt: null },

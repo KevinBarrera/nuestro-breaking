@@ -27,6 +27,8 @@ function oneOf<T extends string>(values: readonly T[], value: unknown): value is
 }
 
 const text = (value: unknown): value is string => typeof value === 'string' && value.length > 0;
+// A location field (#330): text, null, or absent from a backend that predates it.
+const locationPart = (value: unknown) => value === undefined || value === null || text(value);
 const instant = (value: unknown): value is string =>
   typeof value === 'string' && !Number.isNaN(Date.parse(value));
 const instantOrNull = (value: unknown) => value === null || instant(value);
@@ -90,6 +92,7 @@ export function isPublicCatalog(value: unknown): value is PublicCatalog {
     text(event.timeZone) &&
     instantOrNull(event.startsAt) &&
     instantOrNull(event.endsAt) &&
+    [event.city, event.state, event.country].every(locationPart) &&
     stateMatches &&
     instantOrNull(sales.opensAt) &&
     instantOrNull(sales.closesAt) &&

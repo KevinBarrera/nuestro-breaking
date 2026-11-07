@@ -6,6 +6,7 @@ import {
   closedCatalog,
   draftKey,
   eventName,
+  locatedCatalog,
   mockPublicCatalog,
   openCatalog,
   slug,
@@ -67,6 +68,34 @@ test.describe('public home', () => {
       expect(headers.cookie).toBeUndefined();
       expect(headers['x-csrf-token']).toBeUndefined();
     }
+  });
+
+  test('shows where the event happens with its dates, and no place without a location (#330)', async ({
+    page,
+  }) => {
+    const catalog = await mockPublicCatalog(
+      page,
+      catalogReply(locatedCatalog('Guadalajara', 'Jalisco', 'MX')),
+    );
+    await page.goto(home);
+    await expect(page.getByText('Lugar: Guadalajara, Jalisco')).toBeVisible();
+    await expect(page.getByText('America/Mexico_City')).toHaveCount(0);
+
+    // The purchase steps name it in the header next to the dates, from sm up.
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto(passes);
+    await expect(
+      page
+        .getByRole('banner')
+        .getByText('Sábado 21 de noviembre – Domingo 22 de noviembre · Guadalajara, Jalisco'),
+    ).toBeVisible();
+
+    catalog.answer(catalogReply());
+    await page.goto(home);
+    await expect(page.getByRole('heading', { level: 1, name: eventName })).toBeVisible();
+    await expect(page.getByText('Sábado 21 de noviembre – Domingo 22 de noviembre')).toBeVisible();
+    await expect(page.getByText(/Lugar/)).toHaveCount(0);
+    await expect(page.getByText('America/Mexico_City')).toHaveCount(0);
   });
 
   test('says when closed sales open, or that they are closed, without a buy button', async ({
@@ -218,9 +247,11 @@ for (const theme of themes) {
   test(`home and passes fit 375px with 44px targets in the ${theme} theme`, async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 800 });
     await useTheme(page, theme);
-    await mockPublicCatalog(page, catalogReply());
+    // The longest place format, with the country (#330).
+    await mockPublicCatalog(page, catalogReply(locatedCatalog('Bogotá', 'Cundinamarca', 'CO')));
     await page.goto(home);
     await expect(page.getByRole('heading', { level: 1, name: eventName })).toBeVisible();
+    await expect(page.getByText('Lugar: Bogotá, Cundinamarca, Colombia')).toBeVisible();
     await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
     await expectFitsAndTargets(page, 375, page.locator('a, button'));
 

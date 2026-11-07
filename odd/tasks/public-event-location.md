@@ -16,10 +16,10 @@ Test runner: Jest (backend unit + PostgreSQL e2e), Vitest for pure frontend logi
 
 ## Tasks
 
-| ID  | Specs          | Route  | Status  | Commit |
-| --- | -------------- | ------ | ------- | ------ |
-| T1  | S1, S3, S4, S5 | inline | pending |        |
-| T2  | S2, S5, S6     | inline | pending |        |
+| ID  | Specs          | Route  | Status | Commit        |
+| --- | -------------- | ------ | ------ | ------------- |
+| T1  | S1, S3, S4, S5 | inline | done   | f7349c0       |
+| T2  | S2, S5, S6     | inline | done   | (this commit) |
 
 T1 = backend public field + email line + contracts. T2 = shared location text + public pages.
 
@@ -27,3 +27,5 @@ T1 = backend public field + email line + contracts. T2 = shared location text + 
 
 - **L1 (2026-11-06, user):** "sí, comienza con el #330, para la parte del FE por favor sigue nuestro design system https://claude.ai/artifact/7SRpK5YDMUVAEzuC5RNDef - cuando trabajes el FE ve revisando cómo se ve la implementación a través del acceso al navegador para aseguranos que no rompamos nada y se vea todo alineado al design system"
 - **L2:** Mapped. Backend: `PublicCatalogService.event` selects the row, `toPublicCatalog` copies an allowlist; email input built in `ConfirmationEmailDispatcher.compose`. Frontend: `eventLocation` lives in `pages/admin/ui/event-model.ts`, which public pages cannot import (FSD), so it moves to `@/entities/event-catalog`; the frontend reader tolerates a missing location so a frontend deployed before the backend still works. Dates show in the home header and the passes frame `aside`. Route: inline for both tasks (one sequential chain, no writer reason).
+- **L3:** T1 done: RED observed (4 failing Jest specs), then GREEN. Backend unit 643/643, backend e2e 527/527, lint clean. Assessment: medium, `under_budget` (180 lines).
+- **L4:** T2 done: RED observed (3 failing Vitest specs), then GREEN. `eventLocation` and `countryLabel` moved to `@/entities/event-catalog`; admin re-exports them. Home header shows `EventFacts` (calendar and pin icons, inline `currentColor`, `header-muted` text, sr-only "Lugar:"); the passes header `aside` shows "dates · place". Checked in Chrome against the local API: without a location, with "Guadalajara, Jalisco" (desktop, dark), with "Bogotá, Cundinamarca, Colombia" (narrow, dark and light); the local event's location was set temporarily and reset to null. `pnpm verify:pr` green (599 e2e).

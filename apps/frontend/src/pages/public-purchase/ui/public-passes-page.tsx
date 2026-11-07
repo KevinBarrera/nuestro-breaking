@@ -7,7 +7,7 @@ import {
   StepProgress,
 } from '@/widgets/public-layout';
 import { Link, useNavigate } from 'react-router';
-import { closedSalesMessage, eventDateRange } from './event-dates';
+import { closedSalesMessage, eventContext } from './event-dates';
 import { usePurchase } from './purchase-context';
 import { purchaseStepCount, stepAfterPasses, stepNumber, stepPath } from './purchase-steps';
 import { PassCard } from './pass-card';
@@ -43,7 +43,7 @@ export function PublicPassesPage() {
     );
 
   return (
-    <PublicFrame backTo={stepPath(slug, 'home')} aside={eventDateRange(catalog.event)}>
+    <PublicFrame backTo={stepPath(slug, 'home')} aside={eventContext(catalog.event)}>
       <div className="mx-auto grid w-full max-w-6xl flex-1 items-start gap-10 px-5 pt-5 pb-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:px-16 lg:py-10">
         <main className="flex min-w-0 flex-col gap-4">
           <StepProgress step={stepNumber('passes')} total={purchaseStepCount} />

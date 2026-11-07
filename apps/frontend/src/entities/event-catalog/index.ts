@@ -38,6 +38,7 @@ export type {
   WindowField,
   WindowFieldErrors,
 } from './api/types';
+export { countryLabel, eventLocation } from './model/event-location';
 export { activityKinds, isActivityKind, type ActivityKind } from './model/activity-kind';
 export {
   activityWindowErrors,

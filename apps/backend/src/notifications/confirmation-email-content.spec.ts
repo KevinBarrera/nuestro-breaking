@@ -7,6 +7,7 @@ const INPUT: ConfirmationEmailInput = {
   eventTimeZone: 'America/Mexico_City',
   // 10:00 in Mexico City.
   eventStartsAt: new Date('2026-11-14T16:00:00Z'),
+  eventLocation: { city: 'Guadalajara', state: 'Jalisco', country: 'MX' },
   folio: 'LMP-AB12',
   passes: [
     { name: 'Pase completo Breaking', competitions: ['Breaking 1v1', 'Popping 1v1'] },
@@ -79,11 +80,39 @@ describe('buildConfirmationEmail', () => {
     expect(text).not.toContain('Fecha');
   });
 
+  it('shows where the event happens next to the date (#330)', () => {
+    const { text, html } = buildConfirmationEmail(INPUT);
+
+    expect(text).toMatch(/Fecha: .+\nLugar: Guadalajara, Jalisco\n/);
+    expect(html).toContain('<strong>Lugar:</strong> Guadalajara, Jalisco</p>');
+  });
+
+  it('formats the place like the admin panel: no repeated state, the country outside Mexico', () => {
+    const place = (city: string, state: string, country: string) =>
+      buildConfirmationEmail({ ...INPUT, eventLocation: { city, state, country } }).text;
+
+    expect(place('Ciudad de México', 'Ciudad de México', 'MX')).toContain(
+      'Lugar: Ciudad de México\n',
+    );
+    expect(place('Bogotá', 'Cundinamarca', 'CO')).toContain(
+      'Lugar: Bogotá, Cundinamarca, Colombia',
+    );
+  });
+
+  it('leaves the place out when the event has no location', () => {
+    const { text, html } = buildConfirmationEmail({ ...INPUT, eventLocation: null });
+
+    expect(text).not.toContain('Lugar');
+    expect(html).not.toContain('Lugar');
+    expect(text).toContain('Fecha:');
+  });
+
   it('escapes every interpolated value in the HTML body', () => {
     const { html, text } = buildConfirmationEmail({
       ...INPUT,
       firstName: '<script>alert(1)</script>',
       eventName: 'Tom & "Jerry"',
+      eventLocation: { city: '<i>León</i>', state: 'Gto & "Bajío"', country: 'MX' },
       folio: "LMP-<b>'",
       passes: [{ name: '<img src=x>', competitions: ['<a href="x">1v1</a>'] }],
     });
@@ -94,6 +123,8 @@ describe('buildConfirmationEmail', () => {
     expect(html).not.toContain('<b>');
     expect(html).toContain('&lt;script&gt;alert(1)&lt;/script&gt;');
     expect(html).toContain('Tom &amp; &quot;Jerry&quot;');
+    expect(html).not.toContain('<i>');
+    expect(html).toContain('&lt;i&gt;León&lt;/i&gt;, Gto &amp; &quot;Bajío&quot;');
     expect(html).toContain('LMP-&lt;b&gt;&#39;');
     expect(html).toContain('&lt;a href=&quot;x&quot;&gt;1v1&lt;/a&gt;');
     // The plain-text body is not HTML, so it keeps the values as they are.

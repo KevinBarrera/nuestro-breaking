@@ -35,6 +35,11 @@ export type PublicEventCatalog = {
     timeZone: string;
     startsAt: string | null;
     endsAt: string | null;
+    /** Where the event happens (#330): all three set, or all null while it has no location. */
+    city: string | null;
+    state: string | null;
+    /** ISO 3166-1 alpha-2 code. */
+    country: string | null;
   };
   sales: SalesState & { opensAt: string | null; closesAt: string | null };
   passes: PublicPassType[];
@@ -54,6 +59,9 @@ export type CatalogEventRow = {
   timeZone: string;
   startsAt: Date | null;
   endsAt: Date | null;
+  city: string | null;
+  state: string | null;
+  country: string | null;
 } & SalesSettings;
 
 export type CatalogPassRow = {

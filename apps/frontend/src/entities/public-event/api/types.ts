@@ -56,6 +56,11 @@ export type PublicEventSummary = {
   timeZone: string;
   startsAt: string | null;
   endsAt: string | null;
+  // Where the event happens (#330): all three set, or all null while it has none. Absent from a
+  // backend that predates #330. `country` is an ISO 3166-1 alpha-2 code.
+  city?: string | null;
+  state?: string | null;
+  country?: string | null;
 };
 
 export type PublicSales = {

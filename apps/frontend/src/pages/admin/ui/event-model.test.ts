@@ -8,7 +8,6 @@ import {
   restoredNotice,
   salesChip,
   splitEvents,
-  eventLocation,
   eventDateTile,
 } from './event-model';
 import { slugTakenMessage } from './event-form-model';
@@ -131,28 +130,6 @@ describe('eventDateTile', () => {
 
   it('is empty while the dates are not set', () => {
     expect(eventDateTile(event('a'))).toBeNull();
-  });
-});
-
-describe('eventLocation', () => {
-  it('names the city and state, and the country outside Mexico', () => {
-    const located = (city: string, state: string, country: string) => ({
-      ...event('a'),
-      city,
-      state,
-      country,
-    });
-    expect(eventLocation(located('Guadalajara', 'Jalisco', 'MX'))).toBe('Guadalajara, Jalisco');
-    expect(eventLocation(located('Ciudad de México', 'Ciudad de México', 'MX'))).toBe(
-      'Ciudad de México',
-    );
-    expect(eventLocation(located('Bogotá', 'Cundinamarca', 'CO'))).toBe(
-      'Bogotá, Cundinamarca, Colombia',
-    );
-  });
-
-  it('is empty without a location, never the time zone', () => {
-    expect(eventLocation(event('a'))).toBeNull();
   });
 });
 

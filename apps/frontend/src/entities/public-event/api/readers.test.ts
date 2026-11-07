@@ -79,6 +79,17 @@ describe('isPublicCatalog', () => {
       expect(isPublicCatalog({ ...catalog, serviceCharge: malformed })).toBe(false);
   });
 
+  it('accepts an event with its location, or without one (#330)', () => {
+    const located = { city: 'Guadalajara', state: 'Jalisco', country: 'MX' };
+    expect(isPublicCatalog({ ...catalog, event: { ...catalog.event, ...located } })).toBe(true);
+    const unlocated = { city: null, state: null, country: null };
+    expect(isPublicCatalog({ ...catalog, event: { ...catalog.event, ...unlocated } })).toBe(true);
+    // A backend from before #330 sends no location fields.
+    expect(isPublicCatalog(catalog)).toBe(true);
+    expect(isPublicCatalog({ ...catalog, event: { ...catalog.event, city: 42 } })).toBe(false);
+    expect(isPublicCatalog({ ...catalog, event: { ...catalog.event, country: '' } })).toBe(false);
+  });
+
   it('rejects malformed events, passes and activities', () => {
     const pass = catalog.passes[0];
     expect(isPublicCatalog({ ...catalog, event: { ...catalog.event, slug: '' } })).toBe(false);

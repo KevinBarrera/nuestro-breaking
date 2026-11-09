@@ -14,11 +14,11 @@ One unpaginated snapshot:
 - `generatedAt`: server time of the read (ISO 8601). The lists are a point-in-time snapshot and may be stale by the time they are used.
 - `passTypes[]`: `{ id, name, passClass, status }` for every pass type held by a listed registration, archived ones included (they record what was bought). Ordered `full` → `general` → `add_on`, then by name, then by id.
 - `activities[]`: `{ id, name, kind, startsAt }` for every `competition` or `workshop` activity a listed registration can access through its passes (the check-in kinds). `social` activities are excluded. Ordered by start time, then name, then id.
-- `registrations[]`: first the registrations with a competitor number, by number ascending (#377); then the rest by full name (case-insensitive), then id. Every list built from these rows keeps that order.
-  - `registrationId`, `folio` (or `null` before confirmation), `competitorNumber` (the integer competitor number, or `null`; see [Operational check-in](operational-check-in.md)), `fullName`, `stageName` (AKA, or `null`) and `status`.
+- `registrations[]`, ordered by full name (case-insensitive), then id:
+  - `registrationId`, `folio` (or `null` before confirmation), `fullName`, `stageName` (AKA, or `null`) and `status`.
   - `eventCheckedInAt`: the event check-in time, or `null`.
   - `passTypeIds`: the held pass types, in the `passTypes` order.
-  - `activities[]`: `{ activityId, checkedInAt }` for each accessible activity, in the `activities` order, with that activity's check-in time or `null`.
+  - `activities[]`: `{ activityId, checkedInAt, competitorNumber }` for each accessible activity, in the `activities` order, with that activity's check-in time or `null`, and the registration's competitor number in that competition (#377; always `null` on a workshop, and `null` before the first check-in there or an admin assignment; see [Operational check-in](operational-check-in.md)).
 
 Only `confirmed` and `pending_payment` registrations are listed, each with its status. `voided` registrations are excluded, so a printed row never suggests admitting one.
 

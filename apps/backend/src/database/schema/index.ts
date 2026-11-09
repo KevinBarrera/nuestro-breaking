@@ -9,6 +9,7 @@ export * from './participants';
 export * from './registrations';
 export * from './registration-operation-audit';
 export * from './check-ins';
+export * from './competitor-numbers';
 export * from './event-catalog';
 export * from './event-catalog-audit';
 export * from './payments';

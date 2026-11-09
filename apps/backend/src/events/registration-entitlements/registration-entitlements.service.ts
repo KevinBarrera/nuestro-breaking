@@ -12,6 +12,7 @@ import {
   activities,
   eventCashPayments,
   eventCheckIns,
+  eventCompetitorNumbers,
   eventPassTypeActivities,
   eventPassTypes,
   eventRegistrationPassSelections,
@@ -45,6 +46,7 @@ import type {
   RegistrationStatus,
   RegistrationSummary,
 } from './registration-entitlements.types';
+import type { HeldCompetitorNumber } from '@/events/competitor-number/competitor-number.types';
 
 type Database = DatabaseService['db'];
 type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0];
@@ -794,13 +796,12 @@ export class RegistrationEntitlementsService {
     executor: Executor,
     eventId: string,
     registrationId: string,
-  ): Promise<{ registration: RegistrationSummary; competitorNumber: number | null }> {
+  ): Promise<RegistrationSummary> {
     const [row] = await executor
       .select({
         id: eventRegistrations.id,
         status: eventRegistrations.status,
         folio: eventRegistrations.folio,
-        competitorNumber: eventRegistrations.competitorNumber,
         expiresAt: eventRegistrations.expiresAt,
         fullName: participants.fullName,
         firstName: participants.firstName,
@@ -823,17 +824,8 @@ export class RegistrationEntitlementsService {
         and(eq(eventRegistrations.id, registrationId), eq(eventRegistrations.eventId, eventId)),
       );
     if (!row) throw new NotFoundException('Registration not found');
-    const {
-      id,
-      status,
-      folio,
-      competitorNumber,
-      expiresAt,
-      cashAmountCents,
-      cashReceipt,
-      ...participant
-    } = row;
-    const registration: RegistrationSummary = {
+    const { id, status, folio, expiresAt, cashAmountCents, cashReceipt, ...participant } = row;
+    return {
       id,
       status: status as RegistrationStatus,
       folio,
@@ -842,7 +834,6 @@ export class RegistrationEntitlementsService {
         cashAmountCents === null ? null : { amountCents: cashAmountCents, receipt: cashReceipt },
       participant,
     };
-    return { registration, competitorNumber };
   }
 
   private async entitlements(
@@ -850,11 +841,7 @@ export class RegistrationEntitlementsService {
     eventId: string,
     registrationId: string,
   ): Promise<RegistrationEntitlements> {
-    const { registration, competitorNumber } = await this.summary(
-      executor,
-      eventId,
-      registrationId,
-    );
+    const registration = await this.summary(executor, eventId, registrationId);
     const rows = await executor
       .select({
         registrationPassId: eventRegistrationPasses.id,
@@ -906,8 +893,31 @@ export class RegistrationEntitlementsService {
       registration,
       passes,
       accessibleActivityIds: await this.accessibleActivityIds(executor, eventId, registrationId),
-      competitorNumber,
+      competitorNumbers: await this.competitorNumbers(executor, registrationId),
     };
+  }
+
+  // Every competitor number the registration holds (#377), in agenda order, including the ones of
+  // competitions it no longer may access: a number is kept when access is lost.
+  private async competitorNumbers(
+    executor: Executor,
+    registrationId: string,
+  ): Promise<HeldCompetitorNumber[]> {
+    return executor
+      .select({
+        activityId: eventCompetitorNumbers.activityId,
+        competitorNumber: eventCompetitorNumbers.competitorNumber,
+      })
+      .from(eventCompetitorNumbers)
+      .innerJoin(
+        activities,
+        and(
+          eq(activities.eventId, eventCompetitorNumbers.eventId),
+          eq(activities.id, eventCompetitorNumbers.activityId),
+        ),
+      )
+      .where(eq(eventCompetitorNumbers.eventRegistrationId, registrationId))
+      .orderBy(asc(activities.startsAt), asc(activities.name), asc(activities.id));
   }
 
   // Shared with the competitor number assignment (#377).

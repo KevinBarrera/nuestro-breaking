@@ -9,10 +9,7 @@ import {
   eventCheckIns,
   eventRegistrations,
 } from '@/database/schema';
-import {
-  type CompetitorCandidate,
-  CompetitorNumberService,
-} from '@/events/competitor-number/competitor-number.service';
+import { CompetitorNumberService } from '@/events/competitor-number/competitor-number.service';
 import { RegistrationEntitlementsService } from '@/events/registration-entitlements/registration-entitlements.service';
 
 type Database = DatabaseService['db'];
@@ -24,8 +21,9 @@ const ELIGIBLE_KINDS = ['workshop', 'competition'];
 /**
  * Check-in facts are idempotent: a repeat returns the first fact (original actor and time) with
  * `alreadyCheckedIn: true` instead of failing. The registration row lock serializes every
- * check-in of one registration, so concurrent duplicates write each fact once. Every check-in
- * also gives an eligible registration without a competitor number the next one (#377).
+ * check-in of one registration, so concurrent duplicates write each fact once. A check-in into a
+ * competition also gives the registration that competition's next competitor number when it has
+ * none there (#377); the event check-in assigns nothing.
  */
 @Injectable()
 export class CheckInService {
@@ -39,7 +37,7 @@ export class CheckInService {
   // legacy enrollment row (referenced by the activity fact) are recorded when missing.
   async createActivity(eventId: string, registrationId: string, activityId: string, actor: Actor) {
     return this.db.transaction(async (tx) => {
-      const registration = await this.lockConfirmed(tx, eventId, registrationId);
+      await this.lockConfirmed(tx, eventId, registrationId);
       // Share lock keeps a concurrent archive or kind edit from interleaving with the check-in.
       const [activity] = await tx
         .select({ kind: activities.kind })
@@ -59,7 +57,7 @@ export class CheckInService {
         throw new BadRequestException('Registration has no pass access to this activity');
       if (!ELIGIBLE_KINDS.includes(activity.kind))
         throw new BadRequestException('Activity kind is not eligible for check-in');
-      const eventFact = await this.recordEventFact(tx, eventId, registration, actor);
+      const eventFact = await this.recordEventFact(tx, eventId, registrationId, actor);
       const enrollmentId = await this.recordEnrollment(tx, eventId, registrationId, activityId);
       const fact = { id: activityCheckIns.id, checkedInAt: activityCheckIns.checkedInAt };
       const [created] = await tx
@@ -88,6 +86,16 @@ export class CheckInService {
                 eq(activityCheckIns.activityId, activityId),
               ),
             );
+      // Pass access and a confirmed registration were checked above, so the registration may hold
+      // this competition's number; a repeat keeps the one it holds.
+      const competitorNumber =
+        activity.kind === 'competition'
+          ? (
+              await this.competitorNumbers.assign(tx, eventId, registrationId, activityId, {
+                replace: false,
+              })
+            ).competitorNumber
+          : null;
       return {
         id: existing.id,
         eventId,
@@ -95,38 +103,29 @@ export class CheckInService {
         activityId,
         checkedInAt: existing.checkedInAt,
         alreadyCheckedIn: !created,
-        competitorNumber: eventFact.competitorNumber,
+        competitorNumber,
       };
     });
   }
 
   async create(eventId: string, registrationId: string, actor: Actor) {
     return this.db.transaction(async (tx) => {
-      const registration = await this.lockConfirmed(tx, eventId, registrationId);
-      const fact = await this.recordEventFact(tx, eventId, registration, actor);
+      await this.lockConfirmed(tx, eventId, registrationId);
+      const fact = await this.recordEventFact(tx, eventId, registrationId, actor);
       return {
         id: fact.id,
         eventId,
         registrationId,
         checkedInAt: fact.checkedInAt,
         alreadyCheckedIn: !fact.created,
-        competitorNumber: fact.competitorNumber,
       };
     });
   }
 
   // Serialize with other check-ins and with registration state changes.
-  private async lockConfirmed(
-    tx: Transaction,
-    eventId: string,
-    registrationId: string,
-  ): Promise<CompetitorCandidate> {
+  private async lockConfirmed(tx: Transaction, eventId: string, registrationId: string) {
     const [registration] = await tx
-      .select({
-        id: eventRegistrations.id,
-        status: eventRegistrations.status,
-        competitorNumber: eventRegistrations.competitorNumber,
-      })
+      .select({ status: eventRegistrations.status })
       .from(eventRegistrations)
       .where(
         and(eq(eventRegistrations.eventId, eventId), eq(eventRegistrations.id, registrationId)),
@@ -134,21 +133,14 @@ export class CheckInService {
       .for('update');
     if (registration?.status !== 'confirmed')
       throw new BadRequestException('Registration is not confirmed in this event');
-    return registration;
   }
 
-  // The event fact, plus the competitor number the registration holds afterwards: a repeated
-  // check-in keeps it, and one after a late eligibility change assigns it (#377).
   private async recordEventFact(
     tx: Transaction,
     eventId: string,
-    registration: CompetitorCandidate,
+    registrationId: string,
     actor: Actor,
   ) {
-    const registrationId = registration.id;
-    const competitorNumber = await this.competitorNumbers.assign(tx, eventId, registration, {
-      replace: false,
-    });
     const fact = { id: eventCheckIns.id, checkedInAt: eventCheckIns.checkedInAt };
     const [created] = await tx
       .insert(eventCheckIns)
@@ -160,7 +152,7 @@ export class CheckInService {
       })
       .onConflictDoNothing({ target: eventCheckIns.eventRegistrationId })
       .returning(fact);
-    if (created) return { ...created, created: true, competitorNumber };
+    if (created) return { ...created, created: true };
     const [existing] = await tx
       .select(fact)
       .from(eventCheckIns)
@@ -170,7 +162,7 @@ export class CheckInService {
           eq(eventCheckIns.eventRegistrationId, registrationId),
         ),
       );
-    return { ...existing, created: false, competitorNumber };
+    return { ...existing, created: false };
   }
 
   private async recordEnrollment(

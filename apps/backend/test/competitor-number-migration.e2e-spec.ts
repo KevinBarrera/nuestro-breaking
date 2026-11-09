@@ -87,19 +87,25 @@ it('0040 and 0041 apply on a database with existing registrations and audit rows
     await migrate(drizzle(client), { migrationsFolder });
 
     expect(await auditCount()).toBe(auditRowsBefore);
-    const [row] = await client<{ competitorNumber: number | null }[]>`
-      SELECT competitor_number AS "competitorNumber" FROM event_registrations
-      WHERE id = ${registration}`;
-    expect(row.competitorNumber).toBeNull();
+    // Existing registrations get no number, and the registration table is unchanged.
+    const [{ numbers }] = await client<{ numbers: number }[]>`
+      SELECT count(*)::int AS numbers FROM event_competitor_numbers`;
+    expect(numbers).toBe(0);
+    const columns = await client<{ name: string }[]>`
+      SELECT column_name AS name FROM information_schema.columns
+      WHERE table_name = 'event_registrations' AND column_name = 'competitor_number'`;
+    expect(columns).toEqual([]);
     const constraints = await client<{ name: string }[]>`
       SELECT conname AS name FROM pg_constraint
-      WHERE conname IN ('event_registrations_event_competitor_number_uq',
-        'event_registrations_competitor_number_ck',
-        'registration_operation_audit_operation_type_check')
+      WHERE conname LIKE 'event_competitor_numbers_%'
+        OR conname = 'registration_operation_audit_operation_type_check'
       ORDER BY 1`;
     expect(constraints.map(({ name }) => name)).toEqual([
-      'event_registrations_competitor_number_ck',
-      'event_registrations_event_competitor_number_uq',
+      'event_competitor_numbers_activity_fk',
+      'event_competitor_numbers_activity_number_uq',
+      'event_competitor_numbers_number_ck',
+      'event_competitor_numbers_pk',
+      'event_competitor_numbers_registration_fk',
       'registration_operation_audit_operation_type_check',
     ]);
     expect(await auditKinds()).toEqual([...previousKinds, 'competitor_number_assignment'].sort());

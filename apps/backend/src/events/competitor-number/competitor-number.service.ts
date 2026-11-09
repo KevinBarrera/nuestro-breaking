@@ -1,24 +1,23 @@
 import { ConflictException, Inject, Injectable } from '@nestjs/common';
-import { and, eq, inArray, max, sql } from 'drizzle-orm';
+import { and, eq, max, sql } from 'drizzle-orm';
 import { DATABASE_CLIENT } from '@/database/database.constants';
 import type { DatabaseService } from '@/database/database.service';
-import { activities, eventRegistrations } from '@/database/schema';
+import { activities, eventCompetitorNumbers } from '@/database/schema';
 import type { AdminRegistrationAuditActor } from '@/events/registration-audit/registration-audit-actor';
 import { RegistrationEntitlementsService } from '@/events/registration-entitlements/registration-entitlements.service';
-import { isCompetitor, nextCompetitorNumber } from './competitor-number.rules';
+import { mayHoldCompetitorNumber, nextCompetitorNumber } from './competitor-number.rules';
 import type { CompetitorNumberAssignment } from './competitor-number.types';
 
 type Database = DatabaseService['db'];
 type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0];
 
-/** The registration fields assignment needs, read under the caller's registration row lock. */
-export type CompetitorCandidate = { id: string; status: string; competitorNumber: number | null };
-
 /**
- * The single writer of competitor numbers (#377). Callers hold the registration row lock; the
- * event-wide advisory lock then serializes every assignment of the event, so `MAX + 1` is unique.
- * It uses its own key, not `hashtext(eventId)`: the payment webhook takes that one before a
- * registration row lock, and check-in holds the row lock first, so sharing it could deadlock.
+ * The single writer of competitor numbers (#377), one per registration and competition. Callers
+ * hold the registration row lock; a per-competition advisory lock then serializes every assignment
+ * of that competition, so `MAX + 1` is unique there. It uses its own key, not `hashtext(eventId)`:
+ * the payment webhook takes that one while already holding the voided registration's row lock, and
+ * then locks other registrations in `expireDueRegistrations`; check-in holds a registration row
+ * lock before this one, so sharing the key could deadlock.
  */
 @Injectable()
 export class CompetitorNumberService {
@@ -28,43 +27,46 @@ export class CompetitorNumberService {
   ) {}
 
   /**
-   * Gives an eligible registration the event's next number and returns the number it holds
-   * afterwards. With `replace: false` (check-in) a held number is kept, even when the registration
-   * is no longer eligible. With `replace: true` (admin) a held number is retired. Returns null when
-   * the registration needs a number and is not eligible; nothing is written then.
+   * Gives the registration the competition's next number and returns the number it holds there
+   * afterwards. The caller has checked that it may hold one. With `replace: false` (check-in) a
+   * held number is kept; with `replace: true` (admin) it is retired.
    */
   async assign(
     tx: Transaction,
     eventId: string,
-    registration: CompetitorCandidate,
+    registrationId: string,
+    activityId: string,
     { replace }: { replace: boolean },
-  ): Promise<number | null> {
-    if (registration.competitorNumber !== null && !replace) return registration.competitorNumber;
-    if (!(await this.isEligible(tx, eventId, registration))) return null;
+  ): Promise<{ competitorNumber: number; previous: number | null }> {
+    const previous = await this.held(tx, registrationId, activityId);
+    if (previous !== null && !replace) return { competitorNumber: previous, previous };
     await tx.execute(
-      sql`SELECT pg_advisory_xact_lock(hashtext(${`competitor-number:${eventId}`}))`,
+      sql`SELECT pg_advisory_xact_lock(hashtext(${`competitor-number:${activityId}`}))`,
     );
     const [{ highest }] = await tx
-      .select({ highest: max(eventRegistrations.competitorNumber) })
-      .from(eventRegistrations)
-      .where(eq(eventRegistrations.eventId, eventId));
+      .select({ highest: max(eventCompetitorNumbers.competitorNumber) })
+      .from(eventCompetitorNumbers)
+      .where(eq(eventCompetitorNumbers.activityId, activityId));
     const competitorNumber = nextCompetitorNumber(highest);
     await tx
-      .update(eventRegistrations)
-      .set({ competitorNumber, updatedAt: sql`now()` })
-      .where(
-        and(eq(eventRegistrations.eventId, eventId), eq(eventRegistrations.id, registration.id)),
-      );
-    return competitorNumber;
+      .insert(eventCompetitorNumbers)
+      .values({ eventId, eventRegistrationId: registrationId, activityId, competitorNumber })
+      .onConflictDoUpdate({
+        target: [eventCompetitorNumbers.eventRegistrationId, eventCompetitorNumbers.activityId],
+        set: { competitorNumber, assignedAt: sql`now()` },
+      });
+    return { competitorNumber, previous };
   }
 
   /**
-   * Admin assignment or change (#377 S6): always the next number, recorded in the registration
-   * operation audit with the previous number (null on a first assignment) and the new one.
+   * Admin assignment or change in one competition: always that competition's next number,
+   * recorded in the registration operation audit with the previous number (null on a first
+   * assignment) and the new one.
    */
   async assignByAdmin(
     eventId: string,
     registrationId: string,
+    activityId: string,
     actor: AdminRegistrationAuditActor,
   ): Promise<CompetitorNumberAssignment> {
     return this.db.transaction(async (tx) => {
@@ -75,38 +77,58 @@ export class CompetitorNumberService {
           message: 'Registration is not confirmed',
           code: 'competitor_number_not_confirmed',
         });
-      const previousCompetitorNumber = registration.competitorNumber;
-      const competitorNumber = await this.assign(tx, eventId, registration, { replace: true });
-      if (competitorNumber === null)
+      // Share lock keeps a concurrent archive or kind edit from interleaving, as at check-in.
+      const [activity] = await tx
+        .select({ kind: activities.kind })
+        .from(activities)
+        .where(
+          and(
+            eq(activities.eventId, eventId),
+            eq(activities.id, activityId),
+            eq(activities.status, 'active'),
+          ),
+        )
+        .for('share');
+      const accessible = activity
+        ? (await this.entitlements.accessibleActivityIds(tx, eventId, registrationId)).includes(
+            activityId,
+          )
+        : false;
+      const { status } = registration;
+      if (!mayHoldCompetitorNumber({ status, kind: activity?.kind ?? null, accessible }))
         throw new ConflictException({
           statusCode: 409,
-          message: 'Registration has no competition',
+          message: 'Registration has no access to this competition',
           code: 'competitor_number_not_eligible',
         });
-      const { status } = registration;
+      const { competitorNumber, previous } = await this.assign(
+        tx,
+        eventId,
+        registrationId,
+        activityId,
+        { replace: true },
+      );
       await this.entitlements.audit(tx, actor, registration, {
         operationType: 'competitor_number_assignment',
-        affectedActivityIds: [],
-        beforeState: { status, competitorNumber: previousCompetitorNumber },
-        afterState: { status, competitorNumber },
+        affectedActivityIds: [activityId],
+        beforeState: { status, activityId, competitorNumber: previous },
+        afterState: { status, activityId, competitorNumber },
         facts: {},
       });
-      return { registrationId, competitorNumber, previousCompetitorNumber };
+      return { registrationId, activityId, competitorNumber, previousCompetitorNumber: previous };
     });
   }
 
-  // Eligibility (#377 S2) reuses the access rule and keeps only competition activities.
-  private async isEligible(tx: Transaction, eventId: string, registration: CompetitorCandidate) {
-    if (registration.status !== 'confirmed') return false;
-    const ids = await this.entitlements.accessibleActivityIds(tx, eventId, registration.id);
-    if (ids.length === 0) return false;
-    const kinds = await tx
-      .select({ kind: activities.kind })
-      .from(activities)
-      .where(and(eq(activities.eventId, eventId), inArray(activities.id, ids)));
-    return isCompetitor(
-      registration.status,
-      kinds.map((row) => row.kind),
-    );
+  private async held(tx: Transaction, registrationId: string, activityId: string) {
+    const [row] = await tx
+      .select({ competitorNumber: eventCompetitorNumbers.competitorNumber })
+      .from(eventCompetitorNumbers)
+      .where(
+        and(
+          eq(eventCompetitorNumbers.eventRegistrationId, registrationId),
+          eq(eventCompetitorNumbers.activityId, activityId),
+        ),
+      );
+    return row?.competitorNumber ?? null;
   }
 }

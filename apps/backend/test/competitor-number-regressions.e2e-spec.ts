@@ -14,10 +14,10 @@ import { PostgresHarness } from './support/postgres-harness';
 
 jest.setTimeout(120_000);
 
-type CheckInBody = { alreadyCheckedIn: boolean; competitorNumber: number | null };
+type CheckInBody = { alreadyCheckedIn: boolean; competitorNumber?: number | null };
 
-// Competitor numbers (#377): assigned on the first event or activity check-in of an eligible
-// registration, or by an administrator, always as the event's highest number plus one.
+// Competitor numbers (#377), one per registration and competition: races, rejected commands and
+// the operations that must not assign a number by themselves.
 describe('competitor number regressions (e2e)', () => {
   const harness = new PostgresHarness();
   let client: Sql;
@@ -39,10 +39,10 @@ describe('competitor number regressions (e2e)', () => {
     await harness.stop();
   });
 
-  // Passes: Full includes the workshop and the competition; Choice makes Battle selectable;
-  // Workshop includes only the workshop. Ana and Beto hold Full, Wen holds Workshop, Sol holds
-  // Choice without a selection, Pia holds Full but is pending payment. Another event has its own
-  // competitor holding number 1, which must not count.
+  // Passes: Full includes the workshop and both competitions (Competition, then Battle in the
+  // agenda); Choice includes the workshop and makes Battle selectable; Workshop includes only the
+  // workshop. Ana and Beto hold Full, Wen holds Workshop, Sol holds Choice without a selection, Pia
+  // holds Full but is pending payment. Another event has its own registration and competition.
   async function fixture() {
     const [{ id: org }] = await client<{ id: string }[]>`
       INSERT INTO organizations (name) VALUES ('Org') RETURNING id`;
@@ -54,11 +54,12 @@ describe('competitor number regressions (e2e)', () => {
     await client`
       INSERT INTO event_venues (organization_id, event_id, venue_id)
       VALUES (${org}, ${event.id}, ${venue}), (${org}, ${other.id}, ${venue})`;
-    const [workshop, competition, battle] = await client<{ id: string }[]>`
+    const [workshop, competition, battle, foreignCompetition] = await client<{ id: string }[]>`
       INSERT INTO activities (event_id, venue_id, kind, name, starts_at, ends_at)
       VALUES (${event.id}, ${venue}, 'workshop', 'Workshop', now(), now() + interval '1 hour'),
         (${event.id}, ${venue}, 'competition', 'Competition', now(), now() + interval '1 hour'),
-        (${event.id}, ${venue}, 'competition', 'Battle', now(), now() + interval '1 hour')
+        (${event.id}, ${venue}, 'competition', 'Battle', now() + interval '1 hour', now() + interval '2 hours'),
+        (${other.id}, ${venue}, 'competition', 'Elsewhere', now(), now() + interval '1 hour')
       RETURNING id`;
     const [full, choice, workshopPass] = await client<{ id: string }[]>`
       INSERT INTO event_pass_types (event_id, name, pass_class, price_cents)
@@ -69,6 +70,7 @@ describe('competitor number regressions (e2e)', () => {
       INSERT INTO event_pass_type_activities (event_id, pass_type_id, activity_id, access)
       VALUES (${event.id}, ${full.id}, ${workshop.id}, 'included'),
         (${event.id}, ${full.id}, ${competition.id}, 'included'),
+        (${event.id}, ${full.id}, ${battle.id}, 'included'),
         (${event.id}, ${choice.id}, ${workshop.id}, 'included'),
         (${event.id}, ${choice.id}, ${battle.id}, 'selectable'),
         (${event.id}, ${workshopPass.id}, ${workshop.id}, 'included')`;
@@ -99,13 +101,13 @@ describe('competitor number regressions (e2e)', () => {
     const solPass = await hold(sol, choice.id);
     await hold(pia, full.id);
     const foreign = await register(other.id, 'Foreign', true);
-    await client`UPDATE event_registrations SET competitor_number = 1 WHERE id = ${foreign}`;
     return {
       event: event.id,
       other: other.id,
       workshop: workshop.id,
       competition: competition.id,
       battle: battle.id,
+      foreignCompetition: foreignCompetition.id,
       ana,
       beto,
       wen,
@@ -145,26 +147,46 @@ describe('competitor number regressions (e2e)', () => {
       .post(`/admin/events/${event}/registrations/${registration}/activities/${activity}/check-in`)
       .set(headers(cookie))
       .send({});
-  const assign = (event: string, registration: string) =>
-    http().post(`/admin/events/${event}/registrations/${registration}/competitor-number`);
-  const numberOf = async (registration: string) =>
+  const assign = (event: string, registration: string, activity: string) =>
+    http().post(
+      `/admin/events/${event}/registrations/${registration}/competitions/${activity}/competitor-number`,
+    );
+  // Every stored number as `registration:activity → number`.
+  const numbers = async () =>
+    Object.fromEntries(
+      (
+        await client<{ key: string; n: number }[]>`
+          SELECT event_registration_id || ':' || activity_id AS key, competitor_number AS n
+          FROM event_competitor_numbers`
+      ).map((row) => [row.key, row.n]),
+    );
+  const numberOf = async (registration: string, activity: string) =>
     (
-      await client<{ n: number | null }[]>`
-        SELECT competitor_number AS n FROM event_registrations WHERE id = ${registration}`
-    )[0].n;
+      await client<{ n: number }[]>`
+        SELECT competitor_number AS n FROM event_competitor_numbers
+        WHERE event_registration_id = ${registration} AND activity_id = ${activity}`
+    )[0]?.n ?? null;
   const auditRows = () =>
     client`SELECT * FROM registration_operation_audit ORDER BY created_at, id`;
   const rowsHash = async () =>
     (
       await client<{ h: string }[]>`
-        SELECT md5(string_agg(r::text, '|' ORDER BY r.id)) AS h FROM event_registrations r`
+        SELECT md5(
+          coalesce((SELECT string_agg(r::text, '|' ORDER BY r.id) FROM event_registrations r), '') ||
+          coalesce((SELECT string_agg(n::text, '|' ORDER BY n.event_registration_id, n.activity_id)
+            FROM event_competitor_numbers n), '')
+        ) AS h`
     )[0].h;
+  const fullPass = async (event: string) =>
+    (
+      await client<{ id: string }[]>`
+        SELECT id FROM event_pass_types WHERE event_id = ${event} AND name = 'Full'`
+    )[0].id;
 
-  it('many concurrent check-ins of different competitors get distinct numbers 1..n', async () => {
+  it('many concurrent check-ins into one competition get distinct numbers 1..n', async () => {
     const s = await fixture();
     const { cookie } = await session('admin', s.event);
-    const [{ id: full }] = await client<{ id: string }[]>`
-      SELECT id FROM event_pass_types WHERE event_id = ${s.event} AND name = 'Full'`;
+    const full = await fullPass(s.event);
     const extra: string[] = [];
     for (let i = 0; i < 8; i += 1) {
       const [{ id }] = await client<{ id: string }[]>`
@@ -176,14 +198,17 @@ describe('competitor number regressions (e2e)', () => {
       extra.push(id);
     }
     const all = [s.ana, s.beto, ...extra];
-    const results = await Promise.all(
-      all.map((id, i) =>
-        i % 2 ? activityCheckIn(cookie, s.event, id, s.workshop) : checkIn(cookie, s.event, id),
-      ),
-    );
-    expect(results.map((r) => r.status)).toEqual(all.map(() => 201));
+    // Half of them also enter the other competition at the same time, which numbers on its own.
+    const results = await Promise.all([
+      ...all.map((id) => activityCheckIn(cookie, s.event, id, s.competition)),
+      ...all.filter((_, i) => i % 2).map((id) => activityCheckIn(cookie, s.event, id, s.battle)),
+    ]);
+    expect(results.every((r) => r.status === 201)).toBe(true);
     const got = results.map((r) => (r.body as CheckInBody).competitorNumber as number);
-    expect([...got].sort((a, b) => a - b)).toEqual(all.map((_, i) => i + 1));
+    const competition = got.slice(0, all.length);
+    const battle = got.slice(all.length);
+    expect([...competition].sort((a, b) => a - b)).toEqual(all.map((_, i) => i + 1));
+    expect([...battle].sort((a, b) => a - b)).toEqual(battle.map((_, i) => i + 1));
   });
 
   it('admin assignment racing a check-in of another registration gets distinct numbers', async () => {
@@ -192,10 +217,10 @@ describe('competitor number regressions (e2e)', () => {
     const holder = await client.reserve();
     try {
       await holder`BEGIN`;
-      await holder`SELECT pg_advisory_xact_lock(hashtext(${`competitor-number:${s.event}`}))`;
+      await holder`SELECT pg_advisory_xact_lock(hashtext(${`competitor-number:${s.battle}`}))`;
       const pending = Promise.all([
-        assign(s.event, s.ana).set(headers(cookie)),
-        checkIn(cookie, s.event, s.beto),
+        assign(s.event, s.ana, s.battle).set(headers(cookie)),
+        activityCheckIn(cookie, s.event, s.beto, s.battle),
       ]);
       for (let attempt = 0; attempt < 100; attempt += 1) {
         const [{ waiting }] = await client<{ waiting: number }[]>`
@@ -220,11 +245,11 @@ describe('competitor number regressions (e2e)', () => {
     const s = await fixture();
     const { cookie } = await session('admin', s.event);
     const [x, y] = await Promise.all([
-      assign(s.event, s.ana).set(headers(cookie)),
-      checkIn(cookie, s.event, s.ana),
+      assign(s.event, s.ana, s.battle).set(headers(cookie)),
+      activityCheckIn(cookie, s.event, s.ana, s.battle),
     ]);
     expect([x.status, y.status]).toEqual([201, 201]);
-    const final = await numberOf(s.ana);
+    const final = await numberOf(s.ana, s.battle);
     const adminNum = (x.body as { competitorNumber: number }).competitorNumber;
     const checkNum = (y.body as CheckInBody).competitorNumber;
     // Either order: check-in first gives 1 then admin retires to 2; admin first gives 1, check-in keeps 1.
@@ -239,126 +264,96 @@ describe('competitor number regressions (e2e)', () => {
     for (let round = 0; round < 6; round += 1) {
       const results = await Promise.all([
         checkIn(cookie, s.event, s.ana),
-        assign(s.event, s.ana).set(headers(cookie)),
-        assign(s.event, s.beto).set(headers(cookie)),
-        activityCheckIn(cookie, s.event, s.beto, s.competition),
+        activityCheckIn(cookie, s.event, s.ana, s.competition),
+        assign(s.event, s.ana, s.competition).set(headers(cookie)),
+        assign(s.event, s.beto, s.battle).set(headers(cookie)),
+        activityCheckIn(cookie, s.event, s.beto, s.battle),
         http()
           .put(`/admin/events/${s.event}/registrations/${s.sol}/passes/${s.solPass}/selections`)
           .set(headers(cookie))
           .send({ activityIds: round % 2 ? [] : [s.battle], reason: 'Toggle' }),
-        checkIn(cookie, s.event, s.sol),
+        activityCheckIn(cookie, s.event, s.sol, s.battle),
         activityCheckIn(cookie, s.event, s.wen, s.workshop),
         http().get(`/admin/events/${s.event}/attendee-lists`).set(headers(cookie)),
       ]);
       for (const r of results) expect(r.status).toBeLessThan(500);
     }
-    const rows = await client<{ n: number }[]>`
-      SELECT competitor_number AS n FROM event_registrations WHERE event_id = ${s.event} AND competitor_number IS NOT NULL`;
-    expect(new Set(rows.map((r) => r.n)).size).toBe(rows.length);
+    const rows = await client<{ activity_id: string; n: number }[]>`
+      SELECT activity_id, competitor_number AS n FROM event_competitor_numbers`;
+    const keys = rows.map((r) => `${r.activity_id}:${r.n}`);
+    expect(new Set(keys).size).toBe(keys.length);
   });
 
-  it('an archived included competition does not make a competitor', async () => {
+  it('an archived competition takes no check-in and no admin assignment', async () => {
     const s = await fixture();
     const { cookie } = await session('admin', s.event);
     await client`UPDATE activities SET status = 'archived' WHERE id = ${s.competition}`;
-    const r = await checkIn(cookie, s.event, s.ana).expect(201);
-    expect((r.body as CheckInBody).competitorNumber).toBeNull();
-    await assign(s.event, s.ana).set(headers(cookie)).expect(409);
+    await activityCheckIn(cookie, s.event, s.ana, s.competition).expect(400);
+    await assign(s.event, s.ana, s.competition).set(headers(cookie)).expect(409);
+    expect(await numbers()).toEqual({});
   });
 
-  it('a selected but archived selectable competition does not count', async () => {
+  it('voided and pending registrations never get a number', async () => {
     const s = await fixture();
     const { cookie } = await session('admin', s.event);
-    await http()
-      .put(`/admin/events/${s.event}/registrations/${s.sol}/passes/${s.solPass}/selections`)
-      .set(headers(cookie))
-      .send({ activityIds: [s.battle], reason: 'Chose' })
-      .expect(200);
-    await client`UPDATE activities SET status = 'archived' WHERE id = ${s.battle}`;
-    const r = await checkIn(cookie, s.event, s.sol).expect(201);
-    expect((r.body as CheckInBody).competitorNumber).toBeNull();
-  });
-
-  it('voided and pending registrations never get a number on check-in', async () => {
-    const s = await fixture();
-    const { cookie } = await session('admin', s.event);
-    await checkIn(cookie, s.event, s.pia).expect(400);
+    await activityCheckIn(cookie, s.event, s.pia, s.competition).expect(400);
     await client`UPDATE event_registrations SET status = 'voided' WHERE id = ${s.pia}`;
-    await checkIn(cookie, s.event, s.pia).expect(400);
-    await assign(s.event, s.pia).set(headers(cookie)).expect(409);
-    expect(await numberOf(s.pia)).toBeNull();
+    await activityCheckIn(cookie, s.event, s.pia, s.competition).expect(400);
+    await assign(s.event, s.pia, s.competition).set(headers(cookie)).expect(409);
+    expect(await numbers()).toEqual({});
   });
 
-  it('rejected admin commands leave every registration row byte-identical', async () => {
+  it('rejected admin commands leave registrations and numbers byte-identical', async () => {
     const s = await fixture();
     const { cookie } = await session('admin', s.event);
-    await checkIn(cookie, s.event, s.ana).expect(201);
+    await activityCheckIn(cookie, s.event, s.ana, s.competition).expect(201);
     const before = await rowsHash();
     const auditBefore = (await auditRows()).length;
-    await assign(s.event, s.wen).set(headers(cookie)).expect(409);
-    await assign(s.event, s.sol).set(headers(cookie)).expect(409);
-    await assign(s.event, s.pia).set(headers(cookie)).expect(409);
-    await assign(s.event, randomUUID()).set(headers(cookie)).expect(404);
+    await assign(s.event, s.wen, s.battle).set(headers(cookie)).expect(409);
+    await assign(s.event, s.sol, s.battle).set(headers(cookie)).expect(409);
+    await assign(s.event, s.pia, s.battle).set(headers(cookie)).expect(409);
+    await assign(s.event, s.ana, s.workshop).set(headers(cookie)).expect(409);
+    await assign(s.event, randomUUID(), s.battle).set(headers(cookie)).expect(404);
     await client`UPDATE activities SET status = 'archived' WHERE id = ${s.competition}`;
-    await assign(s.event, s.ana).set(headers(cookie)).expect(409);
+    await assign(s.event, s.ana, s.competition).set(headers(cookie)).expect(409);
     expect(await rowsHash()).toBe(before);
     expect((await auditRows()).length).toBe(auditBefore);
   });
 
-  it('a registration of another event is 404 and the bad uuid is 400', async () => {
+  it('a discipline swap and a pass-type access change assign nothing by themselves', async () => {
     const s = await fixture();
     const { cookie } = await session('admin', s.event);
-    const r = await assign(s.event, s.foreign).set(headers(cookie));
-    expect(r.status).toBe(404);
-    await assign(s.event, 'not-a-uuid').set(headers(cookie)).expect(400);
-  });
-
-  it('attendee lists order: numbered ascending then alphabetical', async () => {
-    const s = await fixture();
-    const { cookie } = await session('admin', s.event);
-    await checkIn(cookie, s.event, s.beto).expect(201); // 1
-    await checkIn(cookie, s.event, s.ana).expect(201); // 2
-    await assign(s.event, s.beto).set(headers(cookie)).expect(201); // beto -> 3
-    const body = (
-      await http().get(`/admin/events/${s.event}/attendee-lists`).set(headers(cookie)).expect(200)
-    ).body as { registrations: { fullName: string; competitorNumber: number | null }[] };
-    expect(body.registrations.map((r) => [r.fullName, r.competitorNumber])).toEqual([
-      ['Ana', 2],
-      ['Beto', 3],
-      ['Pia', null],
-      ['Sol', null],
-      ['Wen', null],
-    ]);
-  });
-
-  it('discipline swap and pass-type access change assign nothing', async () => {
-    const s = await fixture();
-    const { cookie } = await session('admin', s.event);
-    await checkIn(cookie, s.event, s.wen).expect(201);
-    const [{ id: wpass, version: wver }] = await client<{ id: string; version: number }[]>`
-      SELECT id, version FROM event_pass_types WHERE event_id = ${s.event} AND name = 'Workshop'`;
-    const r = await http()
-      .put(`/admin/events/${s.event}/pass-types/${wpass}/activities`)
+    // A real discipline swap: Ana trades Full for Choice (same price, as a swap requires) and
+    // picks the battle.
+    const choice = (
+      await client<{ id: string }[]>`
+        UPDATE event_pass_types SET price_cents = 1000
+        WHERE event_id = ${s.event} AND name = 'Choice' RETURNING id`
+    )[0].id;
+    await http()
+      .post(`/admin/events/${s.event}/registrations/${s.ana}/discipline-swap`)
       .set(headers(cookie))
-
+      .send({ toPassTypeId: choice, activityIds: [s.battle], reason: 'Changed style' })
+      .expect(200);
+    // A pass-type access change: the Workshop pass now includes the competition for Wen.
+    const [{ id: workshopPass, version }] = await client<{ id: string; version: number }[]>`
+      SELECT id, version FROM event_pass_types WHERE event_id = ${s.event} AND name = 'Workshop'`;
+    await http()
+      .put(`/admin/events/${s.event}/pass-types/${workshopPass}/activities`)
+      .set(headers(cookie))
       .send({
-        expectedVersion: wver,
+        expectedVersion: version,
         activities: [
           { activityId: s.workshop, access: 'included' },
           { activityId: s.competition, access: 'included' },
         ],
-      });
-    // Whatever the endpoint shape, no number must be assigned by it.
-    expect(await numberOf(s.wen)).toBeNull();
-    console.log(
-      'pass-type activities change status',
-      r.status,
-      JSON.stringify(r.body).slice(0, 200),
-    );
-    expect(r.status).toBe(200);
-    {
-      const next = await checkIn(cookie, s.event, s.wen).expect(201);
-      expect((next.body as CheckInBody).competitorNumber).toBe(1);
-    }
+      })
+      .expect(200);
+    expect(await numbers()).toEqual({});
+    // The next check-in into each competition numbers them.
+    const ana = await activityCheckIn(cookie, s.event, s.ana, s.battle).expect(201);
+    expect((ana.body as CheckInBody).competitorNumber).toBe(1);
+    const wen = await activityCheckIn(cookie, s.event, s.wen, s.competition).expect(201);
+    expect((wen.body as CheckInBody).competitorNumber).toBe(1);
   });
 });

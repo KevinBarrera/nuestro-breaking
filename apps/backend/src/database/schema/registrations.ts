@@ -2,7 +2,6 @@ import { sql } from 'drizzle-orm';
 import {
   check,
   foreignKey,
-  integer,
   pgTable,
   primaryKey,
   text,
@@ -24,9 +23,6 @@ export const eventRegistrations = pgTable(
     // (trigger `event_registrations_folio_guard`, migration 0017).
     folio: text('folio'),
     status: text('status').notNull().default('pending_payment'),
-    // Per-event competitor number (#377, migration 0040): `MAX + 1` under a per-event advisory
-    // lock, never reused, so gaps are expected. Null until the registration gets one.
-    competitorNumber: integer('competitor_number'),
     confirmationSource: text('confirmation_source'),
     confirmedAt: timestamp('confirmed_at', { withTimezone: true }),
     // When an unpaid online registration expires (#181). Null for admin manual registrations,
@@ -42,14 +38,6 @@ export const eventRegistrations = pgTable(
     unique('event_registrations_event_id_id_uq').on(table.eventId, table.id),
     unique('event_registrations_event_participant_uq').on(table.eventId, table.participantId),
     unique('event_registrations_folio_uq').on(table.folio),
-    unique('event_registrations_event_competitor_number_uq').on(
-      table.eventId,
-      table.competitorNumber,
-    ),
-    check(
-      'event_registrations_competitor_number_ck',
-      sql`${table.competitorNumber} IS NULL OR ${table.competitorNumber} > 0`,
-    ),
     check(
       'event_registrations_status_ck',
       sql`${table.status} IN ('pending_payment', 'confirmed', 'voided')`,

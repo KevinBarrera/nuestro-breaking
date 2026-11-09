@@ -59,27 +59,36 @@ describe('registration history projection', () => {
     });
   });
 
-  it('projects a competitor number assignment with the previous and new number', () => {
-    expect(
-      detailsOf(
-        fact({
-          operationType: 'competitor_number_assignment',
-          beforeState: { status: 'confirmed', competitorNumber: 3 },
-          afterState: { status: 'confirmed', competitorNumber: 7 },
-        }),
-        names,
-      ),
-    ).toEqual({ kind: 'competitor_number_assignment', previous: 3, current: 7 });
+  it('projects a competitor number assignment with its competition and both numbers', () => {
+    const battle = '11111111-1111-4111-8111-111111111111';
+    const named = { ...names, activities: new Map([...names.activities, [battle, 'Battle']]) };
+    const assignment = fact({
+      operationType: 'competitor_number_assignment',
+      beforeState: { status: 'confirmed', activityId: battle, competitorNumber: 3 },
+      afterState: { status: 'confirmed', activityId: battle, competitorNumber: 7 },
+    });
+    expect(referencedIds([assignment]).activityIds).toEqual([battle]);
+    expect(detailsOf(assignment, named)).toEqual({
+      kind: 'competitor_number_assignment',
+      activityName: 'Battle',
+      previous: 3,
+      current: 7,
+    });
     expect(
       detailsOf(
         fact({
           operationType: 'competitor_number_assignment',
           beforeState: { competitorNumber: null },
-          afterState: { competitorNumber: 'x' },
+          afterState: { activityId: 'gone', competitorNumber: 'x' },
         }),
         names,
       ),
-    ).toEqual({ kind: 'competitor_number_assignment', previous: null, current: null });
+    ).toEqual({
+      kind: 'competitor_number_assignment',
+      activityName: null,
+      previous: null,
+      current: null,
+    });
     expect(reasonOf(fact({ operationType: 'competitor_number_assignment', note: 'n' }))).toBeNull();
   });
 

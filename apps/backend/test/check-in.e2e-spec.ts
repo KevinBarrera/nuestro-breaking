@@ -201,8 +201,8 @@ describe('event check-in (e2e)', () => {
       activityId: workshop,
       checkedInAt: new Date(fact.checked_in_at as string).toISOString(),
       alreadyCheckedIn: false,
-      // Full includes the Battle competition, so the first check-in assigns number 1 (#377).
-      competitorNumber: 1,
+      // A workshop check-in assigns no competitor number (#377).
+      competitorNumber: null,
     });
     expect(eventFact).toMatchObject({
       event_id: event,
@@ -226,15 +226,7 @@ describe('event check-in (e2e)', () => {
     });
     expect(new Date(fact.checked_in_at as string).getTime()).toBeGreaterThanOrEqual(start - 5000);
     expect(new Date(fact.checked_in_at as string).getTime()).toBeLessThanOrEqual(end + 5000);
-    // Only the competitor number changes on the registration.
-    const after = await client`SELECT * FROM event_registrations ORDER BY id`;
-    expect([...after]).toEqual(
-      before.map((row) =>
-        row.id === confirmed
-          ? { ...row, competitor_number: 1, updated_at: expect.any(String) as string }
-          : row,
-      ),
-    );
+    expect(await client`SELECT * FROM event_registrations ORDER BY id`).toEqual(before);
   });
 
   it('reuses the event fact and an existing enrollment for selected and included activities', async () => {

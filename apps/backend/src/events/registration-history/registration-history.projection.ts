@@ -68,6 +68,8 @@ function activityIds(fact: AuditFact): string[] {
       ];
     case 'registration_discipline_swap':
       return [...strings(facts.fromActivityIds), ...strings(facts.toActivityIds)];
+    case 'competitor_number_assignment':
+      return strings([record(fact.afterState).activityId]);
     default:
       return [];
   }
@@ -121,6 +123,7 @@ export function detailsOf(fact: AuditFact, names: CatalogNames): HistoryDetails 
     case 'competitor_number_assignment':
       return {
         kind: 'competitor_number_assignment',
+        activityName: names.activities.get(text(after.activityId) ?? '') ?? null,
         previous: integer(before.competitorNumber),
         current: integer(after.competitorNumber),
       };

@@ -49,12 +49,29 @@ describe('readHistoryPage', () => {
         fromActivityNames: [],
         toActivityNames: ['Batalla 2vs2'],
       },
+      {
+        kind: 'competitor_number_assignment',
+        activityName: 'Batalla 1vs1',
+        previous: 1,
+        current: 3,
+      },
+      { kind: 'competitor_number_assignment', activityName: null, previous: null, current: 4 },
       { kind: 'other' },
     ];
     const read = readHistoryPage(page(details.map(withDetails), 'next-page'));
     expect(read?.nextCursor).toBe('next-page');
     expect(read?.items.map((entry) => entry.details)).toEqual(details);
     expect(readHistoryPage(page([]))).toEqual({ items: [], nextCursor: null, counts });
+  });
+
+  it('rejects a competitor number assignment with a malformed field (#377)', () => {
+    const assignment = { kind: 'competitor_number_assignment', activityName: 'Batalla 1vs1' };
+    for (const bad of [
+      { ...assignment, previous: '001', current: 3 },
+      { ...assignment, previous: null, current: 2.5 },
+      { ...assignment, activityName: 7, previous: null, current: 3 },
+    ])
+      expect(readHistoryPage(page([withDetails(bad)]))).toBeNull();
   });
 
   it('reads unknown or future operation kinds as other', () => {

@@ -76,6 +76,34 @@ describe('historyEntry', () => {
     expect(receipt.summary).toBe('Monto $1,000.00, sin cambios');
   });
 
+  it('shows a competitor number assignment as a row named by its competition (#377)', () => {
+    const changed = historyEntry(
+      item('2026-10-21T19:12:00.000Z', {
+        kind: 'competitor_number_assignment',
+        activityName: 'Breaking 1v1',
+        previous: 1,
+        current: 3,
+      }),
+      zone,
+    );
+    expect(changed).toMatchObject({
+      title: 'Número de competidor',
+      kind: 'other',
+      summary: null,
+      diff: [{ label: 'Breaking 1v1', before: '001', after: '003', mono: true }],
+    });
+    const first = historyEntry(
+      item('2026-10-21T19:12:00.000Z', {
+        kind: 'competitor_number_assignment',
+        activityName: null,
+        previous: null,
+        current: 12,
+      }),
+      zone,
+    );
+    expect(first.diff).toEqual([{ label: 'Competencia', before: null, after: '012', mono: true }]);
+  });
+
   it('shows a discipline swap and a void as rows', () => {
     const swap = historyEntry(
       item(

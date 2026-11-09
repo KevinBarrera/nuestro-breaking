@@ -5,7 +5,9 @@ import {
   changedFieldsLabel,
   historyActorLabel,
   historyDetailLine,
+  competitionName,
   historyTitle,
+  numberName,
   statusLabel,
 } from './history-model';
 
@@ -73,7 +75,9 @@ function kindOf(item: HistoryItem): HistoryKind {
   if (CORRECTIONS.has(kind)) return 'correction';
   if (kind === 'pass_selection_change') return item.reason ? 'correction' : 'registration';
   if (kind === 'complimentary_confirmation') return 'complimentary';
-  if (kind === 'registration_expiry' || kind === 'other') return 'other';
+  // A competitor number assignment (#377) is neither a correction nor a registration.
+  if (kind === 'registration_expiry' || kind === 'competitor_number_assignment' || kind === 'other')
+    return 'other';
   return 'registration';
 }
 
@@ -148,6 +152,18 @@ function changes(item: HistoryItem): Pick<HistoryEntry, 'summary' | 'diff' | 'co
         return { ...none, summary: 'Sin cambios en las competencias' };
       return { ...none, competitions: { passName: details.passTypeName, added, removed } };
     }
+    case 'competitor_number_assignment':
+      return {
+        ...none,
+        diff: [
+          {
+            label: competitionName(details.activityName),
+            before: details.previous === null ? null : numberName(details.previous),
+            after: numberName(details.current),
+            mono: true,
+          },
+        ],
+      };
     case 'complimentary_confirmation':
       return { ...none, summary: 'Pase sin costo' };
     default:

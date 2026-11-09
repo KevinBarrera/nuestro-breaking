@@ -1,4 +1,5 @@
 import { formatMxn } from '@/entities/event-catalog';
+import { formatCompetitorNumber } from '@/shared/lib';
 import {
   historyFilters,
   type HistoryActor,
@@ -23,6 +24,7 @@ const titles: Record<HistoryDetails['kind'], string> = {
   registration_expiry: 'Inscripción vencida',
   registration_correction: 'Corrección de nombre o AKA',
   registration_discipline_swap: 'Cambio de disciplina',
+  competitor_number_assignment: 'Número de competidor',
   other: 'Otra operación',
 };
 
@@ -57,6 +59,10 @@ export function changedFieldsLabel(changedFields: string[]): string | null {
 const unknownPass = 'pase desconocido';
 const passName = (name: string | null) => name ?? unknownPass;
 export const statusLabel = (status: string) => statusLabels[status] ?? 'Otro estado';
+// The competition of a competitor number assignment (#377), with a neutral fallback.
+export const competitionName = (name: string | null) => name ?? 'Competencia';
+export const numberName = (value: number | null) =>
+  value === null ? 'sin número' : formatCompetitorNumber(value);
 const list = (names: string[]) => (names.length > 0 ? names.join(', ') : 'ninguna');
 
 export function cashLine({ amountCents, receipt }: HistoryCashValues): string {
@@ -112,6 +118,13 @@ export function historyDetailLine(details: HistoryDetails): string | null {
       const { fromActivityNames: from, toActivityNames: to } = details;
       if (from.length === 0 && to.length === 0) return passes;
       return `${passes} · Competencias: ${list(from)} → ${list(to)}`;
+    }
+    case 'competitor_number_assignment': {
+      const change =
+        details.previous === null
+          ? numberName(details.current)
+          : `${numberName(details.previous)} → ${numberName(details.current)}`;
+      return `${competitionName(details.activityName)} · ${change}`;
     }
   }
 }

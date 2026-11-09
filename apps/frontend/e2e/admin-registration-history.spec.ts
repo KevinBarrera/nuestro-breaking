@@ -4,9 +4,11 @@ import {
   cashCorrection,
   complimentary,
   expiry,
+  firstNumber,
   historyRegistrationId,
   manualRegistration,
   nameCorrection,
+  numberChange,
   onlinePurchase,
   onSiteCash,
   onSitePass,
@@ -137,6 +139,29 @@ test('reaches Historial from the navigation and lists the entries by day', async
   expect(
     history.queries.every((query) => query.filter === 'all' && !query.cursor && !query.q),
   ).toBe(true);
+});
+
+test('shows a competitor number assignment with its competition and numbers (#377)', async ({
+  page,
+}) => {
+  await mockHistory(page, () => ({
+    json: { items: [numberChange, firstNumber], nextCursor: null },
+  }));
+  await page.goto(historyPath);
+  await expect(titles(page)).toHaveText(['Número de competidor', 'Número de competidor']);
+  const change = entries(page).nth(0);
+  await expect(change.getByRole('term')).toHaveText('Breaking 1v1');
+  await expect(change.getByRole('definition')).toHaveText('Antes: 001Después: 003');
+  await expect(change.getByRole('definition').locator('.font-mono')).toHaveText([
+    'Antes: 001',
+    'Después: 003',
+  ]);
+  // Neither a correction nor a registration: no pill.
+  await expect(change).not.toContainText('Corrección');
+  const first = entries(page).nth(1);
+  await expect(first.getByRole('term')).toHaveText('Breaking 2v2');
+  await expect(first.getByRole('definition')).toHaveText('012');
+  await expect(first.getByRole('definition').locator('.font-mono')).toHaveText('012');
 });
 
 test('groups an on-site registration and shows its operations on demand', async ({ page }) => {

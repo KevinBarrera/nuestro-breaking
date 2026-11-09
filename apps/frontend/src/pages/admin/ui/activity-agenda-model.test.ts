@@ -216,7 +216,11 @@ describe('enrollmentCounts', () => {
     status: 'confirmed' as const,
     eventCheckedInAt: null,
     passTypeIds: [],
-    activities: activityIds.map((activityId) => ({ activityId, checkedInAt: null })),
+    activities: activityIds.map((activityId) => ({
+      activityId,
+      checkedInAt: null,
+      competitorNumber: null,
+    })),
   });
   const lists: AttendeeLists = {
     event: { id: 'event', name: 'Evento' },

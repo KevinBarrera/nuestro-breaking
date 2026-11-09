@@ -128,7 +128,35 @@ describe('readEntitlements', () => {
     registration,
     passes: [pass],
     accessibleActivityIds: ['act-1', 'act-2'],
+    competitorNumbers: [] as { activityId: unknown; competitorNumber: unknown }[],
   };
+
+  it('reads the competitor numbers per competition, a missing list as none (#377)', () => {
+    const competitorNumbers = [
+      { activityId: 'act-1', competitorNumber: 3 },
+      { activityId: 'act-9', competitorNumber: 12 },
+    ];
+    expect(
+      readEntitlements({ ...entitlements, competitorNumbers }, registrationId)?.competitorNumbers,
+    ).toEqual(competitorNumbers);
+    const legacy: Partial<typeof entitlements> = { ...entitlements };
+    delete legacy.competitorNumbers;
+    expect(readEntitlements(legacy, registrationId)?.competitorNumbers).toEqual([]);
+    for (const competitorNumber of ['001', 0, -3, 1.5, null])
+      expect(
+        readEntitlements(
+          { ...entitlements, competitorNumbers: [{ activityId: 'act-1', competitorNumber }] },
+          registrationId,
+        ),
+      ).toBeNull();
+    expect(
+      readEntitlements(
+        { ...entitlements, competitorNumbers: [{ activityId: 7, competitorNumber: 1 }] },
+        registrationId,
+      ),
+    ).toBeNull();
+    expect(readEntitlements({ ...entitlements, competitorNumbers: 4 }, registrationId)).toBeNull();
+  });
 
   it('reads the registration summary, held passes and accessible activities', () => {
     expect(readEntitlements(entitlements, registrationId)).toEqual(entitlements);
@@ -149,10 +177,20 @@ describe('readEntitlements', () => {
     };
     expect(
       readEntitlements(
-        { registration: confirmed, passes: [], accessibleActivityIds: [] },
+        {
+          registration: confirmed,
+          passes: [],
+          accessibleActivityIds: [],
+          competitorNumbers: [{ activityId: 'act-1', competitorNumber: 4 }],
+        },
         registrationId,
       ),
-    ).toEqual({ registration: confirmed, passes: [], accessibleActivityIds: [] });
+    ).toEqual({
+      registration: confirmed,
+      passes: [],
+      accessibleActivityIds: [],
+      competitorNumbers: [{ activityId: 'act-1', competitorNumber: 4 }],
+    });
   });
 
   it('reads the current cash payment, with a null receipt on a legacy confirmation (#104)', () => {
@@ -381,6 +419,14 @@ describe('readRegistrationFailure', () => {
       [409, 'Online registrations cannot lose a pass', 'online_registration_pass_locked'],
     ] as const)
       expect(readRegistrationFailure(status, { statusCode: status, message })).toEqual({
+        kind: 'rule',
+        code,
+      });
+  });
+
+  it('maps the competitor number conflicts by their codes (#377)', () => {
+    for (const code of ['competitor_number_not_confirmed', 'competitor_number_not_eligible'])
+      expect(readRegistrationFailure(409, { message: 'Conflict', code })).toEqual({
         kind: 'rule',
         code,
       });

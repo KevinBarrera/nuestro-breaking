@@ -10,6 +10,7 @@ import { useEffect, useState } from 'react';
 import { generatePath, Link, useParams } from 'react-router';
 import {
   buildAttendeeLists,
+  competitorNumberLabel,
   defaultPrintOptions,
   entryLabel,
   estimateSheets,
@@ -402,10 +403,14 @@ function Preview({ list, included, query, onQuery }: PreviewProps) {
   const progress = listProgress(list);
   const numbers = new Map(list.rows.map((row, index) => [row.registrationId, index + 1]));
   const rows = searchList(list, query);
-  // Number, name, folio, pases (event list only) and the entry pill; narrow width keeps two.
-  const columns = list.showPasses
-    ? '@min-[640px]:grid-cols-[32px_minmax(0,1.3fr)_96px_minmax(0,1.4fr)_150px]'
-    : '@min-[640px]:grid-cols-[32px_minmax(0,1.3fr)_96px_150px]';
+  // Number, name, folio, pases (event list only) and the entry pill; narrow width keeps two. A
+  // competition list (#377) shows its competitor number instead of the row number, also under
+  // the name on narrow widths.
+  const columns = list.numbered
+    ? '@min-[640px]:grid-cols-[44px_minmax(0,1.3fr)_96px_150px]'
+    : list.showPasses
+      ? '@min-[640px]:grid-cols-[32px_minmax(0,1.3fr)_96px_minmax(0,1.4fr)_150px]'
+      : '@min-[640px]:grid-cols-[32px_minmax(0,1.3fr)_96px_150px]';
 
   return (
     <section aria-labelledby="lists-preview-title" className={`${cardClass} @container min-w-0`}>
@@ -443,7 +448,11 @@ function Preview({ list, included, query, onQuery }: PreviewProps) {
             autoComplete="off"
             value={query}
             onChange={(event) => onQuery(event.target.value)}
-            placeholder="Buscar en esta lista: nombre, AKA o folio"
+            placeholder={
+              list.numbered
+                ? 'Buscar en esta lista: nombre, AKA, folio o número'
+                : 'Buscar en esta lista: nombre, AKA o folio'
+            }
             className="min-h-11 min-w-0 flex-1 bg-transparent text-base text-fg outline-none placeholder:text-muted"
           />
         </label>
@@ -455,15 +464,29 @@ function Preview({ list, included, query, onQuery }: PreviewProps) {
               key={row.registrationId}
               className={`grid min-h-14 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 px-4 py-2.5 @min-[640px]:px-5 @min-[640px]:py-2 ${columns}`}
             >
-              <span className="hidden font-mono text-[13px] text-muted @min-[640px]:block">
-                {numbers.get(row.registrationId)}
-              </span>
+              {list.numbered ? (
+                <span className="hidden font-mono text-sm @min-[640px]:block">
+                  {competitorNumberLabel(row.competitorNumber)}
+                </span>
+              ) : (
+                <span className="hidden font-mono text-[13px] text-muted @min-[640px]:block">
+                  {numbers.get(row.registrationId)}
+                </span>
+              )}
               <span className="flex min-w-0 flex-col">
                 <span className="truncate text-[15px] leading-[22px] font-bold text-heading">
                   {row.fullName}
                 </span>
                 {row.stageName && (
                   <span className="truncate text-sm text-muted">AKA {row.stageName}</span>
+                )}
+                {row.competitorNumber !== null && (
+                  <span className="text-sm text-muted @min-[640px]:hidden">
+                    Número{' '}
+                    <span className="font-mono text-fg">
+                      {competitorNumberLabel(row.competitorNumber)}
+                    </span>
+                  </span>
                 )}
               </span>
               <span className="hidden font-mono text-sm @min-[640px]:block">

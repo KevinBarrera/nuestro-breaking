@@ -1,7 +1,9 @@
+import { formatCompetitorNumber } from '@/shared/lib';
 import { buttonClass, Modal } from '@/shared/ui';
 import { Link } from 'react-router';
 import { escalationMessage, formatCheckInTime, type CheckInNotice } from './admin-check-in-model';
 import { initials, type RosterCheck, type RosterPerson } from './check-in-roster-model';
+import { competitorNumberAction } from './competitor-number-model';
 import { StatusPill } from './team-list';
 
 const svg = {
@@ -32,9 +34,42 @@ type CheckInDialogProps = {
   busy: boolean;
   notice: CheckInNotice | null;
   onAdmit: (check: RosterCheck) => void;
+  // Opens the confirmation of "Asignar número" / "Cambiar número" for one competition (#377).
+  onRequestNumber: (check: RosterCheck) => void;
   onClose: () => void;
   onNext: () => void;
 };
+
+// The number of one competition check (#377), with the action to give or change it. Workshops
+// and the event entry have none. The backend decides eligibility and answers a 409 otherwise.
+function CompetitionNumber({
+  entry,
+  busy,
+  onRequestNumber,
+}: { entry: RosterCheck } & Pick<CheckInDialogProps, 'busy' | 'onRequestNumber'>) {
+  if (!entry.competition) return null;
+  const action = competitorNumberAction(entry.name, entry.competitorNumber);
+  return (
+    <span className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+      {entry.competitorNumber === null ? (
+        <span className="text-sm text-muted">Sin número todavía</span>
+      ) : (
+        <span className="text-base font-bold text-heading">
+          Número <span className="font-mono">{formatCompetitorNumber(entry.competitorNumber)}</span>
+        </span>
+      )}
+      <button
+        type="button"
+        disabled={busy}
+        aria-label={action.accessibleLabel}
+        className={buttonClass('secondary')}
+        onClick={() => onRequestNumber(entry)}
+      >
+        {action.label}
+      </button>
+    </span>
+  );
+}
 
 export function CheckInDialog({
   person,
@@ -42,6 +77,7 @@ export function CheckInDialog({
   busy,
   notice,
   onAdmit,
+  onRequestNumber,
   onClose,
   onNext,
 }: CheckInDialogProps) {
@@ -175,6 +211,15 @@ export function CheckInDialog({
                   </button>
                 </>
               )}
+              {checks[0].competition && (
+                <span className="border-t border-line pt-3.5">
+                  <CompetitionNumber
+                    entry={checks[0]}
+                    busy={busy}
+                    onRequestNumber={onRequestNumber}
+                  />
+                </span>
+              )}
             </div>
             {person.generalEntryOnly && (
               <p className="text-sm text-muted">
@@ -224,6 +269,15 @@ export function CheckInDialog({
                     >
                       {admitLabel}
                     </button>
+                  )}
+                  {entry.competition && (
+                    <span className="basis-full">
+                      <CompetitionNumber
+                        entry={entry}
+                        busy={busy}
+                        onRequestNumber={onRequestNumber}
+                      />
+                    </span>
                   )}
                 </li>
               ))}

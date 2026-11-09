@@ -30,7 +30,9 @@ export type AttendeeListRegistration = {
   status: AttendeeListStatus;
   eventCheckedInAt: string | null;
   passTypeIds: string[];
-  activities: { activityId: string; checkedInAt: string | null }[];
+  // `competitorNumber` is the registration's number in that competition (#377), or null when it
+  // has none there; always null on a workshop.
+  activities: { activityId: string; checkedInAt: string | null; competitorNumber: number | null }[];
 };
 
 export type AttendeeLists = {

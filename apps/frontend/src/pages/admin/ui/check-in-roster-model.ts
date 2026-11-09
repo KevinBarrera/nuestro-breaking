@@ -1,10 +1,19 @@
 // Pure logic of the check-in list (#336): the event's registrations from the attendee-lists
 // snapshot, the checks each one owns, the search, the filters, the counts and the row status.
 import type { AttendeeLists } from '@/entities/attendee-list';
+import { matchesCompetitorNumber } from '@/shared/lib';
 import { formatCheckInTime } from './admin-check-in-model';
 
 // `activityId` null is the event entry, which only general-entry-only registrations own (#126).
-export type RosterCheck = { activityId: string | null; name: string; checkedInAt: string | null };
+// A competition check carries the registration's number in that competition (#377), null when it
+// has none yet; the event entry and workshops never carry one.
+export type RosterCheck = {
+  activityId: string | null;
+  name: string;
+  checkedInAt: string | null;
+  competition: boolean;
+  competitorNumber: number | null;
+};
 export type RosterPerson = {
   registrationId: string;
   folio: string | null;
@@ -33,11 +42,29 @@ export function buildRoster(lists: AttendeeLists): RosterPerson[] {
     // Mirrors the backend rule: at least one pass and every held pass is general.
     const generalEntryOnly = held.length > 0 && held.every((pass) => pass.passClass === 'general');
     const checks: RosterCheck[] = generalEntryOnly
-      ? [{ activityId: null, name: eventEntryName, checkedInAt: registration.eventCheckedInAt }]
+      ? [
+          {
+            activityId: null,
+            name: eventEntryName,
+            checkedInAt: registration.eventCheckedInAt,
+            competition: false,
+            competitorNumber: null,
+          },
+        ]
       : registration.activities
-          .flatMap(({ activityId, checkedInAt }) => {
+          .flatMap(({ activityId, checkedInAt, competitorNumber }) => {
             const activity = activities.get(activityId);
-            return activity ? [{ activityId, name: activity.name, checkedInAt }] : [];
+            if (!activity) return [];
+            const competition = activity.kind === 'competition';
+            return [
+              {
+                activityId,
+                name: activity.name,
+                checkedInAt,
+                competition,
+                competitorNumber: competition ? competitorNumber : null,
+              },
+            ];
           })
           .sort(byName);
     return {
@@ -96,13 +123,16 @@ export function progress(roster: RosterPerson[], activity: ActivityFilter) {
 const normalize = (text: string) => text.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 const alphanumeric = (text: string) => normalize(text).replace(/[^a-z0-9]/g, '');
 
-// Name or alias as typed, folio with or without its hyphen. Listas de respaldo searches too.
+// Name or alias as typed, folio with or without its hyphen, and, for a digits-only query, any of
+// the given competitor numbers by numeric equality (#377). Listas de respaldo searches too.
 export function matchesQuery(
   person: Pick<RosterPerson, 'fullName' | 'stageName' | 'folio'>,
   query: string,
+  competitorNumbers: readonly (number | null)[] = [],
 ): boolean {
   const q = normalize(query.trim());
   if (!q) return true;
+  if (competitorNumbers.some((value) => matchesCompetitorNumber(value, q))) return true;
   if (normalize(`${person.fullName} ${person.stageName ?? ''}`).includes(q)) return true;
   const folio = alphanumeric(q);
   return !!folio && !!person.folio && alphanumeric(person.folio).includes(folio);
@@ -116,7 +146,12 @@ export function visibleRoster(
   const searching = !!filters.query.trim();
   return pool(roster, filters.activity)
     .filter((person) => {
-      if (searching) return matchesQuery(person, filters.query);
+      if (searching)
+        return matchesQuery(
+          person,
+          filters.query,
+          person.checks.map((check) => check.competitorNumber),
+        );
       if (filters.status === 'all') return true;
       return isDone(person, filters.activity) === (filters.status === 'done');
     })

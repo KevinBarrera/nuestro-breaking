@@ -1,5 +1,6 @@
 import { useId } from 'react';
 import {
+  competitorNumberLabel,
   cssString,
   folioLabel,
   formatGeneratedAt,
@@ -23,7 +24,7 @@ type PrintoutProps = {
 const paperRows = 18;
 
 const steps = [
-  'Busca a la persona por nombre, AKA o folio. Las listas van en orden alfabético.',
+  'Busca a la persona por nombre, AKA o folio; en las listas de competencia, también por su número. Las listas van en orden alfabético, salvo las de competencia: primero quienes tienen número, en orden, y luego el resto en orden alfabético.',
   <>
     Si la columna <b>Entró</b> ya tiene hora, la persona entró antes de imprimir: no la dejes pasar
     otra vez sin revisar.
@@ -154,6 +155,12 @@ function PrintedList({ list, newSheet }: { list: AttendeeListView; newSheet: boo
               <span className="sr-only">Marca</span>
               <span aria-hidden="true">✓</span>
             </th>
+            {/* Only a competition list prints its competitor numbers (#377). */}
+            {list.numbered && (
+              <th scope="col" className={`${th} w-[64px]`}>
+                Número
+              </th>
+            )}
             <th scope="col" className={`${th} ${list.showPasses ? 'w-[23%]' : 'w-[40%]'}`}>
               Nombre
             </th>
@@ -177,6 +184,11 @@ function PrintedList({ list, newSheet }: { list: AttendeeListView; newSheet: boo
           {list.rows.map((row) => (
             <tr key={row.registrationId} className="break-inside-avoid">
               <td className={td}>{markBox}</td>
+              {list.numbered && (
+                <td className={`${td} font-mono text-sm`}>
+                  {competitorNumberLabel(row.competitorNumber)}
+                </td>
+              )}
               <th scope="row" className={`${td} text-left font-bold break-words`}>
                 {row.fullName}
                 {row.pending && (
@@ -184,7 +196,8 @@ function PrintedList({ list, newSheet }: { list: AttendeeListView; newSheet: boo
                 )}
               </th>
               <td className={`${td} break-words`}>{row.stageName ?? ''}</td>
-              <td className={`${td} font-mono text-sm`}>{folioLabel(row.folio)}</td>
+              {/* A long folio wraps inside its column instead of running into the next one. */}
+              <td className={`${td} font-mono text-sm break-words`}>{folioLabel(row.folio)}</td>
               {list.showPasses && (
                 <td className={`${td} text-[13px] leading-[18px]`}>{row.passes.join(', ')}</td>
               )}

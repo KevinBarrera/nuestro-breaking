@@ -20,6 +20,13 @@ const isInstantOrNull = (value: unknown): value is string | null =>
 const isStringOrNull = (value: unknown): value is string | null =>
   value === null || typeof value === 'string';
 
+const isPositiveInteger = (value: unknown): value is number =>
+  Number.isSafeInteger(value) && (value as number) > 0;
+
+// A missing competitor number (a backend before #377) reads as none; a malformed one is rejected.
+const readCompetitorNumber = (value: unknown): number | null | undefined =>
+  value === undefined || value === null ? null : isPositiveInteger(value) ? value : undefined;
+
 const isOneOf = <T extends string>(values: readonly T[], value: unknown): value is T =>
   values.some((known) => known === value);
 
@@ -45,7 +52,9 @@ function readActivityCheckIn(
   if (!isRecord(value)) return null;
   const { activityId, checkedInAt } = value;
   if (typeof activityId !== 'string' || !isInstantOrNull(checkedInAt)) return null;
-  return { activityId, checkedInAt };
+  const competitorNumber = readCompetitorNumber(value.competitorNumber);
+  if (competitorNumber === undefined) return null;
+  return { activityId, checkedInAt, competitorNumber };
 }
 
 // Builds the row field by field, so anything else the body carries (such as a contact field)

@@ -27,6 +27,7 @@ describe('historyTitle', () => {
       ['registration_expiry', 'Inscripción vencida'],
       ['registration_correction', 'Corrección de nombre o AKA'],
       ['registration_discipline_swap', 'Cambio de disciplina'],
+      ['competitor_number_assignment', 'Número de competidor'],
       ['other', 'Otra operación'],
     ];
     for (const [kind, title] of titles) expect(historyTitle(kind)).toBe(title);
@@ -164,6 +165,35 @@ describe('historyDetailLine', () => {
         toActivityNames: [],
       }),
     ).toBe('pase desconocido → Pase completo · Competencias: Batalla 1vs1 → ninguna');
+  });
+});
+
+describe('historyDetailLine of a competitor number assignment (#377)', () => {
+  it('names the competition and the change of number, or just the first one', () => {
+    expect(
+      historyDetailLine({
+        kind: 'competitor_number_assignment',
+        activityName: 'Breaking 1v1',
+        previous: 1,
+        current: 3,
+      }),
+    ).toBe('Breaking 1v1 · 001 → 003');
+    expect(
+      historyDetailLine({
+        kind: 'competitor_number_assignment',
+        activityName: 'Breaking 1v1',
+        previous: null,
+        current: 3,
+      }),
+    ).toBe('Breaking 1v1 · 003');
+    expect(
+      historyDetailLine({
+        kind: 'competitor_number_assignment',
+        activityName: null,
+        previous: 12,
+        current: null,
+      }),
+    ).toBe('Competencia · 012 → sin número');
   });
 });
 

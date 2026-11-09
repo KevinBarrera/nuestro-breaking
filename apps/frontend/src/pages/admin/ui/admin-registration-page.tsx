@@ -21,6 +21,7 @@ import { passClassLabels } from './catalog-copy';
 import { CompetitionsDialog } from './confirmed-competitions-editor';
 import { editableCompetitionPass } from './confirmed-competitions-model';
 import { DisciplineSwapDialog } from './discipline-swap';
+import { competitorNumberLines } from './competitor-number-model';
 import { canSwapDiscipline, disciplineSwapOptions, swapSourcePass } from './discipline-swap-model';
 import { ParticipantCorrectionDialog } from './participant-correction';
 import { canCorrectParticipant } from './participant-correction-model';
@@ -344,6 +345,20 @@ function RegistrationScreen({
                 <Fact label="AKA">
                   {state.entitlements.registration.participant.stageName ?? 'Sin AKA'}
                 </Fact>
+                {state.entitlements.competitorNumbers.length > 0 && (
+                  <Fact label="Números de competidor">
+                    <ul className="flex flex-col gap-0.5">
+                      {competitorNumberLines(
+                        state.entitlements.competitorNumbers,
+                        state.activities,
+                      ).map((line) => (
+                        <li key={line.activityId}>
+                          {line.competition} · <span className="font-mono">{line.number}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </Fact>
+                )}
               </dl>
             </DetailCard>
             {canVoidRegistration(state.entitlements.registration) && (

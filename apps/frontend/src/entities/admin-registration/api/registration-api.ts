@@ -1,5 +1,6 @@
 import { apiUrl } from '@/shared/api';
 import {
+  readCompetitorNumberAssignment,
   readConfirmation,
   readEntitlements,
   readManualRegistration,
@@ -11,6 +12,7 @@ import type {
   CashConfirmation,
   CashCorrectionInput,
   CashPaymentInput,
+  CompetitorNumberAssignment,
   ComplimentaryConfirmation,
   ComplimentaryConfirmationInput,
   DisciplineSwapInput,
@@ -295,4 +297,23 @@ export async function confirmComplimentary(
 ): Promise<ComplimentaryConfirmation> {
   const path = registrationPath(eventId, registrationId, '/complimentary-confirmation');
   return written(readConfirmation(await mutate(path, 'POST', { reason }), eventId, registrationId));
+}
+
+// Gives an eligible, confirmed registration the next competitor number of one competition (#377).
+// With a number there it retires the old one, which that competition never hands out again. The
+// backend rejects an unconfirmed (`competitor_number_not_confirmed`) registration or one without
+// access to the competition (`competitor_number_not_eligible`).
+export async function assignCompetitorNumber(
+  eventId: string,
+  registrationId: string,
+  activityId: string,
+): Promise<CompetitorNumberAssignment> {
+  const path = registrationPath(
+    eventId,
+    registrationId,
+    `/competitions/${encodeURIComponent(activityId)}/competitor-number`,
+  );
+  return written(
+    readCompetitorNumberAssignment(await mutate(path, 'POST'), registrationId, activityId),
+  );
 }

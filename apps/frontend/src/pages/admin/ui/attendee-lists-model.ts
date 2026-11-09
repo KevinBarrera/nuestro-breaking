@@ -3,6 +3,7 @@ import type {
   AttendeeListRegistration,
   AttendeeLists,
 } from '@/entities/attendee-list';
+import { formatCompetitorNumber } from '@/shared/lib';
 import { formatCheckInTime } from './admin-check-in-model';
 import { matchesQuery } from './check-in-roster-model';
 
@@ -12,6 +13,9 @@ export type AttendeeListRow = {
   fullName: string;
   stageName: string | null;
   folio: string | null;
+  // The number in this list's competition (#377); null when it has none there and on every list
+  // that is not a competition list.
+  competitorNumber: number | null;
   // `pending_payment`: listed so the paper fallback knows them, shown with a pill (#362).
   pending: boolean;
   // Event check-in on the event and pass lists; that activity's check-in on an activity list.
@@ -27,6 +31,8 @@ export type AttendeeListView = {
   title: string;
   // Only the event list names each person's passes.
   showPasses: boolean;
+  // Only a competition list shows and sorts by its competitor numbers (#377).
+  numbered: boolean;
   rows: AttendeeListRow[];
 };
 
@@ -35,18 +41,34 @@ export const eventListId = 'event';
 const byName = (a: AttendeeListRow, b: AttendeeListRow) =>
   a.fullName.localeCompare(b.fullName, 'es', { sensitivity: 'base' });
 
+// A competition list (#377): numbered competitors first by that competition's number, then
+// everyone else by name.
+const byNumber = (a: AttendeeListRow, b: AttendeeListRow) => {
+  if (a.competitorNumber !== null && b.competitorNumber !== null)
+    return a.competitorNumber - b.competitorNumber;
+  if (a.competitorNumber !== null) return -1;
+  if (b.competitorNumber !== null) return 1;
+  return byName(a, b);
+};
+
 // Lists in print order: the whole event, each pass type (in the backend's order, archived ones
-// marked), then each activity. Names come from the event's own catalog; rows go by name.
+// marked), then each activity. Names come from the event's own catalog; rows go by name, except
+// on a competition list, which goes by its competitor numbers first.
 export function buildAttendeeLists(data: AttendeeLists): AttendeeListView[] {
   const passNames = new Map(data.passTypes.map((pass) => [pass.id, pass.name]));
   const people = [...data.registrations].sort((a, b) =>
     a.fullName.localeCompare(b.fullName, 'es', { sensitivity: 'base' }),
   );
-  const row = (registration: AttendeeListRegistration, checkedInAt: string | null) => ({
+  const row = (
+    registration: AttendeeListRegistration,
+    checkedInAt: string | null,
+    competitorNumber: number | null = null,
+  ) => ({
     registrationId: registration.registrationId,
     fullName: registration.fullName,
     stageName: registration.stageName,
     folio: registration.folio,
+    competitorNumber,
     pending: registration.status === 'pending_payment',
     checkedInAt,
     passes: registration.passTypeIds.flatMap((id) => passNames.get(id) ?? []),
@@ -60,6 +82,7 @@ export function buildAttendeeLists(data: AttendeeLists): AttendeeListView[] {
       group: 'event' as const,
       title: 'Evento completo',
       showPasses: true,
+      numbered: false,
       rows: people.map(eventRow),
     },
     ...data.passTypes.map((pass) => ({
@@ -67,22 +90,31 @@ export function buildAttendeeLists(data: AttendeeLists): AttendeeListView[] {
       group: 'pass' as const,
       title: `${pass.name}${pass.archived ? ' (archivado)' : ''}`,
       showPasses: false,
+      numbered: false,
       rows: people
         .filter((registration) => registration.passTypeIds.includes(pass.id))
         .map(eventRow),
     })),
-    ...data.activities.map((activity) => ({
-      id: `activity:${activity.id}`,
-      group: activity.kind,
-      title: activity.name,
-      showPasses: false,
-      rows: people
-        .flatMap((registration) => {
-          const access = registration.activities.find((entry) => entry.activityId === activity.id);
-          return access ? [row(registration, access.checkedInAt)] : [];
-        })
-        .sort(byName),
-    })),
+    ...data.activities.map((activity) => {
+      const numbered = activity.kind === 'competition';
+      return {
+        id: `activity:${activity.id}`,
+        group: activity.kind,
+        title: activity.name,
+        showPasses: false,
+        numbered,
+        rows: people
+          .flatMap((registration) => {
+            const access = registration.activities.find(
+              (entry) => entry.activityId === activity.id,
+            );
+            if (!access) return [];
+            const number = numbered ? access.competitorNumber : null;
+            return [row(registration, access.checkedInAt, number)];
+          })
+          .sort(numbered ? byNumber : byName),
+      };
+    }),
   ];
 }
 
@@ -173,14 +205,18 @@ export function listProgress(list: AttendeeListView) {
   };
 }
 
+// A competition list also finds its rows by that competition's number (#377).
 export const searchList = (list: AttendeeListView, query: string) =>
-  list.rows.filter((row) => matchesQuery(row, query));
+  list.rows.filter((row) => matchesQuery(row, query, [row.competitorNumber]));
 
 // Staff are at the venue, so the browser zone is the default, as on the check-in screen.
 export const entryLabel = (checkedInAt: string | null, timeZone?: string) =>
   checkedInAt ? `Entró ${formatCheckInTime(checkedInAt, timeZone)}` : 'Sin entrar';
 
 export const folioLabel = (folio: string | null) => folio ?? '—';
+
+export const competitorNumberLabel = (value: number | null) =>
+  value === null ? '—' : formatCompetitorNumber(value);
 
 export function formatGeneratedAt(iso: string, timeZone?: string) {
   const date = new Date(iso);

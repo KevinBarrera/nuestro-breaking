@@ -6,6 +6,8 @@ import {
   type AdminRegistrationRuleCode,
   type CashConfirmation,
   type CashPayment,
+  type CompetitorNumberAssignment,
+  type HeldCompetitorNumber,
   type HeldPass,
   type ManualRegistration,
   type PossibleDuplicate,
@@ -29,6 +31,9 @@ const isInstantOrNull = (value: unknown): value is string | null =>
 
 const isCount = (value: unknown): value is number =>
   Number.isSafeInteger(value) && (value as number) >= 0;
+
+const isPositiveInteger = (value: unknown): value is number =>
+  Number.isSafeInteger(value) && (value as number) > 0;
 
 const oneOf = <T extends string>(values: readonly T[], value: unknown): value is T =>
   values.some((known) => known === value);
@@ -166,9 +171,32 @@ export function readEntitlements(
   const accessibleActivityIds = every(value.accessibleActivityIds, (id) =>
     isText(id) ? id : null,
   );
-  return registration && passes && accessibleActivityIds
-    ? { registration, passes, accessibleActivityIds }
+  // A missing list (a backend before #377) reads as no numbers; a malformed entry is rejected.
+  const competitorNumbers = every(value.competitorNumbers ?? [], readHeldCompetitorNumber);
+  return registration && passes && accessibleActivityIds && competitorNumbers
+    ? { registration, passes, accessibleActivityIds, competitorNumbers }
     : null;
+}
+
+function readHeldCompetitorNumber(value: unknown): HeldCompetitorNumber | null {
+  if (!isRecord(value)) return null;
+  const { activityId, competitorNumber } = value;
+  if (!isText(activityId) || !isPositiveInteger(competitorNumber)) return null;
+  return { activityId, competitorNumber };
+}
+
+export function readCompetitorNumberAssignment(
+  value: unknown,
+  registrationId: string,
+  activityId: string,
+): CompetitorNumberAssignment | null {
+  if (!isRecord(value) || value.registrationId !== registrationId) return null;
+  if (value.activityId !== activityId) return null;
+  const { competitorNumber, previousCompetitorNumber } = value;
+  if (!isPositiveInteger(competitorNumber)) return null;
+  if (previousCompetitorNumber !== null && !isPositiveInteger(previousCompetitorNumber))
+    return null;
+  return { registrationId, activityId, competitorNumber, previousCompetitorNumber };
 }
 
 function readPossibleDuplicate(value: unknown): PossibleDuplicate | null {
@@ -233,6 +261,8 @@ const ruleCodes: readonly AdminRegistrationRuleCode[] = [
   'discipline_swap_checked_in',
   'discipline_swap_price_mismatch',
   'cash_correction_not_cash',
+  'competitor_number_not_confirmed',
+  'competitor_number_not_eligible',
 ];
 
 const messageOf = (body: unknown) =>

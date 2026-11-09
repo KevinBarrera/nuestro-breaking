@@ -485,7 +485,9 @@ function HistoryRow({ eventId, entry }: { eventId: string; entry: HistoryEntry }
                 <dt className="text-muted">{row.label}</dt>
                 <dd className="flex flex-wrap items-center gap-1.5">
                   {row.before === null ? (
-                    <span className="font-bold text-heading">{row.after}</span>
+                    <span className={`font-bold text-heading ${row.mono ? 'font-mono' : ''}`}>
+                      {row.after}
+                    </span>
                   ) : (
                     <>
                       <span className={`text-muted line-through ${row.mono ? 'font-mono' : ''}`}>

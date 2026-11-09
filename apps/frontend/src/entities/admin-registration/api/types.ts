@@ -112,10 +112,25 @@ export type RegistrationSummary = {
   };
 };
 
+// A number the registration holds in one competition (#377).
+export type HeldCompetitorNumber = { activityId: string; competitorNumber: number };
+
+// `competitorNumbers` are the registration's numbers per competition (#377), in agenda order,
+// including competitions it can no longer access.
 export type RegistrationEntitlements = {
   registration: RegistrationSummary;
   passes: HeldPass[];
   accessibleActivityIds: string[];
+  competitorNumbers: HeldCompetitorNumber[];
+};
+
+// The answer of an admin competitor number assignment (#377): the next number of that
+// competition. `previousCompetitorNumber` is the retired one, or null on a first assignment.
+export type CompetitorNumberAssignment = {
+  registrationId: string;
+  activityId: string;
+  competitorNumber: number;
+  previousCompetitorNumber: number | null;
 };
 
 // The current amount and paper receipt number of a cash confirmation, as corrected (#104). The
@@ -178,8 +193,8 @@ export type CashCorrectionInput = {
 
 // Stable codes for the 400 and 409 rule answers of these writes. `receipt_taken`, `no_passes`,
 // `not_zero_total`, `pass_required_by_add_on`, `online_registration_void_locked`,
-// `correction_no_changes`, `cash_correction_not_cash` and the `discipline_swap_*` codes are backend
-// `code`s; the rest are read
+// `correction_no_changes`, `cash_correction_not_cash`, the `discipline_swap_*` and the
+// `competitor_number_*` codes (#377) are backend `code`s; the rest are read
 // from the backend message.
 export const adminRegistrationRuleCodes = [
   'receipt_taken',
@@ -202,6 +217,8 @@ export const adminRegistrationRuleCodes = [
   'discipline_swap_checked_in',
   'discipline_swap_invalid_target',
   'discipline_swap_price_mismatch',
+  'competitor_number_not_confirmed',
+  'competitor_number_not_eligible',
 ] as const;
 export type AdminRegistrationRuleCode = (typeof adminRegistrationRuleCodes)[number];
 

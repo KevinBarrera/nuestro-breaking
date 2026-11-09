@@ -86,6 +86,27 @@ export const selectionChange = historyItem('pass_selection_change', {
   },
 });
 
+// A changed and a first competitor number, each in its competition (#377).
+export const numberChange = historyItem('competitor_number_assignment', {
+  occurredAt: '2026-11-14T18:30:00.000Z',
+  details: {
+    kind: 'competitor_number_assignment',
+    activityName: 'Breaking 1v1',
+    previous: 1,
+    current: 3,
+  },
+});
+
+export const firstNumber = historyItem('competitor_number_assignment', {
+  occurredAt: '2026-11-14T18:20:00.000Z',
+  details: {
+    kind: 'competitor_number_assignment',
+    activityName: 'Breaking 2v2',
+    previous: null,
+    current: 12,
+  },
+});
+
 export const complimentary = historyItem('complimentary_confirmation', {
   occurredAt: '2026-11-13T18:00:00.000Z',
   reason: 'Ganador de torneo',

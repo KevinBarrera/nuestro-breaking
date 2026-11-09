@@ -16,7 +16,7 @@ const registration = {
   status: 'confirmed',
   eventCheckedInAt: '2026-11-14T16:05:00.000Z',
   passTypeIds: ['p1'],
-  activities: [{ activityId: 'a1', checkedInAt: null }],
+  activities: [{ activityId: 'a1', checkedInAt: null, competitorNumber: 7 }],
 };
 const body = {
   event: { id: 'e1', name: 'Encuentro del barrio' },
@@ -33,6 +33,14 @@ describe('readAttendeeLists', () => {
     expect(lists?.generatedAt).toBe(body.generatedAt);
     expect(lists?.passTypes.map((pass) => pass.archived)).toEqual([false, true]);
     expect(lists?.registrations).toEqual([registration]);
+  });
+
+  it('reads a missing competitor number of an activity as none (#377)', () => {
+    const unnumbered = { ...registration, activities: [{ activityId: 'a1', checkedInAt: null }] };
+    const [row] = readAttendeeLists({ ...body, registrations: [unnumbered] })!.registrations;
+    expect(row.activities).toEqual([
+      { activityId: 'a1', checkedInAt: null, competitorNumber: null },
+    ]);
   });
 
   it('reads an event without registrations', () => {
@@ -79,5 +87,17 @@ describe('readAttendeeLists', () => {
     expect(
       readAttendeeLists({ ...body, registrations: [{ ...registration, passTypeIds: [1] }] }),
     ).toBeNull();
+    for (const competitorNumber of ['007', 0, -1, 2.5])
+      expect(
+        readAttendeeLists({
+          ...body,
+          registrations: [
+            {
+              ...registration,
+              activities: [{ activityId: 'a1', checkedInAt: null, competitorNumber }],
+            },
+          ],
+        }),
+      ).toBeNull();
   });
 });

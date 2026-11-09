@@ -17,6 +17,8 @@ const isText = (value: unknown): value is string => typeof value === 'string';
 const isTextOrNull = (value: unknown): value is string | null => value === null || isText(value);
 const isAmount = (value: unknown): value is number | null =>
   value === null || (typeof value === 'number' && Number.isSafeInteger(value));
+const isNumberOrNull = (value: unknown): value is number | null =>
+  value === null || (Number.isSafeInteger(value) && (value as number) > 0);
 const isTexts = (value: unknown): value is string[] => Array.isArray(value) && value.every(isText);
 
 function readCash(value: unknown): HistoryCashValues | null {
@@ -60,6 +62,17 @@ function readDetails(value: unknown): HistoryDetails | null {
       const current = readCash(details.current);
       return previous && current ? { kind: details.kind, previous, current } : null;
     }
+    case 'competitor_number_assignment':
+      return isTextOrNull(details.activityName) &&
+        isNumberOrNull(details.previous) &&
+        isNumberOrNull(details.current)
+        ? {
+            kind: details.kind,
+            activityName: details.activityName,
+            previous: details.previous,
+            current: details.current,
+          }
+        : null;
     case 'payment_approval':
       return isAmount(details.amountCents) && typeof details.lateApproval === 'boolean'
         ? {

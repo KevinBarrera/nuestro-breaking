@@ -97,6 +97,24 @@ describe('copy', () => {
     ).toBe('Esta entrada ya estaba registrada a las 09:30. Número 012.');
   });
 
+  it('never adds a number to an event entry or to a check-in without one (#377)', () => {
+    const at = '2026-11-14T15:30:00Z';
+    const event = { activityId: null, name: 'Entrada al evento' };
+    expect(
+      admissionNotice({ kind: 'recorded', checkedInAt: at, competitorNumber: 7 }, event, at, zone)
+        .text,
+    ).toBe('Entrada al evento registrada a las 09:30.');
+    const workshop = { activityId: 'a-2', name: 'Taller de footwork' };
+    expect(
+      admissionNotice(
+        { kind: 'recorded', checkedInAt: at, competitorNumber: null },
+        workshop,
+        at,
+        zone,
+      ).text,
+    ).toBe('Entrada a Taller de footwork registrada a las 09:30.');
+  });
+
   it('reports a repeat as already registered with the first time', () => {
     const target = { activityId: 'a-1', name: 'Batalla 1vs1' };
     expect(

@@ -34,47 +34,40 @@ type CheckInDialogProps = {
   busy: boolean;
   notice: CheckInNotice | null;
   onAdmit: (check: RosterCheck) => void;
-  // Opens the confirmation of "Asignar número" / "Cambiar número" (#377).
-  onRequestNumber: () => void;
+  // Opens the confirmation of "Asignar número" / "Cambiar número" for one competition (#377).
+  onRequestNumber: (check: RosterCheck) => void;
   onClose: () => void;
   onNext: () => void;
 };
 
-// The competitor number (#377): shown when the registration has one, with the action for a
-// confirmed competitor. The backend decides eligibility and answers a 409 otherwise.
-function CompetitorNumber({
-  person,
+// The number of one competition check (#377), with the action to give or change it. Workshops
+// and the event entry have none. The backend decides eligibility and answers a 409 otherwise.
+function CompetitionNumber({
+  entry,
   busy,
   onRequestNumber,
-}: Pick<CheckInDialogProps, 'person' | 'busy' | 'onRequestNumber'>) {
-  const { competitorNumber, competes } = person;
-  if (competitorNumber === null && !competes) return null;
+}: { entry: RosterCheck } & Pick<CheckInDialogProps, 'busy' | 'onRequestNumber'>) {
+  if (!entry.competition) return null;
+  const action = competitorNumberAction(entry.name, entry.competitorNumber);
   return (
-    <section
-      aria-label="Número de competidor"
-      className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-surface px-4 py-3"
-    >
-      <span className="flex flex-col gap-0.5">
-        <span className="text-sm font-semibold text-muted">Número de competidor</span>
-        {competitorNumber === null ? (
-          <span className="text-base text-muted">Sin número todavía</span>
-        ) : (
-          <span className="text-xl font-extrabold text-heading">
-            Número <span className="font-mono">{formatCompetitorNumber(competitorNumber)}</span>
-          </span>
-        )}
-      </span>
-      {competes && (
-        <button
-          type="button"
-          disabled={busy}
-          className={buttonClass('secondary')}
-          onClick={onRequestNumber}
-        >
-          {competitorNumberAction(competitorNumber).label}
-        </button>
+    <span className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+      {entry.competitorNumber === null ? (
+        <span className="text-sm text-muted">Sin número todavía</span>
+      ) : (
+        <span className="text-base font-bold text-heading">
+          Número <span className="font-mono">{formatCompetitorNumber(entry.competitorNumber)}</span>
+        </span>
       )}
-    </section>
+      <button
+        type="button"
+        disabled={busy}
+        aria-label={action.accessibleLabel}
+        className={buttonClass('secondary')}
+        onClick={() => onRequestNumber(entry)}
+      >
+        {action.label}
+      </button>
+    </span>
   );
 }
 
@@ -146,8 +139,6 @@ export function CheckInDialog({
       }
     >
       <div className="flex flex-col gap-4">
-        <CompetitorNumber person={person} busy={busy} onRequestNumber={onRequestNumber} />
-
         {!confirmed && (
           <div
             role="note"
@@ -220,6 +211,15 @@ export function CheckInDialog({
                   </button>
                 </>
               )}
+              {checks[0].competition && (
+                <span className="border-t border-line pt-3.5">
+                  <CompetitionNumber
+                    entry={checks[0]}
+                    busy={busy}
+                    onRequestNumber={onRequestNumber}
+                  />
+                </span>
+              )}
             </div>
             {person.generalEntryOnly && (
               <p className="text-sm text-muted">
@@ -269,6 +269,15 @@ export function CheckInDialog({
                     >
                       {admitLabel}
                     </button>
+                  )}
+                  {entry.competition && (
+                    <span className="basis-full">
+                      <CompetitionNumber
+                        entry={entry}
+                        busy={busy}
+                        onRequestNumber={onRequestNumber}
+                      />
+                    </span>
                   )}
                 </li>
               ))}

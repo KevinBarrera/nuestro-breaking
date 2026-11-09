@@ -59,7 +59,7 @@ const entitlements = {
     },
   ],
   accessibleActivityIds: [],
-  competitorNumber: null,
+  competitorNumbers: [],
 };
 const confirmed = { registrationId, eventId, status: 'confirmed', folio: 'LMP-7K3Q', auditId };
 
@@ -735,15 +735,20 @@ describe('correctCash', () => {
 });
 
 describe('assignCompetitorNumber', () => {
-  const assigned = { registrationId, competitorNumber: 8, previousCompetitorNumber: 3 };
+  const activityId = 'act-1';
+  const assigned = { registrationId, activityId, competitorNumber: 8, previousCompetitorNumber: 3 };
   const reject = (status: number, body: Record<string, unknown>) =>
     stubFetch(() => Response.json({ statusCode: status, ...body }, { status }));
 
-  it('posts without a body with the CSRF token and reads the new number (#377)', async () => {
+  it('posts without a body for one competition with the CSRF token and reads its new number (#377)', async () => {
     const fetchMock = stubFetch(() => Response.json(assigned, { status: 201 }));
-    expect(await assignCompetitorNumber(eventId, registrationId)).toEqual(assigned);
+    expect(await assignCompetitorNumber(eventId, registrationId, activityId)).toEqual(assigned);
     const [url, init] = call(fetchMock, 1);
-    expect(url).toMatch(new RegExp(`${base}/registrations/${registrationId}/competitor-number$`));
+    expect(url).toMatch(
+      new RegExp(
+        `${base}/registrations/${registrationId}/competitions/${activityId}/competitor-number$`,
+      ),
+    );
     expect(init.method).toBe('POST');
     expect((init.headers as Record<string, string>)['X-CSRF-Token']).toBe('csrf-token');
     expect(init.body).toBeUndefined();
@@ -753,9 +758,9 @@ describe('assignCompetitorNumber', () => {
     stubFetch(() =>
       Response.json({ ...assigned, previousCompetitorNumber: null }, { status: 201 }),
     );
-    expect((await assignCompetitorNumber(eventId, registrationId)).previousCompetitorNumber).toBe(
-      null,
-    );
+    expect(
+      (await assignCompetitorNumber(eventId, registrationId, activityId)).previousCompetitorNumber,
+    ).toBe(null);
   });
 
   it('maps the rejections and treats a malformed answer as an unknown outcome', async () => {
@@ -774,16 +779,19 @@ describe('assignCompetitorNumber', () => {
     ] as const;
     for (const [status, body, failure] of answers) {
       reject(status, body);
-      expect(await failureOf(assignCompetitorNumber(eventId, registrationId))).toEqual(failure);
+      expect(await failureOf(assignCompetitorNumber(eventId, registrationId, activityId))).toEqual(
+        failure,
+      );
     }
     for (const bad of [
       { ...assigned, registrationId: participantId },
+      { ...assigned, activityId: 'act-2' },
       { ...assigned, competitorNumber: null },
       { ...assigned, competitorNumber: '008' },
       { ...assigned, previousCompetitorNumber: 0 },
     ]) {
       stubFetch(() => Response.json(bad, { status: 201 }));
-      expect(await failureOf(assignCompetitorNumber(eventId, registrationId))).toEqual({
+      expect(await failureOf(assignCompetitorNumber(eventId, registrationId, activityId))).toEqual({
         kind: 'unknown',
       });
     }

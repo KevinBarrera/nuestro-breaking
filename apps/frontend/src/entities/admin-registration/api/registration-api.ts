@@ -299,14 +299,21 @@ export async function confirmComplimentary(
   return written(readConfirmation(await mutate(path, 'POST', { reason }), eventId, registrationId));
 }
 
-// Gives an eligible, confirmed registration the event's next competitor number (#377). With a
-// number it retires the old one, which is never handed out again. The backend rejects an
-// unconfirmed (`competitor_number_not_confirmed`) or ineligible (`competitor_number_not_eligible`)
-// registration.
+// Gives an eligible, confirmed registration the next competitor number of one competition (#377).
+// With a number there it retires the old one, which that competition never hands out again. The
+// backend rejects an unconfirmed (`competitor_number_not_confirmed`) registration or one without
+// access to the competition (`competitor_number_not_eligible`).
 export async function assignCompetitorNumber(
   eventId: string,
   registrationId: string,
+  activityId: string,
 ): Promise<CompetitorNumberAssignment> {
-  const path = registrationPath(eventId, registrationId, '/competitor-number');
-  return written(readCompetitorNumberAssignment(await mutate(path, 'POST'), registrationId));
+  const path = registrationPath(
+    eventId,
+    registrationId,
+    `/competitions/${encodeURIComponent(activityId)}/competitor-number`,
+  );
+  return written(
+    readCompetitorNumberAssignment(await mutate(path, 'POST'), registrationId, activityId),
+  );
 }

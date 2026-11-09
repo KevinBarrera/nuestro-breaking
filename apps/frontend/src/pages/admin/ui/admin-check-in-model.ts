@@ -4,7 +4,8 @@ import { formatCompetitorNumber } from '@/shared/lib';
 
 // What a check-in targets: the event entry (`activityId` null) or one activity.
 export type CheckInTarget = { activityId: string | null; name: string };
-// `competitorNumber` is the registration's number after the check-in (#377), or null.
+// `competitorNumber` is the registration's number in the competition after its check-in (#377),
+// null for a workshop or the event entry.
 export type Admission = {
   checkedInAt: string;
   alreadyCheckedIn: boolean;
@@ -61,9 +62,10 @@ export function admissionNotice(
   refreshed: string | null,
   timeZone?: string,
 ): CheckInNotice {
-  // The number the check-in assigned or kept (#377), after the entry sentence.
+  // The competition number the check-in assigned or kept (#377), after the entry sentence. The
+  // event entry carries none.
   const number = (value: number | null | undefined) =>
-    value ? ` Número ${formatCompetitorNumber(value)}.` : '';
+    value && target.activityId ? ` Número ${formatCompetitorNumber(value)}.` : '';
   if (outcome.kind === 'recorded' && refreshed)
     return {
       kind: 'success',

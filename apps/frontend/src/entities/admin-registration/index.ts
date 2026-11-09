@@ -32,6 +32,7 @@ export type {
   ComplimentaryConfirmation,
   ComplimentaryConfirmationInput,
   DisciplineSwapInput,
+  HeldCompetitorNumber,
   HeldPass,
   HeldPassClass,
   ManualRegistration,

@@ -10,8 +10,10 @@ const otherEvent = 'b1b2c3d4-1234-4567-89ab-123456789abc';
 const luzId = 'c1b2c3d4-1234-4567-89ab-123456789abc';
 const mauId = 'c2b2c3d4-1234-4567-89ab-123456789abc';
 const daniId = 'c3b2c3d4-1234-4567-89ab-123456789abc';
+const anaId = 'c4b2c3d4-1234-4567-89ab-123456789abc';
 const battleId = 'd1b2c3d4-1234-4567-89ab-123456789abc';
 const workshopId = 'd0b2c3d4-1234-4567-89ab-123456789abc';
+const crewId = 'd2b2c3d4-1234-4567-89ab-123456789abc';
 const fullPass = 'f1b2c3d4-1234-4567-89ab-123456789abc';
 const generalPass = 'f2b2c3d4-1234-4567-89ab-123456789abc';
 const path = `/admin/events/${eventId}/check-in`;
@@ -19,22 +21,22 @@ const api = (url: URL) => url.port === '3000';
 const escalation =
   'Envía a la persona a coordinación general. En la entrada no se hacen cambios de inscripción ni de competencias.';
 
+// `battleNumber` is the competitor number in the battle (#377); workshops never carry one.
 type Check = {
   battle?: string | null;
   workshop?: string | null;
   event?: string | null;
-  competitorNumber?: number | null;
+  battleNumber?: number | null;
 };
 type Registration = Record<string, unknown>;
 
 const luz = ({
   battle = null,
   workshop = null,
-  competitorNumber = null,
+  battleNumber = null,
 }: Check = {}): Registration => ({
   registrationId: luzId,
   folio: 'NB-42AB',
-  competitorNumber,
   fullName: 'Luz Rivera',
   stageName: 'Luz',
   status: 'confirmed',
@@ -42,9 +44,20 @@ const luz = ({
   passTypeIds: [fullPass],
   // Listed in start order; the dialog sorts them by name.
   activities: [
-    { activityId: workshopId, checkedInAt: workshop },
-    { activityId: battleId, checkedInAt: battle },
+    { activityId: workshopId, checkedInAt: workshop, competitorNumber: null },
+    { activityId: battleId, checkedInAt: battle, competitorNumber: battleNumber },
   ],
+});
+// Only the battle: the dialog shows its single-check layout.
+const ana = ({ battle = null, battleNumber = null }: Check = {}): Registration => ({
+  registrationId: anaId,
+  folio: 'NB-9QW2',
+  fullName: 'Ana Paz',
+  stageName: null,
+  status: 'confirmed',
+  eventCheckedInAt: battle,
+  passTypeIds: [fullPass],
+  activities: [{ activityId: battleId, checkedInAt: battle, competitorNumber: battleNumber }],
 });
 const mau = ({ event = null }: Check = {}): Registration => ({
   registrationId: mauId,
@@ -66,7 +79,13 @@ const dani: Registration = {
   passTypeIds: [generalPass],
   activities: [],
 };
-const snapshot = (registrations: Registration[], id = eventId) => ({
+const crew = {
+  id: crewId,
+  name: 'Batalla crews',
+  kind: 'competition',
+  startsAt: '2026-11-14T20:00:00Z',
+};
+const snapshot = (registrations: Registration[], id = eventId, extra: unknown[] = []) => ({
   event: { id, name: 'Encuentro del barrio' },
   generatedAt: '2026-11-14T15:00:00.000Z',
   passTypes: [
@@ -81,6 +100,7 @@ const snapshot = (registrations: Registration[], id = eventId) => ({
       startsAt: '2026-11-14T16:00:00Z',
     },
     { id: battleId, name: 'Batalla', kind: 'competition', startsAt: '2026-11-14T18:00:00Z' },
+    ...extra,
   ],
   registrations,
 });
@@ -281,49 +301,55 @@ test('checks in one activity of a pass from the dialog with the server time', as
   await expect(rows(page).first()).toContainText('1 de 2 actividades');
 });
 
-test('shows the competitor number a check-in assigns (#377)', async ({ page }) => {
-  let current = luz();
+test('a competition check-in shows the number it assigns there (#377)', async ({ page }) => {
+  let current = ana();
   await mockRoster(page, () => snapshot([current]));
   await page.route(
     (url) => api(url) && url.pathname.endsWith('/check-in'),
     (route) => {
-      current = luz({ battle: '2026-11-14T15:30:00Z', competitorNumber: 7 });
+      current = ana({ battle: '2026-11-14T15:30:00Z', battleNumber: 7 });
       return route.fulfill({
         status: 201,
-        json: { ...fact(luzId, '2026-11-14T15:30:00Z'), competitorNumber: 7 },
+        json: { ...fact(anaId, '2026-11-14T15:30:00Z'), competitorNumber: 7 },
       });
     },
   );
   await page.goto(path);
-  await openRecord(page, 'Luz Rivera');
-  const dialog = page.getByRole('dialog', { name: 'Luz Rivera' });
-  const number = dialog.getByRole('region', { name: 'Número de competidor' });
-  await expect(number).toContainText('Sin número todavía');
-  await expect(number.getByRole('button', { name: 'Asignar número' })).toBeVisible();
+  await openRecord(page, 'Ana Paz');
+  const dialog = page.getByRole('dialog', { name: 'Ana Paz' });
+  // The single-check layout carries the number of its competition, not a person-level section.
+  await expect(dialog.getByRole('region', { name: 'Número de competidor' })).toHaveCount(0);
+  await expect(dialog.getByText('Sin número todavía')).toBeVisible();
+  await expect(dialog.getByRole('button', { name: 'Asignar número en Batalla' })).toBeVisible();
 
   await dialog.getByRole('button', { name: 'Registrar entrada a Batalla' }).click();
   await expect(dialog.getByRole('status')).toHaveText(
     'Entrada a Batalla registrada a las 09:30. Número 007.',
   );
-  await expect(number).toContainText('Número 007');
-  await expect(number.getByText('007')).toHaveClass(/font-mono/);
-  await expect(number.getByRole('button', { name: 'Cambiar número' })).toBeVisible();
+  await expect(dialog.getByText('Número 007', { exact: true })).toBeVisible();
+  await expect(dialog.getByText('007', { exact: true })).toHaveClass(/font-mono/);
+  await expect(dialog.getByRole('button', { name: 'Cambiar número en Batalla' })).toBeVisible();
 });
 
-test('assigns and changes the competitor number after a confirmation (#377)', async ({ page }) => {
+test('assigns and changes the number of one competition after a frozen confirmation (#377)', async ({
+  page,
+}) => {
   let release!: () => void;
   let held = new Promise<void>((resolve) => {
     release = resolve;
   });
+  const answer = (competitorNumber: number, previousCompetitorNumber: number | null) => ({
+    status: 201,
+    json: {
+      registrationId: luzId,
+      activityId: battleId,
+      competitorNumber,
+      previousCompetitorNumber,
+    },
+  });
   const answers = [
-    {
-      status: 201,
-      json: { registrationId: luzId, competitorNumber: 1, previousCompetitorNumber: null },
-    },
-    {
-      status: 201,
-      json: { registrationId: luzId, competitorNumber: 4, previousCompetitorNumber: 1 },
-    },
+    answer(1, null),
+    answer(4, 1),
     { status: 409, json: { message: 'private detail', code: 'competitor_number_not_eligible' } },
   ];
   const posts: string[] = [];
@@ -340,31 +366,60 @@ test('assigns and changes the competitor number after a confirmation (#377)', as
     },
   );
   await page.goto(path);
+  // Records every confirmation title rendered, closing animation included.
+  await page.evaluate(() => {
+    const seen: string[] = [];
+    (window as unknown as { confirmTitles: string[] }).confirmTitles = seen;
+    const record = () => {
+      for (const dialog of document.querySelectorAll('[role="alertdialog"]')) {
+        const id = dialog.getAttribute('aria-labelledby');
+        const title = id ? document.getElementById(id)?.textContent : null;
+        if (title && seen.at(-1) !== title) seen.push(title);
+      }
+    };
+    new MutationObserver(record).observe(document.body, {
+      subtree: true,
+      childList: true,
+      characterData: true,
+    });
+  });
+  const titles = () =>
+    page.evaluate(() => (window as unknown as { confirmTitles: string[] }).confirmTitles);
 
-  // A general pass has no competition, so it gets neither a number nor the action.
+  // The event entry of a general pass shows no number and no action.
   await openRecord(page, 'Mau Aczino');
   const general = page.getByRole('dialog', { name: 'Mau Aczino' });
   await expect(general.getByText('Aún no entra')).toBeVisible();
-  await expect(general.getByRole('region', { name: 'Número de competidor' })).toHaveCount(0);
+  await expect(general.getByText('Sin número todavía')).toHaveCount(0);
+  await expect(general.getByRole('button', { name: /número/ })).toHaveCount(0);
   await general.getByRole('button', { name: 'Cerrar' }).first().click();
 
   await openRecord(page, 'Luz Rivera');
   const dialog = page.getByRole('dialog', { name: 'Luz Rivera' });
-  const number = dialog.getByRole('region', { name: 'Número de competidor' });
-  await number.getByRole('button', { name: 'Asignar número' }).click();
-  const confirm = page.getByRole('alertdialog', { name: 'Asignar número' });
-  await expect(confirm).toContainText('Recibirá el siguiente número disponible del evento.');
+  const battle = dialog.getByRole('listitem').filter({ hasText: /^Batalla/ });
+  const workshop = dialog.getByRole('listitem').filter({ hasText: /^Taller de footwork/ });
+  await expect(battle).toContainText('Sin número todavía');
+  await expect(workshop).not.toContainText('número');
+  await expect(workshop.getByRole('button', { name: /número/ })).toHaveCount(0);
+
+  await battle.getByRole('button', { name: 'Asignar número en Batalla' }).click();
+  const confirm = page.getByRole('alertdialog', { name: 'Asignar número en Batalla' });
+  await expect(confirm).toContainText(
+    'Recibirá el siguiente número disponible de esta competencia.',
+  );
   await confirm.getByRole('button', { name: 'Asignar número' }).click();
   await expect(confirm.getByRole('button', { name: 'Asignando…' })).toBeDisabled();
   release();
   await expect(confirm).toHaveCount(0);
-  await expect(dialog.getByRole('status')).toHaveText('Número 001 asignado.');
-  await expect(number).toContainText('Número 001');
+  await expect(dialog.getByRole('status')).toHaveText('Número 001 asignado en Batalla.');
+  await expect(battle).toContainText('Número 001');
+  // The confirmation kept its copy while it closed, even though the row changed underneath.
+  expect(await titles()).toEqual(['Asignar número en Batalla']);
 
-  await number.getByRole('button', { name: 'Cambiar número' }).click();
-  const change = page.getByRole('alertdialog', { name: 'Cambiar el número 001' });
+  await battle.getByRole('button', { name: 'Cambiar número en Batalla' }).click();
+  const change = page.getByRole('alertdialog', { name: 'Cambiar el número 001 de Batalla' });
   await expect(change).toContainText(
-    'Recibirá el siguiente número disponible del evento y el 001 ya no se le dará a nadie.',
+    'Recibirá el siguiente número disponible de esta competencia y el 001 ya no se le dará a nadie en esta competencia.',
   );
   held = new Promise<void>((resolve) => {
     release = resolve;
@@ -373,23 +428,60 @@ test('assigns and changes the competitor number after a confirmation (#377)', as
   await expect(change.getByRole('button', { name: 'Cambiando…' })).toBeDisabled();
   release();
   await expect(change).toHaveCount(0);
-  await expect(dialog.getByRole('status')).toHaveText('Número cambiado de 001 a 004.');
-  await expect(number).toContainText('Número 004');
+  await expect(dialog.getByRole('status')).toHaveText('Número de Batalla cambiado de 001 a 004.');
+  await expect(battle).toContainText('Número 004');
+  expect(await titles()).toEqual(['Asignar número en Batalla', 'Cambiar el número 001 de Batalla']);
 
   // The backend is the authority: its 409 shows a one-sentence fix, never the code.
-  await number.getByRole('button', { name: 'Cambiar número' }).click();
+  await battle.getByRole('button', { name: 'Cambiar número en Batalla' }).click();
   await page
-    .getByRole('alertdialog', { name: 'Cambiar el número 004' })
+    .getByRole('alertdialog', { name: 'Cambiar el número 004 de Batalla' })
     .getByRole('button', { name: 'Cambiar número' })
     .click();
   await expect(dialog.getByRole('alert')).toHaveText(
-    'Esta persona no tiene una competencia en su pase; revisa su inscripción en coordinación.',
+    'Esta persona no tiene esta competencia en su pase; revisa su inscripción en coordinación.',
   );
   await expect(page.getByText('private detail')).toHaveCount(0);
-  await expect(number).toContainText('Número 004');
+  await expect(battle).toContainText('Número 004');
   expect(posts).toEqual(
-    Array(3).fill(`/admin/events/${eventId}/registrations/${luzId}/competitor-number`),
+    Array(3).fill(
+      `/admin/events/${eventId}/registrations/${luzId}/competitions/${battleId}/competitor-number`,
+    ),
   );
+});
+
+test('finds a person by the number of any of their competitions (#377)', async ({ page }) => {
+  const twoCompetitions = {
+    ...luz({ battleNumber: 3 }),
+    activities: [
+      { activityId: battleId, checkedInAt: null, competitorNumber: 3 },
+      { activityId: crewId, checkedInAt: null, competitorNumber: 12 },
+    ],
+  };
+  await mockRoster(page, () =>
+    snapshot([twoCompetitions, ana({ battleNumber: 120 }), mau()], eventId, [crew]),
+  );
+  await page.goto(path);
+  await expect(search(page)).toHaveAttribute('placeholder', 'Nombre, alias, folio o número');
+
+  await search(page).fill('012');
+  await expect(rows(page)).toHaveCount(1);
+  await expect(rows(page).first()).toContainText('Luz Rivera');
+  await search(page).fill('120');
+  await expect(rows(page)).toHaveCount(1);
+  await expect(rows(page).first()).toContainText('Ana Paz');
+
+  // "12" is Luz's crews number, not Ana's 120.
+  await search(page).fill('12');
+  await expect(rows(page)).toHaveCount(1);
+  await search(page).press('Enter');
+  const dialog = page.getByRole('dialog', { name: 'Luz Rivera' });
+  await expect(dialog.getByRole('listitem').filter({ hasText: /^Batalla crews/ })).toContainText(
+    'Número 012',
+  );
+  await expect(
+    dialog.getByRole('listitem').filter({ hasText: /^Batalla(?! crews)/ }),
+  ).toContainText('Número 003');
 });
 
 test('a general pass checks in the event entry, then offers the next search', async ({ page }) => {

@@ -1,49 +1,60 @@
 import type {
   AdminRegistrationFailure,
   CompetitorNumberAssignment,
+  HeldCompetitorNumber,
 } from '@/entities/admin-registration';
 import { formatCompetitorNumber } from '@/shared/lib';
 
-// The competitor number action of the check-in screen (#377): an admin gives an eligible,
-// confirmed registration the event's next number, which also retires its current one.
+// The competitor number action of one competition check on the check-in screen (#377): an admin
+// gives an eligible, confirmed registration that competition's next number, which also retires
+// its current number there. `accessibleLabel` names the competition for the row's button.
 export type CompetitorNumberAction = {
   label: string;
+  accessibleLabel: string;
   pendingLabel: string;
   title: string;
   consequence: string;
 };
 
-export function competitorNumberAction(current: number | null): CompetitorNumberAction {
-  const next = 'Recibirá el siguiente número disponible del evento';
+export function competitorNumberAction(
+  competition: string,
+  current: number | null,
+): CompetitorNumberAction {
+  const next = 'Recibirá el siguiente número disponible de esta competencia';
   if (current === null)
     return {
       label: 'Asignar número',
+      accessibleLabel: `Asignar número en ${competition}`,
       pendingLabel: 'Asignando…',
-      title: 'Asignar número',
+      title: `Asignar número en ${competition}`,
       consequence: `${next}.`,
     };
   const number = formatCompetitorNumber(current);
   return {
     label: 'Cambiar número',
+    accessibleLabel: `Cambiar número en ${competition}`,
     pendingLabel: 'Cambiando…',
-    title: `Cambiar el número ${number}`,
-    consequence: `${next} y el ${number} ya no se le dará a nadie.`,
+    title: `Cambiar el número ${number} de ${competition}`,
+    consequence: `${next} y el ${number} ya no se le dará a nadie en esta competencia.`,
   };
 }
 
-export function competitorNumberSuccess({
-  competitorNumber,
-  previousCompetitorNumber,
-}: Pick<CompetitorNumberAssignment, 'competitorNumber' | 'previousCompetitorNumber'>): string {
+export function competitorNumberSuccess(
+  competition: string,
+  {
+    competitorNumber,
+    previousCompetitorNumber,
+  }: Pick<CompetitorNumberAssignment, 'competitorNumber' | 'previousCompetitorNumber'>,
+): string {
   const number = formatCompetitorNumber(competitorNumber);
   return previousCompetitorNumber === null
-    ? `Número ${number} asignado.`
-    : `Número cambiado de ${formatCompetitorNumber(previousCompetitorNumber)} a ${number}.`;
+    ? `Número ${number} asignado en ${competition}.`
+    : `Número de ${competition} cambiado de ${formatCompetitorNumber(previousCompetitorNumber)} a ${number}.`;
 }
 
 export function competitorNumberFailureText(failure: AdminRegistrationFailure): string {
   if (failure.kind === 'rule' && failure.code === 'competitor_number_not_eligible')
-    return 'Esta persona no tiene una competencia en su pase; revisa su inscripción en coordinación.';
+    return 'Esta persona no tiene esta competencia en su pase; revisa su inscripción en coordinación.';
   if (failure.kind === 'rule' && failure.code === 'competitor_number_not_confirmed')
     return 'Su inscripción aún no está confirmada; confirma su pago antes de darle número.';
   if (failure.kind === 'not_found')
@@ -53,4 +64,18 @@ export function competitorNumberFailureText(failure: AdminRegistrationFailure): 
   if (failure.kind === 'unknown')
     return 'No supimos si se guardó el número; actualiza la página para revisarlo antes de intentar otra vez.';
   return 'No se pudo guardar el número; inténtalo de nuevo en un momento.';
+}
+
+// The registration detail's numbers (#377), each with its competition's name from the event's
+// catalog, or a neutral "Competencia" when the catalog could not be read or no longer lists it.
+export function competitorNumberLines(
+  competitorNumbers: HeldCompetitorNumber[],
+  activities: readonly { id: string; name: string }[] | null,
+): { activityId: string; competition: string; number: string }[] {
+  const names = new Map((activities ?? []).map((activity) => [activity.id, activity.name]));
+  return competitorNumbers.map(({ activityId, competitorNumber }) => ({
+    activityId,
+    competition: names.get(activityId) ?? 'Competencia',
+    number: formatCompetitorNumber(competitorNumber),
+  }));
 }

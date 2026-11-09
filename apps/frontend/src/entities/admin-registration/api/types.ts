@@ -112,18 +112,23 @@ export type RegistrationSummary = {
   };
 };
 
-// `competitorNumber` is the per-event competitor number (#377), or null when it has none.
+// A number the registration holds in one competition (#377).
+export type HeldCompetitorNumber = { activityId: string; competitorNumber: number };
+
+// `competitorNumbers` are the registration's numbers per competition (#377), in agenda order,
+// including competitions it can no longer access.
 export type RegistrationEntitlements = {
   registration: RegistrationSummary;
   passes: HeldPass[];
   accessibleActivityIds: string[];
-  competitorNumber: number | null;
+  competitorNumbers: HeldCompetitorNumber[];
 };
 
-// The answer of an admin competitor number assignment (#377): the next number of the event.
-// `previousCompetitorNumber` is the retired one, or null on a first assignment.
+// The answer of an admin competitor number assignment (#377): the next number of that
+// competition. `previousCompetitorNumber` is the retired one, or null on a first assignment.
 export type CompetitorNumberAssignment = {
   registrationId: string;
+  activityId: string;
   competitorNumber: number;
   previousCompetitorNumber: number | null;
 };

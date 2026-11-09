@@ -9,6 +9,7 @@ import {
   eventCheckIns,
   eventRegistrations,
 } from '@/database/schema';
+import { CompetitorNumberService } from '@/events/competitor-number/competitor-number.service';
 import { RegistrationEntitlementsService } from '@/events/registration-entitlements/registration-entitlements.service';
 
 type Database = DatabaseService['db'];
@@ -20,13 +21,16 @@ const ELIGIBLE_KINDS = ['workshop', 'competition'];
 /**
  * Check-in facts are idempotent: a repeat returns the first fact (original actor and time) with
  * `alreadyCheckedIn: true` instead of failing. The registration row lock serializes every
- * check-in of one registration, so concurrent duplicates write each fact once.
+ * check-in of one registration, so concurrent duplicates write each fact once. A check-in into a
+ * competition also gives the registration that competition's next competitor number when it has
+ * none there (#377); the event check-in assigns nothing.
  */
 @Injectable()
 export class CheckInService {
   constructor(
     @Inject(DATABASE_CLIENT) private readonly db: Database,
     private readonly entitlements: RegistrationEntitlementsService,
+    private readonly competitorNumbers: CompetitorNumberService,
   ) {}
 
   // One action at the activity entrance: pass access is the gate, and the event fact and the
@@ -82,6 +86,16 @@ export class CheckInService {
                 eq(activityCheckIns.activityId, activityId),
               ),
             );
+      // Pass access and a confirmed registration were checked above, so the registration may hold
+      // this competition's number; a repeat keeps the one it holds.
+      const competitorNumber =
+        activity.kind === 'competition'
+          ? (
+              await this.competitorNumbers.assign(tx, eventId, registrationId, activityId, {
+                replace: false,
+              })
+            ).competitorNumber
+          : null;
       return {
         id: existing.id,
         eventId,
@@ -89,6 +103,7 @@ export class CheckInService {
         activityId,
         checkedInAt: existing.checkedInAt,
         alreadyCheckedIn: !created,
+        competitorNumber,
       };
     });
   }

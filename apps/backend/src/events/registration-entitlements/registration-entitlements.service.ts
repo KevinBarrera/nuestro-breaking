@@ -12,6 +12,7 @@ import {
   activities,
   eventCashPayments,
   eventCheckIns,
+  eventCompetitorNumbers,
   eventPassTypeActivities,
   eventPassTypes,
   eventRegistrationPassSelections,
@@ -45,6 +46,7 @@ import type {
   RegistrationStatus,
   RegistrationSummary,
 } from './registration-entitlements.types';
+import type { HeldCompetitorNumber } from '@/events/competitor-number/competitor-number.types';
 
 type Database = DatabaseService['db'];
 type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0];
@@ -744,7 +746,8 @@ export class RegistrationEntitlementsService {
   }
 
   // Row lock serializes entitlement writes per registration (duplicate and class checks included).
-  private async lockRegistration(
+  // Shared with the competitor number assignment (#377), the other registration operation.
+  async lockRegistration(
     tx: Transaction,
     eventId: string,
     registrationId: string,
@@ -890,10 +893,35 @@ export class RegistrationEntitlementsService {
       registration,
       passes,
       accessibleActivityIds: await this.accessibleActivityIds(executor, eventId, registrationId),
+      competitorNumbers: await this.competitorNumbers(executor, registrationId),
     };
   }
 
-  private async audit(
+  // Every competitor number the registration holds (#377), in agenda order, including the ones of
+  // competitions it no longer may access: a number is kept when access is lost.
+  private async competitorNumbers(
+    executor: Executor,
+    registrationId: string,
+  ): Promise<HeldCompetitorNumber[]> {
+    return executor
+      .select({
+        activityId: eventCompetitorNumbers.activityId,
+        competitorNumber: eventCompetitorNumbers.competitorNumber,
+      })
+      .from(eventCompetitorNumbers)
+      .innerJoin(
+        activities,
+        and(
+          eq(activities.eventId, eventCompetitorNumbers.eventId),
+          eq(activities.id, eventCompetitorNumbers.activityId),
+        ),
+      )
+      .where(eq(eventCompetitorNumbers.eventRegistrationId, registrationId))
+      .orderBy(asc(activities.startsAt), asc(activities.name), asc(activities.id));
+  }
+
+  // Shared with the competitor number assignment (#377).
+  async audit(
     tx: Transaction,
     actor: RegistrationAuditActor,
     registration: RegistrationRow,
@@ -905,7 +933,8 @@ export class RegistrationEntitlementsService {
         | 'registration_void'
         | 'registration_correction'
         | 'registration_discipline_swap'
-        | 'cash_correction';
+        | 'cash_correction'
+        | 'competitor_number_assignment';
       affectedActivityIds: string[];
       beforeState: Record<string, unknown>;
       afterState: Record<string, unknown>;

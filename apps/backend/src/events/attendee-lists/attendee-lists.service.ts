@@ -5,6 +5,7 @@ import { type DatabaseService } from '@/database/database.service';
 import {
   activities,
   activityCheckIns,
+  eventCompetitorNumbers,
   eventCheckIns,
   eventPassTypes,
   eventRegistrationPasses,
@@ -72,7 +73,7 @@ export class AttendeeListsService {
       this.entitlements.accessibleActivityIdsByRegistration(this.db, eventId, registrationIds),
     ]);
     const accessibleIds = [...new Set([...accessible.values()].flat())];
-    const [catalog, checkIns] = accessibleIds.length
+    const [catalog, checkIns, numbers] = accessibleIds.length
       ? await Promise.all([
           this.db
             .select({
@@ -104,8 +105,22 @@ export class AttendeeListsService {
                 inArray(activityCheckIns.activityId, accessibleIds),
               ),
             ),
+          this.db
+            .select({
+              registrationId: eventCompetitorNumbers.eventRegistrationId,
+              activityId: eventCompetitorNumbers.activityId,
+              competitorNumber: eventCompetitorNumbers.competitorNumber,
+            })
+            .from(eventCompetitorNumbers)
+            .where(
+              and(
+                eq(eventCompetitorNumbers.eventId, eventId),
+                inArray(eventCompetitorNumbers.eventRegistrationId, registrationIds),
+                inArray(eventCompetitorNumbers.activityId, accessibleIds),
+              ),
+            ),
         ])
-      : [[], []];
+      : [[], [], []];
 
     const passTypes = orderPassTypes(
       held.map(({ id, name, passClass, status }) => ({
@@ -118,6 +133,9 @@ export class AttendeeListsService {
     const heldBy = new Set(held.map((row) => `${row.registrationId}:${row.id}`));
     const checkedIn = new Map(
       checkIns.map((fact) => [`${fact.registrationId}:${fact.activityId}`, fact.checkedInAt]),
+    );
+    const numbered = new Map(
+      numbers.map((row) => [`${row.registrationId}:${row.activityId}`, row.competitorNumber]),
     );
 
     return {
@@ -146,6 +164,11 @@ export class AttendeeListsService {
               activityId: activity.id,
               checkedInAt:
                 checkedIn.get(`${row.registrationId}:${activity.id}`)?.toISOString() ?? null,
+              // Only a competition shows its number, even if it was later edited into a workshop.
+              competitorNumber:
+                activity.kind === 'competition'
+                  ? (numbered.get(`${row.registrationId}:${activity.id}`) ?? null)
+                  : null,
             })),
         };
       }),

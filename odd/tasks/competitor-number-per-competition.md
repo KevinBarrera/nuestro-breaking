@@ -1,0 +1,30 @@
+# Competitor numbers per competition
+
+Objective: rework #377 so the competitor number is per competition (activity of kind `competition`), not one per person per event. This takes over BJairo's PRs #378 and #379 and keeps his commits.
+Branches: `feat/377-01-competitor-number-backend` (#378, rebased on `dev`, T1) → `feat/377-02-competitor-number-screens` (#379, rebased on #378, T2). Delivery: the existing chained PRs, merged bottom-up. Earlier logbooks: `odd/tasks/competitor-number.md` (#378/#379); the dropped discipline attempt was on the deleted branch `feat/377-00-disciplines`.
+Test runners: backend Jest unit and PostgreSQL e2e, frontend Vitest and Playwright (see `CLAUDE.md`). Use Node 24.
+
+## Specs
+
+- **S1 Per competition.** "el número se asigna por COMPETENCIA, no por persona ni por disciplina. Si compré el pase de competencias de breaking y me inscribo a 2 competencias, tendré un número en cada una; pueden coincidir o ser distintos."
+- **S2 Rules kept from #377.** "solo lo reciben inscripciones confirmadas con la competencia incluida en su pase o seleccionada, MAX + 1 por competencia sin reutilizar números, se conserva aunque pierda elegibilidad, el admin puede asignar o cambiar con auditoría, formato 001 y búsqueda numérica por igualdad."
+- **S3 Assigned at the competition check-in.** "Sí, en el check-in a cada competencia". The event check-in assigns nothing.
+- **S4 Backup lists.** "deja el número solo en las listas de competencia". A competition list shows and sorts by that competition's number (numbered first, then by name); the event, pass and workshop lists have no number column and sort by name.
+- **S5 Discipline catalog dropped.** "Sí, Descartemos el catálogo con todas sus implicaciones". Branch `feat/377-00-disciplines` deleted and the local database reset.
+- **S6 Keep BJairo's commits.** "Mantén los commits de BJairo en #378 y #379 y agrega los cambios en commits nuevos encima."
+- **S7 Review asks.** "Incluye también lo que pedí en mis reviews de ambas PRs." #378: rename or complete the "discipline swap and pass-type access change assign nothing" test and drop its `console.log`; fix the webhook lock wording in `competitor-number.service.ts` and L4 of `odd/tasks/competitor-number.md` (the webhook takes `hashtext(eventId)` while already holding the voided registration's row lock). #379: add the `competitor_number_assignment` history reader case and its label in `history-model.ts` with a unit test; freeze the check-in dialog action when it opens; keep the printout folio column from overflowing (`break-words`); note in `docs/contracts/operational-check-in.md` that a digit query also matches folios.
+- **S8 UI follows the #312 designs.** "Cualquier ajuste de UI/UX debe seguir los patrones de los diseños del epic #312 (https://claude.ai/artifact/EQBVYtnzLp7u9BX8caRxYf), que a su vez se basan en el design system (https://claude.ai/artifact/7SRpK5YDMUVAEzuC5RNDef). Tienes acceso a mi navegador para ir revisando lo que implementes."
+
+## Tasks
+
+| ID  | Specs             | Task                                                                                                                                                                                                                                         | Route  | Status  | Commit |
+| --- | ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ | ------- | ------ |
+| T1  | S1–S3, S6, S7     | #378 backend: `event_competitor_numbers` table (rewrites unreleased `0040`), assignment on competition check-in with a per-competition lock, admin endpoint per competition with audit, readers return per-competition numbers, review asks. | inline | pending |        |
+| T2  | S1, S3, S4, S6–S8 | #379 screens: numbers per competition on check-in, detail and competition lists; event/pass/workshop lists by name; search by any number; review asks; browser check.                                                                        | inline | pending |        |
+| T3  | all               | Update the #377 issue body and the #378/#379 descriptions.                                                                                                                                                                                   | inline | pending |        |
+
+## Log
+
+- **L1** (2026-11-08, user, verbatim): "Retomemos el issue #377 (números de competidor). BJairo me cedió sus PRs #378 (backend) y #379 (pantallas), y el organizador cambió el requerimiento dos veces. Requerimiento vigente: el número se asigna por COMPETENCIA, no por persona ni por disciplina. [...] Antes de implementar, resolvamos una a la vez las decisiones abiertas del handoff [...] Mantén los commits de BJairo en #378 y #379 y agrega los cambios en commits nuevos encima. Incluye también lo que pedí en mis reviews de ambas PRs."
+- **L2** (2026-11-08): decisions: drop the discipline catalog (S5), assign at the competition check-in (S3), number only on competition lists (S4). Local DB recreated with `dev` migrations `0000`–`0039` and the November seed; the local admin must be provisioned again by the user.
+- **L3** (2026-11-08): #378 rebased onto `dev` `cf384e5` cleanly (7 commits, authorship kept). `0040`/`0041` were never applied outside disposable review databases, so `0040` is rewritten in a new commit instead of adding a column and dropping it later.

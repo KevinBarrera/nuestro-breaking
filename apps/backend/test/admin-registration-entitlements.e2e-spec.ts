@@ -801,6 +801,7 @@ describe('admin registration entitlements (e2e)', () => {
         },
       ],
       accessibleActivityIds: [],
+      competitorNumbers: [],
     });
 
     const reg = await registration(f.event);

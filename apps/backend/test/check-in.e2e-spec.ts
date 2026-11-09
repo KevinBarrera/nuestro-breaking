@@ -201,6 +201,8 @@ describe('event check-in (e2e)', () => {
       activityId: workshop,
       checkedInAt: new Date(fact.checked_in_at as string).toISOString(),
       alreadyCheckedIn: false,
+      // A workshop check-in assigns no competitor number (#377).
+      competitorNumber: null,
     });
     expect(eventFact).toMatchObject({
       event_id: event,

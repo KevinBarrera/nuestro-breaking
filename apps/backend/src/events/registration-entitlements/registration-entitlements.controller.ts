@@ -27,6 +27,8 @@ import type {
   RegistrationEntitlements,
 } from './registration-entitlements.types';
 import type { AdminRegistrationAuditActor } from '@/events/registration-audit/registration-audit-actor';
+import { CompetitorNumberService } from '@/events/competitor-number/competitor-number.service';
+import type { CompetitorNumberAssignment } from '@/events/competitor-number/competitor-number.types';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MAX_SELECTIONS = 500;
@@ -185,6 +187,7 @@ export class RegistrationEntitlementsController {
   constructor(
     private readonly sessions: SessionAccessService,
     private readonly entitlements: RegistrationEntitlementsService,
+    private readonly competitorNumbers: CompetitorNumberService,
   ) {}
 
   @Get(':eventId/registrations/:registrationId/entitlements')
@@ -289,6 +292,20 @@ export class RegistrationEntitlementsController {
     const correction = cashCorrection(input);
     const reason = requiredReason(input.reason);
     return this.entitlements.correctCash(eventId, registrationId, correction, reason, actor);
+  }
+
+  // No body: an admin assignment or change always gives that competition's next number (#377).
+  @Post(':eventId/registrations/:registrationId/competitions/:activityId/competitor-number')
+  async assignCompetitorNumber(
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+    @Param('registrationId', ParseUUIDPipe) registrationId: string,
+    @Param('activityId', ParseUUIDPipe) activityId: string,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<CompetitorNumberAssignment> {
+    const session = await this.sessions.authorizeEventAdminMutation(request, response, eventId);
+    const actor: AdminRegistrationAuditActor = { kind: 'admin', ...session };
+    return this.competitorNumbers.assignByAdmin(eventId, registrationId, activityId, actor);
   }
 
   @Put(':eventId/registrations/:registrationId/passes/:registrationPassId/selections')

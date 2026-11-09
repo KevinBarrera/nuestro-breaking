@@ -29,6 +29,13 @@ export type HistoryDetails =
     }
   | { kind: 'cash_confirmation'; amountCents: number | null; receipt: string | null }
   | { kind: 'cash_correction'; previous: CashValues; current: CashValues }
+  // The competition's number (#377); `previous` is null on a first assignment.
+  | {
+      kind: 'competitor_number_assignment';
+      activityName: string | null;
+      previous: number | null;
+      current: number | null;
+    }
   | { kind: 'payment_approval'; amountCents: number | null; lateApproval: boolean }
   | {
       kind: 'registration_void' | 'registration_expiry';

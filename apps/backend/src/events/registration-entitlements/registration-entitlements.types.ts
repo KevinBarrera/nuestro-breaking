@@ -1,3 +1,4 @@
+import type { HeldCompetitorNumber } from '@/events/competitor-number/competitor-number.types';
 import type { PassClass } from '@/events/pass-type-admin/pass-type-admin.types';
 
 export type RegistrationStatus = 'pending_payment' | 'confirmed' | 'voided';
@@ -38,10 +39,12 @@ export type HeldPass = {
 };
 
 // Admin read model. `accessibleActivityIds` is sorted and derived only from entitlement data.
+// `competitorNumbers` are the registration's numbers per competition (#377), in agenda order.
 export type RegistrationEntitlements = {
   registration: RegistrationSummary;
   passes: HeldPass[];
   accessibleActivityIds: string[];
+  competitorNumbers: HeldCompetitorNumber[];
 };
 
 // A participant name correction (#104): the normalized name parts and AKA that replace the stored

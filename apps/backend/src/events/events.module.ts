@@ -18,6 +18,7 @@ import { ManualRegistrationController } from './manual-registration/manual-regis
 import { ManualRegistrationService } from './manual-registration/manual-registration.service';
 import { CheckInController } from './check-in/check-in.controller';
 import { CheckInService } from './check-in/check-in.service';
+import { CompetitorNumberService } from './competitor-number/competitor-number.service';
 import { CheckInEventListController } from './check-in-event-list/check-in-event-list.controller';
 import { CheckInEventListService } from './check-in-event-list/check-in-event-list.service';
 import { ActivityAdminController } from './activity-admin/activity-admin.controller';
@@ -70,6 +71,7 @@ import { VenueAdminService } from './venue-admin/venue-admin.service';
     RegistrationHistoryService,
     ManualRegistrationService,
     CheckInService,
+    CompetitorNumberService,
     CheckInEventListService,
     ActivityAdminService,
     PassTypeAdminService,

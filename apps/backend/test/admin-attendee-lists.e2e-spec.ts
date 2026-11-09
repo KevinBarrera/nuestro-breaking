@@ -27,7 +27,11 @@ type AttendeeLists = {
     status: string;
     eventCheckedInAt: string | null;
     passTypeIds: string[];
-    activities: { activityId: string; checkedInAt: string | null }[];
+    activities: {
+      activityId: string;
+      checkedInAt: string | null;
+      competitorNumber: number | null;
+    }[];
   }[];
 };
 
@@ -318,7 +322,7 @@ describe('admin attendee lists (e2e)', () => {
           status: 'confirmed',
           eventCheckedInAt: eventCheckIn(f.beto),
           passTypeIds: [f.oldPass],
-          activities: [{ activityId: f.toprock, checkedInAt: null }],
+          activities: [{ activityId: f.toprock, checkedInAt: null, competitorNumber: null }],
         },
         {
           registrationId: f.carla,
@@ -328,11 +332,16 @@ describe('admin attendee lists (e2e)', () => {
           status: 'confirmed',
           eventCheckedInAt: eventCheckIn(f.carla),
           passTypeIds: [f.fullBreaking, f.openStyles],
+          // Her Breaking 1v1 check-in gave her number 1 there (#377).
           activities: [
-            { activityId: f.toprock, checkedInAt: null },
-            { activityId: f.afro, checkedInAt: null },
-            { activityId: f.breaking, checkedInAt: at(carlaBreaking.checked_in_at) },
-            { activityId: f.openBattle, checkedInAt: null },
+            { activityId: f.toprock, checkedInAt: null, competitorNumber: null },
+            { activityId: f.afro, checkedInAt: null, competitorNumber: null },
+            {
+              activityId: f.breaking,
+              checkedInAt: at(carlaBreaking.checked_in_at),
+              competitorNumber: 1,
+            },
+            { activityId: f.openBattle, checkedInAt: null, competitorNumber: null },
           ],
         },
       ],
@@ -342,6 +351,56 @@ describe('admin attendee lists (e2e)', () => {
     const serialized = JSON.stringify(body);
     for (const value of Object.values(CONTACT)) expect(serialized).not.toContain(value);
     expect(serialized).not.toMatch(/Dani Anulada|Solo anulado|Foráneo|Foreign|Cypher|Retired/);
+  });
+
+  // Each competition entry carries that competition's own number (#377); rows stay by name, and
+  // the screen sorts a competition list by its number.
+  it('gives each competition entry its own competitor number', async () => {
+    const f = await attendees();
+    const cookie = await session('admin', f.event);
+    const assign = (id: string, activity: string) =>
+      server()
+        .post(
+          `/admin/events/${f.event}/registrations/${id}/competitions/${activity}/competitor-number`,
+        )
+        .set(headers(cookie))
+        .expect(201);
+    await holdPass(f.event, f.anaTwin, f.fullBreaking, [f.afro]);
+    // Afro: Ana 1, Carla 2. Breaking: Carla 1. Open Styles: none.
+    await assign(f.anaTwin, f.afro);
+    await assign(f.carla, f.afro);
+    await assign(f.carla, f.breaking);
+
+    const body = (await read(f.event).set('Cookie', cookie).expect(200)).body as AttendeeLists;
+
+    const numbers = (id: string) =>
+      body.registrations
+        .find((row) => row.registrationId === id)
+        ?.activities.map((entry) => [entry.activityId, entry.competitorNumber]);
+    expect(numbers(f.carla)).toEqual([
+      [f.toprock, null],
+      [f.afro, 2],
+      [f.breaking, 1],
+      [f.openBattle, null],
+    ]);
+    expect(numbers(f.anaTwin)).toEqual([
+      [f.toprock, null],
+      [f.afro, 1],
+    ]);
+    // A competition later edited into a workshop keeps its rows, but a workshop shows no number.
+    await client`UPDATE activities SET kind = 'workshop' WHERE id = ${f.breaking}`;
+    const edited = (await read(f.event).set('Cookie', cookie).expect(200)).body as AttendeeLists;
+    expect(
+      edited.registrations
+        .find((row) => row.registrationId === f.carla)
+        ?.activities.find((entry) => entry.activityId === f.breaking)?.competitorNumber,
+    ).toBeNull();
+    expect(body.registrations.map((row) => row.fullName)).toEqual([
+      'Ana Pérez',
+      'Ana Pérez',
+      'beto Gómez',
+      'Carla Ruiz',
+    ]);
   });
 
   it('lets a global administrator read any event and answers 404 for an unknown one', async () => {

@@ -18,7 +18,7 @@ One unpaginated snapshot:
   - `registrationId`, `folio` (or `null` before confirmation), `fullName`, `stageName` (AKA, or `null`) and `status`.
   - `eventCheckedInAt`: the event check-in time, or `null`.
   - `passTypeIds`: the held pass types, in the `passTypes` order.
-  - `activities[]`: `{ activityId, checkedInAt }` for each accessible activity, in the `activities` order, with that activity's check-in time or `null`.
+  - `activities[]`: `{ activityId, checkedInAt, competitorNumber }` for each accessible activity, in the `activities` order, with that activity's check-in time or `null`, and the registration's competitor number in that competition (#377; always `null` on a workshop, and `null` before the first check-in there or an admin assignment; see [Operational check-in](operational-check-in.md)).
 
 Only `confirmed` and `pending_payment` registrations are listed, each with its status. `voided` registrations are excluded, so a printed row never suggests admitting one.
 

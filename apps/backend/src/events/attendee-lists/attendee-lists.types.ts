@@ -16,7 +16,9 @@ export type AttendeeListActivity = {
 };
 
 // Contact-free by construction (#65): no email, phone, Instagram or birth date. `passTypeIds` and
-// `activities` follow the order of the top-level `passTypes` and `activities` lists.
+// `activities` follow the order of the top-level `passTypes` and `activities` lists. Each activity
+// entry carries the registration's competitor number in that competition (#377), null when it has
+// none there and always null on a workshop.
 export type AttendeeListRegistration = {
   registrationId: string;
   folio: string | null;
@@ -25,7 +27,7 @@ export type AttendeeListRegistration = {
   status: string;
   eventCheckedInAt: string | null;
   passTypeIds: string[];
-  activities: { activityId: string; checkedInAt: string | null }[];
+  activities: { activityId: string; checkedInAt: string | null; competitorNumber: number | null }[];
 };
 
 // One unpaginated snapshot of the `confirmed` and `pending_payment` registrations of an event, with

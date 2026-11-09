@@ -164,7 +164,11 @@ export class AttendeeListsService {
               activityId: activity.id,
               checkedInAt:
                 checkedIn.get(`${row.registrationId}:${activity.id}`)?.toISOString() ?? null,
-              competitorNumber: numbered.get(`${row.registrationId}:${activity.id}`) ?? null,
+              // Only a competition shows its number, even if it was later edited into a workshop.
+              competitorNumber:
+                activity.kind === 'competition'
+                  ? (numbered.get(`${row.registrationId}:${activity.id}`) ?? null)
+                  : null,
             })),
         };
       }),

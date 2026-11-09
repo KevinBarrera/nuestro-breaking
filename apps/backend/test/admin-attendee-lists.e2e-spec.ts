@@ -387,6 +387,14 @@ describe('admin attendee lists (e2e)', () => {
       [f.toprock, null],
       [f.afro, 1],
     ]);
+    // A competition later edited into a workshop keeps its rows, but a workshop shows no number.
+    await client`UPDATE activities SET kind = 'workshop' WHERE id = ${f.breaking}`;
+    const edited = (await read(f.event).set('Cookie', cookie).expect(200)).body as AttendeeLists;
+    expect(
+      edited.registrations
+        .find((row) => row.registrationId === f.carla)
+        ?.activities.find((entry) => entry.activityId === f.breaking)?.competitorNumber,
+    ).toBeNull();
     expect(body.registrations.map((row) => row.fullName)).toEqual([
       'Ana Pérez',
       'Ana Pérez',

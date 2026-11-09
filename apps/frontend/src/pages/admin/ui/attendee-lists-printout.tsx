@@ -24,7 +24,7 @@ type PrintoutProps = {
 const paperRows = 18;
 
 const steps = [
-  'Busca a la persona por nombre, AKA, folio o número. Primero van quienes tienen número, en orden, y luego el resto en orden alfabético.',
+  'Busca a la persona por nombre, AKA o folio; en las listas de competencia, también por su número. Las listas van en orden alfabético, salvo las de competencia: primero quienes tienen número, en orden, y luego el resto en orden alfabético.',
   <>
     Si la columna <b>Entró</b> ya tiene hora, la persona entró antes de imprimir: no la dejes pasar
     otra vez sin revisar.
@@ -155,22 +155,23 @@ function PrintedList({ list, newSheet }: { list: AttendeeListView; newSheet: boo
               <span className="sr-only">Marca</span>
               <span aria-hidden="true">✓</span>
             </th>
-            <th scope="col" className={`${th} w-[64px]`}>
-              Número
-            </th>
-            {/* Letter portrait: the fixed columns take about a third, so "Nombre" and "AKA"
-                keep readable widths even on the event list, which also shows "Pases" (#377). */}
-            <th scope="col" className={`${th} ${list.showPasses ? 'w-[25%]' : 'w-[40%]'}`}>
+            {/* Only a competition list prints its competitor numbers (#377). */}
+            {list.numbered && (
+              <th scope="col" className={`${th} w-[64px]`}>
+                Número
+              </th>
+            )}
+            <th scope="col" className={`${th} ${list.showPasses ? 'w-[23%]' : 'w-[40%]'}`}>
               Nombre
             </th>
             <th scope="col" className={th}>
               AKA
             </th>
-            <th scope="col" className={`${th} w-[84px]`}>
+            <th scope="col" className={`${th} w-[90px]`}>
               Folio
             </th>
             {list.showPasses && (
-              <th scope="col" className={`${th} w-[26%]`}>
+              <th scope="col" className={`${th} w-[38%]`}>
                 Pases
               </th>
             )}
@@ -183,9 +184,11 @@ function PrintedList({ list, newSheet }: { list: AttendeeListView; newSheet: boo
           {list.rows.map((row) => (
             <tr key={row.registrationId} className="break-inside-avoid">
               <td className={td}>{markBox}</td>
-              <td className={`${td} font-mono text-sm`}>
-                {competitorNumberLabel(row.competitorNumber)}
-              </td>
+              {list.numbered && (
+                <td className={`${td} font-mono text-sm`}>
+                  {competitorNumberLabel(row.competitorNumber)}
+                </td>
+              )}
               <th scope="row" className={`${td} text-left font-bold break-words`}>
                 {row.fullName}
                 {row.pending && (
@@ -193,7 +196,8 @@ function PrintedList({ list, newSheet }: { list: AttendeeListView; newSheet: boo
                 )}
               </th>
               <td className={`${td} break-words`}>{row.stageName ?? ''}</td>
-              <td className={`${td} font-mono text-sm`}>{folioLabel(row.folio)}</td>
+              {/* A long folio wraps inside its column instead of running into the next one. */}
+              <td className={`${td} font-mono text-sm break-words`}>{folioLabel(row.folio)}</td>
               {list.showPasses && (
                 <td className={`${td} text-[13px] leading-[18px]`}>{row.passes.join(', ')}</td>
               )}

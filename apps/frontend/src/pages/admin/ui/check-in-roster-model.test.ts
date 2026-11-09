@@ -34,11 +34,10 @@ const lists: AttendeeLists = {
       stageName: 'Tonnpresssss',
       status: 'confirmed',
       eventCheckedInAt: null,
-      competitorNumber: 7,
       passTypeIds: ['full', 'kids'],
       activities: [
-        { activityId: 'a-foot', checkedInAt: null },
-        { activityId: 'a-bboy', checkedInAt: at },
+        { activityId: 'a-foot', checkedInAt: null, competitorNumber: null },
+        { activityId: 'a-bboy', checkedInAt: at, competitorNumber: 7 },
       ],
     },
     {
@@ -48,7 +47,6 @@ const lists: AttendeeLists = {
       stageName: 'Aczino',
       status: 'confirmed',
       eventCheckedInAt: null,
-      competitorNumber: null,
       passTypeIds: ['general'],
       activities: [],
     },
@@ -59,7 +57,6 @@ const lists: AttendeeLists = {
       stageName: null,
       status: 'confirmed',
       eventCheckedInAt: at,
-      competitorNumber: null,
       passTypeIds: ['general'],
       activities: [],
     },
@@ -70,7 +67,6 @@ const lists: AttendeeLists = {
       stageName: 'Dani R',
       status: 'pending_payment',
       eventCheckedInAt: null,
-      competitorNumber: null,
       passTypeIds: ['general'],
       activities: [],
     },
@@ -81,7 +77,6 @@ const lists: AttendeeLists = {
       stageName: null,
       status: 'confirmed',
       eventCheckedInAt: null,
-      competitorNumber: null,
       passTypeIds: [],
       activities: [],
     },
@@ -93,7 +88,13 @@ const person = (id: string) => roster.find((p) => p.registrationId === id) as Ro
 describe('buildRoster', () => {
   it('gives general-entry-only registrations the event entry and the rest their activities by name', () => {
     expect(person('r-mau').checks).toEqual([
-      { activityId: null, name: 'Entrada al evento', checkedInAt: null },
+      {
+        activityId: null,
+        name: 'Entrada al evento',
+        checkedInAt: null,
+        competition: false,
+        competitorNumber: null,
+      },
     ]);
     expect(person('r-tonny')).toMatchObject({
       confirmed: true,
@@ -105,19 +106,25 @@ describe('buildRoster', () => {
       ],
     });
     expect(person('r-none')).toMatchObject({ pass: 'Sin pase', checks: [] });
-    expect(person('r-tonny').competitorNumber).toBe(7);
-    expect(person('r-mau').competitorNumber).toBeNull();
+    expect(person('r-dani').confirmed).toBe(false);
   });
 
-  it('marks as competing only confirmed registrations with a competition (#377)', () => {
-    expect(person('r-tonny').competes).toBe(true);
-    expect(person('r-mau').competes).toBe(false);
-    const pending = buildRoster({
+  it('gives each competition check its own number, and workshops none (#377)', () => {
+    expect(person('r-tonny').checks).toMatchObject([
+      { activityId: 'a-bboy', competition: true, competitorNumber: 7 },
+      { activityId: 'a-foot', competition: false, competitorNumber: null },
+    ]);
+    // A workshop never shows a number, even if a malformed snapshot carried one.
+    const odd = buildRoster({
       ...lists,
-      registrations: [{ ...lists.registrations[0], status: 'pending_payment' }],
+      registrations: [
+        {
+          ...lists.registrations[0],
+          activities: [{ activityId: 'a-foot', checkedInAt: null, competitorNumber: 4 }],
+        },
+      ],
     });
-    expect(pending[0].competes).toBe(false);
-    expect(person('r-dani').confirmed).toBe(false);
+    expect(odd[0].checks[0]).toMatchObject({ competition: false, competitorNumber: null });
   });
 });
 
@@ -134,19 +141,42 @@ describe('matchesQuery', () => {
     expect(matchesQuery(person('r-dani'), '-')).toBe(false);
   });
 
-  it('matches the competitor number by numeric equality on a digits-only query (#377)', () => {
-    const numbered = (competitorNumber: number | null) => ({
-      fullName: 'Ana Paz',
-      stageName: null,
-      folio: 'EV-ABCD',
-      competitorNumber,
+  it('matches any of the given competitor numbers by numeric equality on a digits-only query (#377)', () => {
+    const ana = { fullName: 'Ana Paz', stageName: null, folio: 'EV-ABCD' };
+    expect(matchesQuery(ana, '7', [7])).toBe(true);
+    expect(matchesQuery(ana, '007', [3, 7])).toBe(true);
+    expect(matchesQuery(ana, '7', [17, 70])).toBe(false);
+    expect(matchesQuery(ana, '007', [70, null])).toBe(false);
+    expect(matchesQuery(ana, '7', [null])).toBe(false);
+    expect(matchesQuery(ana, '7')).toBe(false);
+    expect(matchesQuery(ana, 'ana', [7])).toBe(true);
+  });
+
+  it('finds a person by the number of any of their competitions (#377)', () => {
+    const two = buildRoster({
+      ...lists,
+      activities: [
+        ...lists.activities,
+        { id: 'a-crew', name: 'Breaking Crew', kind: 'competition', startsAt: at },
+      ],
+      registrations: [
+        {
+          ...lists.registrations[0],
+          activities: [
+            { activityId: 'a-bboy', checkedInAt: null, competitorNumber: 3 },
+            { activityId: 'a-crew', checkedInAt: null, competitorNumber: 12 },
+          ],
+        },
+        lists.registrations[1],
+      ],
     });
-    expect(matchesQuery(numbered(7), '7')).toBe(true);
-    expect(matchesQuery(numbered(7), '007')).toBe(true);
-    expect(matchesQuery(numbered(17), '7')).toBe(false);
-    expect(matchesQuery(numbered(70), '007')).toBe(false);
-    expect(matchesQuery(numbered(null), '7')).toBe(false);
-    expect(matchesQuery(numbered(7), 'ana')).toBe(true);
+    const found = (query: string) =>
+      visibleRoster(two, { query, status: 'pending', activity: 'all' }).map(
+        (row) => row.registrationId,
+      );
+    expect(found('12')).toEqual(['r-tonny']);
+    expect(found('003')).toEqual(['r-tonny']);
+    expect(found('2')).toEqual([]);
   });
 
   it('keeps matching digits inside the folio and name', () => {

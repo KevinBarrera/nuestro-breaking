@@ -31,7 +31,7 @@ const snapshot = {
       status: 'confirmed',
       eventCheckedInAt: '2026-11-14T16:05:00.000Z',
       passTypeIds: [fullPassId],
-      activities: [{ activityId: battleId, checkedInAt: null }],
+      activities: [{ activityId: battleId, checkedInAt: null, competitorNumber: null }],
       // Never expected from the backend; the screen must not show it even if it arrives.
       email: 'ana@example.org',
       phone: '+52 5512345678',
@@ -117,10 +117,10 @@ test('reaches the lists from the navigation and previews the event list', async 
   const rows = region.getByRole('listitem');
   await expect(rows).toHaveCount(2);
   await expect(rows.nth(0)).toHaveText(
-    /^—Ana LópezAKA FlashEB-7K3QPase completoEntró \d{2}:\d{2}$/,
+    /^1Ana LópezAKA FlashEB-7K3QPase completoEntró \d{2}:\d{2}$/,
   );
   // A pending payment shows its status instead of the entry.
-  await expect(rows.nth(1)).toHaveText('—Beto Ruiz—Entrada generalPendiente de pago');
+  await expect(rows.nth(1)).toHaveText('2Beto Ruiz—Entrada generalPendiente de pago');
 
   const text = await page.getByRole('main').innerText();
   expect(text).not.toContain('ana@example.org');
@@ -143,7 +143,8 @@ test('checks lists for the PDF and previews another one', async ({ page }) => {
   const region = page.getByRole('region', { name: 'Batalla 1vs1' });
   await expect(region).toContainText('Competencia · la entrada se cuenta por competencia');
   await expect(region).toContainText('No incluida en el PDF');
-  // The activity list shows that activity's entry, not the event entry, and no passes.
+  // The activity list shows that activity's entry, not the event entry, and no passes. As a
+  // competition list it shows the competitor number instead of the row number (#377).
   await expect(region.getByRole('listitem')).toHaveText(['—Ana LópezAKA FlashEB-7K3QSin entrar']);
   await include(page, 'Batalla 1vs1').check();
   await expect(region).toContainText('Incluida en el PDF');
@@ -170,46 +171,76 @@ test('searches inside the shown list', async ({ page }) => {
   await expect(search).toHaveValue('');
 });
 
-// Competitor numbers (#377): numbered rows first by number, then the rest by name, as the API sends.
+// Competitor numbers (#377) live on the competition lists only: numbered rows first by that
+// competition's number, then the rest by name. The event list stays alphabetical.
+const battleEntry = (competitorNumber: number | null) => [
+  { activityId: battleId, checkedInAt: null, competitorNumber },
+];
 const numbered = {
   ...snapshot,
   registrations: [
-    { ...snapshot.registrations[0], competitorNumber: 12 },
+    { ...snapshot.registrations[0], activities: battleEntry(12) },
     {
       registrationId: 'c3b2c3d4-1234-4567-89ab-123456789abc',
-      folio: 'EB-2M9X',
-      competitorNumber: 7,
+      // Longer than the folio column and without a hyphen to break at: it must wrap inside it.
+      folio: 'EB2M9X4F6H8J2K',
       fullName: 'Zoe Martínez de la Garza Villarreal',
       stageName: 'Bgirl Zoe Torbellino',
       status: 'confirmed',
       eventCheckedInAt: null,
       passTypeIds: [fullPassId, generalPassId],
-      activities: [{ activityId: battleId, checkedInAt: null }],
+      activities: battleEntry(7),
     },
-    { ...snapshot.registrations[1], competitorNumber: null },
+    {
+      registrationId: 'c4b2c3d4-1234-4567-89ab-123456789abc',
+      folio: 'EB-5T8R',
+      fullName: 'Carla Soto',
+      stageName: null,
+      status: 'confirmed',
+      eventCheckedInAt: null,
+      passTypeIds: [fullPassId],
+      activities: battleEntry(null),
+    },
+    snapshot.registrations[1],
   ],
 };
 
-test('shows the competitor number of each row and finds it by number (#377)', async ({ page }) => {
+test('a competition list shows and sorts by its numbers; the event list stays by name (#377)', async ({
+  page,
+}) => {
   await mockLists(page, { json: numbered });
   await page.goto(listsPath);
-  const region = page.getByRole('region', { name: 'Evento completo' });
-  const rows = region.getByRole('listitem');
-  await expect(rows).toHaveText([/^007Zoe Martínez/, /^012Ana López/, /^—Beto Ruiz/]);
-  await expect(rows.first().getByText('007', { exact: true }).first()).toHaveClass(/font-mono/);
-
+  const event = page.getByRole('region', { name: 'Evento completo' });
+  await expect(event.getByRole('listitem')).toHaveText([
+    /^1Ana López/,
+    /^2Beto Ruiz/,
+    /^3Carla Soto/,
+    /^4Zoe Martínez/,
+  ]);
   const search = page.getByRole('searchbox', { name: 'Buscar en esta lista' });
+  await expect(search).toHaveAttribute('placeholder', 'Buscar en esta lista: nombre, AKA o folio');
+  await search.fill('007');
+  await expect(event.getByRole('listitem')).toHaveCount(0);
+  await search.fill('');
+
+  await show(page, 'Batalla 1vs1').click();
+  const battle = page.getByRole('region', { name: 'Batalla 1vs1' });
+  const rows = battle.getByRole('listitem');
+  await expect(rows).toHaveText([/^007Zoe Martínez/, /^012Ana López/, /^—Carla Soto/]);
+  await expect(rows.first().getByText('007', { exact: true }).first()).toHaveClass(/font-mono/);
   await expect(search).toHaveAttribute(
     'placeholder',
     'Buscar en esta lista: nombre, AKA, folio o número',
   );
-  await search.fill('007');
+  await search.fill('07');
   await expect(rows).toHaveText([/^007Zoe Martínez/]);
   await search.fill('12');
   await expect(rows).toHaveText([/^012Ana López/]);
 });
 
-test('prints the "Número" column after "✓" and fits a letter sheet (#377)', async ({ page }) => {
+test('prints the "Número" column only on competition lists, and fits a letter sheet (#377)', async ({
+  page,
+}) => {
   await mockLists(page, { json: numbered });
   // About the printable width of a letter sheet in portrait with 12mm side margins.
   await page.setViewportSize({ width: 726, height: 1000 });
@@ -218,34 +249,54 @@ test('prints the "Número" column after "✓" and fits a letter sheet (#377)', a
   await include(page, 'Batalla 1vs1').check();
   await page.emulateMedia({ media: 'print' });
 
-  for (const name of ['Evento completo', 'Batalla 1vs1']) {
-    const table = page.getByRole('table', { name });
-    const headers = table.getByRole('columnheader');
-    await expect(headers.nth(0)).toHaveText('Marca✓');
-    await expect(headers.nth(1)).toHaveText('Número');
-    const widths = await headers.evaluateAll((cells) =>
-      Object.fromEntries(
-        cells.map((cell) => [cell.textContent ?? '', cell.getBoundingClientRect().width]),
-      ),
-    );
-    expect(widths['Nombre']).toBeGreaterThanOrEqual(170);
-    expect(widths['AKA']).toBeGreaterThanOrEqual(110);
-    expect(
-      await table.evaluate((node) => node.scrollWidth <= node.parentElement!.clientWidth),
-    ).toBe(true);
-  }
   const event = page.getByRole('table', { name: 'Evento completo' });
   await expect(event.getByRole('row')).toHaveText([
-    'Marca✓NúmeroNombreAKAFolioPasesEntró',
+    'Marca✓NombreAKAFolioPasesEntró',
+    /^Ana López/,
+    /^Beto Ruiz/,
+    /^Carla Soto/,
+    /^Zoe Martínez/,
+  ]);
+  const battle = page.getByRole('table', { name: 'Batalla 1vs1' });
+  await expect(battle.getByRole('row')).toHaveText([
+    'Marca✓NúmeroNombreAKAFolioEntró',
     /^007Zoe Martínez/,
     /^012Ana López/,
-    /^—Beto Ruiz/,
+    /^—Carla Soto/,
   ]);
-  await expect(event.getByRole('row').nth(1).getByRole('cell').nth(1)).toHaveClass(/font-mono/);
-  await expect(event.getByRole('row').nth(1).getByRole('cell').nth(1)).toHaveCSS(
+  await expect(battle.getByRole('row').nth(1).getByRole('cell').nth(1)).toHaveClass(/font-mono/);
+  await expect(battle.getByRole('row').nth(1).getByRole('cell').nth(1)).toHaveCSS(
     'color',
     'rgb(0, 0, 0)',
   );
+  for (const table of [event, battle]) {
+    const widths = await table
+      .getByRole('columnheader')
+      .evaluateAll((cells) =>
+        Object.fromEntries(
+          cells.map((cell) => [cell.textContent ?? '', cell.getBoundingClientRect().width]),
+        ),
+      );
+    expect(widths['Nombre']).toBeGreaterThanOrEqual(150);
+    expect(widths['AKA']).toBeGreaterThanOrEqual(90);
+    expect(
+      await table.evaluate((node) => node.scrollWidth <= node.parentElement!.clientWidth),
+    ).toBe(true);
+    // Every folio stays inside its own column.
+    expect(
+      await table.evaluate((node) => {
+        const folio = [...node.querySelectorAll('thead th')].findIndex(
+          (cell) => cell.textContent === 'Folio',
+        );
+        return [...node.querySelectorAll('tbody tr')].every((row) => {
+          const cell = row.children[folio];
+          const text = document.createRange();
+          text.selectNodeContents(cell);
+          return text.getBoundingClientRect().right <= cell.getBoundingClientRect().right;
+        });
+      }),
+    ).toBe(true);
+  }
 });
 
 test('prints through the browser', async ({ page }) => {
@@ -375,7 +426,6 @@ test('prints only the checked lists, with the cover and the paper sheet, black o
   const event = page.getByRole('table', { name: 'Evento completo' });
   await expect(event.getByRole('columnheader')).toHaveText([
     'Marca✓',
-    'Número',
     'Nombre',
     'AKA',
     'Folio',
@@ -383,10 +433,10 @@ test('prints only the checked lists, with the cover and the paper sheet, black o
     'Entró',
   ]);
   await expect(event.getByRole('row').nth(1)).toHaveText(
-    /^—Ana LópezFlashEB-7K3QPase completo\d{2}:\d{2}$/,
+    /^Ana LópezFlashEB-7K3QPase completo\d{2}:\d{2}$/,
   );
   await expect(event.getByRole('row').nth(2)).toHaveText(
-    '—Beto RuizPendiente de pago—Entrada general',
+    'Beto RuizPendiente de pago—Entrada general',
   );
   await expect(
     page.getByRole('table', { name: 'Batalla 1vs1' }).getByRole('columnheader'),

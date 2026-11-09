@@ -52,7 +52,9 @@ function readActivityCheckIn(
   if (!isRecord(value)) return null;
   const { activityId, checkedInAt } = value;
   if (typeof activityId !== 'string' || !isInstantOrNull(checkedInAt)) return null;
-  return { activityId, checkedInAt };
+  const competitorNumber = readCompetitorNumber(value.competitorNumber);
+  if (competitorNumber === undefined) return null;
+  return { activityId, checkedInAt, competitorNumber };
 }
 
 // Builds the row field by field, so anything else the body carries (such as a contact field)
@@ -64,15 +66,12 @@ function readRegistration(value: unknown): AttendeeListRegistration | null {
   if (!isStringOrNull(folio) || !isStringOrNull(stageName)) return null;
   if (!isOneOf(attendeeListStatuses, status) || !isInstantOrNull(eventCheckedInAt)) return null;
   if (!Array.isArray(value.passTypeIds) || !Array.isArray(value.activities)) return null;
-  const competitorNumber = readCompetitorNumber(value.competitorNumber);
-  if (competitorNumber === undefined) return null;
   const passTypeIds = value.passTypeIds.filter((id): id is string => typeof id === 'string');
   const activities = readAll(value.activities, readActivityCheckIn);
   if (passTypeIds.length !== value.passTypeIds.length || !activities) return null;
   return {
     registrationId,
     folio,
-    competitorNumber,
     fullName,
     stageName,
     status,

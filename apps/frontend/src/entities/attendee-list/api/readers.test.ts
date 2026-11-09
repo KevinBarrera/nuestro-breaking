@@ -11,13 +11,12 @@ const activity = {
 const registration = {
   registrationId: 'r1',
   folio: 'EB-7K3Q',
-  competitorNumber: 7,
   fullName: 'Ana López',
   stageName: 'Flash',
   status: 'confirmed',
   eventCheckedInAt: '2026-11-14T16:05:00.000Z',
   passTypeIds: ['p1'],
-  activities: [{ activityId: 'a1', checkedInAt: null }],
+  activities: [{ activityId: 'a1', checkedInAt: null, competitorNumber: 7 }],
 };
 const body = {
   event: { id: 'e1', name: 'Encuentro del barrio' },
@@ -36,11 +35,12 @@ describe('readAttendeeLists', () => {
     expect(lists?.registrations).toEqual([registration]);
   });
 
-  it('reads a missing competitor number as none (#377)', () => {
-    const unnumbered: Partial<typeof registration> = { ...registration };
-    delete unnumbered.competitorNumber;
+  it('reads a missing competitor number of an activity as none (#377)', () => {
+    const unnumbered = { ...registration, activities: [{ activityId: 'a1', checkedInAt: null }] };
     const [row] = readAttendeeLists({ ...body, registrations: [unnumbered] })!.registrations;
-    expect(row.competitorNumber).toBeNull();
+    expect(row.activities).toEqual([
+      { activityId: 'a1', checkedInAt: null, competitorNumber: null },
+    ]);
   });
 
   it('reads an event without registrations', () => {
@@ -89,7 +89,15 @@ describe('readAttendeeLists', () => {
     ).toBeNull();
     for (const competitorNumber of ['007', 0, -1, 2.5])
       expect(
-        readAttendeeLists({ ...body, registrations: [{ ...registration, competitorNumber }] }),
+        readAttendeeLists({
+          ...body,
+          registrations: [
+            {
+              ...registration,
+              activities: [{ activityId: 'a1', checkedInAt: null, competitorNumber }],
+            },
+          ],
+        }),
       ).toBeNull();
   });
 });

@@ -31,7 +31,6 @@ const person = (
 ): AttendeeListRegistration => ({
   registrationId,
   folio: null,
-  competitorNumber: null,
   fullName,
   stageName: null,
   status: 'confirmed',
@@ -56,7 +55,7 @@ const snapshot: AttendeeLists = {
     person('r2', 'Beto Ruiz', {
       status: 'pending_payment',
       passTypeIds: ['full', 'old'],
-      activities: [{ activityId: 'class', checkedInAt: null }],
+      activities: [{ activityId: 'class', checkedInAt: null, competitorNumber: null }],
     }),
     person('r1', 'Ángela López', {
       folio: 'EB-7K3Q',
@@ -64,8 +63,8 @@ const snapshot: AttendeeLists = {
       eventCheckedInAt: '2026-11-14T16:05:00Z',
       passTypeIds: ['full'],
       activities: [
-        { activityId: 'battle', checkedInAt: '2026-11-14T18:10:00Z' },
-        { activityId: 'class', checkedInAt: null },
+        { activityId: 'battle', checkedInAt: '2026-11-14T18:10:00Z', competitorNumber: null },
+        { activityId: 'class', checkedInAt: null, competitorNumber: null },
       ],
     }),
   ],
@@ -94,28 +93,56 @@ describe('buildAttendeeLists', () => {
     ]);
   });
 
-  it('lists numbered competitors first by number, then everyone else by name (#377)', () => {
+  it('sorts only competition lists by their own number, numbered first, then by name (#377)', () => {
+    const entry = (activityId: string, competitorNumber: number | null = null) => ({
+      activityId,
+      checkedInAt: null,
+      competitorNumber,
+    });
     const numbered = buildAttendeeLists({
       ...snapshot,
+      activities: [
+        ...snapshot.activities,
+        {
+          id: 'crew',
+          name: 'Batalla crews',
+          kind: 'competition',
+          startsAt: '2026-11-14T20:00:00Z',
+        },
+      ],
       registrations: [
-        person('a', 'Zoe Sol', { competitorNumber: 12, passTypeIds: ['full'] }),
-        person('b', 'Ana Paz', { passTypeIds: ['full'] }),
-        person('c', 'Yuri Mar', { competitorNumber: 3, passTypeIds: ['full'] }),
-        person('d', 'Beto Ríos', {
+        person('a', 'Zoe Sol', {
           passTypeIds: ['full'],
-          activities: [{ activityId: 'battle', checkedInAt: null }],
+          activities: [entry('battle', 12), entry('crew', 1), entry('class')],
         }),
-        person('e', 'Ximena Luz', {
-          competitorNumber: 1,
-          activities: [{ activityId: 'battle', checkedInAt: null }],
+        person('b', 'Ana Paz', { passTypeIds: ['full'], activities: [entry('battle')] }),
+        person('c', 'Yuri Mar', {
+          passTypeIds: ['full'],
+          activities: [entry('battle', 3), entry('crew'), entry('class')],
         }),
+        person('d', 'Beto Ríos', { passTypeIds: ['full'], activities: [entry('crew', 2)] }),
       ],
     });
-    const order = (index: number) => numbered[index].rows.map((row) => row.registrationId);
-    expect(order(0)).toEqual(['e', 'c', 'a', 'b', 'd']);
-    expect(order(1)).toEqual(['c', 'a', 'b', 'd']);
-    expect(order(3)).toEqual(['e', 'd']);
-    expect(numbered[0].rows.map((row) => row.competitorNumber)).toEqual([1, 3, 12, null, null]);
+    const list = (title: string) => numbered.find((view) => view.title === title)!;
+    const order = (title: string) => list(title).rows.map((row) => row.registrationId);
+    expect(order('Evento completo')).toEqual(['b', 'd', 'c', 'a']);
+    expect(order('Pase completo')).toEqual(['b', 'd', 'c', 'a']);
+    expect(order('Clase de toprock')).toEqual(['c', 'a']);
+    expect(order('Batalla 1vs1')).toEqual(['c', 'a', 'b']);
+    expect(order('Batalla crews')).toEqual(['a', 'd', 'c']);
+    expect(list('Batalla 1vs1').rows.map((row) => row.competitorNumber)).toEqual([3, 12, null]);
+    expect(list('Batalla crews').rows.map((row) => row.competitorNumber)).toEqual([1, 2, null]);
+    expect(numbered.map((view) => [view.title, view.numbered])).toEqual([
+      ['Evento completo', false],
+      ['Pase completo', false],
+      ['Pase preventa (archivado)', false],
+      ['Batalla 1vs1', true],
+      ['Clase de toprock', false],
+      ['Batalla crews', true],
+    ]);
+    // Outside a competition list no row carries a number.
+    expect(list('Evento completo').rows.every((row) => row.competitorNumber === null)).toBe(true);
+    expect(list('Clase de toprock').rows.every((row) => row.competitorNumber === null)).toBe(true);
   });
 
   it('shows the passes only on the event list', () => {
@@ -241,19 +268,25 @@ describe('preview', () => {
     expect(names('nadie')).toEqual([]);
   });
 
-  it('searches the competitor number by numeric equality (#377)', () => {
-    const list = buildAttendeeLists({
+  it('searches a competition list by its own number by numeric equality (#377)', () => {
+    const entry = (competitorNumber: number) => [
+      { activityId: 'battle', checkedInAt: null, competitorNumber },
+    ];
+    const numbered = buildAttendeeLists({
       ...snapshot,
       registrations: [
-        person('a', 'Ana Paz', { competitorNumber: 7 }),
-        person('b', 'Beto Ríos', { competitorNumber: 17 }),
-        person('c', 'Carla Sol', { competitorNumber: 70 }),
+        person('a', 'Ana Paz', { activities: entry(7) }),
+        person('b', 'Beto Ríos', { activities: entry(17) }),
+        person('c', 'Carla Sol', { activities: entry(70) }),
       ],
-    })[0];
-    const names = (query: string) => searchList(list, query).map((row) => row.fullName);
+    });
+    const battle = numbered.find((view) => view.title === 'Batalla 1vs1')!;
+    const names = (query: string) => searchList(battle, query).map((row) => row.fullName);
     expect(names('7')).toEqual(['Ana Paz']);
     expect(names('007')).toEqual(['Ana Paz']);
     expect(names('carla')).toEqual(['Carla Sol']);
+    // The event list shows no numbers, so a number finds nobody there.
+    expect(searchList(numbered[0], '7')).toEqual([]);
   });
 
   it('labels the entry with the check-in time', () => {

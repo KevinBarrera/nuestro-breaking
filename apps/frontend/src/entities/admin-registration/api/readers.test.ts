@@ -128,18 +128,34 @@ describe('readEntitlements', () => {
     registration,
     passes: [pass],
     accessibleActivityIds: ['act-1', 'act-2'],
-    competitorNumber: null,
+    competitorNumbers: [] as { activityId: unknown; competitorNumber: unknown }[],
   };
 
-  it('reads the competitor number, a missing one as none (#377)', () => {
+  it('reads the competitor numbers per competition, a missing list as none (#377)', () => {
+    const competitorNumbers = [
+      { activityId: 'act-1', competitorNumber: 3 },
+      { activityId: 'act-9', competitorNumber: 12 },
+    ];
     expect(
-      readEntitlements({ ...entitlements, competitorNumber: 7 }, registrationId)?.competitorNumber,
-    ).toBe(7);
+      readEntitlements({ ...entitlements, competitorNumbers }, registrationId)?.competitorNumbers,
+    ).toEqual(competitorNumbers);
     const legacy: Partial<typeof entitlements> = { ...entitlements };
-    delete legacy.competitorNumber;
-    expect(readEntitlements(legacy, registrationId)?.competitorNumber).toBeNull();
-    for (const competitorNumber of ['001', 0, -3, 1.5])
-      expect(readEntitlements({ ...entitlements, competitorNumber }, registrationId)).toBeNull();
+    delete legacy.competitorNumbers;
+    expect(readEntitlements(legacy, registrationId)?.competitorNumbers).toEqual([]);
+    for (const competitorNumber of ['001', 0, -3, 1.5, null])
+      expect(
+        readEntitlements(
+          { ...entitlements, competitorNumbers: [{ activityId: 'act-1', competitorNumber }] },
+          registrationId,
+        ),
+      ).toBeNull();
+    expect(
+      readEntitlements(
+        { ...entitlements, competitorNumbers: [{ activityId: 7, competitorNumber: 1 }] },
+        registrationId,
+      ),
+    ).toBeNull();
+    expect(readEntitlements({ ...entitlements, competitorNumbers: 4 }, registrationId)).toBeNull();
   });
 
   it('reads the registration summary, held passes and accessible activities', () => {
@@ -161,14 +177,19 @@ describe('readEntitlements', () => {
     };
     expect(
       readEntitlements(
-        { registration: confirmed, passes: [], accessibleActivityIds: [], competitorNumber: 4 },
+        {
+          registration: confirmed,
+          passes: [],
+          accessibleActivityIds: [],
+          competitorNumbers: [{ activityId: 'act-1', competitorNumber: 4 }],
+        },
         registrationId,
       ),
     ).toEqual({
       registration: confirmed,
       passes: [],
       accessibleActivityIds: [],
-      competitorNumber: 4,
+      competitorNumbers: [{ activityId: 'act-1', competitorNumber: 4 }],
     });
   });
 

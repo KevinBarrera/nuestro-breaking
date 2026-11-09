@@ -102,7 +102,7 @@ const entitlements = (
   },
   passes,
   accessibleActivityIds: [],
-  competitorNumber: null,
+  competitorNumbers: [],
 });
 
 describe('canSwapDiscipline', () => {

@@ -5,6 +5,7 @@ import {
   registrationId,
   registrationPath,
   registrationSummary,
+  saleActivities,
 } from './support/registration-mocks.ts';
 
 // Correcting the participant's name and AKA with a reason (#104) in the two-step modal (#345). Field
@@ -81,24 +82,37 @@ test('corrects the name and AKA of a confirmed registration', async ({ page }) =
   ]);
 });
 
-test('shows the competitor number of the registration, only when it has one (#377)', async ({
+test('shows every competitor number with its competition, only when it has one (#377)', async ({
   page,
 }) => {
-  let competitorNumber: number | null = 7;
+  let competitorNumbers = [
+    { activityId: saleActivities.breaking.id, competitorNumber: 3 },
+    { activityId: saleActivities.popping1.id, competitorNumber: 12 },
+    // A competition the catalog no longer lists keeps its number under a neutral name.
+    { activityId: 'b9b2c3d4-1234-4567-89ab-123456789abc', competitorNumber: 1 },
+  ];
   await mockRegistrations(page, {
     entitlements: () => ({
-      json: { ...entitlements(confirmed).json, competitorNumber },
+      json: { ...entitlements(confirmed).json, competitorNumbers },
     }),
+    activities: () => ({ json: [saleActivities.breaking, saleActivities.popping1] }),
   });
   await page.goto(registrationPath(registrationId));
-  const number = section(page).getByRole('definition').filter({ hasText: '007' });
-  await expect(section(page)).toContainText('Número de competidor007');
-  await expect(number.locator('.font-mono')).toHaveText('007');
+  const numbers = section(page)
+    .getByRole('definition')
+    .filter({ has: page.getByRole('listitem') });
+  await expect(section(page)).toContainText('Números de competidor');
+  await expect(numbers.getByRole('listitem')).toHaveText([
+    'Breaking Bboy · 003',
+    'Popping 1v1 · 012',
+    'Competencia · 001',
+  ]);
+  await expect(numbers.getByText('003', { exact: true })).toHaveClass(/font-mono/);
 
-  competitorNumber = null;
+  competitorNumbers = [];
   await page.reload();
   await expect(section(page)).toContainText('Ana López');
-  await expect(section(page).getByText('Número de competidor')).toHaveCount(0);
+  await expect(section(page).getByText('Números de competidor')).toHaveCount(0);
 });
 
 test('blocks a blank reason or no change without calling the API', async ({ page }) => {

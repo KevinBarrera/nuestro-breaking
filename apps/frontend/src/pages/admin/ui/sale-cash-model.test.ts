@@ -193,7 +193,7 @@ describe('confirmedEntitlements', () => {
     },
     passes: [pass('a', 30000, ['act-1'])],
     accessibleActivityIds: ['act-1'],
-    competitorNumber: null,
+    competitorNumbers: [],
   };
   const confirmation: CashConfirmation = {
     registrationId: 'reg-1',

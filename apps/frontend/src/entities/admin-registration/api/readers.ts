@@ -7,6 +7,7 @@ import {
   type CashConfirmation,
   type CashPayment,
   type CompetitorNumberAssignment,
+  type HeldCompetitorNumber,
   type HeldPass,
   type ManualRegistration,
   type PossibleDuplicate,
@@ -170,24 +171,32 @@ export function readEntitlements(
   const accessibleActivityIds = every(value.accessibleActivityIds, (id) =>
     isText(id) ? id : null,
   );
-  // A missing competitor number (a backend before #377) reads as none; a malformed one is rejected.
-  const competitorNumber = value.competitorNumber ?? null;
-  if (competitorNumber !== null && !isPositiveInteger(competitorNumber)) return null;
-  return registration && passes && accessibleActivityIds
-    ? { registration, passes, accessibleActivityIds, competitorNumber }
+  // A missing list (a backend before #377) reads as no numbers; a malformed entry is rejected.
+  const competitorNumbers = every(value.competitorNumbers ?? [], readHeldCompetitorNumber);
+  return registration && passes && accessibleActivityIds && competitorNumbers
+    ? { registration, passes, accessibleActivityIds, competitorNumbers }
     : null;
+}
+
+function readHeldCompetitorNumber(value: unknown): HeldCompetitorNumber | null {
+  if (!isRecord(value)) return null;
+  const { activityId, competitorNumber } = value;
+  if (!isText(activityId) || !isPositiveInteger(competitorNumber)) return null;
+  return { activityId, competitorNumber };
 }
 
 export function readCompetitorNumberAssignment(
   value: unknown,
   registrationId: string,
+  activityId: string,
 ): CompetitorNumberAssignment | null {
   if (!isRecord(value) || value.registrationId !== registrationId) return null;
+  if (value.activityId !== activityId) return null;
   const { competitorNumber, previousCompetitorNumber } = value;
   if (!isPositiveInteger(competitorNumber)) return null;
   if (previousCompetitorNumber !== null && !isPositiveInteger(previousCompetitorNumber))
     return null;
-  return { registrationId, competitorNumber, previousCompetitorNumber };
+  return { registrationId, activityId, competitorNumber, previousCompetitorNumber };
 }
 
 function readPossibleDuplicate(value: unknown): PossibleDuplicate | null {

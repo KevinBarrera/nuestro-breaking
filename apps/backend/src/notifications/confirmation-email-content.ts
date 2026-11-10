@@ -83,7 +83,7 @@ function textBody(input: ConfirmationEmailInput, name: string, when: EventWhen):
   lines.push(`Tu folio: ${input.folio}`, ENTRANCE_LINE, '', 'Tus pases:');
   for (const pass of input.passes) {
     lines.push(`- ${pass.name}`);
-    if (pass.competitions.length > 0) lines.push(`  Competencias: ${pass.competitions.join(', ')}`);
+    if (pass.competitions.length > 0) lines.push(`  Categorías: ${pass.competitions.join(', ')}`);
   }
   const rows = paymentRows(input);
   if (rows.length > 0)
@@ -98,7 +98,7 @@ function htmlBody(input: ConfirmationEmailInput, name: string, when: EventWhen):
     .map((pass) => {
       const competitions =
         pass.competitions.length > 0
-          ? `<br><span style="color:#555555;font-size:14px;">Competencias: ${escapeHtml(pass.competitions.join(', '))}</span>`
+          ? `<br><span style="color:#555555;font-size:14px;">Categorías: ${escapeHtml(pass.competitions.join(', '))}</span>`
           : '';
       return `<li style="margin:0 0 8px;"><strong>${escapeHtml(pass.name)}</strong>${competitions}</li>`;
     })

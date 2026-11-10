@@ -33,7 +33,8 @@ describe('buildConfirmationEmail', () => {
       expect(body).toContain('10:00');
       expect(body).toContain('LMP-AB12');
       expect(body).toContain('Pase completo Breaking');
-      expect(body).toContain('Breaking 1v1, Popping 1v1');
+      expect(body).toContain('Categorías: Breaking 1v1, Popping 1v1');
+      expect(body).not.toContain('Competencias');
       expect(body).toContain('Open Styles');
       expect(body).toContain('Muestra este folio en la entrada');
     }
@@ -52,7 +53,7 @@ describe('buildConfirmationEmail', () => {
     });
 
     expect(text).toContain('Open Styles');
-    expect(text).not.toContain('Competencias');
+    expect(text).not.toContain('Categorías');
   });
 
   it('uses the first word of the full name when there is no first name', () => {

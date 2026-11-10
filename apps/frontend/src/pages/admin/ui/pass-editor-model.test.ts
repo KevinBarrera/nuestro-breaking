@@ -280,7 +280,7 @@ describe('accessWarning', () => {
   it('warns when a full pass or an add-on gives access to nothing', () => {
     const days = accessDays(activities, timeZone);
     expect(accessWarning('full', days, {})).toBe(
-      'Un pase completo sin actividades no da acceso a ninguna competencia. Marca las que puede escoger o las que incluye.',
+      'Un pase completo sin actividades no da acceso a ninguna categoría. Marca las que puede escoger o las que incluye.',
     );
     expect(accessWarning('add_on', days, { toprock: 'none' })).toBe(
       'Un adicional sin actividades no suma nada al pase completo. Marca al menos una como incluida.',
@@ -402,7 +402,7 @@ describe('passPreview', () => {
       price: '$2,000.00',
       requires: null,
       included: ['Breaking 1v1 Toprock'],
-      selectableTitle: 'Escoge entre 2 competencias',
+      selectableTitle: 'Escoge entre 2 categorías',
       selectable: 'Breaking Footwork, Popping 1v1',
       empty: null,
       sale: 'Venta en línea: mientras el evento venda.',
@@ -450,7 +450,7 @@ describe('passPreview', () => {
       timeZone,
       eventWindow,
     );
-    expect(preview.selectableTitle).toBe('Escoge entre 5 competencias');
+    expect(preview.selectableTitle).toBe('Escoge entre 5 categorías');
     expect(preview.selectable).toBe(
       'Breaking 1v1 Toprock, Breaking Footwork, Popping 1v1, Locking 1v1 y 1 más',
     );

@@ -311,7 +311,7 @@ test('warns about an overlap in the same venue without blocking the save', async
   const dialog = page.getByRole('dialog', { name: 'Nueva actividad' });
 
   await dialog.getByLabel('Nombre').fill('Locking 2v2');
-  await dialog.getByRole('radio', { name: 'Competencia' }).check();
+  await dialog.getByRole('radio', { name: 'Categoría' }).check();
   await dialog.getByRole('radio', { name: /Domingo/ }).check();
   await dialog.getByLabel('Empieza').fill('13:30');
   await dialog.getByLabel('Termina', { exact: true }).fill('14:30');

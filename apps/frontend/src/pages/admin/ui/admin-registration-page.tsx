@@ -226,8 +226,8 @@ function RegistrationScreen({
             {mode === 'voided' && (
               <Notice title="Inscripción anulada">
                 {voidedHere
-                  ? 'Se anuló la inscripción. Sus pases quedan como historial y ya no admite pases, competencias ni pagos.'
-                  : 'Esta inscripción está anulada: no admite pases, competencias ni pagos.'}
+                  ? 'Se anuló la inscripción. Sus pases quedan como historial y ya no admite pases, categorías ni pagos.'
+                  : 'Esta inscripción está anulada: no admite pases, categorías ni pagos.'}
               </Notice>
             )}
             <SummaryStrip entitlements={state.entitlements} />
@@ -241,8 +241,8 @@ function RegistrationScreen({
                     Venta pendiente
                   </h2>
                   <p className="text-sm text-muted">
-                    Esta inscripción aún no está pagada. Sus pases, competencias y cobro se
-                    registran en los pasos de Nueva inscripción.
+                    Esta inscripción aún no está pagada. Sus pases, categorías y cobro se registran
+                    en los pasos de Nueva inscripción.
                   </p>
                 </div>
                 <Link
@@ -278,7 +278,7 @@ function RegistrationScreen({
                       type="button"
                       disabled={correctionsLocked}
                       className={buttonClass('secondary')}
-                      aria-label={`Editar competencias de «${pass.name}»`}
+                      aria-label={`Editar categorías de «${pass.name}»`}
                       onClick={(event) =>
                         openCorrection(
                           {
@@ -290,8 +290,8 @@ function RegistrationScreen({
                       }
                     >
                       {editablePasses.length > 1
-                        ? `Editar competencias de ${pass.name}`
-                        : 'Editar competencias'}
+                        ? `Editar categorías de ${pass.name}`
+                        : 'Editar categorías'}
                     </button>
                   ))}
                 </>
@@ -408,7 +408,7 @@ function RegistrationScreen({
                 pass={editingPass}
                 onSaved={corrected(
                   'passes',
-                  `Se cambiaron las competencias de «${editingPass.name}».`,
+                  `Se cambiaron las categorías de «${editingPass.name}».`,
                 )}
                 onReload={reload}
                 onClose={closeCorrection}
@@ -636,17 +636,17 @@ function PassRow({
       <span className="font-mono">{formatMxn(pass.priceCents)}</span>
       {competitions &&
         ('text' in competitions ? (
-          <CompetitionChips label="Competencias" names={[]} count={competitions.text} />
+          <CompetitionChips label="Categorías" names={[]} count={competitions.text} />
         ) : (
           <>
             {competitions.included.length > 0 && (
-              <CompetitionChips label="Competencias incluidas" names={competitions.included} />
+              <CompetitionChips label="Categorías incluidas" names={competitions.included} />
             )}
             {competitions.chosen && (
               <CompetitionChips
-                label={competitions.included.length > 0 ? 'Competencias elegidas' : 'Competencias'}
+                label={competitions.included.length > 0 ? 'Categorías elegidas' : 'Categorías'}
                 names={competitions.chosen}
-                empty="Sin competencias elegidas."
+                empty="Sin categorías elegidas."
               />
             )}
           </>

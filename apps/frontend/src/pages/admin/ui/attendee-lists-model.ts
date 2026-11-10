@@ -121,7 +121,7 @@ export function buildAttendeeLists(data: AttendeeLists): AttendeeListView[] {
 const groups: { id: AttendeeListGroupId; label: string; kind: string }[] = [
   { id: 'event', label: 'Evento', kind: 'Evento' },
   { id: 'pass', label: 'Pases', kind: 'Pase' },
-  { id: 'competition', label: 'Competencias', kind: 'Competencia' },
+  { id: 'competition', label: 'Categorías', kind: 'Categoría' },
   { id: 'workshop', label: 'Talleres', kind: 'Taller' },
 ];
 
@@ -145,7 +145,7 @@ export function groupAttendeeLists(lists: AttendeeListView[]): AttendeeListGroup
 const kindOf = (group: AttendeeListGroupId) =>
   groups.find((entry) => entry.id === group)?.kind ?? '';
 
-// "Competencia", or "Pase · Pase completo" style prefixes for the printout.
+// "Categoría", or "Pase · Pase completo" style prefixes for the printout.
 export const listKind = (list: AttendeeListView) => kindOf(list.group);
 
 export function listKindLabel(list: AttendeeListView): string {

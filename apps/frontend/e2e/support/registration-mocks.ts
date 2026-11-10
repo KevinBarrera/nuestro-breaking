@@ -656,7 +656,7 @@ export const registrationSweepCases: {
     path: salePath(registrationId),
     mock: mockSweepSale(),
     ready: (page) =>
-      page.getByRole('group', { name: 'Competencias de Pase completo Popping' }).waitFor(),
+      page.getByRole('group', { name: 'Categorías de Pase completo Popping' }).waitFor(),
   },
   {
     // The read-only participant step of a registration that already exists.
@@ -718,12 +718,12 @@ export const registrationSweepCases: {
   },
   {
     // The competition editor of a confirmed registration (#170), open with its reason field.
-    name: 'Inscripción confirmada editando competencias',
+    name: 'Inscripción confirmada editando categorías',
     path: registrationPath(registrationId),
     mock: async (page) => {
       const activity = catalogActivity(
         'b1b2c3d4-1234-4567-89ab-123456789abc',
-        'Competencia con un nombre largo para pantallas angostas',
+        'Categoría con un nombre largo para pantallas angostas',
         '2026-11-14T16:00:00Z',
       );
       await overrideRoute(page, '/entitlements', sweepEntitlements('confirmed', 'EB-7K3Q').json);
@@ -735,7 +735,7 @@ export const registrationSweepCases: {
       await overrideRoute(page, '/activities', [activity]);
     },
     ready: async (page) => {
-      await page.getByRole('button', { name: /^Editar competencias de/ }).click();
+      await page.getByRole('button', { name: /^Editar categorías de/ }).click();
       await page.getByRole('textbox', { name: 'Motivo' }).waitFor();
     },
   },
@@ -768,7 +768,7 @@ export const registrationSweepCases: {
     mock: async (page) => {
       const activity = catalogActivity(
         'b1b2c3d4-1234-4567-89ab-123456789abc',
-        'Competencia con un nombre largo para pantallas angostas',
+        'Categoría con un nombre largo para pantallas angostas',
         '2026-11-14T16:00:00Z',
       );
       await overrideRoute(page, '/entitlements', sweepEntitlements('confirmed', 'EB-7K3Q').json);
@@ -787,7 +787,7 @@ export const registrationSweepCases: {
     ready: async (page) => {
       await page.getByRole('button', { name: 'Cambiar disciplina' }).click();
       await page.getByRole('radio', { name: /^Pase completo de una disciplina/ }).check();
-      await page.getByRole('checkbox', { name: /^Competencia con un nombre largo/ }).waitFor();
+      await page.getByRole('checkbox', { name: /^Categoría con un nombre largo/ }).waitFor();
     },
   },
   {

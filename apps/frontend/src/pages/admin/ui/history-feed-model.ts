@@ -63,7 +63,7 @@ export const movementsLabel = (count: number) =>
   count === 1 ? '1 movimiento' : `${count} movimientos`;
 
 const competitionNames = (names: string[]) =>
-  names.length > 0 ? names.join(', ') : 'Sin competencias';
+  names.length > 0 ? names.join(', ') : 'Sin categorías';
 const receiptName = (receipt: string | null) => receipt ?? 'Sin recibo';
 const amountName = (amountCents: number | null) =>
   amountCents === null ? 'Sin monto' : formatMxn(amountCents);
@@ -120,7 +120,7 @@ function changes(item: HistoryItem): Pick<HistoryEntry, 'summary' | 'diff' | 'co
       ];
       if (details.fromActivityNames.length > 0 || details.toActivityNames.length > 0)
         diff.push({
-          label: 'Competencias',
+          label: 'Categorías',
           before: competitionNames(details.fromActivityNames),
           after: competitionNames(details.toActivityNames),
         });
@@ -149,7 +149,7 @@ function changes(item: HistoryItem): Pick<HistoryEntry, 'summary' | 'diff' | 'co
       const added = to.filter((name) => !from.includes(name));
       const removed = from.filter((name) => !to.includes(name));
       if (added.length === 0 && removed.length === 0)
-        return { ...none, summary: 'Sin cambios en las competencias' };
+        return { ...none, summary: 'Sin cambios en las categorías' };
       return { ...none, competitions: { passName: details.passTypeName, added, removed } };
     }
     case 'competitor_number_assignment':

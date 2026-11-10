@@ -137,7 +137,7 @@ describe('reviewSelectionChange', () => {
     };
     expect(reviewSelectionChange(stale, ['gone', 'a1'], 'Motivo')).toEqual({
       ok: false,
-      selectionError: 'Desmarca las competencias que ya no están disponibles para guardar.',
+      selectionError: 'Desmarca las categorías que ya no están disponibles para guardar.',
     });
   });
 });
@@ -147,7 +147,7 @@ describe('selectionChangeRows', () => {
     expect(selectionChangeRows(pass, ['a1'])).toEqual([
       {
         key: 'competitions',
-        label: 'Competencias',
+        label: 'Categorías',
         before: 'Popping 1 vs 1',
         after: 'Breaking 1 vs 1',
       },
@@ -158,7 +158,7 @@ describe('selectionChangeRows', () => {
     expect(selectionChangeRows({ ...pass, saved: [] }, ['a2', 'a1'])).toEqual([
       {
         key: 'competitions',
-        label: 'Competencias',
+        label: 'Categorías',
         before: 'Ninguna',
         after: 'Breaking 1 vs 1, Popping 1 vs 1',
       },
@@ -177,7 +177,7 @@ describe('selectionChangeFailure', () => {
   it('shows any other failure as a message, offering a reload when the screen may be stale', () => {
     expect(selectionChangeFailure({ kind: 'invalid', fieldErrors: {} })).toEqual({
       field: null,
-      message: 'No pudimos guardar las competencias. Intenta de nuevo.',
+      message: 'No pudimos guardar las categorías. Intenta de nuevo.',
       reload: false,
     });
     expect(selectionChangeFailure({ kind: 'rule', code: 'registration_voided' })).toEqual({
@@ -191,7 +191,7 @@ describe('selectionChangeFailure', () => {
     });
     expect(selectionChangeFailure({ kind: 'error' })).toEqual({
       field: null,
-      message: 'No pudimos guardar las competencias. Intenta de nuevo.',
+      message: 'No pudimos guardar las categorías. Intenta de nuevo.',
       reload: false,
     });
   });

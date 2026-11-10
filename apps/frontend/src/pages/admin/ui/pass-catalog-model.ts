@@ -97,7 +97,7 @@ export function misconfiguredNotice(
       passes.length === 1
         ? `${first.name} no da acceso a ninguna actividad.`
         : `${passes.length} pases no dan acceso a ninguna actividad.`,
-    text: 'Quien lo compre no podrá inscribirse a competencias. Ábrelo y elige sus actividades, o cámbialo a Entrada general.',
+    text: 'Quien lo compre no podrá inscribirse a categorías. Ábrelo y elige sus actividades, o cámbialo a Entrada general.',
   };
 }
 

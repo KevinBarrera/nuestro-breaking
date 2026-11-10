@@ -68,11 +68,9 @@ export function stepperPasses(
 
 // The line under a pass's name in the pass step.
 export function passIncludes(pass: StepperPass): string {
-  if (pass.choices.length > 0) return 'Competencias a elegir';
+  if (pass.choices.length > 0) return 'Categorías a elegir';
   if (pass.included.length > 0) return pass.included.join(', ');
-  return pass.passClass === 'general'
-    ? 'Solo entrada al evento, sin competencias'
-    : 'Sin competencias';
+  return pass.passClass === 'general' ? 'Solo entrada al evento, sin categorías' : 'Sin categorías';
 }
 
 const requiredNames: Record<RequiredPassClass, string> = {
@@ -201,12 +199,12 @@ export function cobroLines(held: readonly HeldPass[], options: StepperPasses): C
       .filter((choice) => pass.selections.includes(choice.activityId))
       .map((choice) => choice.name);
     const missing = pass.selections.length - chosen.length;
-    const names = [...chosen, ...Array<string>(missing).fill('Competencia no disponible')];
+    const names = [...chosen, ...Array<string>(missing).fill('Categoría no disponible')];
     let detail: string;
     if (names.length > 0) detail = names.join(', ');
     else if (type && type.included.length > 0) detail = type.included.join(', ');
     else if (pass.passClass === 'general') detail = 'Entrada al evento';
-    else detail = 'Sin competencias elegidas';
+    else detail = 'Sin categorías elegidas';
     return { key: pass.registrationPassId, name: pass.name, detail, priceCents: pass.priceCents };
   });
 }

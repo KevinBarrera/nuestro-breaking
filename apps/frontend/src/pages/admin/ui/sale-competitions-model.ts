@@ -20,7 +20,7 @@ export type SaleCompetitionPass = {
   choices: SaleCompetitionChoice[];
 };
 
-const unavailableName = 'Competencia no disponible';
+const unavailableName = 'Categoría no disponible';
 
 const byStart = (left: CatalogActivity, right: CatalogActivity) =>
   left.startsAt.localeCompare(right.startsAt) || left.name.localeCompare(right.name, 'es');
@@ -62,7 +62,7 @@ export function saleCompetitionPasses(
 }
 
 // The competition lines of a held pass in the passes list (#277). A competition the pass type
-// includes is access, not a choice, so a pass with only included ones gets no "Sin competencias".
+// includes is access, not a choice, so a pass with only included ones gets no "Sin categorías".
 // Null lines are hidden; a pass whose type is unknown (unreadable or missing) keeps its selection
 // summary.
 export function passCompetitionLines(
@@ -144,7 +144,7 @@ const joinNames = (names: readonly string[]) => {
 export const unsavedCompetitionsHint = (names: readonly string[]): string | null =>
   names.length === 0
     ? null
-    : `Guarda o descarta los cambios de competencias de ${joinNames(names)} antes de confirmar.`;
+    : `Guarda o descarta los cambios de categorías de ${joinNames(names)} antes de confirmar.`;
 
 // Saving needs a change and only activities the backend would accept.
 export function competitionDraft(pass: SaleCompetitionPass, draft: readonly string[]) {
@@ -153,7 +153,7 @@ export function competitionDraft(pass: SaleCompetitionPass, draft: readonly stri
     (choice) => !choice.available && draft.includes(choice.activityId),
   );
   const blocked = keepsUnavailable
-    ? 'Desmarca las competencias que ya no están disponibles para guardar.'
+    ? 'Desmarca las categorías que ya no están disponibles para guardar.'
     : null;
   return { changed, blocked, canSave: changed && blocked === null };
 }
@@ -174,20 +174,20 @@ export function saveCompetitionsFailure(failure: AdminRegistrationFailure): {
     case 'unauthorized':
     case 'forbidden':
       return {
-        message: 'Sin acceso: tu cuenta no puede cambiar competencias en este evento.',
+        message: 'Sin acceso: tu cuenta no puede cambiar categorías en este evento.',
         reload: false,
       };
     case 'unknown':
       return {
         message:
-          'No pudimos confirmar si se guardaron las competencias. Recarga la inscripción antes de intentarlo de nuevo.',
+          'No pudimos confirmar si se guardaron las categorías. Recarga la inscripción antes de intentarlo de nuevo.',
         reload: true,
       };
     case 'rule':
       if (failure.code === 'invalid_activity_selection')
         return {
           message:
-            'Alguna competencia ya no está disponible para este pase. Recarga para ver las competencias actuales.',
+            'Alguna categoría ya no está disponible para este pase. Recarga para ver las categorías actuales.',
           reload: true,
         };
       if (failure.code === 'registration_voided')
@@ -202,6 +202,6 @@ export function saveCompetitionsFailure(failure: AdminRegistrationFailure): {
         reload: true,
       };
     default:
-      return { message: 'No pudimos guardar las competencias. Intenta de nuevo.', reload: false };
+      return { message: 'No pudimos guardar las categorías. Intenta de nuevo.', reload: false };
   }
 }

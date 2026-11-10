@@ -120,7 +120,7 @@ export function ActivityArchiveDialog({
 }
 
 const kindCards = [
-  { label: 'Competencia', hint: 'Batallas: 1v1, 2v2, 3v3, cypher.' },
+  { label: 'Categoría', hint: 'Batallas: 1v1, 2v2, 3v3, cypher.' },
   { label: 'Taller', hint: 'Clases o workshops.' },
   { label: 'Social', hint: 'Fiestas, cyphers abiertos y convivencias.' },
 ];
@@ -154,7 +154,7 @@ export function ActivitiesEmpty({ onCreate }: { onCreate: () => void }) {
         Aún no hay actividades
       </h2>
       <p className="max-w-[480px] text-[15px] leading-[22px] text-muted">
-        Empieza por la agenda: agrega las competencias, talleres y sociales del evento. Después arma
+        Empieza por la agenda: agrega las categorías, talleres y sociales del evento. Después arma
         los pases con ellas.
       </p>
       <button type="button" className={`${styles.primaryLarge} mt-2`} onClick={onCreate}>

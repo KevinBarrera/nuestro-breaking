@@ -40,18 +40,15 @@ const catalog = {
 
 const passes = (page: Page) => page.getByRole('region', { name: 'Pases' });
 const editor = (page: Page) =>
-  page.getByRole('form', { name: 'Editar competencias de «Pase completo»' });
+  page.getByRole('form', { name: 'Editar categorías de «Pase completo»' });
 const reason = (page: Page) => editor(page).getByRole('textbox', { name: 'Motivo' });
 const dialog = (page: Page) => page.getByRole('dialog');
 const reviewButton = (page: Page) => dialog(page).getByRole('button', { name: 'Revisar cambios' });
-const saveButton = (page: Page) =>
-  dialog(page).getByRole('button', { name: 'Guardar competencias' });
+const saveButton = (page: Page) => dialog(page).getByRole('button', { name: 'Guardar categorías' });
 
 async function openEditor(page: Page) {
   await page.goto(registrationPath(registrationId));
-  await passes(page)
-    .getByRole('button', { name: 'Editar competencias de «Pase completo»' })
-    .click();
+  await passes(page).getByRole('button', { name: 'Editar categorías de «Pase completo»' }).click();
 }
 
 test('changes the competitions of a confirmed registration with a reason', async ({ page }) => {
@@ -71,7 +68,7 @@ test('changes the competitions of a confirmed registration with a reason', async
   await expect(dialog(page)).toContainText('Paso 2 de 2 · Revisión');
   await expect(dialog(page).getByRole('table', { name: 'Cambios' }).getByRole('row')).toHaveText([
     'DatoAntesDespués',
-    'CompetenciasPopping 1 vs 1Breaking 1 vs 1',
+    'CategoríasPopping 1 vs 1Breaking 1 vs 1',
   ]);
   await expect(dialog(page)).toContainText('Pidió cambiar de categoría en mesa');
   expect(selections).toHaveLength(0);
@@ -79,12 +76,12 @@ test('changes the competitions of a confirmed registration with a reason', async
   await saveButton(page).dblclick();
 
   await expect(passes(page).getByRole('status')).toHaveText(
-    'Se cambiaron las competencias de «Pase completo».',
+    'Se cambiaron las categorías de «Pase completo».',
   );
   await expect(passes(page)).toContainText('Breaking 1 vs 1');
   await expect(dialog(page)).toHaveCount(0);
   await expect(
-    passes(page).getByRole('button', { name: 'Editar competencias de «Pase completo»' }),
+    passes(page).getByRole('button', { name: 'Editar categorías de «Pase completo»' }),
   ).toBeFocused();
   expect(selections).toEqual([
     {
@@ -160,7 +157,7 @@ test('a failed change shows an alert and keeps the draft', async ({ page }) => {
   await saveButton(page).click();
 
   await expect(editor(page).getByRole('alert')).toHaveText(
-    'No pudimos guardar las competencias. Intenta de nuevo.',
+    'No pudimos guardar las categorías. Intenta de nuevo.',
   );
   await expect(reason(page)).toHaveValue('Cambio en mesa');
   await expect(editor(page).getByRole('checkbox', { name: 'Breaking 1 vs 1' })).toBeChecked();

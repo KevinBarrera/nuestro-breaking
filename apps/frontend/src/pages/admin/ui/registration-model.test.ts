@@ -137,7 +137,7 @@ describe('registrationRow', () => {
       aka: 'Sin AKA',
       folio: null,
       passes: 'Sin pases',
-      competitions: 'Sin competencias',
+      competitions: 'Sin categorías',
       status: 'Pendiente de pago',
       accessibleName: 'Ale Ferman, sin folio, Pendiente de pago. Ver inscripción',
     });

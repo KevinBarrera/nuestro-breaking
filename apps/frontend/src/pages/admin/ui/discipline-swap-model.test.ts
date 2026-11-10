@@ -216,7 +216,7 @@ describe('disciplineSwapRows', () => {
       { key: 'pass', label: 'Pase', before: 'Breaking', after: 'Popping' },
       {
         key: 'competitions',
-        label: 'Competencias',
+        label: 'Categorías',
         before: 'Breaking 1vs1',
         after: 'Popping 1vs1',
       },
@@ -224,7 +224,7 @@ describe('disciplineSwapRows', () => {
     expect(disciplineSwapRows({ ...options.from, selected: null }, options.targets[0], [])).toEqual(
       [
         { key: 'pass', label: 'Pase', before: 'Breaking', after: 'Popping' },
-        { key: 'competitions', label: 'Competencias', before: 'Ninguna', after: 'Ninguna' },
+        { key: 'competitions', label: 'Categorías', before: 'Ninguna', after: 'Ninguna' },
       ],
     );
   });
@@ -282,7 +282,7 @@ describe('disciplineSwapFailure', () => {
       ],
       [
         'invalid_activity_selection',
-        'Alguna competencia ya no está disponible para ese pase. Recarga para ver las competencias actuales.',
+        'Alguna categoría ya no está disponible para ese pase. Recarga para ver las categorías actuales.',
       ],
       ['registration_not_pending', 'La inscripción cambió. Recarga para ver su estado.'],
     ] as const;

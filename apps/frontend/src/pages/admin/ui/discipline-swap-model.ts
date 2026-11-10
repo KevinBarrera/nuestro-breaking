@@ -146,7 +146,7 @@ export const disciplineSwapRows = (
   { key: 'pass', label: 'Pase', before: from.name, after: target.name },
   {
     key: 'competitions',
-    label: 'Competencias',
+    label: 'Categorías',
     before: from.selected ?? 'Ninguna',
     after: namesOf(target, draft),
   },
@@ -164,7 +164,7 @@ const staleRuleMessages: Partial<Record<AdminRegistrationRuleCode, string>> = {
   discipline_swap_price_mismatch:
     'Los precios de los pases cambiaron y ya no coinciden. Recarga para ver los pases actuales.',
   invalid_activity_selection:
-    'Alguna competencia ya no está disponible para ese pase. Recarga para ver las competencias actuales.',
+    'Alguna categoría ya no está disponible para ese pase. Recarga para ver las categorías actuales.',
 };
 
 export type SwapFailure = { fields: SwapErrors; message: string; reload: boolean };

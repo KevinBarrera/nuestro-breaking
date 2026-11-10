@@ -255,7 +255,7 @@ test('warns about a full pass that gives access to no activity', async ({ page }
   await expect(row(page, 'Pase completo')).not.toContainText('No da acceso');
   await expect(row(page, 'Pase viejo')).not.toContainText('No da acceso');
   await expect(panel(page).getByRole('status')).toHaveText(
-    'Wacking no da acceso a ninguna actividad. Quien lo compre no podrá inscribirse a competencias. Ábrelo y elige sus actividades, o cámbialo a Entrada general.',
+    'Wacking no da acceso a ninguna actividad. Quien lo compre no podrá inscribirse a categorías. Ábrelo y elige sus actividades, o cámbialo a Entrada general.',
   );
 });
 

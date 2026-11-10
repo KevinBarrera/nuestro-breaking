@@ -173,7 +173,7 @@ describe('misconfiguredNotice', () => {
   it('names one pass, counts several, and is null when every pass is fine', () => {
     expect(misconfiguredNotice([pass({ id: 'Wacking' })])).toEqual({
       title: 'Wacking no da acceso a ninguna actividad.',
-      text: 'Quien lo compre no podrá inscribirse a competencias. Ábrelo y elige sus actividades, o cámbialo a Entrada general.',
+      text: 'Quien lo compre no podrá inscribirse a categorías. Ábrelo y elige sus actividades, o cámbialo a Entrada general.',
     });
     expect(misconfiguredNotice([pass({ id: 'a' }), pass({ id: 'b' })])?.title).toBe(
       '2 pases no dan acceso a ninguna actividad.',

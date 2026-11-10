@@ -106,7 +106,7 @@ test('first run shows the empty state with the next steps and Crear evento', asy
     'Crea el primero para empezar. Después lo dejas listo en tres pasos.',
   );
   await expect(empty.getByRole('listitem')).toContainText([
-    'Agrega competencias y workshopsLas actividades que va a tener el evento.',
+    'Agrega categorías y workshopsLas actividades que va a tener el evento.',
     'Crea los pases y sus preciosLo que el público va a comprar.',
     'Abre la venta y opera el check-inCuando el catálogo esté listo.',
   ]);

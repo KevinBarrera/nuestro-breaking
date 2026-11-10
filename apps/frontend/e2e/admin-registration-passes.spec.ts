@@ -42,13 +42,13 @@ test('resumes a pending sale from its detail with what it holds', async ({ page 
   // Base passes as radios, in catalog order, with what they include and their price.
   await expect(passStep(page).getByRole('radio')).toHaveCount(3);
   await expect(radio(page, 'Entrada general')).toHaveAccessibleDescription(
-    'Solo entrada al evento, sin competencias',
+    'Solo entrada al evento, sin categorías',
   );
   await expect(passStep(page)).toContainText('Pase completo Popping');
   await expect(passStep(page)).toContainText('$2,000.00');
   await expect(radio(page, 'Pase completo Popping')).toBeChecked();
   const competitions = passStep(page).getByRole('group', {
-    name: 'Competencias de Pase completo Popping',
+    name: 'Categorías de Pase completo Popping',
   });
   await expect(competitions.getByRole('checkbox', { name: 'Popping 2v2' })).toBeChecked();
   await expect(competitions.getByRole('checkbox', { name: 'Popping 1v1' })).not.toBeChecked();
@@ -91,7 +91,7 @@ test('changes only the competitions when the passes stay', async ({ page }) => {
   );
   await page.goto(salePath(registrationId));
   const competitions = passStep(page).getByRole('group', {
-    name: 'Competencias de Pase completo Breaking',
+    name: 'Categorías de Pase completo Breaking',
   });
   await competitions.getByRole('checkbox', { name: 'Breaking Bboy' }).uncheck();
   await next(page).click();
@@ -107,7 +107,7 @@ test('changes only the competitions when the passes stay', async ({ page }) => {
       csrf: 'csrf-token',
     },
   ]);
-  await expect(cobro(page)).toContainText('Sin competencias elegidas');
+  await expect(cobro(page)).toContainText('Sin categorías elegidas');
 });
 
 test('does not retry a pass whose answer was lost and offers a reload', async ({ page }) => {

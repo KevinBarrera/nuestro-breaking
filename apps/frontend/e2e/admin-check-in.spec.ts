@@ -19,7 +19,7 @@ const generalPass = 'f2b2c3d4-1234-4567-89ab-123456789abc';
 const path = `/admin/events/${eventId}/check-in`;
 const api = (url: URL) => url.port === '3000';
 const escalation =
-  'Envía a la persona a coordinación general. En la entrada no se hacen cambios de inscripción ni de competencias.';
+  'Envía a la persona a coordinación general. En la entrada no se hacen cambios de inscripción ni de categorías.';
 
 // `battleNumber` is the competitor number in the battle (#377); workshops never carry one.
 type Check = {
@@ -404,9 +404,7 @@ test('assigns and changes the number of one competition after a frozen confirmat
 
   await battle.getByRole('button', { name: 'Asignar número en Batalla' }).click();
   const confirm = page.getByRole('alertdialog', { name: 'Asignar número en Batalla' });
-  await expect(confirm).toContainText(
-    'Recibirá el siguiente número disponible de esta competencia.',
-  );
+  await expect(confirm).toContainText('Recibirá el siguiente número disponible de esta categoría.');
   await confirm.getByRole('button', { name: 'Asignar número' }).click();
   await expect(confirm.getByRole('button', { name: 'Asignando…' })).toBeDisabled();
   release();
@@ -419,7 +417,7 @@ test('assigns and changes the number of one competition after a frozen confirmat
   await battle.getByRole('button', { name: 'Cambiar número en Batalla' }).click();
   const change = page.getByRole('alertdialog', { name: 'Cambiar el número 001 de Batalla' });
   await expect(change).toContainText(
-    'Recibirá el siguiente número disponible de esta competencia y el 001 ya no se le dará a nadie en esta competencia.',
+    'Recibirá el siguiente número disponible de esta categoría y el 001 ya no se le dará a nadie en esta categoría.',
   );
   held = new Promise<void>((resolve) => {
     release = resolve;
@@ -439,7 +437,7 @@ test('assigns and changes the number of one competition after a frozen confirmat
     .getByRole('button', { name: 'Cambiar número' })
     .click();
   await expect(dialog.getByRole('alert')).toHaveText(
-    'Esta persona no tiene esta competencia en su pase; revisa su inscripción en coordinación.',
+    'Esta persona no tiene esta categoría en su pase; revisa su inscripción en coordinación.',
   );
   await expect(page.getByText('private detail')).toHaveCount(0);
   await expect(battle).toContainText('Número 004');

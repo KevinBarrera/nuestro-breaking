@@ -186,7 +186,7 @@ describe('groupAttendeeLists', () => {
     ).toEqual([
       ['Evento', ['event']],
       ['Pases · 2', ['pass:full', 'pass:old']],
-      ['Competencias', ['activity:battle']],
+      ['Categorías', ['activity:battle']],
       ['Talleres', ['activity:class']],
     ]);
   });
@@ -243,7 +243,7 @@ describe('preview', () => {
       'Evento',
       'Pase',
       'Pase',
-      'Competencia · la entrada se cuenta por competencia',
+      'Categoría · la entrada se cuenta por categoría',
       'Taller · la entrada se cuenta por taller',
     ]);
   });
@@ -347,7 +347,7 @@ describe('printout', () => {
     expect(printIndex([lists[0], lists[1], lists[3]], true)).toEqual([
       { label: 'Evento completo', people: '2' },
       { label: 'Pase · Pase completo', people: '2' },
-      { label: 'Competencia · Batalla 1vs1', people: '1' },
+      { label: 'Categoría · Batalla 1vs1', people: '1' },
       { label: 'Inscripciones en papel', people: '—' },
     ]);
     expect(printIndex([lists[0]], false)).toEqual([{ label: 'Evento completo', people: '2' }]);

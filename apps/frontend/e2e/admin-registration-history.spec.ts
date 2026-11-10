@@ -173,7 +173,7 @@ test('groups an on-site registration and shows its operations on demand', async 
   }));
   await page.goto(historyPath);
   await expect(titles(page)).toHaveText([
-    'Cambio de competencias',
+    'Cambio de categorías',
     'Inscripción en mesa',
     'Cortesía',
   ]);
@@ -238,7 +238,7 @@ test('the type chips filter from the first page and keep the counts', async ({ p
   );
   await expect(
     page.getByText(
-      'Anulaciones y cambios de nombre, disciplina, competencias o pago en inscripciones confirmadas.',
+      'Anulaciones y cambios de nombre, disciplina, categorías o pago en inscripciones confirmadas.',
     ),
   ).toBeVisible();
   await expect(loadMore(page)).toHaveCount(0);

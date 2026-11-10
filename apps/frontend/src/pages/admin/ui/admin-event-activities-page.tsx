@@ -240,7 +240,7 @@ function EventActivities({ eventId }: { eventId: string }) {
               Actividades
             </h1>
             <p className="text-muted">
-              La agenda del evento: competencias, talleres y sociales. Los pases se arman con estas
+              La agenda del evento: categorías, talleres y sociales. Los pases se arman con estas
               actividades.
             </p>
           </header>
@@ -410,7 +410,7 @@ function Agenda({ activities, filters, timeZone, footer, onCreate, children }: A
   return (
     <AgendaEmpty
       title="Aún no hay actividades"
-      text="Agrega las competencias, talleres y sociales del evento. Después arma los pases con ellas."
+      text="Agrega las categorías, talleres y sociales del evento. Después arma los pases con ellas."
       onCreate={onCreate}
     />
   );

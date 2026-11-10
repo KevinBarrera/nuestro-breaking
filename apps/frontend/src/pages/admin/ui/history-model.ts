@@ -16,7 +16,7 @@ const titles: Record<HistoryDetails['kind'], string> = {
   complimentary_confirmation: 'Cortesía',
   pass_assignment: 'Pase agregado',
   pass_removal: 'Pase quitado',
-  pass_selection_change: 'Cambio de competencias',
+  pass_selection_change: 'Cambio de categorías',
   cash_confirmation: 'Pago en efectivo',
   cash_correction: 'Corrección de pago en efectivo',
   payment_approval: 'Pago en línea aprobado',
@@ -60,7 +60,7 @@ const unknownPass = 'pase desconocido';
 const passName = (name: string | null) => name ?? unknownPass;
 export const statusLabel = (status: string) => statusLabels[status] ?? 'Otro estado';
 // The competition of a competitor number assignment (#377), with a neutral fallback.
-export const competitionName = (name: string | null) => name ?? 'Competencia';
+export const competitionName = (name: string | null) => name ?? 'Categoría';
 export const numberName = (value: number | null) =>
   value === null ? 'sin número' : formatCompetitorNumber(value);
 const list = (names: string[]) => (names.length > 0 ? names.join(', ') : 'ninguna');
@@ -92,7 +92,7 @@ export function historyDetailLine(details: HistoryDetails): string | null {
       return `Pase: ${passName(details.passTypeName)}`;
     case 'pass_selection_change': {
       const changes = competitionChange(details.fromActivityNames, details.toActivityNames);
-      if (changes.length === 0) return 'Sin cambios en las competencias';
+      if (changes.length === 0) return 'Sin cambios en las categorías';
       return [...(details.passTypeName ? [details.passTypeName] : []), ...changes].join(' · ');
     }
     case 'cash_confirmation':
@@ -117,7 +117,7 @@ export function historyDetailLine(details: HistoryDetails): string | null {
       const passes = `${passName(details.fromPassTypeName)} → ${passName(details.toPassTypeName)}`;
       const { fromActivityNames: from, toActivityNames: to } = details;
       if (from.length === 0 && to.length === 0) return passes;
-      return `${passes} · Competencias: ${list(from)} → ${list(to)}`;
+      return `${passes} · Categorías: ${list(from)} → ${list(to)}`;
     }
     case 'competitor_number_assignment': {
       const change =
@@ -167,7 +167,7 @@ export const historyChips = (counts: HistoryCounts, selected: HistoryFilter): Hi
 const typeHints: Record<HistoryFilter, string | null> = {
   all: null,
   corrections:
-    'Anulaciones y cambios de nombre, disciplina, competencias o pago en inscripciones confirmadas.',
+    'Anulaciones y cambios de nombre, disciplina, categorías o pago en inscripciones confirmadas.',
   on_site: 'Cada inscripción en mesa junta el registro, sus pases y el pago en efectivo.',
   complimentary: 'Pases sin costo y su motivo.',
 };

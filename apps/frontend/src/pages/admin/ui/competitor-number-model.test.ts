@@ -13,7 +13,7 @@ describe('competitorNumberAction', () => {
       accessibleLabel: 'Asignar número en Breaking 1v1',
       pendingLabel: 'Asignando…',
       title: 'Asignar número en Breaking 1v1',
-      consequence: 'Recibirá el siguiente número disponible de esta competencia.',
+      consequence: 'Recibirá el siguiente número disponible de esta categoría.',
     });
   });
 
@@ -24,7 +24,7 @@ describe('competitorNumberAction', () => {
       pendingLabel: 'Cambiando…',
       title: 'Cambiar el número 007 de Breaking 1v1',
       consequence:
-        'Recibirá el siguiente número disponible de esta competencia y el 007 ya no se le dará a nadie en esta competencia.',
+        'Recibirá el siguiente número disponible de esta categoría y el 007 ya no se le dará a nadie en esta categoría.',
     });
   });
 });
@@ -55,7 +55,7 @@ describe('competitorNumberFailureText', () => {
       competitorNumberFailureText({ kind: 'error' }),
     ];
     expect(texts[0]).toBe(
-      'Esta persona no tiene esta competencia en su pase; revisa su inscripción en coordinación.',
+      'Esta persona no tiene esta categoría en su pase; revisa su inscripción en coordinación.',
     );
     expect(texts[1]).toBe(
       'Su inscripción aún no está confirmada; confirma su pago antes de darle número.',
@@ -86,10 +86,10 @@ describe('competitorNumberLines', () => {
     ).toEqual([
       { activityId: 'a-2', competition: 'Breaking crews', number: '012' },
       { activityId: 'a-1', competition: 'Breaking 1v1', number: '003' },
-      { activityId: 'a-9', competition: 'Competencia', number: '001' },
+      { activityId: 'a-9', competition: 'Categoría', number: '001' },
     ]);
     expect(competitorNumberLines([{ activityId: 'a-1', competitorNumber: 3 }], null)).toEqual([
-      { activityId: 'a-1', competition: 'Competencia', number: '003' },
+      { activityId: 'a-1', competition: 'Categoría', number: '003' },
     ]);
     expect(competitorNumberLines([], activities)).toEqual([]);
   });

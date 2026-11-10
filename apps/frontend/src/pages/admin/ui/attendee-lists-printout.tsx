@@ -24,7 +24,7 @@ type PrintoutProps = {
 const paperRows = 18;
 
 const steps = [
-  'Busca a la persona por nombre, AKA o folio; en las listas de competencia, también por su número. Las listas van en orden alfabético, salvo las de competencia: primero quienes tienen número, en orden, y luego el resto en orden alfabético.',
+  'Busca a la persona por nombre, AKA o folio; en las listas de categoría, también por su número. Las listas van en orden alfabético, salvo las de categoría: primero quienes tienen número, en orden, y luego el resto en orden alfabético.',
   <>
     Si la columna <b>Entró</b> ya tiene hora, la persona entró antes de imprimir: no la dejes pasar
     otra vez sin revisar.
@@ -226,7 +226,7 @@ function PaperSheet() {
       <table className="w-full border-collapse text-[15px]">
         <thead>
           <tr>
-            {['#', 'Nombre completo', 'AKA', 'Pase y competencias', 'Monto', 'Recibo'].map(
+            {['#', 'Nombre completo', 'AKA', 'Pase y categorías', 'Monto', 'Recibo'].map(
               (label) => (
                 <th key={label} scope="col" className={th}>
                   {label}

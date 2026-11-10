@@ -143,7 +143,7 @@ describe('kindOptions', () => {
     kindOptions(rows, tab, selected).map(({ label, count }) => `${label} · ${count}`);
 
   it('lists Todas and the kinds present in the tab, in the catalog order', () => {
-    expect(options('active', null)).toEqual(['Todas · 4', 'Competencias · 3', 'Sociales · 1']);
+    expect(options('active', null)).toEqual(['Todas · 4', 'Categorías · 3', 'Sociales · 1']);
     expect(options('archived', null)).toEqual(['Todas · 1', 'Sociales · 1']);
   });
 
@@ -154,7 +154,7 @@ describe('kindOptions', () => {
   it('keeps the selected kind with a zero count so the pressed chip explains the filter', () => {
     expect(options('archived', 'competition')).toEqual([
       'Todas · 1',
-      'Competencias · 0',
+      'Categorías · 0',
       'Sociales · 1',
     ]);
   });

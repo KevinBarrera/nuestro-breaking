@@ -194,10 +194,10 @@ export function DisciplineSwapDialog({
           {target && (
             <fieldset>
               <legend className="text-sm font-semibold text-heading">
-                Competencias de «{target.name}»
+                Categorías de «{target.name}»
               </legend>
               {target.choices.length === 0 ? (
-                <p className="py-2 text-sm text-muted">Este pase no tiene competencias a elegir.</p>
+                <p className="py-2 text-sm text-muted">Este pase no tiene categorías a elegir.</p>
               ) : (
                 <div className="mt-1.5 flex flex-col gap-0.5 rounded-lg border border-line p-1">
                   {target.choices.map((choice) => (

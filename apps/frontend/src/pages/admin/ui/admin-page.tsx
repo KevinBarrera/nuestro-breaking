@@ -313,7 +313,7 @@ function ArchivedEvents({ events, restoring, onRestore }: ArchivedEventsProps) {
 
 const steps = [
   {
-    title: 'Agrega competencias y workshops',
+    title: 'Agrega categorías y workshops',
     detail: 'Las actividades que va a tener el evento.',
   },
   { title: 'Crea los pases y sus precios', detail: 'Lo que el público va a comprar.' },

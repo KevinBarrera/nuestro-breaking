@@ -20,7 +20,7 @@ export function competitorNumberAction(
   competition: string,
   current: number | null,
 ): CompetitorNumberAction {
-  const next = 'Recibirá el siguiente número disponible de esta competencia';
+  const next = 'Recibirá el siguiente número disponible de esta categoría';
   if (current === null)
     return {
       label: 'Asignar número',
@@ -35,7 +35,7 @@ export function competitorNumberAction(
     accessibleLabel: `Cambiar número en ${competition}`,
     pendingLabel: 'Cambiando…',
     title: `Cambiar el número ${number} de ${competition}`,
-    consequence: `${next} y el ${number} ya no se le dará a nadie en esta competencia.`,
+    consequence: `${next} y el ${number} ya no se le dará a nadie en esta categoría.`,
   };
 }
 
@@ -54,7 +54,7 @@ export function competitorNumberSuccess(
 
 export function competitorNumberFailureText(failure: AdminRegistrationFailure): string {
   if (failure.kind === 'rule' && failure.code === 'competitor_number_not_eligible')
-    return 'Esta persona no tiene esta competencia en su pase; revisa su inscripción en coordinación.';
+    return 'Esta persona no tiene esta categoría en su pase; revisa su inscripción en coordinación.';
   if (failure.kind === 'rule' && failure.code === 'competitor_number_not_confirmed')
     return 'Su inscripción aún no está confirmada; confirma su pago antes de darle número.';
   if (failure.kind === 'not_found')
@@ -67,7 +67,7 @@ export function competitorNumberFailureText(failure: AdminRegistrationFailure): 
 }
 
 // The registration detail's numbers (#377), each with its competition's name from the event's
-// catalog, or a neutral "Competencia" when the catalog could not be read or no longer lists it.
+// catalog, or a neutral "Categoría" when the catalog could not be read or no longer lists it.
 export function competitorNumberLines(
   competitorNumbers: HeldCompetitorNumber[],
   activities: readonly { id: string; name: string }[] | null,
@@ -75,7 +75,7 @@ export function competitorNumberLines(
   const names = new Map((activities ?? []).map((activity) => [activity.id, activity.name]));
   return competitorNumbers.map(({ activityId, competitorNumber }) => ({
     activityId,
-    competition: names.get(activityId) ?? 'Competencia',
+    competition: names.get(activityId) ?? 'Categoría',
     number: formatCompetitorNumber(competitorNumber),
   }));
 }

@@ -60,8 +60,8 @@ outcome, and the screen only shows what it answered.
    is confirmed; remove an add-on before the pass it requires. After
    confirmation, passes cannot change (#256), except a same-price discipline
    swap (step 10); competitions can, with a reason (step 7).
-4. In "Competencias", check the competitions for each pass and press "Guardar
-   competencias". Checks you have not saved stay while you add passes, but the
+4. In "Categorías", check the competitions for each pass and press "Guardar
+   categorías". Checks you have not saved stay while you add passes, but the
    payment cannot be confirmed until each pass is saved or "Descartar cambios"
    is pressed.
 5. Take the cash for "Total a cobrar". The total is the sum of the passes,
@@ -78,10 +78,10 @@ outcome, and the screen only shows what it answered.
    without-payment confirmation send the participant the confirmation email
    with the folio.
 7. To change the competitions of a confirmed registration, open it, press
-   "Editar competencias" on the pass, check the new competitions, write why in
+   "Editar categorías" on the pass, check the new competitions, write why in
    "Motivo del cambio" (required, up to 500 characters) and press "Guardar
    cambios". Check the before and after in the dialog and press "Cambiar
-   competencias". The reason stays in the registration audit.
+   categorías". The reason stays in the registration audit.
 8. To void an in-person registration made by mistake (for example, the same
    person registered twice) while it is still "Pendiente de pago", press
    "Anular inscripción" at the end of the sale, write why in "Motivo"

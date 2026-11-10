@@ -63,7 +63,7 @@ Muestra este folio en la entrada del evento para recibir tu acceso.
 
 Tus pases:
 - Pase completo Breaking
-  Competencias: Popping 1v1, Breaking 1v1
+  Categorías: Popping 1v1, Breaking 1v1
 - Open Styles
 
 ¡Nos vemos en Los más pesados!

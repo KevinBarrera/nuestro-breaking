@@ -27,6 +27,12 @@ function LegacyPassTypesRedirect() {
   return <Navigate replace to={generatePath(routes.adminEventPasses, { eventId })} />;
 }
 
+// Links shared before #385 named the step "competencias"; they land on its new path.
+function LegacyPublicCompetitionsRedirect() {
+  const { slug = '' } = useParams<'slug'>();
+  return <Navigate replace to={generatePath(routes.publicCompetitions, { slug })} />;
+}
+
 // D7: the admin and dancer areas load on demand (route `lazy`), so buyers on the public flow
 // never download them. The router resolves a lazy route before rendering it; on a first load
 // it shows this blank page meanwhile, and `RouteLoadError` (with "Recargar") when the chunk fails.
@@ -50,6 +56,7 @@ const appRoutes: RouteObject[] = [
       { path: routes.publicEvent, element: <PublicHomePage /> },
       { path: routes.publicPasses, element: <PublicPassesPage /> },
       { path: routes.publicCompetitions, element: <PublicCompetitionsPage /> },
+      { path: routes.publicCompetitionsLegacy, element: <LegacyPublicCompetitionsRedirect /> },
       { path: routes.publicBuyer, element: <PublicBuyerPage /> },
       { path: routes.publicReview, element: <PublicReviewPage /> },
     ],

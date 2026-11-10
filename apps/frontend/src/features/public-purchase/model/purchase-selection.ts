@@ -125,7 +125,7 @@ function describePass(pass: PublicPass, chosen: PublicPass[]): string | null {
     return `Disponible porque elegiste ${requirementCopy[pass.requiresPassClass]}`;
   const choices = pass.selectableActivities.length;
   if (choices > 0)
-    return choices === 1 ? '1 competencia para elegir' : `${choices} competencias para elegir`;
+    return choices === 1 ? '1 categoría para elegir' : `${choices} categorías para elegir`;
   if (pass.includedActivities.length > 0)
     return `Incluye: ${pass.includedActivities.map((activity) => activity.name).join(', ')}`;
   return null;
@@ -146,7 +146,7 @@ export function passOptions(passes: PublicPass[], selection: PurchaseSelection):
   });
 }
 
-// The Competencias screen: chosen passes with competitions to pick or included ones to show.
+// The Categorías screen: chosen passes with competitions to pick or included ones to show.
 export function competitionGroups(
   passes: PublicPass[],
   selection: PurchaseSelection,

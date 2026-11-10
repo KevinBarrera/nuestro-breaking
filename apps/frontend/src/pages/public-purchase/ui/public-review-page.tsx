@@ -30,7 +30,7 @@ import { usePurchase } from './purchase-context';
 import { purchaseStepCount, stepNumber, stepPath, stepRedirect } from './purchase-steps';
 
 const overlapNotice =
-  'Algunas competencias o workshops pueden coincidir en horario. Puedes elegir libremente a cuáles asistir; intentaremos evitar cruces entre competencias, pero no podemos garantizarlos. Open Styles no coincidirá con competencias de pase completo, aunque podría coincidir parcialmente con workshops.';
+  'Algunas categorías o workshops pueden coincidir en horario. Puedes elegir libremente a cuáles asistir; intentaremos evitar cruces entre categorías, pero no podemos garantizarlos. Open Styles no coincidirá con categorías de pase completo, aunque podría coincidir parcialmente con workshops.';
 
 // Each document page (#180) opens in another tab, so the purchase and its checkboxes stay here.
 // The versions those pages show are the ones `buildRegistrationRequest` sends as accepted.
@@ -61,7 +61,7 @@ const legalChecks = [
 const fixLabels: Record<PayFix, string> = {
   home: 'Volver al inicio',
   passes: 'Cambiar mis pases',
-  competitions: 'Cambiar mis competencias',
+  competitions: 'Cambiar mis categorías',
   buyer: 'Corregir mis datos',
 };
 

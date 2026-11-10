@@ -130,9 +130,9 @@ describe('passOptions', () => {
     });
     expect(option(none, 'breaking')).toMatchObject({
       disabled: false,
-      hint: '2 competencias para elegir',
+      hint: '2 categorías para elegir',
     });
-    expect(option(none, 'popping')?.hint).toBe('1 competencia para elegir');
+    expect(option(none, 'popping')?.hint).toBe('1 categoría para elegir');
     expect(option(none, 'general')).toMatchObject({ disabled: false, hint: null });
 
     const full = choose('breaking');
@@ -150,7 +150,7 @@ describe('passOptions', () => {
     const dancehall = { ...general, id: 'dancehall', passClass: 'full' as const };
     const withIncluded = { ...dancehall, includedActivities: openStyles.includedActivities };
     const [entry] = passOptions([withIncluded], emptySelection);
-    expect(entry.hint).toBe('Incluye: Competencia 1vs1');
+    expect(entry.hint).toBe('Incluye: Categoría 1vs1');
   });
 });
 

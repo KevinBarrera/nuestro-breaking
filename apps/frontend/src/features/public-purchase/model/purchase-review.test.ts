@@ -15,7 +15,7 @@ describe('reviewLines', () => {
       {
         passId: 'open-styles',
         name: 'Open Styles',
-        competitions: ['Competencia 1vs1'],
+        competitions: ['Categoría 1vs1'],
         priceCents: 80000,
       },
     ]);

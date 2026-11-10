@@ -5,7 +5,7 @@ import { catalogReply, draftKey, mockPublicCatalog, slug } from './support/publi
 // Phone first, like the home and passes spec.
 test.use({ viewport: { width: 390, height: 844 } });
 
-const step = (name: 'pases' | 'competencias' | 'datos' | 'revisar') => `/e/${slug}/${name}`;
+const step = (name: 'pases' | 'categorias' | 'datos' | 'revisar') => `/e/${slug}/${name}`;
 
 // Starts a purchase on the passes screen with the given passes chosen.
 async function choosePasses(page: Page, names: string[]) {
@@ -43,10 +43,10 @@ async function expectFitsAndTargets(page: Page, width: number, targets: Locator)
 test.describe('public competitions', () => {
   test('toggles competitions per pass and shows included ones', async ({ page }) => {
     await choosePasses(page, ['Pase completo Breaking', 'Open Styles']);
-    await expect(page).toHaveURL(step('competencias'));
+    await expect(page).toHaveURL(step('categorias'));
     await expect(page.getByText('Paso 2 de 4')).toBeVisible();
     await expect(
-      page.getByRole('heading', { level: 1, name: 'Elige tus competencias' }),
+      page.getByRole('heading', { level: 1, name: 'Elige tus categorías' }),
     ).toBeVisible();
     await expect(page.getByText(/^Es opcional\./)).toBeVisible();
 
@@ -78,7 +78,7 @@ test.describe('public competitions', () => {
   test('skips competitions when the chosen passes have none to pick', async ({ page }) => {
     await choosePasses(page, ['Entrada general']);
     await expect(page).toHaveURL(step('datos'));
-    await page.goto(step('competencias'));
+    await page.goto(step('categorias'));
     await expect(page).toHaveURL(step('datos'));
     await page.getByRole('link', { name: 'Atrás' }).click();
     await expect(page).toHaveURL(step('pases'));
@@ -86,7 +86,7 @@ test.describe('public competitions', () => {
 
   test('sends the steps back to pases when no pass is chosen', async ({ page }) => {
     await mockPublicCatalog(page, catalogReply());
-    for (const name of ['competencias', 'datos', 'revisar'] as const) {
+    for (const name of ['categorias', 'datos', 'revisar'] as const) {
       await page.goto(step(name));
       await expect(page).toHaveURL(step('pases'));
       await expect(page.getByRole('heading', { level: 1, name: 'Elige tus pases' })).toBeVisible();
@@ -166,7 +166,7 @@ test.describe('public buyer data', () => {
     await expect(field(page, 'Segundo')).toHaveValue('Ruiz');
     await expect(field(page, 'Teléfono celular')).toHaveValue('33 1234 5678');
     await page.getByRole('link', { name: 'Atrás' }).click();
-    await expect(page).toHaveURL(step('competencias'));
+    await expect(page).toHaveURL(step('categorias'));
     await expect(page.getByRole('button', { name: 'Breaking Bboy' })).toHaveAttribute(
       'aria-pressed',
       'true',

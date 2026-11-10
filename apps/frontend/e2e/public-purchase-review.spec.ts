@@ -182,6 +182,43 @@ test.describe('public review and pay', () => {
     await expect(page).toHaveURL(step('pases'));
   });
 
+  test('pays with a phone number from another country', async ({ page }) => {
+    await seedDraft(page);
+    await mockPublicCatalog(page, catalogReply());
+    const registration = await mockRegistration(page, registrationReply());
+    await mockCheckout(page, checkoutReply());
+    await page.goto(step('datos'));
+
+    const country = page.getByRole('group', { name: 'País de tu teléfono' });
+    await expect(country.getByRole('radio', { name: 'México +52' })).toBeChecked();
+    await country.getByRole('radio', { name: 'Otro país' }).check();
+    const phone = page.getByLabel('Teléfono celular');
+    await expect(page.getByText('+52', { exact: true })).toBeHidden();
+    await expect(phone).toHaveAccessibleDescription('Incluye la lada de tu país, por ejemplo +1.');
+    await phone.fill('+1 415 555 01');
+    await page.getByRole('button', { name: 'Revisar compra' }).click();
+    await expect(phone).toHaveAccessibleDescription(
+      /Escribe tu número completo con la lada de tu país, de 10 a 15 dígitos\./,
+    );
+    await phone.fill('+1 (415) 555-0100');
+
+    // The country survives a reload.
+    await page.reload();
+    await expect(country.getByRole('radio', { name: 'Otro país' })).toBeChecked();
+    await expect(phone).toHaveValue('+1 (415) 555-0100');
+
+    await page.getByRole('button', { name: 'Revisar compra' }).click();
+    await expect(page).toHaveURL(step('revisar'));
+    await expect(page.getByRole('region', { name: 'Tus datos' })).toContainText(
+      'ana@ejemplo.com · +14155550100',
+    );
+    await acceptLegal(page);
+    await payButton(page).click();
+    await expect(page).toHaveURL(fakeCheckoutUrl);
+    const body = registration.requests[0].postDataJSON() as { buyer: { phone: string } };
+    expect(body.buyer.phone).toBe('+14155550100');
+  });
+
   test('retries only the checkout when Mercado Pago is unavailable', async ({ page }) => {
     await seedDraft(page);
     await mockPublicCatalog(page, catalogReply());

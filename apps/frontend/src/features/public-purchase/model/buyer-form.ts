@@ -7,9 +7,13 @@ import {
   participantFieldLabels,
   participantFields,
   participantMaxLength,
+  defaultPhoneMode,
+  formatPhone,
   participantPayload,
+  phoneIsValid,
   stripPhoneSeparators,
   validateParticipant,
+  type PhoneMode,
   type ParticipantErrors,
   type ParticipantField,
   type ParticipantForm,
@@ -17,14 +21,14 @@ import {
 import type { RegistrationBuyer } from '@/entities/public-event';
 
 // The Tus datos form as typed, in the buyer's voice over the shared participant model.
-// `phone` holds the 10-digit national number; the UI shows a fixed +52 prefix and
-// `buyerPayload` adds it.
-export type BuyerForm = ParticipantForm;
+// `phoneMode` says how `phone` was typed (#390): `mx` is the 10-digit national number behind a
+// fixed +52 that `buyerPayload` adds; `international` is the full number with its country code.
+export type BuyerForm = ParticipantForm & { phoneMode: PhoneMode };
 export type BuyerField = ParticipantField;
 export type BuyerErrors = ParticipantErrors;
 
 export const buyerFields = participantFields;
-export const emptyBuyerForm: BuyerForm = emptyParticipantForm;
+export const emptyBuyerForm: BuyerForm = { ...emptyParticipantForm, phoneMode: defaultPhoneMode };
 export const buyerMaxLength = participantMaxLength;
 export const buyerFieldLabels = participantFieldLabels;
 
@@ -46,23 +50,35 @@ export const buyerMessages = {
   fallback: 'Revisa este dato.',
 };
 
-const isNationalPhone = (phone: string) => /^\d{10}$/.test(stripPhoneSeparators(phone));
+// The invalid phone message for each mode, for the client check and server `fieldErrors` alike;
+// `buyerMessages` keeps the Mexican one.
+export const invalidPhoneMessages: Record<PhoneMode, string> = {
+  mx: buyerMessages.invalid.phone,
+  international: 'Escribe tu número completo con la lada de tu país, de 10 a 15 dígitos.',
+};
 
 /** Spanish inline errors per field; empty when the form can be sent. `today` is `YYYY-MM-DD`. */
 export function validateBuyer(form: BuyerForm, today: string): BuyerErrors {
+  const mode = form.phoneMode;
   return validateParticipant(form, today, {
-    messages: buyerMessages,
-    phoneIsValid: isNationalPhone,
+    messages: {
+      ...buyerMessages,
+      invalid: { ...buyerMessages.invalid, phone: invalidPhoneMessages[mode] },
+    },
+    phoneIsValid: (phone) => phoneIsValid(mode, phone),
   });
 }
 
-// The request's buyer: trimmed text, blank optional fields omitted, phone with the +52 prefix.
+// The request's buyer: trimmed text, blank optional fields omitted, phone as `+52 <digits>` in
+// Mexican mode or `+<digits>` for another country.
 export function buyerPayload(form: BuyerForm): RegistrationBuyer {
-  return participantPayload(form, (phone) => `+52 ${stripPhoneSeparators(phone)}`);
+  return participantPayload(form, (phone) => formatPhone(form.phoneMode, phone));
 }
 
-// The phone as the buyer reads it: `+52 33 1234 5678` for ten digits, else as typed after +52.
-export function displayPhone(phone: string): string {
+// The phone as the buyer reads it: `+52 33 1234 5678` for ten Mexican digits, else as typed after
+// +52; a number from another country as it is sent, `+<digits>`.
+export function displayPhone(phone: string, mode: PhoneMode = defaultPhoneMode): string {
+  if (mode === 'international') return formatPhone(mode, phone);
   const digits = stripPhoneSeparators(phone);
   return /^\d{10}$/.test(digits)
     ? `+52 ${digits.slice(0, 2)} ${digits.slice(2, 6)} ${digits.slice(6)}`

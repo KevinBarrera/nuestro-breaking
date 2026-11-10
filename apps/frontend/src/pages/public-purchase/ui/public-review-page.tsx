@@ -147,7 +147,7 @@ export function PublicReviewPage() {
         registrationId.current = id;
       } catch (error) {
         if (controller.signal.aborted) return;
-        setFailure(payFailure(publicEventFailure(error)));
+        setFailure(payFailure(publicEventFailure(error), buyer.phoneMode));
         stop();
         return;
       }

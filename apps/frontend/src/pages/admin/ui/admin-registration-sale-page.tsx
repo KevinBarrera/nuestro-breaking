@@ -454,7 +454,7 @@ function PassStep({
           <h2 id={titleId} ref={headingRef} tabIndex={-1} className={stepHeading}>
             Pase de {firstName}
           </h2>
-          <p className={stepLead}>Elige un pase. Si es completo, marca sus competencias.</p>
+          <p className={stepLead}>Elige un pase. Si es completo, marca sus categorías.</p>
         </div>
         {options.bases.length === 0 ? (
           <p className="text-muted">Este evento no tiene pases a la venta.</p>
@@ -652,10 +652,10 @@ function Competitions({
   return (
     <div
       role="group"
-      aria-label={`Competencias de ${name}`}
+      aria-label={`Categorías de ${name}`}
       className="mx-4 mb-3 flex flex-col border-t border-line pt-2 sm:ml-12"
     >
-      <span className="py-1 text-xs font-semibold text-muted">Competencias</span>
+      <span className="py-1 text-xs font-semibold text-muted">Categorías</span>
       {pass.choices.map((choice) => (
         <CheckboxField
           key={choice.activityId}

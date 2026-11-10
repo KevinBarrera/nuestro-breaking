@@ -106,7 +106,7 @@ export function registrationRow({
     passes: ordered.length ? ordered.map((pass) => pass.name).join(' + ') : 'Sin pases',
     competitions: competitions.length
       ? competitions.map((activity) => activity.name).join(', ')
-      : 'Sin competencias',
+      : 'Sin categorías',
     status,
     accessibleName: `${participant.fullName}, ${registration.folio ?? 'sin folio'}, ${status}. Ver inscripción`,
   };

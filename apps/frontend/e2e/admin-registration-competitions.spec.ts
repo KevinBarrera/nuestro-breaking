@@ -19,7 +19,7 @@ import {
 // this spec checks the sale's pass step and the confirmed view.
 const passStep = (page: Page) => page.getByRole('form', { name: 'Pase de Ana' });
 const poppingGroup = (page: Page) =>
-  passStep(page).getByRole('group', { name: 'Competencias de Pase completo Popping' });
+  passStep(page).getByRole('group', { name: 'Categorías de Pase completo Popping' });
 const next = (page: Page) => passStep(page).getByRole('button', { name: 'Continuar al cobro' });
 
 const breaking = catalogActivity(
@@ -81,14 +81,14 @@ test('the confirmed view tells included competitions apart from chosen ones', as
   // Included competitions are access, not a choice, so they never read as chosen (#277).
   const rows = page.getByRole('region', { name: 'Pases' }).getByRole('listitem');
   await expect(
-    rows.filter({ hasText: 'Pase completo' }).getByRole('list', { name: 'Competencias' }),
+    rows.filter({ hasText: 'Pase completo' }).getByRole('list', { name: 'Categorías' }),
   ).toHaveText('Breaking 1 vs 1');
   const addOnRow = rows.filter({ hasText: 'Open Styles' }).first();
-  await expect(addOnRow.getByRole('list', { name: 'Competencias incluidas' })).toHaveText(
+  await expect(addOnRow.getByRole('list', { name: 'Categorías incluidas' })).toHaveText(
     'Open Styles 1 vs 1',
   );
-  await expect(addOnRow).not.toContainText('Sin competencias');
-  await expect(addOnRow).not.toContainText('Competencias elegidas');
+  await expect(addOnRow).not.toContainText('Sin categorías');
+  await expect(addOnRow).not.toContainText('Categorías elegidas');
 });
 
 test('explains a rejected selection and reloads only when asked', async ({ page }) => {
@@ -112,7 +112,7 @@ test('explains a rejected selection and reloads only when asked', async ({ page 
 
   const alert = passStep(page).getByRole('alert');
   await expect(alert).toContainText(
-    'Alguna competencia ya no está disponible para este pase. Recarga para ver las competencias actuales.',
+    'Alguna categoría ya no está disponible para este pase. Recarga para ver las categorías actuales.',
   );
   expect(sent.selections.map((selection) => selection.body)).toEqual([
     { activityIds: [saleActivities.popping2.id] },

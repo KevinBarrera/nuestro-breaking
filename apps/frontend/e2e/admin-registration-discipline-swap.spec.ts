@@ -89,7 +89,7 @@ test('swaps a confirmed registration to another discipline of the same price', a
   await expect(dialog(page).getByRole('table', { name: 'Cambios' }).getByRole('row')).toHaveText([
     'DatoAntesDespués',
     'PasePase completoPopping',
-    'CompetenciasNingunaPopping 2 vs 2',
+    'CategoríasNingunaPopping 2 vs 2',
   ]);
   await expect(dialog(page)).toContainText(
     'El monto cobrado no cambia: los dos pases cuestan lo mismo.',

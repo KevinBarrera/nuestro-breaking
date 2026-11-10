@@ -328,7 +328,7 @@ function EmptyEvent({ eventId }: { eventId: string }) {
       text: (
         <>
           {link(generatePath(routes.adminEventActivities, { eventId }), 'Catálogo › Actividades')}:
-          competencias, talleres y sociales.
+          categorías, talleres y sociales.
         </>
       ),
     },

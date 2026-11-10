@@ -186,7 +186,7 @@ test('shows a voided registration as read-only', async ({ page }) => {
   await page.goto(registrationPath(registrationId));
   await expect(page.getByRole('main')).toContainText('Inscripción anulada');
   await expect(page.getByRole('main')).toContainText(
-    'Esta inscripción está anulada: no admite pases, competencias ni pagos.',
+    'Esta inscripción está anulada: no admite pases, categorías ni pagos.',
   );
   await expect(page.getByRole('region', { name: 'Pases' })).toContainText('Pase completo Popping');
   await expect(page.getByRole('region', { name: 'Venta pendiente' })).toHaveCount(0);

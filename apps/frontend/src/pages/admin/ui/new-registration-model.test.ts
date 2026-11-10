@@ -90,8 +90,8 @@ describe('stepperPasses', () => {
 
 describe('passIncludes', () => {
   it('says what each pass gives', () => {
-    expect(passIncludes(options.bases[0])).toBe('Solo entrada al evento, sin competencias');
-    expect(passIncludes(options.bases[1])).toBe('Competencias a elegir');
+    expect(passIncludes(options.bases[0])).toBe('Solo entrada al evento, sin categorías');
+    expect(passIncludes(options.bases[1])).toBe('Categorías a elegir');
     expect(passIncludes(options.addOns[0])).toBe('Open Styles 1vs1');
   });
 });
@@ -186,7 +186,7 @@ describe('cobroLines', () => {
       { key: 'rp-open', name: 'open', detail: 'Open Styles 1vs1', priceCents: 80000 },
     ]);
     expect(cobroLines([held('popping', 'full')], options)[0].detail).toBe(
-      'Sin competencias elegidas',
+      'Sin categorías elegidas',
     );
     expect(
       cobroLines([{ ...held('general', 'general'), name: 'Entrada general' }], options)[0],

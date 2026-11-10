@@ -51,7 +51,7 @@ export function heldPassCompetitions(
     !passType || pass.selections.length > 0 || links.some((link) => link.access === 'selectable');
   if (!activities) {
     const count = pass.selections.length;
-    if (count > 0) return { text: count === 1 ? '1 competencia' : `${count} competencias` };
+    if (count > 0) return { text: count === 1 ? '1 categoría' : `${count} categorías` };
     return choosable ? { included: [], chosen: [] } : null;
   }
   const includedIds = new Set(
@@ -68,7 +68,7 @@ export function heldPassCompetitions(
     .map((activity) => activity.name);
   const names = new Map(activities.map((activity) => [activity.id, activity.name]));
   const chosen = choosable
-    ? pass.selections.map((id) => names.get(id) ?? 'Competencia no disponible')
+    ? pass.selections.map((id) => names.get(id) ?? 'Categoría no disponible')
     : null;
   if (included.length === 0 && chosen === null) return null;
   return { included, chosen };

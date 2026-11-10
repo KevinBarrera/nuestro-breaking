@@ -189,10 +189,10 @@ test('opens a pending registration with its sale from the list', async ({ page }
   // The sale goes on in Nueva inscripción's steps (#346), not on the detail.
   const sale = page.getByRole('region', { name: 'Venta pendiente' });
   await expect(sale).toBeVisible();
-  for (const name of ['Agregar pase', 'Competencias', 'Pago en efectivo'])
+  for (const name of ['Agregar pase', 'Categorías', 'Pago en efectivo'])
     await expect(page.getByRole('region', { name, exact: true })).toHaveCount(0);
   await expect(page.getByRole('region', { name: 'Pases' })).toContainText(
-    'Sin competencias elegidas.',
+    'Sin categorías elegidas.',
   );
 
   await sale.getByRole('link', { name: 'Continuar venta' }).click();
@@ -371,7 +371,7 @@ test('sells a registration in three steps, confirms it and starts the next one',
   await page.getByRole('radio', { name: /^Entrada general/ }).check();
   await expect(footer).toContainText('Total$1,000.00');
   await page.getByRole('radio', { name: /^Pase completo Popping/ }).check();
-  const competitions = page.getByRole('group', { name: 'Competencias de Pase completo Popping' });
+  const competitions = page.getByRole('group', { name: 'Categorías de Pase completo Popping' });
   await expect(competitions.locator('label')).toHaveText(['Popping 1v1', 'Popping 2v2']);
   await competitions.getByRole('checkbox', { name: 'Popping 2v2' }).check();
   await competitions.getByRole('checkbox', { name: 'Popping 1v1' }).check();

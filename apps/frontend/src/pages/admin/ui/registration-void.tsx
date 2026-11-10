@@ -169,7 +169,7 @@ function VoidDialog({
     >
       <div className="space-y-4 pb-1">
         <ul className="list-disc space-y-2 pl-5 text-sm">
-          <li>La inscripción queda anulada: ya no admite pases, competencias ni pagos.</li>
+          <li>La inscripción queda anulada: ya no admite pases, categorías ni pagos.</li>
           <li>Sus pases se conservan como historial.</li>
           <li>No se puede deshacer, pero puedes registrar a la persona de nuevo.</li>
         </ul>

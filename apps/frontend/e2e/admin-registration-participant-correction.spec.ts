@@ -105,7 +105,7 @@ test('shows every competitor number with its competition, only when it has one (
   await expect(numbers.getByRole('listitem')).toHaveText([
     'Breaking Bboy · 003',
     'Popping 1v1 · 012',
-    'Competencia · 001',
+    'Categoría · 001',
   ]);
   await expect(numbers.getByText('003', { exact: true })).toHaveClass(/font-mono/);
 

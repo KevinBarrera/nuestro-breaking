@@ -96,7 +96,7 @@ describe('heldPassCompetitions', () => {
 
   it('counts the chosen ones when the activities could not be read', () => {
     expect(heldPassCompetitions(held(['a', 'b']), [selectable], null)).toEqual({
-      text: '2 competencias',
+      text: '2 categorías',
     });
   });
 });

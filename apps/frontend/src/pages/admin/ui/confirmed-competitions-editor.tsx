@@ -25,7 +25,7 @@ type CompetitionsDialogProps = {
 
 type Sent = { activityIds: string[]; reason: string };
 
-// "Editar competencias" of one held pass on a confirmed registration (#170, #345): the new list
+// "Editar categorías" of one held pass on a confirmed registration (#170, #345): the new list
 // and the required reason, reviewed before the PUT. A failure keeps the draft; one that needs a
 // reload only offers "Recargar", so a lost answer is never sent twice.
 export function CompetitionsDialog({
@@ -99,8 +99,8 @@ export function CompetitionsDialog({
 
   return (
     <CorrectionDialog
-      title="Editar competencias"
-      description={`De «${pass.name}». Marca las competencias en las que participa.`}
+      title="Editar categorías"
+      description={`De «${pass.name}». Marca las categorías en las que participa.`}
       formId={formId}
       reviewing={sent !== null}
       rows={sent ? selectionChangeRows(pass, draft) : []}
@@ -116,7 +116,7 @@ export function CompetitionsDialog({
           />
         )
       }
-      confirmLabel="Guardar competencias"
+      confirmLabel="Guardar categorías"
       pending={pending}
       locked={!!failure?.reload}
       onBack={() => setSent(null)}
@@ -128,13 +128,13 @@ export function CompetitionsDialog({
         noValidate
         onSubmit={review}
         className="space-y-4"
-        aria-label={`Editar competencias de «${pass.name}»`}
+        aria-label={`Editar categorías de «${pass.name}»`}
       >
         <fieldset
           aria-describedby={selectionError ? selectionErrorId : undefined}
           className="flex flex-col gap-0.5 rounded-lg border border-line p-1"
         >
-          <legend className="sr-only">Competencias</legend>
+          <legend className="sr-only">Categorías</legend>
           {pass.choices.map((choice) => (
             <OptionCheckbox
               key={choice.activityId}
@@ -154,7 +154,7 @@ export function CompetitionsDialog({
         <ReasonField
           id={reasonId}
           value={reason}
-          placeholder="Ej. Pidió cambiar de competencia en mesa"
+          placeholder="Ej. Pidió cambiar de categoría en mesa"
           error={reasonError}
           onChange={(value) => {
             setReason(value);

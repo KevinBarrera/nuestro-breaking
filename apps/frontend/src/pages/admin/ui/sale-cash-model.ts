@@ -170,9 +170,9 @@ export function selectionSummary(
   selections: readonly string[],
   activities: readonly CatalogActivity[] | null,
 ): string {
-  if (selections.length === 0) return 'Sin competencias';
+  if (selections.length === 0) return 'Sin categorías';
   if (!activities)
-    return selections.length === 1 ? '1 competencia' : `${selections.length} competencias`;
+    return selections.length === 1 ? '1 categoría' : `${selections.length} categorías`;
   const names = new Map(activities.map((activity) => [activity.id, activity.name]));
-  return selections.map((id) => names.get(id) ?? 'Competencia no disponible').join(', ');
+  return selections.map((id) => names.get(id) ?? 'Categoría no disponible').join(', ');
 }

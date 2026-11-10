@@ -91,7 +91,7 @@ describe('removePassConfirmation', () => {
     expect(removePassConfirmation(held('breaking', 'full', 'Pase completo'))).toEqual({
       title: '¿Quitar «Pase completo»?',
       consequence:
-        'Se descuentan $1,500.00 del total. También se quitan las competencias elegidas con este pase.',
+        'Se descuentan $1,500.00 del total. También se quitan las categorías elegidas con este pase.',
     });
   });
 });

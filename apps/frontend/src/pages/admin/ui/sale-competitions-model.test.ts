@@ -28,7 +28,7 @@ const activity = (
   eventId: 'event-1',
   venueId: 'venue-1',
   kind: 'competition',
-  name: `Competencia ${id}`,
+  name: `Categoría ${id}`,
   startsAt,
   endsAt: startsAt,
   status: 'active',
@@ -113,7 +113,7 @@ describe('saleCompetitionPasses', () => {
     expect(only.choices).toEqual([
       { activityId: 'popping', name: 'Popping 1 vs 1', available: true },
       { activityId: 'archived', name: 'Locking', available: false },
-      { activityId: 'gone', name: 'Competencia no disponible', available: false },
+      { activityId: 'gone', name: 'Categoría no disponible', available: false },
     ]);
   });
 });
@@ -157,7 +157,7 @@ describe('passCompetitionLines', () => {
     });
     expect(passCompetitionLines(held('full'), [full], catalog)).toEqual({
       included: null,
-      selected: 'Sin competencias',
+      selected: 'Sin categorías',
     });
   });
 
@@ -175,16 +175,16 @@ describe('passCompetitionLines', () => {
   it('falls back to the selection summary when the catalog is unreadable', () => {
     expect(passCompetitionLines(held('open'), null, catalog)).toEqual({
       included: null,
-      selected: 'Sin competencias',
+      selected: 'Sin categorías',
     });
     expect(passCompetitionLines(held('open', ['styles']), [openStyles], null)).toEqual({
       included: null,
-      selected: '1 competencia',
+      selected: '1 categoría',
     });
     // A pass type missing from the list is as unknown as an unreadable list.
     expect(passCompetitionLines(held('missing'), [openStyles], catalog)).toEqual({
       included: null,
-      selected: 'Sin competencias',
+      selected: 'Sin categorías',
     });
   });
 });
@@ -255,13 +255,13 @@ describe('unsavedCompetitionsHint', () => {
 
   it('names every unsaved pass', () => {
     expect(unsavedCompetitionsHint(['Pase completo'])).toBe(
-      'Guarda o descarta los cambios de competencias de «Pase completo» antes de confirmar.',
+      'Guarda o descarta los cambios de categorías de «Pase completo» antes de confirmar.',
     );
     expect(unsavedCompetitionsHint(['A', 'B'])).toBe(
-      'Guarda o descarta los cambios de competencias de «A» y «B» antes de confirmar.',
+      'Guarda o descarta los cambios de categorías de «A» y «B» antes de confirmar.',
     );
     expect(unsavedCompetitionsHint(['A', 'B', 'C'])).toBe(
-      'Guarda o descarta los cambios de competencias de «A», «B» y «C» antes de confirmar.',
+      'Guarda o descarta los cambios de categorías de «A», «B» y «C» antes de confirmar.',
     );
   });
 });
@@ -289,7 +289,7 @@ describe('competitionDraft', () => {
     const [stale] = saleCompetitionPasses([held('full', ['archived'])], [access], activities);
     expect(competitionDraft(stale, ['archived', 'popping'])).toEqual({
       changed: true,
-      blocked: 'Desmarca las competencias que ya no están disponibles para guardar.',
+      blocked: 'Desmarca las categorías que ya no están disponibles para guardar.',
       canSave: false,
     });
     expect(competitionDraft(stale, ['popping']).canSave).toBe(true);
@@ -312,7 +312,7 @@ describe('saveCompetitionsFailure', () => {
       'no access',
       { kind: 'forbidden' },
       {
-        message: 'Sin acceso: tu cuenta no puede cambiar competencias en este evento.',
+        message: 'Sin acceso: tu cuenta no puede cambiar categorías en este evento.',
         reload: false,
       },
     ],
@@ -321,7 +321,7 @@ describe('saveCompetitionsFailure', () => {
       { kind: 'unknown' },
       {
         message:
-          'No pudimos confirmar si se guardaron las competencias. Recarga la inscripción antes de intentarlo de nuevo.',
+          'No pudimos confirmar si se guardaron las categorías. Recarga la inscripción antes de intentarlo de nuevo.',
         reload: true,
       },
     ],
@@ -330,7 +330,7 @@ describe('saveCompetitionsFailure', () => {
       { kind: 'rule', code: 'invalid_activity_selection' },
       {
         message:
-          'Alguna competencia ya no está disponible para este pase. Recarga para ver las competencias actuales.',
+          'Alguna categoría ya no está disponible para este pase. Recarga para ver las categorías actuales.',
         reload: true,
       },
     ],
@@ -350,7 +350,7 @@ describe('saveCompetitionsFailure', () => {
     [
       'any other error',
       { kind: 'error' },
-      { message: 'No pudimos guardar las competencias. Intenta de nuevo.', reload: false },
+      { message: 'No pudimos guardar las categorías. Intenta de nuevo.', reload: false },
     ],
   ])('explains %s', (_, failure, expected) => {
     expect(saveCompetitionsFailure(failure)).toEqual(expected);

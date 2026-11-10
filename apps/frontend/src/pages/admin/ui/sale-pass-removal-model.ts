@@ -34,7 +34,7 @@ export function removalBlockersHint(blockers: readonly string[]): string | null 
 
 export const removePassConfirmation = (pass: HeldPass) => ({
   title: `¿Quitar «${pass.name}»?`,
-  consequence: `Se descuentan ${formatMxn(pass.priceCents)} del total. También se quitan las competencias elegidas con este pase.`,
+  consequence: `Se descuentan ${formatMxn(pass.priceCents)} del total. También se quitan las categorías elegidas con este pase.`,
 });
 
 const staleMessage = 'La inscripción cambió. Recarga para ver su estado.';

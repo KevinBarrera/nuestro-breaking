@@ -146,7 +146,7 @@ test('renders catalog counts and the pass types on sale', async ({ page }) => {
   const catalog = page.getByRole('region', { name: 'Catálogo' });
   const stat = (label: string) => catalog.getByRole('listitem').filter({ hasText: label });
   await expect(stat('pases activos')).toContainText('3');
-  await expect(stat('competencias')).toContainText('2');
+  await expect(stat('categorías')).toContainText('2');
   await expect(stat('talleres')).toContainText('1');
   await expect(catalog.getByRole('listitem')).toHaveCount(3);
   await expect(catalog).toContainText('Lo que este evento ofrece.');
@@ -156,7 +156,7 @@ test('renders catalog counts and the pass types on sale', async ({ page }) => {
     `${overviewPath}/passes`,
   );
   await expect(stat('pases activos')).toContainText('Ver pases');
-  for (const kind of ['competencias', 'talleres']) {
+  for (const kind of ['categorías', 'talleres']) {
     await expect(stat(kind).getByRole('link')).toHaveAttribute(
       'href',
       `${overviewPath}/activities`,

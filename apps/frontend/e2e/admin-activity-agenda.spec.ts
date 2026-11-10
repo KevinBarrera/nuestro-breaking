@@ -166,7 +166,7 @@ test('renders the agenda on the event clock and wires its filters', async ({ pag
   await page.goto(activitiesPath);
 
   await expect(
-    page.getByText('La agenda del evento: competencias, talleres y sociales.'),
+    page.getByText('La agenda del evento: categorías, talleres y sociales.'),
   ).toBeVisible();
   await expect(page.getByRole('main').getByRole('heading', { level: 2 })).toHaveText([
     'Sábado 21 de noviembre',
@@ -192,7 +192,7 @@ test('renders the agenda on the event clock and wires its filters', async ({ pag
   await expect(tab(page, /^Archivadas/)).toHaveText('Archivadas 1');
   await expect(kinds(page).getByRole('button')).toHaveText([
     'Todas 4',
-    'Competencias 3',
+    'Categorías 3',
     'Sociales 1',
   ]);
   await expect(kinds(page).getByRole('button', { name: /^Todas/ })).toHaveAttribute(
@@ -200,9 +200,9 @@ test('renders the agenda on the event clock and wires its filters', async ({ pag
     'true',
   );
   await kinds(page)
-    .getByRole('button', { name: /^Competencias/ })
+    .getByRole('button', { name: /^Categorías/ })
     .click();
-  await expect(kinds(page).getByRole('button', { name: /^Competencias/ })).toHaveAttribute(
+  await expect(kinds(page).getByRole('button', { name: /^Categorías/ })).toHaveAttribute(
     'aria-pressed',
     'true',
   );
@@ -220,7 +220,7 @@ test('shows archived activities only under Archivadas, each with "Restaurar"', a
   await mockCatalog(page);
   await page.goto(activitiesPath);
   await kinds(page)
-    .getByRole('button', { name: /^Competencias/ })
+    .getByRole('button', { name: /^Categorías/ })
     .click();
   await expect(page.getByText('Cypher cancelado')).toHaveCount(0);
 
@@ -359,16 +359,16 @@ test('keeps the selected kind chip after archiving its last active activity', as
   await page.goto(activitiesPath);
 
   await kinds(page)
-    .getByRole('button', { name: /^Competencias/ })
+    .getByRole('button', { name: /^Categorías/ })
     .click();
   await page.getByRole('button', { name: 'Archivar Bgirl 1v1' }).click();
   await page.getByRole('alertdialog').getByRole('button', { name: 'Archivar' }).click();
   await expect(page.getByRole('status')).toContainText('Archivaste Bgirl 1v1.');
 
-  await expect(pressed(page)).toHaveText('Competencias 0');
+  await expect(pressed(page)).toHaveText('Categorías 0');
   await expect(page.getByText('Ninguna actividad de este tipo')).toBeVisible();
   await kinds(page)
     .getByRole('button', { name: /^Todas/ })
     .click();
-  await expect(kinds(page).getByRole('button', { name: /^Competencias/ })).toHaveCount(0);
+  await expect(kinds(page).getByRole('button', { name: /^Categorías/ })).toHaveCount(0);
 });

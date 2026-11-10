@@ -49,7 +49,7 @@ export function tabCounts(activities: CatalogActivity[]): Record<AgendaTab, numb
 }
 
 const kindChipLabels: Record<ActivityKind, string> = {
-  competition: 'Competencias',
+  competition: 'Categorías',
   workshop: 'Talleres',
   social: 'Sociales',
 };

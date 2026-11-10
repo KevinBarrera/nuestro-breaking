@@ -49,7 +49,7 @@ describe('catalogStats', () => {
     ];
     expect(catalogStats([battle, final, footwork, old], passes)).toEqual([
       { label: 'pases activos', count: 3, target: 'passes' },
-      { label: 'competencias', count: 2, target: 'activities' },
+      { label: 'categorías', count: 2, target: 'activities' },
       { label: 'talleres', count: 1, target: 'activities' },
     ]);
   });
@@ -59,7 +59,7 @@ describe('catalogStats', () => {
     expect(catalogStats(rows, [])).toEqual([
       { label: 'pases activos', count: 0, target: 'passes' },
       { label: 'talleres', count: 3, target: 'activities' },
-      { label: 'competencias', count: 1, target: 'activities' },
+      { label: 'categorías', count: 1, target: 'activities' },
       { label: 'cypher', count: 1, target: 'activities' },
     ]);
   });

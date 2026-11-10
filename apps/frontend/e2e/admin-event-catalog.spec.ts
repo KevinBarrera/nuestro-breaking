@@ -171,7 +171,7 @@ test('lists activities with kind, venue and schedule in event time, archived one
   ]);
   await page.goto(activitiesPath);
   const battle = page.getByRole('listitem').filter({ hasText: 'Batalla de crews' });
-  await expect(battle).toContainText('Competencia · Centro cultural');
+  await expect(battle).toContainText('Categoría · Centro cultural');
   await expect(battle).toContainText('10:00');
   await expect(page.getByText('Taller viejo')).toHaveCount(0);
   await page.getByRole('tab', { name: /^Archivadas/ }).click();
@@ -290,9 +290,7 @@ test('picks the type from the list: editing preselects it and a new activity req
     .getByRole('button', { name: 'Editar' })
     .click();
   await expect(
-    page
-      .getByRole('form', { name: 'Editar actividad' })
-      .getByRole('radio', { name: 'Competencia' }),
+    page.getByRole('form', { name: 'Editar actividad' }).getByRole('radio', { name: 'Categoría' }),
   ).toBeChecked();
   await page.getByRole('dialog').getByRole('button', { name: 'Cancelar', exact: true }).click();
 
@@ -593,7 +591,7 @@ test('keeps the success message when the refresh after a write fails', async ({ 
   await page.getByRole('button', { name: 'Nueva actividad' }).click();
   const form = page.getByRole('form', { name: 'Nueva actividad' });
   await form.getByLabel('Nombre').fill('Taller de toprock');
-  await form.getByRole('radio', { name: 'Competencia' }).check();
+  await form.getByRole('radio', { name: 'Categoría' }).check();
   await form.getByLabel('Empieza').fill('12:00');
   await form.getByLabel('Termina', { exact: true }).fill('13:30');
   await createActivity(page);

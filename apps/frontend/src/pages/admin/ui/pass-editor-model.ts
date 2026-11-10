@@ -258,7 +258,7 @@ export function accessWarning(passClass: PassClass, days: AgendaDay[], choices: 
   if (countOf(days, choices, 'included') + countOf(days, choices, 'selectable') > 0) return null;
   return passClass === 'add_on'
     ? 'Un adicional sin actividades no suma nada al pase completo. Marca al menos una como incluida.'
-    : 'Un pase completo sin actividades no da acceso a ninguna competencia. Marca las que puede escoger o las que incluye.';
+    : 'Un pase completo sin actividades no da acceso a ninguna categoría. Marca las que puede escoger o las que incluye.';
 }
 
 // The whole desired access list: active activities only (the backend rejects archived ones),
@@ -362,7 +362,7 @@ export function passPreview(
       draft.passClass === 'add_on' && draft.requires ? previewRequires[draft.requires] : null,
     included: included.map((activity) => activity.name),
     selectableTitle: selectable.length
-      ? `Escoge entre ${selectable.length} ${selectable.length === 1 ? 'competencia' : 'competencias'}`
+      ? `Escoge entre ${selectable.length} ${selectable.length === 1 ? 'categoría' : 'categorías'}`
       : null,
     selectable: selectable.length ? shortList(selectable.map((activity) => activity.name)) : null,
     empty:

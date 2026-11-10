@@ -46,7 +46,7 @@ describe('activityChangeRows', () => {
       timeZone,
     );
     expect(rows).toEqual([
-      { key: 'kind', label: 'Tipo', before: 'Competencia', after: 'Taller' },
+      { key: 'kind', label: 'Tipo', before: 'Categoría', after: 'Taller' },
       {
         key: 'schedule',
         label: 'Horario',

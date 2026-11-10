@@ -17,7 +17,7 @@ export type AdmissionOutcome =
 export type CheckInNotice = { kind: 'success' | 'already' | 'escalate' | 'error'; text: string };
 
 export const escalationMessage =
-  'Envía a la persona a coordinación general. En la entrada no se hacen cambios de inscripción ni de competencias.';
+  'Envía a la persona a coordinación general. En la entrada no se hacen cambios de inscripción ni de categorías.';
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);

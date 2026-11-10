@@ -103,7 +103,7 @@ test('reaches the lists from the navigation and previews the event list', async 
   // Groups in print order; only the event list is checked and shown at first.
   const groups = picker(page).getByRole('group');
   await expect(groups).toHaveCount(3);
-  for (const [index, name] of ['Evento', 'Pases · 2', 'Competencias'].entries())
+  for (const [index, name] of ['Evento', 'Pases · 2', 'Categorías'].entries())
     await expect(groups.nth(index)).toHaveAccessibleName(name);
   await expect(include(page, 'Evento completo')).toBeChecked();
   await expect(include(page, 'Pase completo')).not.toBeChecked();
@@ -141,7 +141,7 @@ test('checks lists for the PDF and previews another one', async ({ page }) => {
   await show(page, 'Batalla 1vs1').click();
   await expect(show(page, 'Batalla 1vs1')).toHaveAttribute('aria-pressed', 'true');
   const region = page.getByRole('region', { name: 'Batalla 1vs1' });
-  await expect(region).toContainText('Competencia · la entrada se cuenta por competencia');
+  await expect(region).toContainText('Categoría · la entrada se cuenta por categoría');
   await expect(region).toContainText('No incluida en el PDF');
   // The activity list shows that activity's entry, not the event entry, and no passes. As a
   // competition list it shows the competitor number instead of the row number (#377).
@@ -416,7 +416,7 @@ test('prints only the checked lists, with the cover and the paper sheet, black o
   await expect(cover.getByRole('row')).toHaveText([
     'ListaPersonas',
     'Evento completo2',
-    'Competencia · Batalla 1vs11',
+    'Categoría · Batalla 1vs11',
     'Inscripciones en papel—',
   ]);
   await expect(cover).toContainText('Responsable de la mesa');

@@ -101,7 +101,7 @@ describe('historyEntry', () => {
       }),
       zone,
     );
-    expect(first.diff).toEqual([{ label: 'Competencia', before: null, after: '012', mono: true }]);
+    expect(first.diff).toEqual([{ label: 'Categoría', before: null, after: '012', mono: true }]);
   });
 
   it('shows a discipline swap and a void as rows', () => {
@@ -122,7 +122,7 @@ describe('historyEntry', () => {
     expect(swap.kind).toBe('correction');
     expect(swap.diff).toEqual([
       { label: 'Pase', before: 'Pase completo Breaking', after: 'Pase completo Popping' },
-      { label: 'Competencias', before: 'Breaking 1v1 Toprock', after: 'Sin competencias' },
+      { label: 'Categorías', before: 'Breaking 1v1 Toprock', after: 'Sin categorías' },
     ]);
     const voided = historyEntry(
       item('2026-10-21T17:00:00.000Z', {
@@ -188,7 +188,7 @@ describe('historyEntry', () => {
     expect(unreasoned).toMatchObject({
       kind: 'registration',
       competitions: null,
-      summary: 'Sin cambios en las competencias',
+      summary: 'Sin cambios en las categorías',
     });
   });
 

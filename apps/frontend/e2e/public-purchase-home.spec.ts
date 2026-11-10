@@ -222,8 +222,17 @@ test.describe('public passes', () => {
     await expect(page).toHaveURL(passes);
     await pass(page, 'Pase completo Breaking').check();
     await bottomBar(page).getByRole('button', { name: 'Continuar' }).click();
-    await expect(page).toHaveURL(`/e/${slug}/competencias`);
+    await expect(page).toHaveURL(`/e/${slug}/categorias`);
     await expect(page.getByText('Paso 2 de 4')).toBeVisible();
+  });
+
+  test('sends an old competencias link to the categorias step (#385)', async ({ page }) => {
+    await mockPublicCatalog(page, catalogReply());
+    await page.goto(passes);
+    await pass(page, 'Pase completo Breaking').check();
+    await page.goto(`/e/${slug}/competencias`);
+    await expect(page).toHaveURL(`/e/${slug}/categorias`);
+    await expect(page.getByRole('heading', { name: 'Elige tus categorías' })).toBeVisible();
   });
 
   test('shows the purchase summary beside the passes on desktop', async ({ page }) => {

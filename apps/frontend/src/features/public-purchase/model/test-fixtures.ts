@@ -49,7 +49,7 @@ export const openStyles: PublicPass = {
   onlineSalesClosesAt: null,
   onSale: true,
   selectableActivities: [],
-  includedActivities: [activity('open-1v1', 'Competencia 1vs1')],
+  includedActivities: [activity('open-1v1', 'Categoría 1vs1')],
 };
 
 export const catalogPasses = [breaking, popping, general, openStyles];

@@ -26,7 +26,7 @@ describe('purchase steps', () => {
   it('builds each step address under the event', () => {
     expect(stepPath('nov', 'home')).toBe('/e/nov');
     expect(stepPath('nov', 'passes')).toBe('/e/nov/pases');
-    expect(stepPath('nov', 'competitions')).toBe('/e/nov/competencias');
+    expect(stepPath('nov', 'competitions')).toBe('/e/nov/categorias');
     expect(stepPath('nov', 'buyer')).toBe('/e/nov/datos');
     expect(stepPath('nov', 'review')).toBe('/e/nov/revisar');
   });

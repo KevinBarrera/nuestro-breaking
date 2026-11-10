@@ -4,7 +4,9 @@ export const routes = {
   publicHome: '/',
   publicEvent: '/e/:slug',
   publicPasses: '/e/:slug/pases',
-  publicCompetitions: '/e/:slug/competencias',
+  publicCompetitions: '/e/:slug/categorias',
+  // Links shared before #385 used the old step name; the router redirects them.
+  publicCompetitionsLegacy: '/e/:slug/competencias',
   publicBuyer: '/e/:slug/datos',
   publicReview: '/e/:slug/revisar',
   // Mercado Pago's return address for every outcome (#177 D8): `?registration=<id>`.

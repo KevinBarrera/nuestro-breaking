@@ -17,11 +17,11 @@ import {
 test.use({ viewport: { width: 390, height: 844 } });
 
 const home = `/e/${slug}`;
-const step = (name: 'pases' | 'competencias' | 'datos' | 'revisar') => `/e/${slug}/${name}`;
+const step = (name: 'pases' | 'categorias' | 'datos' | 'revisar') => `/e/${slug}/${name}`;
 const checkoutPath = `/public/events/${slug}/registrations/${pendingRegistration.registrationId}/checkout`;
 
 const overlapNotice =
-  'Algunas competencias o workshops pueden coincidir en horario. Puedes elegir libremente a cuáles asistir; intentaremos evitar cruces entre competencias, pero no podemos garantizarlos. Open Styles no coincidirá con competencias de pase completo, aunque podría coincidir parcialmente con workshops.';
+  'Algunas categorías o workshops pueden coincidir en horario. Puedes elegir libremente a cuáles asistir; intentaremos evitar cruces entre categorías, pero no podemos garantizarlos. Open Styles no coincidirá con categorías de pase completo, aunque podría coincidir parcialmente con workshops.';
 
 const legal = [/Reglamento oficial/, /Aviso de privacidad/, /Política de cancelación/] as const;
 
@@ -308,8 +308,8 @@ test.describe('public review and pay', () => {
     {
       kind: '409 rule',
       reply: { status: 409, json: { statusCode: 409, code: 'selection_unavailable' } },
-      message: 'Una de tus competencias ya no está disponible. Vuelve a elegir tus competencias.',
-      fix: { name: 'Cambiar mis competencias', href: step('competencias') },
+      message: 'Una de tus categorías ya no está disponible. Vuelve a elegir tus categorías.',
+      fix: { name: 'Cambiar mis categorías', href: step('categorias') },
     },
     {
       kind: '409 pass sales closed',

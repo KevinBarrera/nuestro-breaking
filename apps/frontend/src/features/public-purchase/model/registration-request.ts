@@ -91,7 +91,7 @@ const ruleMessages: Record<RegistrationRuleCode, string> = {
   required_pass_missing:
     'Uno de tus pases adicionales requiere un pase completo. Agrega uno o quita el adicional.',
   selection_unavailable:
-    'Una de tus competencias ya no está disponible. Vuelve a elegir tus competencias.',
+    'Una de tus categorías ya no está disponible. Vuelve a elegir tus categorías.',
 };
 
 // One Spanish sentence per failure, for notices on the purchase screens.

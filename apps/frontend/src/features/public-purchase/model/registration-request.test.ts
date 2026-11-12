@@ -77,6 +77,17 @@ describe('serverErrors', () => {
     });
   });
 
+  it('describes an invalid phone with the rule of the chosen country', () => {
+    const invalidPhone = { 'buyer.phone': 'invalid' };
+    expect(serverErrors(invalidPhone).buyer.phone).toBe('Escribe los 10 dígitos de tu celular.');
+    expect(serverErrors(invalidPhone, 'mx').buyer.phone).toBe(
+      'Escribe los 10 dígitos de tu celular.',
+    );
+    expect(serverErrors(invalidPhone, 'international').buyer.phone).toBe(
+      'Escribe tu número completo con la lada de tu país, de 10 a 15 dígitos.',
+    );
+  });
+
   it('collects pass and unknown problems into one message each', () => {
     const errors = serverErrors({
       'passes[0].passTypeId': 'invalid',

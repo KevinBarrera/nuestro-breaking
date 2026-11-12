@@ -1,35 +1,24 @@
 import type { ManualRegistrationInput } from '@/entities/admin-registration';
 import {
+  defaultPhoneMode,
+  formatPhone,
   participantPayload,
-  stripPhoneSeparators,
+  phoneIsValid,
   validateParticipant,
+  type PhoneMode,
   type ParticipantErrors,
   type ParticipantForm,
   type ParticipantMessages,
 } from '@/entities/participant';
 
-// How the operator types the participant's phone in the in-person sale (#105): `mx` is the
-// 10-digit national number behind a fixed +52, as in the public form; `international` is the
-// full number with its country code, 10 to 15 digits as the backend accepts.
-export const salePhoneModes = ['mx', 'international'] as const;
-export type SalePhoneMode = (typeof salePhoneModes)[number];
-export const defaultSalePhoneMode: SalePhoneMode = 'mx';
+// How the operator types the participant's phone in the in-person sale (#105). The modes and
+// their rules are shared with the public form (`entities/participant`); the copy is the operator's.
+export type SalePhoneMode = PhoneMode;
+export const defaultSalePhoneMode: SalePhoneMode = defaultPhoneMode;
 
-const PHONE_RULES: Record<
-  SalePhoneMode,
-  { isValid: (phone: string) => boolean; format: (phone: string) => string; message: string }
-> = {
-  mx: {
-    isValid: (phone) => /^\d{10}$/.test(stripPhoneSeparators(phone)),
-    format: (phone) => `+52 ${stripPhoneSeparators(phone)}`,
-    message: 'Escribe los 10 dígitos del celular.',
-  },
-  // An optional leading +, then digits and separators only.
-  international: {
-    isValid: (phone) => /^\+?\d{10,15}$/.test(stripPhoneSeparators(phone)),
-    format: (phone) => `+${phone.replace(/\D/g, '')}`,
-    message: 'Escribe el número completo con clave de país, de 10 a 15 dígitos.',
-  },
+const phoneMessages: Record<SalePhoneMode, string> = {
+  mx: 'Escribe los 10 dígitos del celular.',
+  international: 'Escribe el número completo con clave de país, de 10 a 15 dígitos.',
 };
 
 // The operator's copy, about the participant rather than addressed to them. Server field errors
@@ -43,7 +32,7 @@ export const saleParticipantMessages = (mode: SalePhoneMode): ParticipantMessage
   },
   invalid: {
     email: 'Escribe un correo válido, por ejemplo nombre@correo.com.',
-    phone: PHONE_RULES[mode].message,
+    phone: phoneMessages[mode],
     instagram: 'Escribe el usuario sin espacios.',
     birthDate: 'Escribe una fecha válida.',
   },
@@ -59,7 +48,7 @@ export function validateSaleParticipant(
 ): ParticipantErrors {
   return validateParticipant(form, today, {
     messages: saleParticipantMessages(mode),
-    phoneIsValid: PHONE_RULES[mode].isValid,
+    phoneIsValid: (phone) => phoneIsValid(mode, phone),
   });
 }
 
@@ -68,5 +57,5 @@ export function saleParticipantPayload(
   form: ParticipantForm,
   mode: SalePhoneMode = defaultSalePhoneMode,
 ): ManualRegistrationInput {
-  return participantPayload(form, PHONE_RULES[mode].format);
+  return participantPayload(form, (phone) => formatPhone(mode, phone));
 }

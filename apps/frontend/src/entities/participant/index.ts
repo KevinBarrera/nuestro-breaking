@@ -13,6 +13,14 @@ export {
   stripPhoneSeparators,
   validateParticipant,
 } from './model/participant-form';
+export {
+  defaultPhoneMode,
+  formatPhone,
+  isPhoneMode,
+  phoneIsValid,
+  phoneModes,
+  type PhoneMode,
+} from './model/phone-mode';
 export type {
   ParticipantErrors,
   ParticipantField,

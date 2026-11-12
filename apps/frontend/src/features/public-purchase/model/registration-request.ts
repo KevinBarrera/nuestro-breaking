@@ -5,12 +5,14 @@ import type {
   RegistrationRequest,
   RegistrationRuleCode,
 } from '@/entities/public-event';
+import { defaultPhoneMode, type PhoneMode } from '@/entities/participant';
 import { legalDocuments } from '@/shared/config';
 import {
   buyerFields,
   buyerMaxLength,
   buyerMessages,
   buyerPayload,
+  invalidPhoneMessages,
   type BuyerErrors,
   type BuyerField,
   type BuyerForm,
@@ -37,8 +39,9 @@ export function buildRegistrationRequest(
   };
 }
 
-function buyerMessage(field: BuyerField, code: string): string {
+function buyerMessage(field: BuyerField, code: string, phoneMode: PhoneMode): string {
   const limit = buyerMaxLength[field];
+  if (field === 'phone' && code === 'invalid') return invalidPhoneMessages[phoneMode];
   if (code === 'required') return buyerMessages.required[field] ?? buyerMessages.fallback;
   if (code === 'invalid' && field in buyerMessages.invalid)
     return buyerMessages.invalid[field as keyof typeof buyerMessages.invalid];
@@ -59,13 +62,19 @@ export type ServerErrors = {
 const isBuyerField = (value: string): value is BuyerField =>
   buyerFields.some((field) => field === value);
 
-/** Maps a 400 `fieldErrors` record (path → code) to the messages the screens show. */
-export function serverErrors(fieldErrors: Record<string, string>): ServerErrors {
+/**
+ * Maps a 400 `fieldErrors` record (path → code) to the messages the screens show. An invalid
+ * phone is described with the rule of the country the buyer chose (#390).
+ */
+export function serverErrors(
+  fieldErrors: Record<string, string>,
+  phoneMode: PhoneMode = defaultPhoneMode,
+): ServerErrors {
   const errors: ServerErrors = { buyer: {}, passes: null, legal: null, other: null };
   for (const [path, code] of Object.entries(fieldErrors)) {
     const field = path.startsWith('buyer.') ? path.slice('buyer.'.length) : null;
     if (field && isBuyerField(field) && code !== 'unknown_field')
-      errors.buyer[field] = buyerMessage(field, code);
+      errors.buyer[field] = buyerMessage(field, code, phoneMode);
     else if (path === 'passes' || path.startsWith('passes['))
       errors.passes = 'Algo cambió en tus pases. Vuelve a elegirlos e intenta de nuevo.';
     else if (path === 'legalAcceptances' || path.startsWith('legalAcceptances.'))

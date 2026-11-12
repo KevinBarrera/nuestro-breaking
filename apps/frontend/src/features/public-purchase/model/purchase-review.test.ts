@@ -42,6 +42,15 @@ describe('reviewBuyer', () => {
     });
   });
 
+  it('shows a number from another country as it is sent', () => {
+    const buyer = {
+      ...emptyBuyerForm,
+      phoneMode: 'international' as const,
+      phone: '+1 (415) 555-0100',
+    };
+    expect(reviewBuyer(buyer).phone).toBe('+14155550100');
+  });
+
   it('leaves out a blank AKA', () => {
     const buyer = {
       ...emptyBuyerForm,
@@ -68,6 +77,15 @@ describe('payFailure', () => {
       ],
       fix: 'buyer',
     });
+  });
+
+  it('lists an invalid phone from another country with its own rule', () => {
+    expect(
+      payFailure({ kind: 'invalid', fieldErrors: { 'buyer.phone': 'invalid' } }, 'international')
+        .details,
+    ).toEqual([
+      'Teléfono celular: Escribe tu número completo con la lada de tu país, de 10 a 15 dígitos.',
+    ]);
   });
 
   it('sends pass and body field errors to their screens', () => {

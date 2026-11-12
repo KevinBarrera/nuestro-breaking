@@ -1,4 +1,5 @@
 import type { PublicEventFailure, PublicPass } from '@/entities/public-event';
+import { defaultPhoneMode, type PhoneMode } from '@/entities/participant';
 import { buyerFieldLabels, buyerFields, displayPhone, type BuyerForm } from './buyer-form';
 import { normalizeSelection, type PurchaseSelection } from './purchase-selection';
 import { failureMessage, serverErrors } from './registration-request';
@@ -30,7 +31,7 @@ export function reviewLines(passes: PublicPass[], selection: PurchaseSelection):
     });
 }
 
-// The "Tus datos" card: full name, AKA (null when blank), email and phone with +52.
+// The "Tus datos" card: full name, AKA (null when blank), email and phone with its country code.
 export function reviewBuyer(buyer: BuyerForm) {
   const stageName = buyer.stageName.trim();
   return {
@@ -40,7 +41,7 @@ export function reviewBuyer(buyer: BuyerForm) {
       .join(' '),
     stageName: stageName || null,
     email: buyer.email.trim(),
-    phone: displayPhone(buyer.phone),
+    phone: displayPhone(buyer.phone, buyer.phoneMode),
   };
 }
 
@@ -48,8 +49,14 @@ export function reviewBuyer(buyer: BuyerForm) {
 export type PayFix = 'home' | 'passes' | 'competitions' | 'buyer';
 export type PayFailure = { message: string; details: string[]; fix: PayFix | null };
 
-/** What the review screen shows when creating the registration fails. The draft is kept. */
-export function payFailure(failure: PublicEventFailure): PayFailure {
+/**
+ * What the review screen shows when creating the registration fails. The draft is kept.
+ * `phoneMode` is the buyer's, so an invalid phone reads like the check on datos.
+ */
+export function payFailure(
+  failure: PublicEventFailure,
+  phoneMode: PhoneMode = defaultPhoneMode,
+): PayFailure {
   const only = (message: string, fix: PayFix | null = null): PayFailure => ({
     message,
     details: [],
@@ -57,7 +64,7 @@ export function payFailure(failure: PublicEventFailure): PayFailure {
   });
   switch (failure.kind) {
     case 'invalid': {
-      const errors = serverErrors(failure.fieldErrors);
+      const errors = serverErrors(failure.fieldErrors, phoneMode);
       const details = buyerFields
         .filter((field) => errors.buyer[field])
         .map((field) => `${buyerFieldLabels[field]}: ${errors.buyer[field]}`);

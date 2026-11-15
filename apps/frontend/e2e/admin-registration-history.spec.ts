@@ -390,7 +390,8 @@ test('a failed load shows an alert and retries', async ({ page }) => {
   await expect(page.getByRole('alert')).toHaveCount(0);
 });
 
-for (const status of [401, 403]) {
+// A 401 means the session ended and returns to sign-in (#392, admin-session-handoff.spec.ts).
+for (const status of [403]) {
   test(`a denied read (${status}) shows no history and no retry`, async ({ page }) => {
     await mockHistory(page, () => ({ status, json: { message: 'Forbidden' } }));
     await page.goto(historyPath);

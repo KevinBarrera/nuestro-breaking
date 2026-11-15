@@ -630,8 +630,8 @@ test('shows server field errors on their fields', async ({ page }) => {
 
 test('says when the account has no access', async ({ page }) => {
   await mockRegistrations(page, {
-    search: () => ({ status: 401, json: { statusCode: 401 } }),
-    create: () => ({ status: 401, json: { statusCode: 401 } }),
+    search: () => ({ status: 403, json: { statusCode: 403 } }),
+    create: () => ({ status: 403, json: { statusCode: 403 } }),
   });
   await page.goto(`${registrationsPath}?q=Luz`);
   await expect(page.getByRole('alert')).toHaveText(

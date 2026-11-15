@@ -1,4 +1,4 @@
-import { apiUrl } from '@/shared/api';
+import { adminFetch, apiUrl } from '@/shared/api';
 import { isFlaggedPayments } from './readers';
 import type { FlaggedPayments, FlaggedPaymentsFailure } from './types';
 
@@ -28,7 +28,7 @@ export async function getFlaggedPayments(
 ): Promise<FlaggedPayments> {
   let response: Response;
   try {
-    response = await fetch(
+    response = await adminFetch(
       apiUrl(`/admin/events/${encodeURIComponent(eventId)}/flagged-payments`),
       { credentials: 'include', signal },
     );

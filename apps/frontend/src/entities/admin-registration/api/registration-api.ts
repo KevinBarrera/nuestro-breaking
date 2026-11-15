@@ -1,4 +1,4 @@
-import { apiUrl } from '@/shared/api';
+import { adminFetch, apiUrl } from '@/shared/api';
 import {
   readCompetitorNumberAssignment,
   readConfirmation,
@@ -49,7 +49,7 @@ async function registrationRequest(
   const lost = (): AdminRegistrationFailure => ({ kind: write ? 'unknown' : 'error' });
   let response: Response;
   try {
-    response = await fetch(apiUrl(path), { ...request, credentials: 'include' });
+    response = await adminFetch(apiUrl(path), { ...request, credentials: 'include' });
   } catch (error) {
     if (request.signal?.aborted) throw error;
     throw new AdminRegistrationError(lost());
@@ -69,7 +69,7 @@ async function registrationRequest(
 async function csrfToken(): Promise<string> {
   let session: Response;
   try {
-    session = await fetch(apiUrl('/auth/session'), { credentials: 'include' });
+    session = await adminFetch(apiUrl('/auth/session'), { credentials: 'include' });
   } catch {
     throw new AdminRegistrationError({ kind: 'error' });
   }

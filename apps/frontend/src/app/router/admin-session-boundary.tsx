@@ -1,4 +1,5 @@
 import { getSession, signIn, signOut, useSessionStore } from '@/entities/session';
+import { onSessionEnded } from '@/shared/api';
 import { routes } from '@/shared/config';
 import { AdminShell } from '@/widgets/admin-shell';
 import type { FormEvent } from 'react';
@@ -21,6 +22,8 @@ export function AdminSessionBoundary() {
   const [status, setStatus] = useState<Status>('loading');
   const [error, setError] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  // Set when an admin request finds the session gone (#392), so the form says why it is back.
+  const [ended, setEnded] = useState(false);
   const setSession = useSessionStore((state) => state.setSession);
   const clearSession = useSessionStore((state) => state.clearSession);
   const navigate = useNavigate();
@@ -50,6 +53,18 @@ export function AdminSessionBoundary() {
     return () => controller.abort();
   }, [clearSession, setSession]);
 
+  // A `401` from any admin request means this browser's session ended elsewhere (#392): show
+  // the sign-in form instead of letting the open screen report it as a permission problem.
+  useEffect(() => {
+    if (status !== 'signed-in') return;
+    return onSessionEnded(() => {
+      clearSession();
+      setError(false);
+      setEnded(true);
+      setStatus('signed-out');
+    });
+  }, [clearSession, status]);
+
   // After signing out, the sign-in form shows at /admin (replacing the screen that was open),
   // so signing back in starts from the event entry. It runs once the shell and its page have
   // unmounted, so a screen's unsaved-changes guard does not hold the navigation.
@@ -74,6 +89,7 @@ export function AdminSessionBoundary() {
       const session = await signIn(email, password);
       if (!session.user || !canAccessAdmin(session.user.roles)) throw new Error('Not authorized');
       setSession(session);
+      setEnded(false);
       setStatus('signed-in');
     } catch {
       clearSession();
@@ -121,7 +137,15 @@ export function AdminSessionBoundary() {
         <p className="mt-3 text-sm leading-6 text-slate-300">
           Accede con tu cuenta del equipo organizador o de jueces.
         </p>
-        {activatedEmail && !error && (
+        {ended && !error && (
+          <p
+            role="status"
+            className="mt-6 rounded-lg border border-amber-400 bg-amber-950/70 p-3 text-sm text-amber-100"
+          >
+            Tu sesión terminó. Inicia sesión de nuevo para continuar.
+          </p>
+        )}
+        {activatedEmail && !ended && !error && (
           <p
             role="status"
             className="mt-6 rounded-lg border border-emerald-400 bg-emerald-950/70 p-3 text-sm text-emerald-100"

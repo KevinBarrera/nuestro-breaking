@@ -1,4 +1,4 @@
-import { apiUrl } from '@/shared/api';
+import { adminFetch, apiUrl } from '@/shared/api';
 import { isEventSales } from './readers';
 import type { EventSales, EventSalesInput, SalesFailure } from './types';
 
@@ -29,7 +29,7 @@ const salesPath = (eventId: string) => `/admin/events/${encodeURIComponent(event
 async function request(path: string, init: RequestInit): Promise<EventSales> {
   let response: Response;
   try {
-    response = await fetch(apiUrl(path), { ...init, credentials: 'include' });
+    response = await adminFetch(apiUrl(path), { ...init, credentials: 'include' });
   } catch (error) {
     if (init.signal?.aborted) throw error;
     throw new SalesError('error');
@@ -48,7 +48,7 @@ async function request(path: string, init: RequestInit): Promise<EventSales> {
 async function csrfToken(): Promise<string> {
   let session: Response;
   try {
-    session = await fetch(apiUrl('/auth/session'), { credentials: 'include' });
+    session = await adminFetch(apiUrl('/auth/session'), { credentials: 'include' });
   } catch {
     throw new SalesError('error');
   }

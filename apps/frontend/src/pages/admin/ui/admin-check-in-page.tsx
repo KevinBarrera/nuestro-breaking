@@ -1,6 +1,6 @@
 import { adminRegistrationFailure, assignCompetitorNumber } from '@/entities/admin-registration';
 import { attendeeListsFailure, fetchAttendeeLists } from '@/entities/attendee-list';
-import { apiUrl } from '@/shared/api';
+import { adminFetch, apiUrl } from '@/shared/api';
 import { routes } from '@/shared/config';
 import { buttonClass, ConfirmDialog } from '@/shared/ui';
 import { useEffect, useRef, useState } from 'react';
@@ -134,13 +134,13 @@ function EventCheckIn({ eventId }: { eventId: string }) {
     const base = `/admin/events/${encodeURIComponent(eventId)}/registrations/${encodeURIComponent(person.registrationId)}`;
     let outcome: AdmissionOutcome = { kind: 'error' };
     try {
-      const session = await fetch(apiUrl('/auth/session'), {
+      const session = await adminFetch(apiUrl('/auth/session'), {
         credentials: 'include',
         signal: request.signal,
       });
       const csrf = session.headers.get('X-CSRF-Token');
       if (!session.ok || !csrf) throw new Error('session unavailable');
-      const response = await fetch(
+      const response = await adminFetch(
         apiUrl(
           `${base}${activityId ? `/activities/${encodeURIComponent(activityId)}` : ''}/check-in`,
         ),

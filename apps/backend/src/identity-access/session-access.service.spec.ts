@@ -54,3 +54,21 @@ describe('SessionAccessService trusted origin', () => {
     ).rejects.toBeInstanceOf(ForbiddenException);
   });
 });
+
+describe('SessionAccessService session token (#392)', () => {
+  const service = new SessionAccessService(auditOnlyDatabase());
+  const token = 'ab'.repeat(32);
+  const withCookie = (cookie?: string) => ({ headers: { cookie } }) as unknown as Request;
+
+  it('reads the single well-formed session cookie among others', () => {
+    expect(service.sessionToken(withCookie(`theme=dark; nb_admin_session=${token}`))).toBe(token);
+  });
+
+  it.each([
+    ['no cookie header', undefined],
+    ['a malformed token', 'nb_admin_session=not-a-token'],
+    ['two session cookies', `nb_admin_session=${token}; nb_admin_session=${token}`],
+  ])('returns nothing for %s', (_case, cookie) => {
+    expect(service.sessionToken(withCookie(cookie))).toBeUndefined();
+  });
+});

@@ -1,12 +1,13 @@
-import { getSession, signIn, signOut, useSessionStore } from '@/entities/session';
+import { getSession, signIn, signOut, useSessionStore, type UserSession } from '@/entities/session';
 import { onSessionEnded } from '@/shared/api';
 import { routes } from '@/shared/config';
 import { AdminShell } from '@/widgets/admin-shell';
 import type { FormEvent } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router';
+import { AccountInUse, type AccountInUseReason } from './account-in-use';
 
-type Status = 'loading' | 'signed-out' | 'signed-in';
+type Status = 'loading' | 'signed-out' | 'signed-in' | 'in-use';
 
 // The activation page (#214) lands here with the activated email in the history state.
 function readActivatedEmail(state: unknown): string | null {
@@ -28,6 +29,10 @@ export function AdminSessionBoundary() {
   const clearSession = useSessionStore((state) => state.clearSession);
   const navigate = useNavigate();
   const activatedEmail = readActivatedEmail(useLocation().state);
+  // The browser's session when it is not the account this tab expects (#392).
+  const [inUse, setInUse] = useState<{ session: UserSession; reason: AccountInUseReason } | null>(
+    null,
+  );
   // Set by a successful sign-out; the redirect waits for the shell to unmount.
   const leaving = useRef(false);
 
@@ -37,6 +42,12 @@ export function AdminSessionBoundary() {
       .then((session) => {
         if (controller.signal.aborted) return;
         if (session.user && canAccessAdmin(session.user.roles)) {
+          // Activation never signs in (#392): an open session here belongs to someone else.
+          if (activatedEmail) {
+            setInUse({ session, reason: { kind: 'activated', email: activatedEmail } });
+            setStatus('in-use');
+            return;
+          }
           setSession(session);
           setStatus('signed-in');
         } else {
@@ -51,6 +62,8 @@ export function AdminSessionBoundary() {
         }
       });
     return () => controller.abort();
+    // The first check decides the screen; later history state does not re-run it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clearSession, setSession]);
 
   // A `401` from any admin request means this browser's session ended elsewhere (#392): show
@@ -63,6 +76,40 @@ export function AdminSessionBoundary() {
       setEnded(true);
       setStatus('signed-out');
     });
+  }, [clearSession, status]);
+
+  // Another tab may sign out or sign in as someone else (#392). Re-check when this tab comes
+  // back: a 401 ends the session through `onSessionEnded`, and another user asks first.
+  useEffect(() => {
+    if (status !== 'signed-in') return;
+    let controller: AbortController | null = null;
+    const recheck = () => {
+      if (document.visibilityState === 'hidden' || controller) return;
+      const current = new AbortController();
+      controller = current;
+      void getSession(current.signal)
+        .then((session) => {
+          if (current.signal.aborted) return;
+          const shown = useSessionStore.getState().session.user;
+          if (session.user && shown && session.user.id !== shown.id) {
+            clearSession();
+            setInUse({ session, reason: { kind: 'changed' } });
+            setStatus('in-use');
+          }
+        })
+        // Network errors keep the screen; the next request reports a real 401.
+        .catch(() => undefined)
+        .finally(() => {
+          if (controller === current) controller = null;
+        });
+    };
+    window.addEventListener('focus', recheck);
+    document.addEventListener('visibilitychange', recheck);
+    return () => {
+      window.removeEventListener('focus', recheck);
+      document.removeEventListener('visibilitychange', recheck);
+      controller?.abort();
+    };
   }, [clearSession, status]);
 
   // After signing out, the sign-in form shows at /admin (replacing the screen that was open),
@@ -116,7 +163,43 @@ export function AdminSessionBoundary() {
     }
   }
 
+  function continueAs(session: UserSession) {
+    setSession(session);
+    setInUse(null);
+    setError(false);
+    setStatus('signed-in');
+    // The open screen belonged to the other account: start again from the event entry.
+    void navigate(routes.admin, { replace: true });
+  }
+
+  async function signOutOther() {
+    if (submitting) return;
+    setSubmitting(true);
+    setError(false);
+    try {
+      await signOut();
+      clearSession();
+      setInUse(null);
+      setStatus('signed-out');
+    } catch {
+      setError(true);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   if (status === 'loading') return <p role="status">Comprobando sesión…</p>;
+  if (status === 'in-use' && inUse)
+    return (
+      <AccountInUse
+        reason={inUse.reason}
+        name={inUse.session.user?.displayName || 'otra cuenta'}
+        busy={submitting}
+        failed={error}
+        onContinue={() => continueAs(inUse.session)}
+        onSignOut={() => void signOutOther()}
+      />
+    );
   if (status === 'signed-in')
     return (
       <AdminShell signingOut={submitting} signOutFailed={error} onSignOut={() => void leave()}>

@@ -151,7 +151,8 @@ test('checks lists for the PDF and previews another one', async ({ page }) => {
 
   await include(page, 'Evento completo').uncheck();
   await include(page, 'Batalla 1vs1').uncheck();
-  await expect(page.getByRole('button', { name: 'Elige una lista para imprimir' })).toBeDisabled();
+  // The paper sheet is on by default, so it can still print alone (#393).
+  await expect(page.getByRole('button', { name: 'Imprimir hoja de inscripciones' })).toBeEnabled();
 });
 
 test('searches inside the shown list', async ({ page }) => {
@@ -473,6 +474,29 @@ test('"Cada lista en hoja nueva" starts each list on a new sheet and the cover c
     .getByRole('region', { name: /Evento completo|Pase completo/ })
     .evaluateAll((sections) => sections.map((node) => getComputedStyle(node).breakBefore));
   expect(breaks).toEqual(['auto', 'page']);
+});
+
+test('prints only the paper sheet when no list is checked (#393)', async ({ page }) => {
+  await mockLists(page, { json: snapshot });
+  await page.goto(listsPath);
+  await include(page, 'Evento completo').uncheck();
+  const card = page.getByRole('region', { name: 'Opciones del PDF' });
+  await expect(card).toContainText('Tamaño aproximado1 hoja carta');
+  const print = page.getByRole('button', { name: 'Imprimir hoja de inscripciones' });
+  await expect(print).toBeEnabled();
+  await page.emulateMedia({ media: 'print' });
+
+  await expect(page.getByRole('region', { name: 'Portada' })).toHaveCount(0);
+  await expect(page.getByRole('table', { name: 'Evento completo' })).toHaveCount(0);
+  const paper = page.getByRole('region', { name: 'Inscripciones en papel' });
+  await expect(paper.getByRole('row')).toHaveCount(19);
+  // The sheet opens the printout, so it must not push a blank page before it.
+  await expect(paper).toHaveCSS('break-before', 'auto');
+
+  await page.emulateMedia({ media: 'screen' });
+  await card.getByRole('checkbox', { name: 'Hoja para inscripciones en papel' }).uncheck();
+  await expect(page.getByRole('button', { name: 'Elige una lista para imprimir' })).toBeDisabled();
+  await expect(card).toContainText('Tamaño aproximadoSin listas');
 });
 
 test('saves a letter PDF with our own sheet header and footer', async ({ page }) => {

@@ -160,7 +160,9 @@ The lists (#65) need an event administrator; judges get no data. See the
    and a coordination phone) and a sheet of blank rows for paper
    registrations, both on by default. Lists flow one after another; "Cada
    lista en hoja nueva" starts each one on its own sheet. "Tamaño aproximado"
-   estimates the letter sheets.
+   estimates the letter sheets. To print only more paper registration sheets,
+   uncheck every list and press "Imprimir hoja de inscripciones": the PDF then
+   carries just that sheet, with no cover.
 4. Every sheet shows the event, "Datos al …" and "Hoja X de Y". Note that time:
    a list does not show anything that changed after it. Lists include
    confirmed and pending-payment registrations ("Pendiente de pago" under the

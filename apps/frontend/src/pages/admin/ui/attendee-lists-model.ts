@@ -159,8 +159,10 @@ export function listKindLabel(list: AttendeeListView): string {
 export const keptSelection = (selection: string[], lists: AttendeeListView[]) =>
   selection.filter((id) => lists.some((list) => list.id === id));
 
-export function printLabel(count: number): string {
-  if (count === 0) return 'Elige una lista para imprimir';
+// With no list checked, the paper sheet can still print on its own (#393).
+export function printLabel(count: number, paper = false): string {
+  if (count === 0)
+    return paper ? 'Imprimir hoja de inscripciones' : 'Elige una lista para imprimir';
   return `Imprimir ${count} ${count === 1 ? 'lista' : 'listas'}`;
 }
 
@@ -236,9 +238,10 @@ const linesPerSheet = 30;
 const listHeaderLines = 3;
 const sheetsFor = (lines: number) => Math.ceil(lines / linesPerSheet);
 
-// "Tamaño aproximado": an estimate only, the browser decides the real breaks.
+// "Tamaño aproximado": an estimate only, the browser decides the real breaks. With no list, only
+// the paper sheet prints: the cover's index has nothing to describe (#393).
 export function estimateSheets(lists: AttendeeListView[], options: PrintOptions): number {
-  if (lists.length === 0) return 0;
+  if (lists.length === 0) return options.paper ? 1 : 0;
   const lines = lists.map((list) => list.rows.length + listHeaderLines);
   const sheets = options.sheetPerList
     ? lines.reduce((total, count) => total + Math.max(1, sheetsFor(count)), 0)

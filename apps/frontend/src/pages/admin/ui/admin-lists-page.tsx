@@ -141,7 +141,7 @@ function AttendeeListsScreen({ eventId }: { eventId: string }) {
             {hasPeople && (
               <button
                 type="button"
-                disabled={checked.length === 0}
+                disabled={checked.length === 0 && !options.paper}
                 onClick={() => window.print()}
                 className={buttonClass(
                   'primary',
@@ -149,7 +149,7 @@ function AttendeeListsScreen({ eventId }: { eventId: string }) {
                 )}
               >
                 {printerIcon(18, '1.75')}
-                {printLabel(checked.length)}
+                {printLabel(checked.length, options.paper)}
               </button>
             )}
           </div>
@@ -212,7 +212,7 @@ function AttendeeListsScreen({ eventId }: { eventId: string }) {
           )}
         </div>
       </main>
-      {snapshot && hasPeople && printed.length > 0 && (
+      {snapshot && hasPeople && (printed.length > 0 || options.paper) && (
         <AttendeeListsPrintout
           eventName={snapshot.event.name}
           generatedAt={snapshot.generatedAt}

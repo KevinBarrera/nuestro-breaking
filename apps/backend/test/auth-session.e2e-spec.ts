@@ -141,6 +141,95 @@ describe('admin session foundation (e2e)', () => {
     ]);
   });
 
+  it('revokes and audits the session a new sign-in replaces in the same browser (#392)', async () => {
+    const first = await provision();
+    const phc = await hash('second horse battery staple', { type: argon2id });
+    const [second] = await client<{ id: string }[]>`
+      INSERT INTO users (email, display_name, active, password_hash)
+      VALUES ('second@example.com', 'Second Admin', true, ${phc}) RETURNING id
+    `;
+    await client`INSERT INTO user_roles (user_id, role) VALUES (${second.id}, 'admin')`;
+    const firstCookie = (await signIn(first.password).expect(201)).headers[
+      'set-cookie'
+    ] as unknown as string[];
+
+    const failed = await signIn('wrong', 'second@example.com')
+      .set('Cookie', firstCookie)
+      .expect(401);
+    expect(failed.headers['set-cookie']).toBeUndefined();
+    await request(app.getHttpServer()).get('/auth/session').set('Cookie', firstCookie).expect(200);
+
+    const replaced = await signIn('second horse battery staple', 'second@example.com')
+      .set('Cookie', firstCookie)
+      .expect(201);
+    expect((replaced.body as { user: { id: string } }).user.id).toBe(second.id);
+    await request(app.getHttpServer()).get('/auth/session').set('Cookie', firstCookie).expect(401);
+    const secondCookie = replaced.headers['set-cookie'] as unknown as string[];
+    await request(app.getHttpServer()).get('/auth/session').set('Cookie', secondCookie).expect(200);
+
+    const sessions = await client<{ user_id: string; revoked: boolean }[]>`
+      SELECT user_id, revoked_at IS NOT NULL AS revoked FROM auth_sessions ORDER BY created_at
+    `;
+    expect(sessions).toEqual([
+      { user_id: first.id, revoked: true },
+      { user_id: second.id, revoked: false },
+    ]);
+    const audits = await client<{ action: string; user_id: string | null }[]>`
+      SELECT action, user_id FROM auth_audit ORDER BY created_at, action
+    `;
+    // Rows written in one transaction share created_at, so the tie breaks by action.
+    expect(audits.filter((row) => row.action !== 'denied')).toEqual([
+      { action: 'session_created', user_id: first.id },
+      { action: 'session_created', user_id: second.id },
+      { action: 'session_revoked', user_id: first.id },
+    ]);
+  });
+
+  it('signs in normally when the presented cookie is already revoked or unknown (#392)', async () => {
+    const { id, password } = await provision();
+    const stale = `${cookieName}=${'a'.repeat(64)}`;
+    await signIn(password).set('Cookie', stale).expect(201);
+    const audits = await client<{ action: string }[]>`SELECT action FROM auth_audit`;
+    expect(audits.map((row) => row.action)).toEqual(['session_created']);
+    const [session] = await client<{ user_id: string; revoked: boolean }[]>`
+      SELECT user_id, revoked_at IS NOT NULL AS revoked FROM auth_sessions
+    `;
+    expect(session).toEqual({ user_id: id, revoked: false });
+  });
+
+  it('keeps the presented session when the new identity has no admin role (#392)', async () => {
+    const first = await provision();
+    const cookie = (await signIn(first.password).expect(201)).headers[
+      'set-cookie'
+    ] as unknown as string[];
+    const phc = await hash('third horse battery staple', { type: argon2id });
+    await client`
+      INSERT INTO users (email, display_name, active, password_hash)
+      VALUES ('norole@example.com', 'No Role', true, ${phc})
+    `;
+    await signIn('third horse battery staple', 'norole@example.com')
+      .set('Cookie', cookie)
+      .expect(401);
+    await request(app.getHttpServer()).get('/auth/session').set('Cookie', cookie).expect(200);
+    const revoked = await client`SELECT 1 FROM auth_audit WHERE action = 'session_revoked'`;
+    expect(revoked).toHaveLength(0);
+  });
+
+  it('does not revoke or audit an already expired session it replaces (#392)', async () => {
+    const { password } = await provision();
+    const cookie = (await signIn(password).expect(201)).headers[
+      'set-cookie'
+    ] as unknown as string[];
+    await client`UPDATE auth_sessions SET expires_at = now() - interval '1 minute'`;
+    await signIn(password).set('Cookie', cookie).expect(201);
+    const sessions = await client<{ revoked: boolean }[]>`
+      SELECT revoked_at IS NOT NULL AS revoked FROM auth_sessions ORDER BY created_at
+    `;
+    expect(sessions).toEqual([{ revoked: false }, { revoked: false }]);
+    const revoked = await client`SELECT 1 FROM auth_audit WHERE action = 'session_revoked'`;
+    expect(revoked).toHaveLength(0);
+  });
+
   it('denies bad credentials, unknown and inactive identities with the same safe response', async () => {
     const { password } = await provision();
     const bad = await signIn('wrong').expect(401);

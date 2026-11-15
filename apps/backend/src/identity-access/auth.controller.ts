@@ -10,7 +10,7 @@ import {
   Req,
   Res,
 } from '@nestjs/common';
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, eq, gt, isNull } from 'drizzle-orm';
 import type { Request, Response } from 'express';
 import { verify } from 'argon2';
 import { DATABASE_CLIENT } from '@/database/database.constants';
@@ -98,7 +98,27 @@ export class AuthController {
 
     const token = randomBytes(32).toString('hex');
     const expiresAt = new Date(Date.now() + lifetimeMs);
+    // One session cookie per browser (#392): the new cookie replaces the one this request
+    // presents, so that session is revoked here instead of staying valid without its browser.
+    const replacedToken = this.sessions.sessionToken(request);
     await this.db.transaction(async (tx) => {
+      if (replacedToken) {
+        const replaced = await tx
+          .update(authSessions)
+          .set({ revokedAt: new Date() })
+          .where(
+            and(
+              eq(authSessions.tokenDigest, digest(replacedToken)),
+              isNull(authSessions.revokedAt),
+              gt(authSessions.expiresAt, new Date()),
+            ),
+          )
+          .returning({ id: authSessions.id, userId: authSessions.userId });
+        for (const row of replaced)
+          await tx
+            .insert(authAudit)
+            .values({ action: 'session_revoked', userId: row.userId, sessionId: row.id });
+      }
       const [session] = await tx
         .insert(authSessions)
         .values({ userId: user.id, tokenDigest: digest(token), expiresAt })

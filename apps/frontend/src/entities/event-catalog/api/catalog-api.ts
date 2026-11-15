@@ -1,4 +1,4 @@
-import { apiUrl } from '@/shared/api';
+import { adminFetch, apiUrl } from '@/shared/api';
 import {
   isCatalogActivity,
   isCatalogEventSummary,
@@ -66,7 +66,7 @@ async function readBody(response: Response): Promise<unknown> {
 async function request(path: string, init: RequestInit): Promise<unknown> {
   let response: Response;
   try {
-    response = await fetch(apiUrl(path), { ...init, credentials: 'include' });
+    response = await adminFetch(apiUrl(path), { ...init, credentials: 'include' });
   } catch (error) {
     if (init.signal?.aborted) throw error;
     throw new CatalogError('error');
@@ -86,7 +86,7 @@ async function request(path: string, init: RequestInit): Promise<unknown> {
 async function csrfToken(): Promise<string> {
   let session: Response;
   try {
-    session = await fetch(apiUrl('/auth/session'), { credentials: 'include' });
+    session = await adminFetch(apiUrl('/auth/session'), { credentials: 'include' });
   } catch {
     throw new CatalogError('error');
   }

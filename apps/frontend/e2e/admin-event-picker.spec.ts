@@ -154,7 +154,7 @@ test('aborts the credentialed event request when leaving the admin landing', asy
   await expect(page).toHaveURL(new RegExp(`/admin/events/${firstId}/check-in$`));
 });
 
-test('signed out never fetches events; 401 and 403 do not claim authorization', async ({
+test('signed out never fetches events; 401 ends the session and 403 does not claim authorization', async ({
   page,
 }) => {
   let requests = 0;
@@ -166,16 +166,24 @@ test('signed out never fetches events; 401 and 403 do not claim authorization', 
   await page.goto('/admin');
   await expect(page.getByRole('heading', { name: 'Iniciar sesión' })).toBeVisible();
   expect(requests).toBe(0);
-  for (const status of [401, 403]) {
-    await page.route(session, (route) =>
-      route.fulfill({ json: { user: { id: 'judge', roles: ['judge'] } } }),
-    );
-    await page.route(endpoint, (route) => route.fulfill({ status, json: { message: 'private' } }));
-    await page.reload();
-    await expect(main(page).getByRole('alert')).toContainText('Sin acceso');
-    await expect(main(page).getByRole('link')).toHaveCount(0);
-    await expect(page.getByText('private')).toHaveCount(0);
-  }
+  await page.route(session, (route) =>
+    route.fulfill({ json: { user: { id: 'judge', roles: ['judge'] } } }),
+  );
+  // A 401 means the session ended (#392): back to sign-in, never a permission message.
+  await page.route(endpoint, (route) =>
+    route.fulfill({ status: 401, json: { message: 'private' } }),
+  );
+  await page.reload();
+  await expect(page.getByRole('heading', { name: 'Iniciar sesión' })).toBeVisible();
+  await expect(page.getByText('Tu sesión terminó. Inicia sesión de nuevo')).toBeVisible();
+  await expect(page.getByText(/^Sin acceso/)).toHaveCount(0);
+  await page.route(endpoint, (route) =>
+    route.fulfill({ status: 403, json: { message: 'private' } }),
+  );
+  await page.reload();
+  await expect(main(page).getByRole('alert')).toContainText('Sin acceso');
+  await expect(main(page).getByRole('link')).toHaveCount(0);
+  await expect(page.getByText('private')).toHaveCount(0);
 });
 
 test('a failed load shows a Spanish error with a retry that recovers', async ({ page }) => {

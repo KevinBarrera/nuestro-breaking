@@ -370,7 +370,7 @@ test('a failed load shows an alert and retries', async ({ page }) => {
 });
 
 test('a denied read shows no lists and no retry', async ({ page }) => {
-  await mockLists(page, { status: 401, json: { message: 'Unauthorized' } });
+  await mockLists(page, { status: 403, json: { message: 'Forbidden' } });
   await page.goto(listsPath);
   const alert = page.getByRole('alert');
   await expect(alert).toHaveText('No tienes acceso a las listas de este evento.');

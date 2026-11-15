@@ -1,4 +1,4 @@
-import { apiUrl } from '@/shared/api';
+import { adminFetch, apiUrl } from '@/shared/api';
 import { readHistoryPage } from './readers';
 import type { HistoryPage, HistoryQuery, RegistrationHistoryFailure } from './types';
 
@@ -34,7 +34,7 @@ export async function getRegistrationHistory(
   if (query.cursor) params.set('cursor', query.cursor);
   let response: Response;
   try {
-    response = await fetch(
+    response = await adminFetch(
       apiUrl(`/admin/events/${encodeURIComponent(eventId)}/registration-history?${params}`),
       { credentials: 'include', signal },
     );

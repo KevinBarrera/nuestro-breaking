@@ -1,4 +1,4 @@
-import { apiUrl } from '@/shared/api';
+import { adminFetch, apiUrl } from '@/shared/api';
 import { readAttendeeLists } from './readers';
 import type { AttendeeLists, AttendeeListsFailure } from './types';
 
@@ -28,10 +28,13 @@ export async function fetchAttendeeLists(
 ): Promise<AttendeeLists> {
   let response: Response;
   try {
-    response = await fetch(apiUrl(`/admin/events/${encodeURIComponent(eventId)}/attendee-lists`), {
-      credentials: 'include',
-      signal,
-    });
+    response = await adminFetch(
+      apiUrl(`/admin/events/${encodeURIComponent(eventId)}/attendee-lists`),
+      {
+        credentials: 'include',
+        signal,
+      },
+    );
   } catch (error) {
     if (signal.aborted) throw error;
     throw new AttendeeListsError('error');

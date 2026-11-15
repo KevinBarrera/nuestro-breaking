@@ -525,7 +525,7 @@ test('a judge or denied session sees a no-access state on both catalogs', async 
     (url) => api(url) && (url.pathname === activitiesPath || url.pathname === passTypesPath),
     (route) => {
       deniedReads.push(new URL(route.request().url()).pathname);
-      return route.fulfill({ status: 401, json: { message: 'Unauthorized' } });
+      return route.fulfill({ status: 403, json: { message: 'Forbidden' } });
     },
   );
   await page.goto(activitiesPath);

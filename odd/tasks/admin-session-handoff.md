@@ -25,7 +25,7 @@ Design (assumptions, within the issue scope):
 | ID  | Specs | Task                                                                                      | Route  | Status  |
 | --- | ----- | ----------------------------------------------------------------------------------------- | ------ | ------- |
 | T1  | S2    | Backend: sign-in revokes the session in the request's cookie and audits `session_revoked` | inline | done    |
-| T2  | S3    | Frontend: `401` signal from admin clients ends the session with a notice                  | inline | pending |
+| T2  | S3    | Frontend: `401` signal from admin clients ends the session with a notice                  | inline | done    |
 | T3  | S1 S4 | Frontend: re-check on focus and "account in use" screen after activation or user change   | inline | pending |
 | T4  | S5    | Docs: contract (and ADR note) for one session per browser, activation and stale tabs      | inline | pending |
 
@@ -36,3 +36,4 @@ Route evidence: each task is one unit under ~200 lines with no parallel partner,
 - **L1** (2026-11-15) User: "Genial, pues trabajemos ahora en el fix de ese issue" (issue #392, drafted from the reproduction in this session).
 - **L2** Mapping: no shared 401 helper (six entity clients plus the check-in page fold 401/403 into `denied`; admin-event and admin-registration keep `unauthorized`/`forbidden`); no cross-tab or focus sync; `SessionAccessService.sessionToken` is private.
 - **L3** T1: RED observed (old cookie still 200 after a new sign-in). GREEN: `test/auth-session` 10/10, backend unit 653/653, lint clean, full backend e2e 553/553. Independent verifier: S2 PASS, no blockers; applied its note (skip already expired sessions) and added its two probes (no-role sign-in keeps the session; expired session is not revoked or audited).
+- **L4** T2 (`fix/392-02-session-ended-notice`): `adminFetch` in `shared/api` reports `401`; the nine admin clients use it; the boundary returns to sign-in with "Tu sesión terminó. Inicia sesión de nuevo para continuar.". RED: the new 401 Playwright test fails on base source and the 403 test passes there. GREEN: `verify:pr` Vitest 958/958; Playwright 603/610 first run. Five failures were old specs that expected "Sin acceso" on 401 (attendee lists, catalog, event picker, registration history, registrations); they now use 403, and the event picker also asserts 401 → sign-in. `admin-registrations.spec.ts:55` (search value " Lu " under load) passes 3/3 alone and on base; `admin-select` passes 6/6 with `--timeout=120000` (known load flake). Affected specs rerun: 72 passed, plus that flake.

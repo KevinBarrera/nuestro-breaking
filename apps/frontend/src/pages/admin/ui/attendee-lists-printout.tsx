@@ -66,10 +66,12 @@ const td = 'border-b border-black px-2 py-[5px] align-top';
 // Listas de respaldo printout (#363): only rendered for print, black on white, letter size.
 export function AttendeeListsPrintout({ eventName, generatedAt, lists, options }: PrintoutProps) {
   const stamp = formatSnapshotStamp(generatedAt);
+  // With no list, only the paper sheet prints (#393): no cover, and no break before the sheet.
+  const cover = options.cover && lists.length > 0;
   return (
     <div className="hidden bg-white font-sans text-black [print-color-adjust:exact] print:block">
       <style>{pageRules(eventName, stamp)}</style>
-      {options.cover && (
+      {cover && (
         <section aria-label="Portada" className="flex flex-col gap-5 break-after-page">
           <div className="flex flex-col gap-1.5">
             <h1 className="text-[36px] leading-10 font-extrabold tracking-[-0.02em]">
@@ -125,7 +127,7 @@ export function AttendeeListsPrintout({ eventName, generatedAt, lists, options }
           <PrintedList key={list.id} list={list} newSheet={options.sheetPerList && index > 0} />
         ))}
       </div>
-      {options.paper && <PaperSheet />}
+      {options.paper && <PaperSheet newSheet={lists.length > 0} />}
     </div>
   );
 }
@@ -212,9 +214,12 @@ function PrintedList({ list, newSheet }: { list: AttendeeListView; newSheet: boo
   );
 }
 
-function PaperSheet() {
+function PaperSheet({ newSheet }: { newSheet: boolean }) {
   return (
-    <section aria-label={paperSheetTitle} className="flex flex-col gap-4 break-before-page">
+    <section
+      aria-label={paperSheetTitle}
+      className={`flex flex-col gap-4 ${newSheet ? 'break-before-page' : ''}`}
+    >
       <div className="flex flex-col gap-1.5">
         <h2 className="text-[22px] leading-7 font-extrabold">{paperSheetTitle}</h2>
         <p className="text-sm">

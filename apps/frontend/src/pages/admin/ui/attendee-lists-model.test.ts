@@ -209,6 +209,12 @@ describe('selection', () => {
     expect(printLabel(1)).toBe('Imprimir 1 lista');
     expect(printLabel(3)).toBe('Imprimir 3 listas');
   });
+
+  it('prints the paper sheet alone when no list is checked (#393)', () => {
+    expect(printLabel(0, true)).toBe('Imprimir hoja de inscripciones');
+    expect(printLabel(0, false)).toBe('Elige una lista para imprimir');
+    expect(printLabel(2, true)).toBe('Imprimir 2 listas');
+  });
 });
 
 describe('freshness', () => {
@@ -328,13 +334,18 @@ describe('printout', () => {
   const options = { cover: false, paper: false, sheetPerList: false };
 
   it('estimates letter sheets: lists flow together, or each starts a sheet', () => {
-    expect(estimateSheets([], { ...options, cover: true, paper: true })).toBe(0);
+    expect(estimateSheets([], { ...options, cover: true })).toBe(0);
     expect(estimateSheets([sized(10), sized(4), sized(5)], options)).toBe(1);
     expect(
       estimateSheets([sized(10), sized(4), sized(5)], { ...options, sheetPerList: true }),
     ).toBe(3);
     expect(estimateSheets([sized(60)], options)).toBe(3);
     expect(estimateSheets([sized(10)], { ...options, cover: true, paper: true })).toBe(3);
+  });
+
+  it('estimates one sheet for the paper sheet alone, with no cover (#393)', () => {
+    expect(estimateSheets([], { ...options, paper: true })).toBe(1);
+    expect(estimateSheets([], { ...options, cover: true, paper: true })).toBe(1);
   });
 
   it('names the size of the PDF', () => {

@@ -41,6 +41,7 @@ The first implementation may seed or manually provision admin identities. Public
 | Step              | Requirement                                                                                                                           |
 | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
 | Sign in           | Server verifies username/password and creates an opaque PostgreSQL session when accepted.                                             |
+| Replaced session  | An accepted sign-in revokes the unexpired session in the cookie it replaces and audits `session_revoked` for its owner (#392).        |
 | Browser storage   | Only the session identifier reaches the browser, in an `HttpOnly`, `Secure`, `SameSite` cookie.                                       |
 | Session check     | Protected APIs read the cookie and validate the server-side session, expiry, revocation state, identity state, role, and event scope. |
 | Sign out          | Server revokes the current session and clears the cookie.                                                                             |
@@ -49,6 +50,8 @@ The first implementation may seed or manually provision admin identities. Public
 | CSRF/origin       | State-changing auth endpoints, including sign-in and sign-out, are not usable until CSRF and origin protections are implemented.      |
 
 Session lifetime, renewal policy, exact cookie name, and production Argon2id parameters must be selected in the implementation slice before release use.
+
+A browser holds one admin session: the cookie name is fixed, so every tab shares it, signing out in one tab ends it for all of them, and a second sign-in replaces the first (#392). Several admin sessions in one browser are not supported.
 
 ## Protected admin API boundary
 
@@ -90,6 +93,12 @@ The exact status-code split may be chosen during implementation, but responses m
 4. Avoid storing passwords, password hashes, or session tokens in frontend state.
 
 The existing in-memory session entity may cache the current server-reported user for rendering, but the backend remains authoritative for protected API decisions.
+
+Because other tabs share the session (#392), the boundary keeps the cached user honest:
+
+- Admin clients fetch through `adminFetch` (`@/shared/api`), which reports every `401`. The boundary then clears the session and shows the sign-in form with "Tu sesión terminó. Inicia sesión de nuevo para continuar.". A `403` stays a "Sin acceso" message on the screen.
+- When the tab regains focus or becomes visible, the boundary reads `GET /auth/session` again. A `401` ends the session the same way; a different user shows "Hay otra sesión abierta" instead of the open screen.
+- After activation, the boundary never enters an open session: it shows "Hay otra sesión abierta" with the activated email and the session owner's name. "Cerrar la sesión de …" signs that session out and shows the sign-in form for the activated email; "Continuar como …" keeps it and starts again from `/admin`.
 
 `POST /auth/admin/sign-in` and `GET /auth/session` return `user.globalAdmin`: `true` when the user has an active `admin` role in `global` scope (#214). The admin UI uses it only to show the Equipo screens; every team request is still checked on the server.
 
@@ -208,7 +217,7 @@ The public activation page reads the token from the link fragment and sends it i
 
 - Any link that cannot be used (unknown, malformed, expired, used, cancelled, replaced by a newer link, or for a deactivated user) gets the same `410 { statusCode: 410, message: "Invalid or expired link", code: "invalid_link" }`, so the response never reveals which case applies.
 - `failedRules` lists the ids from the shared password policy (`min_length`, `max_length`, `lowercase`, `uppercase`, `digit`, `symbol`, `no_control_characters`). The password is checked before the token, and a weak password leaves the link open.
-- Activation stores the Argon2id hash, marks the invitation used, revokes every existing session of the user, and writes `admin_team_audit` `activated` with the invitee as actor, no session and `details.revokedSessions`. It does not sign the user in; the frontend sends them to sign-in.
+- Activation stores the Argon2id hash, marks the invitation used, revokes every existing session of the user, and writes `admin_team_audit` `activated` with the invitee as actor, no session and `details.revokedSessions`. It does not sign the user in; the frontend sends them to sign-in, or to "Hay otra sesión abierta" when the browser already holds another admin's session (#392).
 - No `/auth/*` route (sign-in, activation check, activation) is rate limited yet. The 256-bit token makes guessing a link impractical; per-IP throttling for these routes is a follow-up.
 
 ## Explicit exclusions

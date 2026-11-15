@@ -1,4 +1,4 @@
-import { apiUrl } from '@/shared/api';
+import { adminFetch, apiUrl } from '@/shared/api';
 import { userRoles, type User, type UserSession } from './types';
 
 // Select only identity fields; neither the sign-in CSRF response nor other credentials
@@ -25,8 +25,9 @@ function readSession(value: unknown): UserSession {
   return { user: safeUser, ...(expiresAt ? { expiresAt } : {}) };
 }
 
+// A `401` here also reports the ended session (#392), so a re-check on focus ends it too.
 export async function getSession(signal: AbortSignal): Promise<UserSession> {
-  const response = await fetch(apiUrl('/auth/session'), { credentials: 'include', signal });
+  const response = await adminFetch(apiUrl('/auth/session'), { credentials: 'include', signal });
   if (!response.ok) throw new Error('Session unavailable');
   return readSession(await response.json());
 }

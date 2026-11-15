@@ -102,7 +102,7 @@ The organizers call the competitive activities "categorías", so every screen sa
 
 The router is a data router (`createBrowserRouter` with `RouterProvider`, in `app/router`), so screens can use data-router APIs such as `useBlocker`. Route paths live in `@/shared/config` `routes`.
 
-`AdminSessionBoundary` protects the `/admin` route area by checking the backend-reported server session and rendering the minimal sign-in state when admin access is unavailable. `RoleAreaBoundary` remains available for route areas that do not yet enforce access; it must not create mock authentication.
+`AdminSessionBoundary` protects the `/admin` route area by checking the backend-reported server session and rendering the minimal sign-in state when admin access is unavailable. The browser holds one session for every tab (#392): admin clients fetch through `adminFetch` from `@/shared/api`, which reports a `401` to the boundary, so it returns to sign-in with a session-ended notice; the boundary re-reads the session when the tab regains focus; and when the session belongs to another account (after activation, or another sign-in elsewhere) it shows "Hay otra sesión abierta" (`account-in-use.tsx`) before entering. See the [admin auth boundary](contracts/admin-auth-boundary.md#frontend-route-boundary). `RoleAreaBoundary` remains available for route areas that do not yet enforce access; it must not create mock authentication.
 
 ## Workspace Reuse
 

@@ -141,7 +141,7 @@ export function ConfirmedView({ headingRef, slug, status }: ViewProps & { status
               <span className="font-semibold text-heading">{pass.name}</span>
               {pass.competitions.length > 0 ? (
                 <span className="text-sm text-muted">
-                  Competencias: {pass.competitions.join(', ')}
+                  Categorías: {pass.competitions.join(', ')}
                 </span>
               ) : null}
             </li>

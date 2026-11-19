@@ -8,7 +8,8 @@ import {
   validateBuyer,
   type BuyerField,
 } from '@/features/public-purchase';
-import { Notice, TextField } from '@/shared/ui';
+import { phoneModes, type PhoneMode } from '@/entities/participant';
+import { CheckIcon, Notice, TextField } from '@/shared/ui';
 import { continueButtonClass, PublicFrame, StepBar, StepProgress } from '@/widgets/public-layout';
 import { useEffect, useState, type ComponentProps, type FormEvent } from 'react';
 import { Navigate, useNavigate } from 'react-router';
@@ -39,13 +40,8 @@ const fieldSetup: Record<BuyerField, FieldSetup> = {
     type: 'email',
     autoComplete: 'email',
   },
-  phone: {
-    label: buyerFieldLabels.phone,
-    prefix: '+52',
-    type: 'tel',
-    inputMode: 'tel',
-    autoComplete: 'tel-national',
-  },
+  // The prefix, hint and placeholder depend on the phone mode (`phoneSetup`).
+  phone: { label: buyerFieldLabels.phone, type: 'tel', inputMode: 'tel' },
   city: { label: buyerFieldLabels.city, optional: true, autoComplete: 'address-level2' },
   instagram: {
     label: buyerFieldLabels.instagram,
@@ -61,6 +57,35 @@ const fieldSetup: Record<BuyerField, FieldSetup> = {
     autoComplete: 'bday',
   },
 };
+
+// The phone field per mode (#390): a fixed +52 before the 10 national digits, or the full
+// number with its country code. `autoComplete` asks the browser for the matching part.
+const phoneSetup: Record<PhoneMode, FieldSetup> = {
+  mx: {
+    label: buyerFieldLabels.phone,
+    prefix: '+52',
+    hint: '10 dígitos, sin lada de país.',
+    placeholder: '33 1234 5678',
+    autoComplete: 'tel-national',
+  },
+  international: {
+    label: buyerFieldLabels.phone,
+    hint: 'Incluye la lada de tu país, por ejemplo +1.',
+    placeholder: '+1 555 123 4567',
+    autoComplete: 'tel',
+  },
+};
+
+const phoneModeLabels: Record<PhoneMode, string> = {
+  mx: 'México +52',
+  international: 'Otro país',
+};
+
+// A segmented radio control: each label wraps a radio stretched over it, so the whole segment is
+// the 44px target. The chosen one takes the selected chip tokens and a CheckIcon, so it differs
+// in lightness, not only hue.
+const segment =
+  'relative flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-md px-3 text-center text-sm font-semibold text-fg has-checked:bg-chip-selected has-checked:text-chip-selected-fg has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-focus';
 
 const inputId = (field: BuyerField) => `buyer-${field}`;
 
@@ -100,6 +125,7 @@ export function PublicBuyerPage() {
   const input = (field: BuyerField) => (
     <TextField
       {...fieldSetup[field]}
+      {...(field === 'phone' ? phoneSetup[buyer.phoneMode] : {})}
       id={inputId(field)}
       name={field}
       maxLength={buyerMaxLength[field]}
@@ -135,7 +161,28 @@ export function PublicBuyerPage() {
           </div>
           {input('stageName')}
           {input('email')}
-          {input('phone')}
+          <div className="flex flex-col gap-1">
+            <fieldset>
+              <legend className="text-sm font-semibold text-fg">País de tu teléfono</legend>
+              <div className="mt-1 flex gap-1 rounded-lg border border-input-line bg-input p-1">
+                {phoneModes.map((mode) => (
+                  <label key={mode} className={segment}>
+                    <input
+                      type="radio"
+                      name="phoneMode"
+                      value={mode}
+                      checked={buyer.phoneMode === mode}
+                      onChange={() => setBuyer({ ...buyer, phoneMode: mode })}
+                      className="absolute inset-0 m-0 cursor-pointer appearance-none rounded-md"
+                    />
+                    {buyer.phoneMode === mode ? <CheckIcon /> : null}
+                    {phoneModeLabels[mode]}
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+            {input('phone')}
+          </div>
           <details
             open={detailsOpen}
             onToggle={(event) => setDetailsOpen(event.currentTarget.open)}

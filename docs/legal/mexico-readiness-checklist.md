@@ -6,7 +6,7 @@ Planning checklist for counsel and operations before operating the event system 
 
 - [ ] **Pending:** Identify personal, sensitive, and operational data collected for accounts, registrations, roles, sessions, communications, and event operations.
 - [ ] **Pending:** Obtain counsel's review of privacy notices, consent or other lawful bases, rights-request handling, and processor/vendor terms.
-- [ ] **Pending:** Define approved retention, archival, deletion, and backup-deletion schedules by data category.
+- [ ] **Pending:** Define approved retention, archival, deletion, and backup-deletion schedules by data category. The registration operation audit (the admin "Historial", #104) is kept indefinitely today; its desired two-year period and mechanism are tracked in [#307](https://github.com/KevinBarrera/nuestro-breaking/issues/307).
 - [ ] **Pending:** Confirm security, access-control, incident-notification, and breach-response obligations.
 
 ## Participants and Events
@@ -31,13 +31,13 @@ Planning checklist for counsel and operations before operating the event system 
 
 ## Review Record
 
-| Item or decision                                     | Status  | Owner      | Review date | Evidence / link |
-| ---------------------------------------------------- | ------- | ---------- | ----------- | --------------- |
-| Mexico legal readiness review                        | Pending | Unassigned | Pending     | Pending         |
-| Privacy and retention decision                       | Pending | Unassigned | Pending     | Pending         |
-| Minor, waiver, and medical-record decision           | Pending | Unassigned | Pending     | Pending         |
-| Commercial, tax, invoice, prize, and payout decision | Pending | Unassigned | Pending     | Pending         |
-| Terms, refunds, consent, and marketing decision      | Pending | Unassigned | Pending     | Pending         |
-| Venue, permits, contracts, and cross-border decision | Pending | Unassigned | Pending     | Pending         |
+| Item or decision                                     | Status  | Owner      | Review date | Evidence / link                  |
+| ---------------------------------------------------- | ------- | ---------- | ----------- | -------------------------------- |
+| Mexico legal readiness review                        | Pending | Unassigned | Pending     | Pending                          |
+| Privacy and retention decision                       | Pending | Unassigned | Pending     | Pending; audit retention in #307 |
+| Minor, waiver, and medical-record decision           | Pending | Unassigned | Pending     | Pending                          |
+| Commercial, tax, invoice, prize, and payout decision | Pending | Unassigned | Pending     | Pending                          |
+| Terms, refunds, consent, and marketing decision      | Pending | Unassigned | Pending     | Pending                          |
+| Venue, permits, contracts, and cross-border decision | Pending | Unassigned | Pending     | Pending                          |
 
 Do not treat this checklist, or completion of any individual item, as a determination that the product or event complies with applicable law.

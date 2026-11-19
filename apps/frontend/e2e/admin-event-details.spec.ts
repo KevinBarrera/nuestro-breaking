@@ -26,6 +26,9 @@ const event = {
   endsAt: '2026-11-16T02:00:00.000Z',
   salesEnabled: false,
   archivedAt: null as string | null,
+  city: 'Guadalajara' as string | null,
+  state: 'Jalisco' as string | null,
+  country: 'MX' as string | null,
 };
 
 const foundation = (overrides: Partial<typeof event> = {}, venues = [centro]) => ({
@@ -39,7 +42,10 @@ const centro = { id: venueId, name: 'Centro cultural' };
 const main = (page: Page) => page.getByRole('main');
 const form = (page: Page) => main(page).getByRole('form', { name: 'Datos del evento' });
 const venues = (page: Page) => main(page).getByRole('region', { name: 'Sedes' });
-const saveButton = (page: Page) => form(page).getByRole('button', { name: 'Guardar cambios' });
+// The save and discard buttons live in a bar that shows only while General has edits.
+const unsavedBar = (page: Page) => main(page).getByRole('region', { name: 'Cambios sin guardar' });
+const saveButton = (page: Page) =>
+  unsavedBar(page).getByRole('button', { name: 'Guardar cambios' });
 
 async function openDetails(page: Page, json: unknown = foundation(), session?: unknown) {
   await mockSession(page, session);
@@ -89,13 +95,15 @@ test('shows the event data on its own clock, the fixed fields and the venues', a
   );
   await expect(form(page).getByLabel('Inicio')).toHaveValue('2026-11-14T10:00');
   await expect(form(page).getByLabel('Fin')).toHaveValue('2026-11-15T20:00');
-  const locked = form(page).getByRole('region', { name: 'Fijos desde la creación' });
-  await expect(locked).toContainText('/e/encuentro-del-barrio');
-  await expect(locked).toContainText('EB');
-  await expect(locked).toContainText('los folios emitidos usan este prefijo');
-  // Nothing changed yet.
-  await expect(saveButton(page)).toBeDisabled();
-  await expect(form(page).getByRole('button', { name: 'Descartar cambios' })).toBeDisabled();
+  await expect(form(page).getByLabel('Ciudad', { exact: true })).toHaveValue('Guadalajara');
+  await expect(form(page).getByLabel('Estado', { exact: true })).toHaveValue('Jalisco');
+  await expectSelected(selectTrigger(form(page), 'País'), 'México');
+  const identifiers = main(page).getByRole('region', { name: 'Identificadores' });
+  await expect(identifiers).toContainText('/e/encuentro-del-barrio');
+  await expect(identifiers).toContainText('EB · por ejemplo EB-7K3Q');
+  await expect(identifiers).toContainText('los folios emitidos usan este prefijo');
+  // Nothing changed yet, so there is nothing to save.
+  await expect(unsavedBar(page)).toHaveCount(0);
   await expect(venues(page).getByRole('listitem')).toHaveText([/^Centro cultural/]);
   const header = page.getByRole('banner', { name: 'Espacio de administración' });
   await expect(header.getByText('Datos del evento')).toBeVisible();
@@ -104,6 +112,29 @@ test('shows the event data on its own clock, the fixed fields and the venues', a
     'aria-current',
     'page',
   );
+});
+
+test('fills in the location of an event created without one', async ({ page }) => {
+  await openDetails(page, foundation({ city: null, state: null, country: null }));
+  await expect(form(page).getByLabel('Ciudad', { exact: true })).toHaveValue('');
+  await expectSelected(selectTrigger(form(page), 'País'), 'México');
+  await expect(unsavedBar(page)).toHaveCount(0);
+  const patch = await capturePatch(page, (body) => ({ json: { ...event, ...body } }));
+  await form(page).getByLabel('Ciudad', { exact: true }).fill('Bogotá');
+  await saveButton(page).click();
+  // Once a city is typed, the whole location is required.
+  await expect(form(page).getByLabel('Estado', { exact: true })).toHaveAccessibleDescription(
+    /Escribe el estado\./,
+  );
+  await expect(form(page).getByLabel('Estado', { exact: true })).toBeFocused();
+  expect(patch.bodies).toEqual([]);
+  await form(page).getByLabel('Estado', { exact: true }).fill('Cundinamarca');
+  await chooseOption(selectTrigger(form(page), 'País'), 'Colombia');
+  await saveButton(page).click();
+  await expect(
+    main(page).getByRole('status').filter({ hasText: 'Cambios guardados.' }),
+  ).toBeVisible();
+  expect(patch.bodies).toEqual([{ city: 'Bogotá', state: 'Cundinamarca', country: 'CO' }]);
 });
 
 test('saves only the changed fields and shows the saved values', async ({ page }) => {
@@ -121,7 +152,7 @@ test('saves only the changed fields and shows the saved values', async ({ page }
   expect(patch.csrf).toEqual(['csrf-token']);
   await expect(form(page).getByLabel('Nombre del evento')).toHaveValue('Encuentro del barrio 2026');
   await expect(form(page).getByLabel('Fin')).toHaveValue('2026-11-15T22:00');
-  await expect(saveButton(page)).toBeDisabled();
+  await expect(unsavedBar(page)).toHaveCount(0);
 });
 
 test('changing the zone keeps the typed times and sends the new instants', async ({ page }) => {
@@ -167,23 +198,38 @@ test('a server field error is mapped to its field', async ({ page }) => {
   await expect(form(page).getByLabel('Fin')).toBeFocused();
 });
 
-test('Descartar cambios brings back the stored values', async ({ page }) => {
+test('Descartar brings back the stored values', async ({ page }) => {
   await openDetails(page);
   const name = form(page).getByLabel('Nombre del evento');
   await name.fill('Otro nombre');
+  await expect(unsavedBar(page)).toContainText('Tienes cambios sin guardar');
   await expect(saveButton(page)).toBeEnabled();
-  await form(page).getByRole('button', { name: 'Descartar cambios' }).click();
+  await unsavedBar(page).getByRole('button', { name: 'Descartar' }).click();
   await expect(name).toHaveValue('Encuentro del barrio');
-  await expect(saveButton(page)).toBeDisabled();
+  await expect(unsavedBar(page)).toHaveCount(0);
+});
+
+test('Copiar copies the purchase address and says so', async ({ page, context }) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  await openDetails(page);
+  const identifiers = main(page).getByRole('region', { name: 'Identificadores' });
+  await identifiers.getByRole('button', { name: 'Copiar' }).click();
+  await expect(identifiers.getByRole('button', { name: 'Copiada' })).toBeVisible();
+  await expect(identifiers.getByRole('status')).toHaveText('Dirección copiada.');
+  const origin = new URL(page.url()).origin;
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
+    `${origin}/e/encuentro-del-barrio`,
+  );
 });
 
 test('unsaved edits ask before leaving the page', async ({ page }) => {
   await openDetails(page);
   await form(page).getByLabel('Nombre del evento').fill('Otro nombre');
-  await page
-    .getByRole('navigation', { name: 'Navegación administrativa' })
-    .getByRole('link', { name: 'Pases' })
-    .click();
+  const nav = page.getByRole('navigation', { name: 'Navegación administrativa' });
+  // Opening a group is not leaving the page; following one of its links is.
+  await nav.getByRole('button', { name: 'Catálogo' }).click();
+  await expect(page.getByRole('alertdialog')).toHaveCount(0);
+  await nav.getByRole('link', { name: 'Pases' }).click();
   await expect(page.getByRole('alertdialog')).toBeVisible();
   await expect(page).toHaveURL(new RegExp(`${detailsPath}$`));
 });
@@ -204,7 +250,9 @@ test('a judge sees the data read-only', async ({ page }) => {
   });
   await expect(main(page)).toContainText('Solo lectura');
   await expect(form(page).getByLabel('Nombre del evento')).toHaveAttribute('readonly');
-  await expect(form(page).getByRole('button')).toHaveCount(1); // the zone select only
+  await expect(form(page).getByRole('button')).toHaveCount(2); // the country and zone selects only
+  await expect(form(page).getByLabel('Ciudad', { exact: true })).toHaveAttribute('readonly');
+  await expect(selectTrigger(form(page), 'País')).toBeDisabled();
   await expect(selectTrigger(form(page), 'Zona horaria')).toBeDisabled();
   await expect(venues(page).getByRole('button')).toHaveCount(0);
   await expect(venues(page)).toContainText('Centro cultural');
@@ -317,7 +365,7 @@ test('a venue added while a save is pending stays after the save answers', async
   );
   await form(page).getByLabel('Nombre del evento').fill('Encuentro 2026');
   await saveButton(page).click();
-  await expect(form(page).getByRole('button', { name: 'Guardando…' })).toBeVisible();
+  await expect(unsavedBar(page).getByRole('button', { name: 'Guardando…' })).toBeVisible();
 
   const section = venues(page);
   await section.getByRole('button', { name: 'Agregar sede' }).click();
@@ -358,10 +406,10 @@ test('switching events while a save is pending opens the other event', async ({ 
   await page.goto(detailsPath);
   await form(page).getByLabel('Nombre del evento').fill('Encuentro 2026');
   await saveButton(page).click();
-  await expect(form(page).getByRole('button', { name: 'Guardando…' })).toBeVisible();
+  await expect(unsavedBar(page).getByRole('button', { name: 'Guardando…' })).toBeVisible();
 
-  const header = page.getByRole('banner', { name: 'Espacio de administración' });
-  await chooseOption(selectTrigger(header, 'Evento'), 'Otro evento');
+  const nav = page.getByRole('navigation', { name: 'Navegación administrativa' });
+  await chooseOption(selectTrigger(nav, 'Evento'), 'Otro evento');
   await expect(page).toHaveURL(new RegExp(`/admin/events/${otherId}/foundation$`));
   await expect(form(page).getByLabel('Nombre del evento')).toHaveValue('Otro evento');
 
@@ -425,18 +473,17 @@ test('keeps the header and navigation usable at 375px and opens the overview', a
   await page.setViewportSize({ width: 375, height: 800 });
   await openDetails(page);
   const header = page.getByRole('banner', { name: 'Espacio de administración' });
-  const selector = selectTrigger(header, 'Evento');
+  const nav = page.getByRole('navigation', { name: 'Navegación administrativa' });
+  // The event selector sits in the side navigation (#313), not in the header.
+  await expect(selectTrigger(header, 'Evento')).toHaveCount(0);
+  const selector = selectTrigger(nav, 'Evento');
   await expectSelected(selector, 'Encuentro del barrio');
   await expect(header.getByText(eventId)).toHaveCount(0);
-  const home = page
-    .getByRole('navigation', { name: 'Navegación administrativa' })
-    .getByRole('link', { name: 'Resumen' });
+  const home = nav.getByRole('link', { name: 'Resumen' });
   await page.keyboard.press('Tab');
   await expect(
     header.getByRole('link', { name: 'Los más pesados, ir a todos los eventos' }),
   ).toBeFocused();
-  await page.keyboard.press('Tab');
-  await expect(selector).toBeFocused();
   await page.keyboard.press('Tab');
   await expect(header.getByRole('button', { name: 'Cambiar a tema oscuro' })).toBeFocused();
   await page.keyboard.press('Tab');
@@ -447,6 +494,16 @@ test('keeps the header and navigation usable at 375px and opens the overview', a
       .getByRole('navigation', { name: 'Navegación administrativa' })
       .getByRole('link', { name: 'Todos los eventos' }),
   ).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(nav.getByRole('link', { name: 'Equipo' })).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(selector).toBeFocused();
+  // Datos del evento opens only Configuración; Operación opens from the keyboard.
+  await page.keyboard.press('Tab');
+  const operation = nav.getByRole('button', { name: 'Operación' });
+  await expect(operation).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(operation).toHaveAttribute('aria-expanded', 'true');
   await page.keyboard.press('Tab');
   await expect(home).toBeFocused();
   const scrollWidth = await page.evaluate(

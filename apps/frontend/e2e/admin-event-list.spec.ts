@@ -16,6 +16,8 @@ import {
 const main = (page: Page) => page.getByRole('main');
 const createLink = (page: Page) => main(page).getByRole('link', { name: 'Crear evento' });
 const eventList = (page: Page) => main(page).getByRole('list', { name: 'Eventos', exact: true });
+const activeTab = (page: Page) => main(page).getByRole('tab', { name: /^Activos/ });
+const archivedTab = (page: Page) => main(page).getByRole('tab', { name: /^Archivados/ });
 
 test('a global admin sees every event with its address, folio prefix and Crear evento', async ({
   page,
@@ -27,14 +29,24 @@ test('a global admin sees every event with its address, folio prefix and Crear e
   const first = eventList(page).getByRole('link', { name: sampleEvents[0].name, exact: true });
   await expect(first).toHaveAttribute('href', `/admin/events/${activeEventId}`);
   await expect(first).toContainText('/e/los-mas-pesados-nov-2026');
-  await expect(first).toContainText('Folios LMP-····');
   await expect(eventList(page).getByRole('listitem')).toHaveCount(2);
-  // Global admins ask for archived events too; none here, so no Archivados toggle.
+  // Global admins ask for archived events too, and filter them with the tabs.
   expect(queries).toContain('?archived=true');
-  await expect(main(page).getByRole('button', { name: /^Archivados/ })).toHaveCount(0);
+  await expect(activeTab(page)).toHaveAttribute('aria-selected', 'true');
+  await expect(activeTab(page)).toContainText('2');
+  await expect(archivedTab(page)).toContainText('0');
+  await archivedTab(page).click();
+  await expect(main(page).getByRole('tabpanel')).toContainText('No hay eventos archivados');
+  await expect(main(page).getByRole('tabpanel')).toContainText(
+    'Los eventos que archives desde Datos del evento aparecen aquí y se pueden restaurar.',
+  );
+  // Arrow keys move between the tabs.
+  await page.keyboard.press('ArrowLeft');
+  await expect(activeTab(page)).toBeFocused();
+  await expect(activeTab(page)).toHaveAttribute('aria-selected', 'true');
 });
 
-test('event cards show the dates on the event clock, the zone and the sales switch', async ({
+test('event cards show the dates on the event clock, the location and the sales switch', async ({
   page,
 }) => {
   await mockSession(page);
@@ -43,17 +55,22 @@ test('event cards show the dates on the event clock, the zone and the sales swit
       startsAt: '2026-11-14T16:00:00.000Z',
       endsAt: '2026-11-16T04:00:00.000Z',
       salesEnabled: true,
+      city: 'Guadalajara',
+      state: 'Jalisco',
+      country: 'MX',
     }),
     eventSummary(otherEventId, 'Sin fechas', { timeZone: 'Europe/Madrid' }),
   ]);
   await page.goto('/admin');
   const dated = eventList(page).getByRole('link', { name: 'Con fechas', exact: true });
   await expect(dated).toContainText('14–15 de noviembre de 2026');
-  await expect(dated).toContainText('Ciudad de México');
+  await expect(dated).toContainText('Guadalajara, Jalisco');
   await expect(dated).toHaveAccessibleDescription(/Venta abierta$/);
   const undated = eventList(page).getByRole('link', { name: 'Sin fechas', exact: true });
   await expect(undated).toContainText('Fechas por definir');
-  await expect(undated).toContainText('Europe/Madrid');
+  // Without a location (#322) the card shows none, and never the time zone.
+  await expect(undated).not.toContainText('Europe/Madrid');
+  await expect(undated).not.toContainText('Ciudad de México');
   await expect(undated).toHaveAccessibleDescription(/Venta cerrada$/);
 });
 
@@ -65,7 +82,7 @@ test('an event admin sees their events without Crear evento or archived events',
   await page.goto('/admin');
   await expect(eventList(page).getByRole('listitem')).toHaveCount(2);
   await expect(createLink(page)).toHaveCount(0);
-  await expect(main(page).getByRole('button', { name: /^Archivados/ })).toHaveCount(0);
+  await expect(main(page).getByRole('tablist')).toHaveCount(0);
   expect(queries).not.toContain('?archived=true');
 });
 
@@ -85,12 +102,16 @@ test('first run shows the empty state with the next steps and Crear evento', asy
   await mockEventList(page, () => []);
   await page.goto('/admin');
   const empty = main(page).getByRole('region', { name: 'Aún no hay eventos' });
-  await expect(empty).toContainText('Crea el primer evento para empezar a configurarlo.');
+  await expect(empty).toContainText(
+    'Crea el primero para empezar. Después lo dejas listo en tres pasos.',
+  );
   await expect(empty.getByRole('listitem')).toContainText([
-    'Agregar competencias y workshops',
-    'Crear los pases y sus precios',
-    'Abrir la venta en línea y operar el check-in',
+    'Agrega categorías y workshopsLas actividades que va a tener el evento.',
+    'Crea los pases y sus preciosLo que el público va a comprar.',
+    'Abre la venta y opera el check-inCuando el catálogo esté listo.',
   ]);
+  // No events at all: nothing to filter.
+  await expect(main(page).getByRole('tablist')).toHaveCount(0);
   // One Crear evento, inside the empty state.
   await expect(createLink(page)).toHaveCount(1);
   await empty.getByRole('link', { name: 'Crear evento' }).click();
@@ -105,7 +126,7 @@ test('an event admin without events gets a message and no Crear evento', async (
   await expect(main(page).getByRole('link')).toHaveCount(0);
 });
 
-test('Archivados reveals archived events, and Restaurar brings one back with sales closed', async ({
+test('the Archivados tab lists archived events, and Restaurar brings one back with sales closed', async ({
   page,
 }) => {
   await mockSession(page);
@@ -129,14 +150,13 @@ test('Archivados reveals archived events, and Restaurar brings one back with sal
   await page.goto('/admin');
   // Archived events stay out of the main list.
   await expect(eventList(page).getByRole('listitem')).toHaveCount(2);
-  const toggle = main(page).getByRole('button', { name: 'Archivados (1)' });
-  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
-  await toggle.click();
-  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+  await expect(archivedTab(page)).toContainText('1');
+  await archivedTab(page).click();
+  await expect(archivedTab(page)).toHaveAttribute('aria-selected', 'true');
   const archived = main(page).getByRole('list', { name: 'Eventos archivados' });
   const card = archived.getByRole('article', { name: archivedEvent.name });
   await expect(card).toContainText('Archivado');
-  await expect(card).toContainText('Folios BP-····');
+  await expect(card).toContainText('/e/batalla-de-primavera-2025');
 
   await card.getByRole('button', { name: `Restaurar ${archivedEvent.name}` }).click();
   await expect(main(page).getByRole('status')).toContainText(
@@ -147,7 +167,9 @@ test('Archivados reveals archived events, and Restaurar brings one back with sal
   await expect(
     eventList(page).getByRole('link', { name: archivedEvent.name, exact: true }),
   ).toBeVisible();
-  await expect(main(page).getByRole('button', { name: /^Archivados/ })).toHaveCount(0);
+  // Back on Activos, where the restored event now is.
+  await expect(activeTab(page)).toHaveAttribute('aria-selected', 'true');
+  await expect(archivedTab(page)).toContainText('0');
   await expect(main(page).getByRole('heading', { name: 'Eventos', level: 1 })).toBeFocused();
 });
 
@@ -176,7 +198,7 @@ test('a failed list reload after a restore keeps the list and offers Reintentar'
     },
   );
   await page.goto('/admin');
-  await main(page).getByRole('button', { name: 'Archivados (1)' }).click();
+  await archivedTab(page).click();
   await main(page)
     .getByRole('button', { name: `Restaurar ${archivedEvent.name}` })
     .click();
@@ -193,7 +215,7 @@ test('a failed list reload after a restore keeps the list and offers Reintentar'
   await stale.getByRole('button', { name: 'Reintentar' }).click();
   await expect(stale).toHaveCount(0);
   await expect(eventList(page).getByRole('listitem')).toHaveCount(3);
-  await expect(main(page).getByRole('button', { name: /^Archivados/ })).toHaveCount(0);
+  await expect(archivedTab(page)).toContainText('0');
 });
 
 test('a failed restore keeps the event archived and says why', async ({ page }) => {
@@ -204,13 +226,15 @@ test('a failed restore keeps the event archived and says why', async ({ page }) 
     (route) => route.fulfill({ status: 500, json: { message: 'private' } }),
   );
   await page.goto('/admin');
-  await main(page).getByRole('button', { name: 'Archivados (1)' }).click();
+  await archivedTab(page).click();
   await main(page)
     .getByRole('button', { name: `Restaurar ${archivedEvent.name}` })
     .click();
   await expect(main(page).getByRole('alert')).toContainText('No se pudo completar la operación');
   await expect(page.getByText('private')).toHaveCount(0);
-  await expect(main(page).getByRole('button', { name: 'Archivados (1)' })).toBeVisible();
+  await expect(
+    main(page).getByRole('list', { name: 'Eventos archivados' }).getByRole('article'),
+  ).toHaveCount(1);
 });
 
 test('an archived event still opens its overview, without the event selector', async ({ page }) => {

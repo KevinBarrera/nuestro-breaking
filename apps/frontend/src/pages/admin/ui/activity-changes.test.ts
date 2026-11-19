@@ -12,7 +12,7 @@ const activity: CatalogActivity = {
   id: 'activity-1',
   eventId: 'event-1',
   venueId: 'venue-1',
-  kind: 'battle',
+  kind: 'competition',
   name: 'Batalla de crews',
   startsAt: '2026-11-14T16:00:00.000Z',
   endsAt: '2026-11-14T18:00:00.000Z',
@@ -46,30 +46,31 @@ describe('activityChangeRows', () => {
       timeZone,
     );
     expect(rows).toEqual([
-      { key: 'kind', label: 'Tipo', before: 'Batalla', after: 'Taller' },
-      { key: 'venue', label: 'Sede', before: 'Centro cultural', after: 'Estudio principal' },
+      { key: 'kind', label: 'Tipo', before: 'Categoría', after: 'Taller' },
       {
-        key: 'startsAt',
-        label: 'Inicio',
-        before: expect.stringContaining('10:00') as string,
-        after: expect.stringContaining('11:30') as string,
+        key: 'schedule',
+        label: 'Horario',
+        before: 'Sáb 14 nov, 10:00–12:00',
+        after: 'Sáb 14 nov, 11:30–12:00',
       },
+      { key: 'venue', label: 'Sede', before: 'Centro cultural', after: 'Estudio principal' },
     ]);
   });
 
-  it('lists every value of a new activity against an empty "before"', () => {
-    const rows = activityChangeRows(undefined, unchanged, venues, timeZone);
-    expect(rows.map((row) => [row.label, row.before])).toEqual([
-      ['Nombre', '—'],
-      ['Tipo', '—'],
-      ['Sede', '—'],
-      ['Inicio', '—'],
-      ['Fin', '—'],
-    ]);
-    expect(rows.map((row) => row.after).slice(0, 3)).toEqual([
-      'Batalla de crews',
-      'Batalla',
-      'Centro cultural',
+  it('lists a moved day as one Horario row', () => {
+    const rows = activityChangeRows(
+      activity,
+      { ...unchanged, startsAt: '2026-11-15T16:00:00.000Z', endsAt: '2026-11-15T18:00:00.000Z' },
+      venues,
+      timeZone,
+    );
+    expect(rows).toEqual([
+      {
+        key: 'schedule',
+        label: 'Horario',
+        before: 'Sáb 14 nov, 10:00–12:00',
+        after: 'Dom 15 nov, 10:00–12:00',
+      },
     ]);
   });
 

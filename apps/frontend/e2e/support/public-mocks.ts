@@ -21,6 +21,8 @@ const fullPass = (id: string, discipline: string, competitions: string[]) => ({
   passClass: 'full',
   priceCents: 200000,
   requiresPassClass: null,
+  onlineSalesClosesAt: null,
+  onSale: true,
   selectableActivities: competitions.map((name, index) =>
     competition(`${id}-${index}`, name, `2026-11-21T${16 + index}:00:00.000Z`),
   ),
@@ -36,6 +38,8 @@ const passes = [
     passClass: 'general',
     priceCents: 100000,
     requiresPassClass: null,
+    onlineSalesClosesAt: null,
+    onSale: true,
     selectableActivities: [],
     includedActivities: [],
   },
@@ -45,6 +49,8 @@ const passes = [
     passClass: 'add_on',
     priceCents: 80000,
     requiresPassClass: 'full',
+    onlineSalesClosesAt: null,
+    onSale: true,
     selectableActivities: [],
     includedActivities: [competition('open-1v1', 'Open Styles 1vs1', '2026-11-23T01:00:00.000Z')],
   },
@@ -58,15 +64,27 @@ const event = {
   endsAt: '2026-11-23T04:00:00.000Z',
 };
 
+// Placeholder Mercado Pago rates (#239): 3.49% + $4.00 before 16% VAT, so $2,800.00 of passes
+// carries a $122.98 service charge.
+const serviceCharge = { rateBasisPoints: 349, fixedCents: 400, vatBasisPoints: 1600 };
+
 export const openCatalog = {
   event,
   sales: { state: 'open', reason: null, opensAt: null, closesAt: null },
+  serviceCharge,
   passes,
 };
+
+// The open catalog of an event with a location (#330); the default catalog has none.
+export const locatedCatalog = (city: string, state: string, country: string) => ({
+  ...openCatalog,
+  event: { ...event, city, state, country },
+});
 
 export const closedCatalog = (reason: 'disabled' | 'not_yet_open' | 'ended', opensAt?: string) => ({
   event,
   sales: { state: 'closed', reason, opensAt: opensAt ?? null, closesAt: null },
+  serviceCharge,
   passes: [],
 });
 
@@ -233,7 +251,8 @@ export const paymentStatusBody = (status: PaymentStatusValue) => ({
     { name: 'Pase completo Breaking', competitions: ['Breaking Bboy', 'Breaking 3v3'] },
     { name: 'Open Styles', competitions: [] },
   ],
-  totalCents: 280000,
+  serviceChargeCents: 12298,
+  totalCents: 292298,
 });
 
 type PaymentStatusReply = { status: number; json?: unknown } | 'network-error';

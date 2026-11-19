@@ -15,7 +15,7 @@ const toggleTone = (selected: boolean) =>
     ? 'border-chip-selected bg-chip-selected text-chip-selected-fg'
     : 'border-input-line bg-surface text-heading hover:bg-row';
 
-// Screen 3 (Elige tus competencias), optional: one group of toggle buttons per chosen pass with
+// Screen 3 (Elige tus categorías), optional: one group of toggle buttons per chosen pass with
 // competitions to pick, and the competitions a pass includes marked "Incluida".
 export function PublicCompetitionsPage() {
   const { slug, catalog, selection, setSelection } = usePurchase();
@@ -31,7 +31,7 @@ export function PublicCompetitionsPage() {
       <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-4 px-5 py-5">
         <StepProgress step={stepNumber('competitions')} total={purchaseStepCount} />
         <h1 className="text-[26px] leading-tight font-extrabold text-heading">
-          Elige tus competencias
+          Elige tus categorías
         </h1>
         <p className="text-muted">
           Es opcional. Marca en las que quieres competir; si cambias de opinión, la organización

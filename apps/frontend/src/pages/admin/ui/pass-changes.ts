@@ -1,4 +1,5 @@
 import {
+  formatEventTime,
   formatMxn,
   type CatalogActivity,
   type CatalogPassType,
@@ -10,20 +11,24 @@ import { accessLabels, passClassLabels } from './catalog-copy';
 
 const empty = '—';
 const noAccess = 'Sin acceso';
+const followsEvent = 'Mientras el evento venda';
 
 // Rows for "Revisar cambios" on a pass: each changed field in the words the organizer reads on
-// the pass screens (class label, price in pesos, required class). A new pass has no `before`,
-// so its fields are listed against "—"; it starts with no required class, so "Ninguno" is only
-// listed when an add-on actually requires one.
+// the pass screens (class label, price in pesos, required class, online close time on the event's
+// clock). A new pass has no `before`, so its fields are listed against "—"; it starts with no
+// required class and no close time, so those are only listed when they are set.
 export function passFieldRows(
   before: CatalogPassType | undefined,
   after: PassTypeInput,
+  timeZone: string,
 ): ChangeRow[] {
   const classLabel = (value: unknown) =>
     value === undefined ? empty : passClassLabels[value as PassTypeInput['passClass']];
   const price = (value: unknown) => (value === undefined ? empty : formatMxn(value as number));
   const required = (value: unknown) =>
     value ? passClassLabels[value as PassTypeInput['passClass']] : 'Ninguno';
+  const closes = (value: unknown) =>
+    value ? `Hasta el ${formatEventTime(value as string, timeZone)}` : followsEvent;
 
   return changedRows([
     { key: 'name', label: 'Nombre', before: before?.name, after: after.name },
@@ -48,8 +53,20 @@ export function passFieldRows(
       after: after.requiresPassClass,
       format: required,
     },
+    {
+      key: 'onlineSalesClosesAt',
+      label: 'Venta en línea',
+      before: before ? before.onlineSalesClosesAt : null,
+      after: after.onlineSalesClosesAt,
+      format: closes,
+    },
   ]);
 }
+
+const accessKey = 'access:';
+
+// Whether a review row is an access row (from `passAccessRows`) rather than a field row.
+export const isAccessRow = (row: ChangeRow) => row.key.startsWith(accessKey);
 
 // One row per activity whose access changes, labeled with the activity name and read as
 // "Sin acceso → Incluida". Rows follow `activities` (the access list order); a link to an
@@ -72,7 +89,7 @@ export function passAccessRows(
   );
   return changedRows(
     ids.map((id) => ({
-      key: `access:${id}`,
+      key: `${accessKey}${id}`,
       label: name(id),
       before: label(before, id),
       after: label(after, id),

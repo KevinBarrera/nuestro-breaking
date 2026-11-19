@@ -1,3 +1,4 @@
+import { isPhoneMode } from '@/entities/participant';
 import { buyerFields, emptyBuyerForm, type BuyerForm } from './buyer-form';
 import { emptySelection, type PurchaseSelection } from './purchase-selection';
 
@@ -41,6 +42,8 @@ function readBuyer(value: unknown): BuyerForm {
     const text = row[field];
     if (typeof text === 'string') buyer[field] = text;
   }
+  // Drafts saved before #390 have no phone mode; they were Mexican numbers.
+  if (isPhoneMode(row.phoneMode)) buyer.phoneMode = row.phoneMode;
   return buyer;
 }
 

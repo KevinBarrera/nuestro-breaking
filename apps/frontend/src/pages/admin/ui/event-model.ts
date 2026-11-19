@@ -29,11 +29,50 @@ export function eventDates(event: Pick<AdminEvent, 'startsAt' | 'endsAt' | 'time
   }).formatRange(new Date(event.startsAt), new Date(event.endsAt));
 }
 
+// The date tile of an event card (#323): the month and year over the days, on the event's own
+// clock, e.g. "Nov 2026" over "21–22". An event across a month change shows both months.
+export type DateTile = { month: string; days: string };
+
+function calendarDay(instant: string, timeZone: string) {
+  const parts = new Intl.DateTimeFormat('es-MX', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    timeZone,
+  }).formatToParts(new Date(instant));
+  const part = (type: string) => parts.find((candidate) => candidate.type === type)?.value ?? '';
+  const month = part('month').replace('.', '');
+  return {
+    day: part('day'),
+    month: month.charAt(0).toUpperCase() + month.slice(1),
+    year: part('year'),
+  };
+}
+
+export function eventDateTile(
+  event: Pick<AdminEvent, 'startsAt' | 'endsAt' | 'timeZone'>,
+): DateTile | null {
+  if (!event.startsAt || !event.endsAt) return null;
+  const start = calendarDay(event.startsAt, event.timeZone);
+  const end = calendarDay(event.endsAt, event.timeZone);
+  const sameMonth = start.month === end.month && start.year === end.year;
+  const month = sameMonth
+    ? `${start.month} ${start.year}`
+    : start.year === end.year
+      ? `${start.month}–${end.month} ${end.year}`
+      : `${start.month} ${start.year}–${end.month} ${end.year}`;
+  const days = sameMonth && start.day === end.day ? start.day : `${start.day}–${end.day}`;
+  return { month, days };
+}
+
 // The city of a zone from the Nuevo evento list, or the zone id for any other zone.
 export function eventZoneName(timeZone: string): string {
   const option = timeZoneOptions.find((candidate) => candidate.id === timeZone);
   return option ? option.label.replace(/ \(.*\)$/, '') : timeZone;
 }
+
+// Where the event happens (#322); shared with the public pages (#330).
+export { eventLocation } from '@/entities/event-catalog';
 
 // The card chip follows the sales switch only: the list does not carry the sales window, so
 // an event with sales on but outside its window still reads "Venta abierta" here. The event
@@ -45,8 +84,6 @@ export function salesChip(salesEnabled: boolean): SalesChip {
     ? { label: 'Venta abierta', tone: 'open' }
     : { label: 'Venta cerrada', tone: 'closed' };
 }
-
-export const folioPattern = (prefix: string) => `${prefix}-····`;
 
 export const restoredNotice = (name: string) =>
   `«${name}» volvió a la lista de eventos. La venta en línea sigue cerrada: ábrela desde el resumen del evento cuando esté lista.`;

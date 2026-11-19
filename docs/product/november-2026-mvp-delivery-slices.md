@@ -26,9 +26,9 @@ Source shorthand:
 | #   | Slice                                          | Main gap today                                                                           | Suggested order                      |
 | --- | ---------------------------------------------- | ---------------------------------------------------------------------------------------- | ------------------------------------ |
 | 1   | Pass entitlements and optional activities      | Delivered via #124; see the [event catalog contract](../contracts/event-catalog.md).     | 1st                                  |
-| 2   | Manual registration, duplicates, cash receipt  | Duplicates are hard-blocked; receipt is optional; fields differ from #58.                | 2nd (parallel with 1 where possible) |
+| 2   | Manual registration, duplicates, cash receipt  | Backend delivered via #125; admin UI (#105) pending.                                     | 2nd (parallel with 1 where possible) |
 | 3   | One-action check-in with on-arrival enrollment | Two visible actions; activity check-in needs prior event fact and prior enrollment.      | 3rd                                  |
-| 4   | Paper lists and paper contingency              | No list or print view exists; contingency is a runbook only.                             | 4th (can start after 1)              |
+| 4   | Paper lists and paper contingency              | Delivered via #65; printer distribution and the recovery audit marker remain open.       | 4th (can start after 1)              |
 | 5   | Audit, identity warnings, cash corrections     | Audit facts exist for manual/cash writes only; no correction commands or history reader. | 5th                                  |
 
 ---
@@ -76,7 +76,7 @@ New persistence and validation for passes, discipline-to-activity mapping, and t
 
 - Selection deadline date and owner (P §1; Q 1 open).
 - Workshop list, dates, times and venues (P §1; Q 1 open).
-- How the equal-price discipline swap works for a holder of several full passes (P "Correcciones acotadas").
+- How the equal-price discipline swap works for a holder of several full passes (P "Correcciones acotadas"). Out of the MVP: the delivered swap (#104, 2026-10-21) requires exactly one full pass.
 - ~~Whether general entry is an activity-like row or a separate concept.~~ Resolved by #124: a `general` pass type with no activity access.
 
 ### Dependencies
@@ -115,30 +115,31 @@ None upstream. Slices 2, 3 and 4 consume entitlements.
 
 ### Delivered (current behavior)
 
-- `POST /admin/events/:eventId/registrations/manual` requires `fullName` and `phone`; `email` is optional. Evidence: `apps/backend/src/events/manual-registration/manual-registration.controller.ts:47-50`.
-- Participants store `full_name`, `email`, `phone`, `stage_name` only; the split #58 fields do not exist. Evidence: `apps/backend/src/database/schema/participants.ts:8-11`.
-- A same-event match on phone or email **blocks** creation with `Duplicate registration`. Evidence: `apps/backend/src/events/manual-registration/manual-registration.service.ts:30-41`.
-- Cash confirmation requires a positive amount in cents; `reference`, `note` and `receipt` are **optional**. Evidence: `manual-registration.controller.ts:71-96`; `apps/backend/src/database/schema/registration-operation-audit.ts:35-38` (nullable `receipt`).
+- `POST /admin/events/:eventId/registrations/manual` takes the #58 fields with the public registration validation (#125). Evidence: `apps/backend/src/events/manual-registration/manual-registration.controller.ts`.
+- A same-event email or phone match (not voided) answers 409 `possible_duplicates` with masked matches; resending with `confirmedDuplicateRegistrationIds` creates the registration and records the ids in the audit fact (#125). Evidence: `manual-registration.service.ts`; [contract](../contracts/admin-registration-operations.md#manual-registration-and-cash-receipt-125).
+- Cash confirmation requires a positive amount in cents and a receipt number (1 to 50 characters, unique within the event, 409 `receipt_taken`); `reference` and `note` stay optional (#125). Evidence: `manual-registration.controller.ts`; migration `0029_cash_receipt_unique`, replaced by the `event_cash_payments` index of `0036` (#104).
+- The admin search also finds a registration by its cash receipt number (#125).
 - Creation and cash confirmation each append an operation audit fact in the same transaction; judges are rejected. Evidence: `odd/tasks/admin-manual-registration-cash.md` (Constraints, Evidence).
 - No admin UI for manual registration or cash exists (#105 is not delivered). Evidence: no manual/cash screen under `apps/frontend/src`.
 
 ### Proposed design
 
 - Extend participant/registration inputs to the #58 field set for **new** manual registrations.
-- Replace the hard block with a two-step flow: the server returns possible matches (same event, email or phone); the administrator either links to the existing participant or explicitly confirms a new one. The server revalidates matches inside the write transaction and records the confirmation in the audit fact.
+- Replace the hard block with a two-step flow: the server returns possible matches (same event, email or phone); the administrator explicitly confirms a new registration (linking to the existing participant was left out of #125). The server revalidates matches inside the write transaction and records the confirmation in the audit fact.
 - Make the receipt number required and non-blank for **new** cash confirmations; keep it in the audit fact.
 - Keep earlier rows with an empty receipt as legacy; do not invent receipt numbers for them.
 - Pass and selection data from slice 1 is captured at registration time.
 
 ### Gap vs current
 
-Schema and validation change for #58 fields; a duplicate-confirmation contract change (block → confirm); receipt becomes required; admin UI (#105) for registration and cash.
+Backend delivered by #125 (#58 fields, duplicate confirmation, required unique receipt). Remaining: admin UI (#105) for registration and cash.
 
-### Pending decisions
+### Decided (#125, 2026-10-16)
 
-- Receipt number format and uniqueness scope (per event, per receipt book, global).
-- How possible matches are presented without leaking data the operator should not see.
-- Whether matching should also consider other events through the shared participant identity.
+- Receipt number: free text, trimmed, 1 to 50 characters, unique within the event; a repeated number is rejected.
+- Possible matches show name, AKA, folio, registration status and masked contact (`a***@gmail.com`, `******4567`), only to the event administrator.
+- Matching is limited to the same event; voided and expired registrations do not count, as in online registration.
+- Linking a confirmed match to the existing participant is not part of #125: confirmation creates a new participant as before.
 
 ### Dependencies
 
@@ -146,12 +147,12 @@ Slice 1 for pass selection at registration. Slice 5 audit shape for the duplicat
 
 ### Acceptance criteria
 
-- [ ] A manual registration without first name, first last name, email or phone is rejected without a write.
-- [ ] A same-event email or phone match returns the candidate match instead of a hard error, and no registration is created until the administrator confirms.
-- [ ] A confirmed "new person despite match" write records the confirmation in the operation audit fact.
-- [ ] A match that appears between preview and confirmation is detected inside the write transaction.
-- [ ] A cash confirmation with a missing or blank receipt number is rejected without a write.
-- [ ] A judge session cannot create a registration or record cash.
+- [x] A manual registration without first name, first last name, email or phone is rejected without a write.
+- [x] A same-event email or phone match returns the candidate match instead of a hard error, and no registration is created until the administrator confirms.
+- [x] A confirmed "new person despite match" write records the confirmation in the operation audit fact.
+- [x] A match that appears between preview and confirmation is detected inside the write transaction.
+- [x] A cash confirmation with a missing or blank receipt number is rejected without a write.
+- [x] A judge session cannot create a registration or record cash.
 
 ### Related issues (local references)
 
@@ -177,12 +178,16 @@ Slice 1 for pass selection at registration. Slice 5 audit shape for the duplicat
 
 ### Delivered (current behavior)
 
-- Event check-in: `POST /admin/events/:eventId/registrations/:registrationId/check-in`, once per confirmed registration. Evidence: `docs/contracts/operational-check-in.md:3`; `apps/backend/src/events/check-in/check-in.service.ts:100-111`.
-- Activity check-in requires a **prior event check-in** fact. Evidence: `check-in.service.ts:64` (`Event check-in required before activity check-in`).
-- Activity check-in requires a **prior enrollment** in that activity. Evidence: `check-in.service.ts:50-51` (`Registration is not enrolled in this activity`).
-- The operator screen shows two visible actions: event check-in first, then per-activity check-in offered only after the event fact. Evidence: `apps/frontend/src/pages/admin/ui/admin-check-in-page.tsx:142-145, 342-350`; `odd/tasks/event-day-check-in.md` (Acceptance).
-- No command exists to add a workshop enrollment to an existing registration.
-- Live browser-to-PostgreSQL evidence exists for the current two-step flow (#112). Evidence: `odd/tasks/event-day-check-in.md` (T7, D8).
+Delivered by #126 (2026-10-20); see `docs/contracts/operational-check-in.md` and `odd/tasks/single-action-check-in.md`.
+
+- Activity check-in is authorized by pass entitlements (`accessibleActivityIds`: active `included` activities of held pass types plus active selections), for `workshop` and `competition` only. Archived activities are rejected. Evidence: `apps/backend/src/events/check-in/check-in.service.ts` (`createActivity`).
+- One request records the event fact when it is missing, the legacy `event_activity_registrations` row when it is missing (referenced by `activity_check_ins`) and the activity fact, in one transaction. No prior event check-in or enrollment is required.
+- Repeats on both endpoints return `201` with the first fact and `alreadyCheckedIn: true`; no `409`, no second row.
+- Not entitled, archived, general-entry-only and ineligible-kind requests return `400` with no write.
+- Registration search returns `registration.generalEntryOnly` and `activities[]` from passes, with their `checkedInAt`. Evidence: `registration-search.service.ts`.
+- The operator screen shows one action per eligible activity, the event action only for general-entry-only registrations, the first check-in time on repeats, and an escalation message to main coordination otherwise. Evidence: `apps/frontend/src/pages/admin/ui/admin-check-in-model.ts`, `admin-check-in-page.tsx`.
+- Live browser-to-PostgreSQL evidence covers the single action (`apps/frontend/e2e/live-check-in.spec.ts`; the live server seeds a full pass that includes a workshop).
+- Competitor number (#377), one per competition: in the check-in dialog each competition check shows its number ("Número 007") or "Sin número todavía"; workshops and the event entry show none. A competition check-in that answers with a number adds it to the success notice ("Entrada a Batalla registrada a las 09:30. Número 007."). For a confirmed registration, each competition offers "Asignar número" (no number there) or "Cambiar número" (has one), which opens a confirmation naming the competition ("Asignar número en Batalla", "Cambiar el número 003 de Batalla") and then gives that competition's next number (`POST /admin/events/:eventId/registrations/:registrationId/competitions/:activityId/competitor-number`); the buttons read "Asignando…" / "Cambiando…" while it runs, and a `409` shows a one-sentence fix ("Esta persona no tiene esta competencia en su pase; revisa su inscripción en coordinación."). The search ("Nombre, alias, folio o número") also finds any of a person's numbers: a digits-only query matches by numeric equality, so `7` and `007` find `007`, not `017` or `070`. The registration detail lists every number with its competition ("Breaking 1v1 · 003") and Historial shows each assignment ("Número de competidor", the competition and `001 → 003`). Evidence: `apps/frontend/src/pages/admin/ui/check-in-dialog.tsx`, `competitor-number-model.ts`, `check-in-roster-model.ts`, `history-feed-model.ts`, `apps/frontend/e2e/admin-check-in.spec.ts`, `admin-registration-participant-correction.spec.ts`, `admin-registration-history.spec.ts`.
 
 ### Proposed design
 
@@ -199,13 +204,15 @@ Slice 1 for pass selection at registration. Slice 5 audit shape for the duplicat
 
 ### Gap vs current
 
-New combined command and contract revision of `docs/contracts/operational-check-in.md`; entitlement checks (slice 1); enrollment-on-arrival write; UI change. The current endpoints may remain for compatibility, decision pending.
+New combined command and contract revision of `docs/contracts/operational-check-in.md`; entitlement checks (slice 1); enrollment-on-arrival write; UI change. Closed by #126: both endpoints remain (see Resolved decisions).
 
-### Pending decisions
+### Resolved decisions (2026-10-20, #126)
 
-- Whether the standalone event check-in endpoint stays, is hidden from the UI, or is retired.
-- Whether competition selection changes at the entrance are allowed in the same action or only through slice 5 corrections.
-- Who coordinates on-arrival workshop enrollment staff (Q 1 open).
+- The standalone event check-in endpoint stays; the screen shows it only for general-entry-only registrations.
+- No changes at the entrance: no competition selection or pass edits at the door. Unresolved cases go to main coordination.
+- A full pass includes its discipline's workshops (`included` access), so on-arrival enrollment is the automatic legacy enrollment row; there are no selectable workshops.
+- Repeats return the first fact (`201`, `alreadyCheckedIn: true`) instead of the conflict in the proposed design, with no audit table.
+- Staff coordination (Q 1) stays out of scope.
 
 ### Dependencies
 
@@ -247,9 +254,13 @@ Slice 1 (entitlements). Slice 5 audit fact shape for enrollment-on-arrival.
 
 ### Delivered (current behavior)
 
-- No list, print or PDF view exists. Evidence: no print/list screen under `apps/frontend/src`; `odd/tasks/november-mvp-organizer-alignment.md` ("does not deliver printable lists").
-- The paper contingency exists only as procedure. Evidence: `docs/runbooks/event-day.md:29-38, 62`.
-- Protected, paginated, event-scoped registration search with attendance projection exists and can be a data source. Evidence: `apps/backend/src/events/registration-search/`; `odd/tasks/event-day-check-in.md` (T1).
+Delivered by #65 (2026-10-20); see `docs/contracts/attendee-lists.md` and `odd/tasks/attendee-lists.md`.
+
+- `GET /admin/events/:eventId/attendee-lists` returns one contact-free snapshot with `generatedAt`: confirmed and pending-payment registrations (voided excluded) with folio, name, AKA, status, held passes, accessible competitions and workshops, and their check-in times. Event or global administrators only; judges, other-event admins and anonymous requests get the same `401`. Evidence: `apps/backend/src/events/attendee-lists/`, `apps/backend/test/admin-attendee-lists.e2e-spec.ts`.
+- Groupings are generic, read from the event's catalog: the whole event, one list per held pass type (full → general → add-on) and one per competition or workshop. For the November catalog that gives general entry, each discipline's full pass, Open Styles and each activity.
+- "Listas de respaldo" (`/admin/events/:eventId/lists`, side navigation) shows the lists with a selector and "Imprimir o guardar PDF". The print layout hides the shell, starts each list on a new page and repeats the event, list and generation time on every printed page. Evidence: `apps/frontend/src/pages/admin/ui/admin-lists-page.tsx`, `attendee-lists-model.ts`, `apps/frontend/e2e/admin-attendee-lists.spec.ts`.
+- Competitor number (#377): only competition lists show a "Número" column with that competition's number formatted as `001`, right after "✓" on the printout and first in the preview (under the name at phone width). They go numbered competitors first by number, then everyone else by name, and their search "Buscar en esta lista: nombre, AKA, folio o número" matches a digits-only query to the number by numeric equality. The event, pass and workshop lists stay alphabetical with the row counter. The printout's folio column wraps long folios, and the cover's instructions describe both orders. Evidence: `apps/frontend/src/pages/admin/ui/attendee-lists-model.ts`, `attendee-lists-printout.tsx`, `apps/frontend/e2e/admin-attendee-lists.spec.ts`.
+- The event-day runbook covers printing ahead, provisional cash and access during an outage, and the manual post-recovery checklist. Evidence: `docs/runbooks/event-day.md` ("Listas de respaldo y contingencia en papel").
 
 ### Proposed design
 
@@ -274,11 +285,11 @@ Slice 1 for pass grouping. Slices 2 and 3 for recovery writes. Slice 5 for the o
 
 ### Acceptance criteria
 
-- [ ] An authorized administrator can produce each list type listed above for one event.
-- [ ] The list response contains no email, phone or other contact field.
-- [ ] A judge or wrong-event session receives a safe denial and no data.
-- [ ] Each printed page shows the event and the generation time.
-- [ ] The runbook describes provisional cash/access and the manual post-recovery verification, with no automatic sync.
+- [x] An authorized administrator can produce each list type listed above for one event.
+- [x] The list response contains no email, phone or other contact field.
+- [x] A judge or wrong-event session receives a safe denial and no data.
+- [x] Each printed page shows the event and the generation time.
+- [x] The runbook describes provisional cash/access and the manual post-recovery verification, with no automatic sync.
 
 ### Related issues (local references)
 
@@ -292,41 +303,44 @@ Slice 1 for pass grouping. Slices 2 and 3 for recovery writes. Slice 5 for the o
 
 ### Confirmed decisions
 
-| Decision                                                                                                             | Source                               |
-| -------------------------------------------------------------------------------------------------------------------- | ------------------------------------ |
-| Only administrators, never judges, may correct records. All event administrators may read the event history.         | P "Correcciones", Q 2, Q 8           |
-| Name/AKA corrections show a visible warning about the shared cross-event identity and require explicit confirmation. | P "Correcciones", Q 4                |
-| No automatic propagation of changes across events is assumed.                                                        | P "Correcciones"                     |
-| Equal-price discipline swap among Breaking, Popping, Locking, Dancehall.                                             | P "Correcciones"                     |
-| Justified void of a pending registration only.                                                                       | P "Correcciones"                     |
-| Cash correction requires checking the original receipt and recording a reason.                                       | P "Registro y pago en efectivo", Q 4 |
-| Paid cases needing reversal escalate to principal organizers or coordination outside automated MVP corrections.      | P "Correcciones"                     |
-| No Mercado Pago edits, refunds, transfers, general-to-participant upgrade, or folio edits.                           | P "No incluido", P "Correcciones"    |
-| Two years of history is desired for event analysis only, subject to technical and legal review.                      | P "Correcciones", Q 8                |
+| Decision                                                                                                                                          | Source                               |
+| ------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------ |
+| Only administrators, never judges, may correct records. All event administrators may read the event history.                                      | P "Correcciones", Q 2, Q 8           |
+| Name/AKA corrections show a visible warning about the shared cross-event identity and require explicit confirmation.                              | P "Correcciones", Q 4                |
+| No automatic propagation of changes across events is assumed.                                                                                     | P "Correcciones"                     |
+| Equal-price discipline swap among Breaking, Popping, Locking, Dancehall (single full pass, before entry check-in).                                | P "Correcciones"                     |
+| Justified void of a pending registration only.                                                                                                    | P "Correcciones"                     |
+| Cash correction requires checking the original receipt (an explicit "Revisé el recibo original" confirmation, 2026-10-21) and recording a reason. | P "Registro y pago en efectivo", Q 4 |
+| Paid cases needing reversal escalate to principal organizers or coordination outside automated MVP corrections.                                   | P "Correcciones"                     |
+| No Mercado Pago edits, refunds, transfers, general-to-participant upgrade, or folio edits.                                                        | P "No incluido", P "Correcciones"    |
+| Two years of history is desired for event analysis only, subject to technical and legal review.                                                   | P "Correcciones", Q 8                |
 
 ### Delivered (current behavior)
 
 - An append-only operation audit table exists for `manual_registration` and `cash_confirmation`, written in the same transaction as the mutation. Evidence: `apps/backend/src/database/schema/registration-operation-audit.ts`; `odd/tasks/admin-manual-registration-cash.md`.
-- The audit and correction policy is a design contract; correction and void commands do not exist. Evidence: `docs/contracts/admin-registration-audit-policy.md:3, 10`.
-- No history reader API or UI exists. Evidence: `odd/tasks/admin-manual-registration-cash.md` (Constraints: no audit-reader UI/API).
+- The justified pending void is delivered for in-person registrations (#104, `registration_void`, 2026-10-20); see `docs/contracts/admin-registration-operations.md` and `odd/tasks/void-pending-registration.md`.
+- The participant name/AKA correction is delivered for pending and confirmed registrations (#104, `registration_correction`, 2026-10-21), with a required reason and an explicit confirmation when the person appears in other events, which never change; see `docs/contracts/admin-registration-operations.md` and `odd/tasks/participant-name-correction.md`.
+- The equal-price discipline swap is delivered for pending and confirmed registrations, online or in person, holding exactly one full pass and with no entry check-in (#104, `registration_discipline_swap`, 2026-10-21): the pass moves to another active full pass of the same current price, its competitions are chosen in the same request, a reason is required, and the stored price snapshot, amount and payment facts do not change; see `docs/contracts/admin-registration-operations.md` and `odd/tasks/discipline-swap.md`. Swaps with several full passes or after check-in are out of the MVP.
+- The cash correction is delivered for confirmed cash payments (#104, `cash_correction`, 2026-10-21): any event administrator corrects the amount and/or the receipt number after checking the original paper receipt, with an explicit confirmation (`receiptChecked`) and a reason. The new receipt must be unique in the event; any amount above zero is accepted, with a warning when it differs from the passes' total; a legacy payment without a receipt can get one. The current values live in `event_cash_payments` (migration `0036`), and the `cash_correction` fact keeps the previous and new values while the original `cash_confirmation` fact stays unchanged; see `docs/contracts/admin-registration-operations.md` and `odd/tasks/cash-correction.md`.
+- The history reader is delivered (#104, 2026-10-21): event administrators, never judges, read every operation of their event on the "Historial" page, newest first and 50 per page with "Cargar más", with a "Solo correcciones" filter, from `GET /admin/events/:eventId/registration-history`. Each entry shows who, when, what changed and the reason, and links to its registration. The response is a redacted projection with no contact data, session ids, Mercado Pago reference or stored states; migration `0038` indexes the read. See `docs/contracts/admin-registration-audit-policy.md`, `docs/contracts/admin-registration-operations.md` and `odd/tasks/correction-history.md`. Retention is not implemented: nothing is deleted today (#307).
 
 ### Proposed design
 
 - Implement the `registration_correction`, `registration_void` (pending only) and `cash_correction` operation facts as specified in `docs/contracts/admin-registration-audit-policy.md`, with mandatory reason and redacted before/after values.
 - Name/AKA correction: the server returns the cross-event impact (count of other events, no foreign data); the write requires an explicit confirmation flag and records it.
-- Cash correction: requires the original receipt number to match the recorded one and a reason; the original amount, actor and time remain in history.
-- Event-scoped history reader for administrators, read-only, redacted.
+- Cash correction: requires an explicit confirmation that the original receipt was checked ("Revisé el recibo original") and a reason; the original amount, actor and time remain in history. Approved on 2026-10-21 in place of typing the original receipt number to match the recorded one. Delivered (#104).
+- Event-scoped history reader for administrators, read-only, redacted. Delivered (#104).
 
 ### Gap vs current
 
-New correction/void commands, cash correction transitions, history read endpoint, UI (#105). Contract text that still names "coordination staff verification and minimum evidence" for cash corrections needs to be aligned with the confirmed "original receipt check and reason" rule.
+Retention of the history (#307). The correction and void commands, their screens and the history reader are delivered (#104, #256); the contracts now state the "original receipt check and reason" rule for cash corrections.
 
 ### Pending decisions
 
-- Safeguards and transitions when the original receipt is unavailable or the correction is disputed (P "Correcciones", Q 4 open).
-- Discipline-swap mechanics for holders of several full passes (P "Correcciones").
-- Retention mechanism and legal feasibility of two years of history (Q 8 open).
-- Reason shape and redaction rules (`docs/contracts/admin-registration-audit-policy.md`, blocker 4).
+- ~~Safeguards and transitions when the original receipt is unavailable or the correction is disputed (P "Correcciones", Q 4 open).~~ Out of the MVP (#104, 2026-10-21): a missing or disputed receipt, cash on the wrong registration and cash recorded without money escalate to the principal organizer outside the system.
+- ~~Discipline-swap mechanics for holders of several full passes (P "Correcciones").~~ Out of the MVP (#104, 2026-10-21): the swap requires exactly one full pass and no entry check-in.
+- Retention mechanism and legal feasibility of two years of history (Q 8 open), tracked in [#307](https://github.com/KevinBarrera/nuestro-breaking/issues/307). Nothing is deleted today.
+- ~~Reason shape and redaction rules (`docs/contracts/admin-registration-audit-policy.md`, blocker 4).~~ Settled (#104, 2026-10-21): reasons are trimmed, 1 to 500 characters, shown to event administrators only, and the history returns a whitelisted projection per operation type.
 
 ### Dependencies
 
@@ -337,10 +351,10 @@ Slice 2 (receipt number required, so cash corrections have a receipt to check). 
 - [ ] A name/AKA correction without explicit cross-event confirmation is rejected without a write.
 - [ ] Every accepted correction or void appends one immutable audit fact in the same transaction; a forced audit failure rolls back the change.
 - [ ] A void of a confirmed registration is rejected.
-- [ ] A cash correction whose receipt number does not match the recorded original is rejected.
-- [ ] The original cash amount, actor and timestamp remain readable in history after a correction.
-- [ ] A judge cannot correct or read history; a wrong-event administrator receives a safe denial.
-- [ ] History responses contain no contact data, raw session identifiers or full request bodies.
+- [x] A cash correction without the explicit original receipt check (`receiptChecked`) or without a reason is rejected without a write (#104, 2026-10-21).
+- [x] The original cash amount, actor and timestamp remain readable in history after a correction (#104, 2026-10-21: the `cash_confirmation` entry keeps its amount, receipt, actor and time next to the `cash_correction` entry).
+- [x] A judge cannot correct or read history; a wrong-event administrator receives a safe denial (#104, 2026-10-21: the history route answers judges, other-event administrators and anonymous callers with the same 401).
+- [x] History responses contain no contact data, raw session identifiers or full request bodies (#104, 2026-10-21: `test/admin-registration-history.e2e-spec.ts`).
 
 ### Related issues (local references)
 
@@ -371,10 +385,10 @@ flowchart LR
 
 These are documentation follow-ups, not code claims:
 
-- `docs/contracts/admin-registration-audit-policy.md:3` and `docs/contracts/admin-registration-operations.md:3` still describe the proposal as "DRAFT pending organizer validation"; the working-tree proposal now states the general MVP scope is approved.
-- `docs/contracts/operational-check-in.md:5` says a general-pass-only registration "only receives event check-in"; the confirmed design has no visible event check-in.
-- Cash-correction wording in the audit contract (coordination verification, minimum evidence) predates the confirmed "original receipt check and reason" rule.
-- `docs/product/november-2026-mvp-proposal.html` may not match the updated Markdown proposal.
+- Resolved by #127: `docs/contracts/admin-registration-audit-policy.md`, `docs/contracts/admin-registration-operations.md` and `docs/contracts/event-activity-api-boundary.md` no longer describe the proposal as "DRAFT pending organizer validation"; they follow the proposal: general MVP scope approved, operational details still to confirm with the organizers.
+- Resolved by #126: `docs/contracts/operational-check-in.md` now keeps the visible event check-in only for general-entry-only registrations, which have no activity to check in to.
+- Resolved by #104 (PR #305): the cash-correction wording in the audit contract now follows the confirmed "original receipt check and reason" rule.
+- Resolved by #127: the in-repository `docs/product/november-2026-mvp-proposal.html` was retired. The client-facing proposal is the page published from the separate `november-2026-mvp-proposal` repository (https://kevinbarrera.github.io/november-2026-mvp-proposal/); `docs/product/november-2026-mvp-proposal.md` stays as the internal source.
 
 ## Issue matrix
 
@@ -382,20 +396,20 @@ Read-only GitHub review of `KevinBarrera/nuestro-breaking` on 2026-10-06. No iss
 
 ### Existing issues
 
-| Issue                                                              | Remote state (2026-10-06) | Slice | Proposed action                                                                                                                                                                                                                                                                        |
-| ------------------------------------------------------------------ | ------------------------- | ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| #57 Track November 2026 MVP delivery plan                          | Open epic                 | All   | Update: link this document and the follow-ups #124–#127 as tracks.                                                                                                                                                                                                                     |
-| #58 Validate organizer-facing MVP assumptions                      | Closed (completed)        | 2     | None. Decisions are recorded; field alignment goes to #125.                                                                                                                                                                                                                            |
-| #60 Define event and activity foundation                           | Closed (completed)        | 1     | None. Pass entitlements go to #124.                                                                                                                                                                                                                                                    |
-| #62 Model participant identity and event activity registration     | Closed (completed)        | 1     | None. Pass entitlements go to #124.                                                                                                                                                                                                                                                    |
-| #64 Prepare check-in operational model                             | Closed (completed)        | 3     | None. Single-action admission goes to #126.                                                                                                                                                                                                                                            |
-| #101 Define audit facts and correction policy                      | Closed (completed)        | 5     | None. Receipt-based cash correction is carried by #104 and the contract update in #127.                                                                                                                                                                                                |
-| #103 Add authorized manual registration and cash-payment recording | Closed (completed)        | 2     | None. Duplicate confirmation and mandatory receipt folio go to #125.                                                                                                                                                                                                                   |
-| #112 Add MVP event-day admin check-in screen                       | Closed (completed)        | 3     | None. One visible action and on-arrival workshop enrollment go to #126.                                                                                                                                                                                                                |
-| #65 Deliver printable attendee lists and paper fallback            | Open, `status:ready`      | 4     | Update: add lists per pass (Breaking/Popping/Locking/Dancehall, Open Styles, general), provisional cash collection with numbered receipt, provisional paper access, and post-recovery manual verification. Add dependency on #124 for pass grouping.                                   |
-| #104 Add audited, authorized correction of registration errors     | Open, `status:blocked`    | 5     | Update: replace "minimum supporting evidence" with verification against the original numbered receipt plus reason; add name/AKA identity warning with explicit confirmation; keep pending decisions (missing or disputed receipt, multi-pass swap, retention). Add dependency on #125. |
-| #105 Add admin registration operations UI                          | Open, `status:blocked`    | 2, 5  | Update: depend on #125 (backend duplicate confirmation and mandatory receipt folio) in addition to #102/#103/#104; require the receipt folio field in the cash flow. Its possible-duplicate confirmation scope already matches the design.                                             |
-| #59 Validate Mercado Pago production constraints                   | Open                      | —     | Out of scope for these slices.                                                                                                                                                                                                                                                         |
+| Issue                                                              | Remote state (2026-10-06)                  | Slice | Proposed action                                                                                                                                                                                                                                                                                                                                                                                                       |
+| ------------------------------------------------------------------ | ------------------------------------------ | ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| #57 Track November 2026 MVP delivery plan                          | Open epic                                  | All   | Update: link this document and the follow-ups #124–#127 as tracks.                                                                                                                                                                                                                                                                                                                                                    |
+| #58 Validate organizer-facing MVP assumptions                      | Closed (completed)                         | 2     | None. Decisions are recorded; field alignment goes to #125.                                                                                                                                                                                                                                                                                                                                                           |
+| #60 Define event and activity foundation                           | Closed (completed)                         | 1     | None. Pass entitlements go to #124.                                                                                                                                                                                                                                                                                                                                                                                   |
+| #62 Model participant identity and event activity registration     | Closed (completed)                         | 1     | None. Pass entitlements go to #124.                                                                                                                                                                                                                                                                                                                                                                                   |
+| #64 Prepare check-in operational model                             | Closed (completed)                         | 3     | None. Single-action admission goes to #126.                                                                                                                                                                                                                                                                                                                                                                           |
+| #101 Define audit facts and correction policy                      | Closed (completed)                         | 5     | None. Receipt-based cash correction is carried by #104 and the contract update in #127.                                                                                                                                                                                                                                                                                                                               |
+| #103 Add authorized manual registration and cash-payment recording | Closed (completed)                         | 2     | None. Duplicate confirmation and mandatory receipt folio go to #125.                                                                                                                                                                                                                                                                                                                                                  |
+| #112 Add MVP event-day admin check-in screen                       | Closed (completed)                         | 3     | None. One visible action and on-arrival workshop enrollment go to #126.                                                                                                                                                                                                                                                                                                                                               |
+| #65 Deliver printable attendee lists and paper fallback            | Open, `status:ready`                       | 4     | Update: add lists per pass (Breaking/Popping/Locking/Dancehall, Open Styles, general), provisional cash collection with numbered receipt, provisional paper access, and post-recovery manual verification. Add dependency on #124 for pass grouping.                                                                                                                                                                  |
+| #104 Add audited, authorized correction of registration errors     | Open (`status:blocked` removed 2026-10-20) | 5     | Complete: the in-person pending void (2026-10-20), the participant name/AKA correction with the cross-event confirmation, the equal-price discipline swap for a single full pass before check-in, the cash correction of the amount or receipt after checking the original receipt, with a reason, and the event history view (2026-10-21). A missing or disputed receipt is out of the MVP; retention moves to #307. |
+| #105 Add admin registration operations UI                          | Open, `status:blocked`                     | 2, 5  | Update: depend on #125 (backend duplicate confirmation and mandatory receipt folio) in addition to #102/#103/#104; require the receipt folio field in the cash flow. Its possible-duplicate confirmation scope already matches the design.                                                                                                                                                                            |
+| #59 Validate Mercado Pago production constraints                   | Open                                       | —     | Out of scope for these slices.                                                                                                                                                                                                                                                                                                                                                                                        |
 
 ### Follow-up issues
 
@@ -405,7 +419,7 @@ The proposed follow-ups F1–F4 were created on GitHub as #124–#127.
 | ----- | ----- | ---------------------------------------------------------------------------------- | --------------------------- | -------------------------------------------- |
 | #124  | 1     | Model event catalog: admin-managed activities and pass entitlements                | #60, #62 (delivered)        | Delivered via PRs #128–#133 plus its docs PR |
 | #125  | 2     | Confirm possible duplicates and require cash receipt number in manual registration | #103 (delivered)            | Open                                         |
-| #126  | 3     | Single-action activity check-in with on-arrival workshop enrollment                | #64, #112 (delivered), #124 | Open                                         |
+| #126  | 3     | Single-action activity check-in with on-arrival workshop enrollment                | #64, #112 (delivered), #124 | Implemented in chained PRs #278 and #279     |
 | #127  | 2–5   | Align MVP contracts and docs with confirmed organizer decisions                    | This document               | Open                                         |
 
 ## Next step

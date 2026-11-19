@@ -67,19 +67,65 @@ describe('GET /admin/events/:eventId/participants (e2e)', () => {
       INSERT INTO event_venues (organization_id, event_id, venue_id)
       VALUES (${organizationId}, ${event.id}, ${venueId}), (${organizationId}, ${other.id}, ${venueId})
     `;
-    const [battle, workshop, privateActivity] = await client<{ id: string }[]>`
-      INSERT INTO activities (event_id, venue_id, kind, name, starts_at, ends_at)
-      VALUES (${event.id}, ${venueId}, 'battle', 'Battle', now(), now() + interval '1 hour'),
-        (${event.id}, ${venueId}, 'workshop', 'Workshop', now(), now() + interval '1 hour'),
-        (${other.id}, ${venueId}, 'battle', 'Private battle', now(), now() + interval '1 hour')
+    // Access comes from passes, never from legacy enrollment rows: Full includes the workshop,
+    // social and archived activities and makes the battle selectable (selected on `one`).
+    const [battle, workshop, social, archived, privateActivity] = await client<{ id: string }[]>`
+      INSERT INTO activities (event_id, venue_id, kind, name, starts_at, ends_at, status)
+      VALUES (${event.id}, ${venueId}, 'competition', 'Battle', now(), now() + interval '1 hour', 'active'),
+        (${event.id}, ${venueId}, 'workshop', 'Workshop', now(), now() + interval '1 hour', 'active'),
+        (${event.id}, ${venueId}, 'social', 'Social', now(), now() + interval '1 hour', 'active'),
+        (${event.id}, ${venueId}, 'workshop', 'Archived', now(), now() + interval '1 hour', 'archived'),
+        (${other.id}, ${venueId}, 'competition', 'Private battle', now(), now() + interval '1 hour', 'active')
+      RETURNING id
+    `;
+    const [full, general, privatePass] = await client<{ id: string }[]>`
+      INSERT INTO event_pass_types (event_id, name, pass_class, price_cents)
+      VALUES (${event.id}, 'Full', 'full', 1000), (${event.id}, 'General', 'general', 300),
+        (${other.id}, 'Private full', 'full', 1000)
       RETURNING id
     `;
     await client`
-      INSERT INTO event_activity_registrations (event_id, event_registration_id, activity_id)
-      VALUES (${event.id}, ${one.id}, ${workshop.id}), (${event.id}, ${one.id}, ${battle.id}),
-        (${other.id}, ${hidden.id}, ${privateActivity.id})
+      INSERT INTO event_pass_type_activities (event_id, pass_type_id, activity_id, access)
+      VALUES (${event.id}, ${full.id}, ${workshop.id}, 'included'),
+        (${event.id}, ${full.id}, ${social.id}, 'included'),
+        (${event.id}, ${full.id}, ${archived.id}, 'included'),
+        (${event.id}, ${full.id}, ${battle.id}, 'selectable'),
+        (${other.id}, ${privatePass.id}, ${privateActivity.id}, 'included')
     `;
-    return { event, other, first, second, one, two, hidden, battle, workshop, privateActivity };
+    const [held] = await client<{ id: string }[]>`
+      INSERT INTO event_registration_passes (event_id, event_registration_id, pass_type_id, price_cents)
+      VALUES (${event.id}, ${one.id}, ${full.id}, 1000), (${other.id}, ${hidden.id}, ${privatePass.id}, 1000)
+      RETURNING id
+    `;
+    await client`
+      INSERT INTO event_registration_pass_selections (event_id, registration_pass_id, activity_id)
+      VALUES (${event.id}, ${held.id}, ${battle.id})
+    `;
+    return {
+      event,
+      other,
+      first,
+      second,
+      third,
+      one,
+      two,
+      hidden,
+      battle,
+      workshop,
+      social,
+      archived,
+      privateActivity,
+      general,
+    };
+  }
+
+  // Check-in writes the legacy enrollment row that an activity fact references (#126).
+  async function enroll(eventId: string, registrationId: string, activityId: string) {
+    const [{ id }] = await client<{ id: string }[]>`
+      INSERT INTO event_activity_registrations (event_id, event_registration_id, activity_id)
+      VALUES (${eventId}, ${registrationId}, ${activityId}) RETURNING id
+    `;
+    return id;
   }
 
   async function session(role = 'admin', eventId: string | null = null) {
@@ -132,6 +178,7 @@ describe('GET /admin/events/:eventId/participants (e2e)', () => {
       total: 2,
       limit: 20,
       offset: 0,
+      counts: { all: 2, pending_payment: 1, confirmed: 1, voided: 0 },
       results: [
         {
           participant: {
@@ -146,9 +193,11 @@ describe('GET /admin/events/:eventId/participants (e2e)', () => {
             folio: 'F-10',
             status: 'confirmed',
             checkedInAt: null,
+            generalEntryOnly: false,
           },
+          passes: [{ name: 'Full', passClass: 'full' }],
           activities: [
-            { id: battle.id, name: 'Battle', kind: 'battle', checkedInAt: null },
+            { id: battle.id, name: 'Battle', kind: 'competition', checkedInAt: null },
             { id: workshop.id, name: 'Workshop', kind: 'workshop', checkedInAt: null },
           ].sort((a, b) => a.id.localeCompare(b.id)),
         },
@@ -165,7 +214,9 @@ describe('GET /admin/events/:eventId/participants (e2e)', () => {
             folio: null,
             status: 'pending_payment',
             checkedInAt: null,
+            generalEntryOnly: false,
           },
+          passes: [],
           activities: [],
         },
       ],
@@ -174,19 +225,150 @@ describe('GET /admin/events/:eventId/participants (e2e)', () => {
       expect((await get(q)).body as unknown).toEqual({
         ...page,
         total: 1,
+        counts: { all: 1, pending_payment: 0, confirmed: 1, voided: 0 },
         results: [page.results[0]],
       });
     }
-    expect((await get('hidden')).body).toEqual({ total: 0, limit: 20, offset: 0, results: [] });
+    expect((await get('hidden')).body).toEqual({
+      total: 0,
+      limit: 20,
+      offset: 0,
+      counts: { all: 0, pending_payment: 0, confirmed: 0, voided: 0 },
+      results: [],
+    });
     // Folios are unique system-wide; the other event's folio is only found inside that event.
-    expect((await get('F-12')).body).toEqual({ total: 0, limit: 20, offset: 0, results: [] });
+    expect((await get('F-12')).body).toEqual({
+      total: 0,
+      limit: 20,
+      offset: 0,
+      counts: { all: 0, pending_payment: 0, confirmed: 0, voided: 0 },
+      results: [],
+    });
     expect(((await get('F-12', other.id)).body as { results: unknown[] }).results).toHaveLength(1);
     expect(JSON.stringify(result.body)).not.toMatch(
       /Private|admin_cash|confirmedAt|paymentProvider|actorUserId|sessionId|audit/,
     );
   });
 
-  it('projects only scoped durable attendance timestamps for the requested page and enrollments', async () => {
+  it('finds a registration by the current receipt number of its cash payment, only in that event', async () => {
+    const { event, other, first, third, one, two, hidden } = await fixture();
+    const { cookie, userId, sessionId } = await session();
+    await client`
+      INSERT INTO registration_operation_audit (operation_type, actor_kind, actor_user_id, session_id,
+        event_id, registration_id, participant_id, amount_cents, receipt, before_state, after_state)
+      VALUES ('cash_confirmation', 'admin', ${userId}, ${sessionId}, ${event.id}, ${one.id},
+          ${first.id}, 100, 'RC-0042', '{}', '{}'),
+        ('cash_confirmation', 'admin', ${userId}, ${sessionId}, ${other.id}, ${hidden.id},
+          ${third.id}, 100, 'RC-0099', '{}', '{}')`;
+    await client`
+      INSERT INTO event_cash_payments (event_id, event_registration_id, amount_cents, receipt)
+      VALUES (${event.id}, ${one.id}, 100, 'RC-0042'), (${other.id}, ${hidden.id}, 100, 'RC-0099')`;
+    const get = (q: string, id = event.id) =>
+      search(id, q).set('Cookie', cookie).expect(200) as unknown as Promise<{
+        body: RegistrationSearchPage;
+      }>;
+    for (const q of ['RC-0042', 'rc-00', '0042']) {
+      const page = (await get(q)).body;
+      expect(page.total).toBe(1);
+      expect(page.results.map((result) => result.registration.id)).toEqual([one.id]);
+    }
+    expect((await get('RC-0099')).body.total).toBe(0);
+    expect((await get('RC-0099', other.id)).body.results.map((r) => r.registration.id)).toEqual([
+      hidden.id,
+    ]);
+    // A receipt match never duplicates a row that also matches by name.
+    expect((await get('alex')).body.results.map((r) => r.registration.id)).toEqual([
+      one.id,
+      two.id,
+    ]);
+    // The current receipt is the payment row's; the audit fact keeps the original as history.
+    await client`UPDATE event_cash_payments SET receipt = 'RC-0777' WHERE event_registration_id = ${one.id}`;
+    expect((await get('RC-0042')).body.total).toBe(0);
+    expect((await get('rc-07')).body.results.map((r) => r.registration.id)).toEqual([one.id]);
+  });
+
+  it('lists check-in activities from pass entitlements and flags general-entry-only registrations', async () => {
+    const { event, one, two, battle, workshop, general } = await fixture();
+    const { cookie } = await session();
+    // No legacy enrollment rows exist: the list comes from the included and selected activities,
+    // without the social kind or the archived workshop.
+    expect(await client`SELECT id FROM event_activity_registrations`).toHaveLength(0);
+    await client`
+      INSERT INTO event_registration_passes (event_id, event_registration_id, pass_type_id, price_cents)
+      VALUES (${event.id}, ${two.id}, ${general.id}, 300)
+    `;
+    const page = (await search(event.id, 'Alex').set('Cookie', cookie).expect(200))
+      .body as RegistrationSearchPage;
+    expect(
+      page.results.map(({ registration, activities }) => ({
+        id: registration.id,
+        generalEntryOnly: registration.generalEntryOnly,
+        activities,
+      })),
+    ).toEqual([
+      {
+        id: one.id,
+        generalEntryOnly: false,
+        activities: [
+          { id: battle.id, name: 'Battle', kind: 'competition', checkedInAt: null },
+          { id: workshop.id, name: 'Workshop', kind: 'workshop', checkedInAt: null },
+        ].sort((a, b) => a.id.localeCompare(b.id)),
+      },
+      { id: two.id, generalEntryOnly: true, activities: [] },
+    ]);
+  });
+
+  it('keeps batched access and check-in times apart per registration on one page', async () => {
+    const { event, one, battle, workshop } = await fixture();
+    const { cookie, userId, sessionId } = await session();
+    const [{ id: fullPass }] = await client<{ id: string }[]>`
+      SELECT id FROM event_pass_types WHERE event_id = ${event.id} AND pass_class = 'full'
+    `;
+    const [third] = await client<{ id: string }[]>`
+      WITH person AS (
+        INSERT INTO participants (full_name, email) VALUES ('Alex Zed', 'zed@example.com') RETURNING id
+      )
+      INSERT INTO event_registrations (event_id, participant_id, folio, status, confirmation_source, confirmed_at)
+      SELECT ${event.id}, id, 'F-11', 'confirmed', 'admin_cash', now() FROM person RETURNING id
+    `;
+    await client`
+      INSERT INTO event_registration_passes (event_id, event_registration_id, pass_type_id, price_cents)
+      VALUES (${event.id}, ${third.id}, ${fullPass}, 1000)
+    `;
+    const [admission] = await client<{ id: string }[]>`
+      INSERT INTO event_check_ins (event_id, event_registration_id, actor_user_id, session_id)
+      VALUES (${event.id}, ${one.id}, ${userId}, ${sessionId}) RETURNING id
+    `;
+    const [{ checkedInAt }] = await client<{ checkedInAt: string }[]>`
+      INSERT INTO activity_check_ins
+        (event_id, event_registration_id, activity_id, enrollment_id, event_check_in_id,
+         actor_user_id, session_id)
+      VALUES (${event.id}, ${one.id}, ${workshop.id}, ${await enroll(event.id, one.id, workshop.id)},
+        ${admission.id}, ${userId}, ${sessionId})
+      RETURNING checked_in_at AS "checkedInAt"
+    `;
+    const page = (await search(event.id, 'Alex').set('Cookie', cookie).expect(200))
+      .body as RegistrationSearchPage;
+    const byId = new Map(page.results.map((result) => [result.registration.id, result]));
+    expect(byId.get(one.id)?.activities).toEqual(
+      [
+        { id: battle.id, name: 'Battle', kind: 'competition', checkedInAt: null },
+        {
+          id: workshop.id,
+          name: 'Workshop',
+          kind: 'workshop',
+          checkedInAt: new Date(checkedInAt).toISOString(),
+        },
+      ].sort((a, b) => a.id.localeCompare(b.id)),
+    );
+    // The same pass type without a selection: only the included workshop, not yet checked in.
+    expect(byId.get(third.id)?.activities).toEqual([
+      { id: workshop.id, name: 'Workshop', kind: 'workshop', checkedInAt: null },
+    ]);
+    expect(byId.get(third.id)?.registration.generalEntryOnly).toBe(false);
+  });
+
+  it('projects only scoped durable attendance timestamps for the requested page and pass access', async () => {
     const { event, other, one, two, hidden, battle, workshop, privateActivity } = await fixture();
     const { cookie, userId, sessionId } = await session();
     const eventTime = '2026-01-02T03:04:05.000Z';
@@ -207,14 +389,8 @@ describe('GET /admin/events/:eventId/participants (e2e)', () => {
       VALUES (${other.id}, ${hidden.id}, ${userId}, ${sessionId}, ${privateTime})
       RETURNING id, checked_in_at AS "checkedInAt"
     `;
-    const [{ id: enrollmentId }] = await client<{ id: string }[]>`
-      SELECT id FROM event_activity_registrations
-      WHERE event_id = ${event.id} AND event_registration_id = ${one.id} AND activity_id = ${battle.id}
-    `;
-    const [{ id: privateEnrollmentId }] = await client<{ id: string }[]>`
-      SELECT id FROM event_activity_registrations
-      WHERE event_id = ${other.id} AND event_registration_id = ${hidden.id} AND activity_id = ${privateActivity.id}
-    `;
+    const enrollmentId = await enroll(event.id, one.id, battle.id);
+    const privateEnrollmentId = await enroll(other.id, hidden.id, privateActivity.id);
     const [activityAdmission] = await client<{ id: string; checkedInAt: string }[]>`
       INSERT INTO activity_check_ins
         (event_id, event_registration_id, activity_id, enrollment_id, event_check_in_id,
@@ -242,13 +418,14 @@ describe('GET /admin/events/:eventId/participants (e2e)', () => {
       folio: 'F-10',
       status: 'confirmed',
       checkedInAt: new Date(admission.checkedInAt).toISOString(),
+      generalEntryOnly: false,
     });
     expect(firstPage.results[0].activities).toEqual(
       [
         {
           id: battle.id,
           name: 'Battle',
-          kind: 'battle',
+          kind: 'competition',
           checkedInAt: new Date(activityAdmission.checkedInAt).toISOString(),
         },
         { id: workshop.id, name: 'Workshop', kind: 'workshop', checkedInAt: null },
@@ -307,10 +484,81 @@ describe('GET /admin/events/:eventId/participants (e2e)', () => {
     );
   });
 
-  it('bounds pages, validates parameters, and never treats blank or wildcard input as a roster search', async () => {
+  it('lists the whole roster without a query, filters by status and counts every status', async () => {
+    const { event, one, two } = await fixture();
+    const { cookie } = await session();
+    const [voidedPerson] = await client<{ id: string }[]>`
+      INSERT INTO participants (full_name, email) VALUES ('Zoe Void', 'zoe@example.com') RETURNING id
+    `;
+    const [voided] = await client<{ id: string }[]>`
+      INSERT INTO event_registrations (event_id, participant_id, status)
+      VALUES (${event.id}, ${voidedPerson.id}, 'voided') RETURNING id
+    `;
+    // An archived pass type still names what was bought; passes are sorted by name.
+    const [archivedPass] = await client<{ id: string }[]>`
+      INSERT INTO event_pass_types (event_id, name, pass_class, price_cents, status)
+      VALUES (${event.id}, 'Add-on old', 'add_on', 200, 'archived') RETURNING id
+    `;
+    await client`
+      INSERT INTO event_registration_passes (event_id, event_registration_id, pass_type_id, price_cents)
+      VALUES (${event.id}, ${one.id}, ${archivedPass.id}, 200)
+    `;
+    const get = (params: Record<string, string>) =>
+      request(app.getHttpServer())
+        .get(`/admin/events/${event.id}/participants`)
+        .query(params)
+        .set('Cookie', cookie)
+        .expect(200) as unknown as Promise<{ body: RegistrationSearchPage }>;
+    const counts = { all: 3, pending_payment: 1, confirmed: 1, voided: 1 };
+
+    for (const params of [{}, { q: ' ' }] as Record<string, string>[]) {
+      const { body } = await get(params);
+      expect(body).toMatchObject({ total: 3, limit: 20, offset: 0, counts });
+      // Same order as a search: full name, then folio and id; the other event never shows.
+      expect(body.results.map((result) => result.registration.id)).toEqual([
+        one.id,
+        two.id,
+        voided.id,
+      ]);
+      expect(body.results.map((result) => result.passes)).toEqual([
+        [
+          { name: 'Add-on old', passClass: 'add_on' },
+          { name: 'Full', passClass: 'full' },
+        ],
+        [],
+        [],
+      ]);
+    }
+
+    // The status narrows the results and the total; the counts keep every status.
+    const confirmed = (await get({ status: 'confirmed' })).body;
+    expect(confirmed).toMatchObject({ total: 1, counts });
+    expect(confirmed.results.map((result) => result.registration.id)).toEqual([one.id]);
+    const voidedOnly = (await get({ status: 'voided' })).body;
+    expect(voidedOnly.results.map((result) => result.registration.id)).toEqual([voided.id]);
+
+    // With a query, the counts follow the query and the status still narrows.
+    expect((await get({ q: 'alex' })).body).toMatchObject({
+      total: 2,
+      counts: { all: 2, pending_payment: 1, confirmed: 1, voided: 0 },
+    });
+    const pending = (await get({ q: 'alex', status: 'pending_payment' })).body;
+    expect(pending).toMatchObject({
+      total: 1,
+      counts: { all: 2, pending_payment: 1, confirmed: 1, voided: 0 },
+    });
+    expect(pending.results.map((result) => result.registration.id)).toEqual([two.id]);
+    expect((await get({ q: 'zoe', status: 'confirmed' })).body).toMatchObject({
+      total: 0,
+      results: [],
+      counts: { all: 1, pending_payment: 0, confirmed: 0, voided: 1 },
+    });
+  });
+
+  it('bounds pages, validates parameters, and never treats wildcard input as a match-all search', async () => {
     const { event } = await fixture();
     const { cookie } = await session();
-    const get = (params: { q?: string; limit?: string; offset?: string }) =>
+    const get = (params: { q?: string; limit?: string; offset?: string; status?: string }) =>
       request(app.getHttpServer())
         .get(`/admin/events/${event.id}/participants`)
         .query(params)
@@ -326,18 +574,19 @@ describe('GET /admin/events/:eventId/participants (e2e)', () => {
         total: 0,
         limit: 20,
         offset: 0,
+        counts: { all: 0, pending_payment: 0, confirmed: 0, voided: 0 },
         results: [],
       });
     }
     for (const params of [
-      {},
-      { q: ' ' },
       { q: 'a' },
       { q: '%' },
       { q: 'Alex', limit: '51' },
       { q: 'Alex', limit: '0' },
       { q: 'Alex', offset: '-1' },
       { q: 'Alex', limit: 'oops' },
+      { status: 'paid' },
+      { q: 'Alex', status: 'Confirmed' },
     ]) {
       const response = await get(params).expect(400);
       expect(JSON.stringify(response.body)).not.toMatch(/alex@example.com|Hidden Person/);

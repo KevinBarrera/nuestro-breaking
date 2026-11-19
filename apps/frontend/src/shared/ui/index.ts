@@ -1,4 +1,6 @@
+export { ActionMenu, type ActionMenuItem } from './action-menu';
 export { CheckIcon } from './check-icon';
+export { DataTable, TableChip, type TableColumn } from './data-table';
 export { Breadcrumbs, type BreadcrumbItem } from './breadcrumbs';
 export { PageShell } from './page-shell';
 export { Select, type SelectOption, type SelectVariant } from './select';

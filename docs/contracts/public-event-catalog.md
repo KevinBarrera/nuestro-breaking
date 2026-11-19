@@ -7,6 +7,7 @@ This contract describes the public, read-only catalog of one event for issue #17
 - `GET /public/events/:slug/catalog` needs **no login, session, cookie or CSRF token**.
 - It always returns the event summary and the **sales state**. Passes are listed **only while sales are open** (D4 in `odd/tasks/public-catalog-sales.md`).
 - Only **active** pass types and **active** activities appear. Archived rows never do.
+- A pass type priced **$0** never appears: free passes (golden tickets, guests) are granted in person only (#263). Admin pass type endpoints still list them, and an admin can assign them.
 - The response is an explicit allowlist (D5): no `version`, `status`, organization or event ids, audit fields or personal data.
 - It is **rate limited** per client IP (default 60 requests per minute) and answers **429** over the limit.
 - Browsers may call it only from **configured origins**, and never with credentials.
@@ -30,7 +31,10 @@ Code: `apps/backend/src/events/public-catalog/`. The pure projection is `toPubli
     "name": "Los más pesados",
     "timeZone": "America/Bogota",
     "startsAt": "2026-11-20T14:00:00.000Z",
-    "endsAt": "2026-11-22T04:00:00.000Z"
+    "endsAt": "2026-11-22T04:00:00.000Z",
+    "city": "Guadalajara",
+    "state": "Jalisco",
+    "country": "MX"
   },
   "sales": {
     "state": "open",
@@ -38,6 +42,7 @@ Code: `apps/backend/src/events/public-catalog/`. The pure projection is `toPubli
     "opensAt": "2026-10-15T15:00:00.000Z",
     "closesAt": null
   },
+  "serviceCharge": { "rateBasisPoints": 349, "fixedCents": 400, "vatBasisPoints": 1600 },
   "passes": [
     {
       "id": "6f1c…",
@@ -45,6 +50,8 @@ Code: `apps/backend/src/events/public-catalog/`. The pure projection is `toPubli
       "passClass": "add_on",
       "priceCents": 80000,
       "requiresPassClass": "full",
+      "onlineSalesClosesAt": null,
+      "onSale": true,
       "selectableActivities": [],
       "includedActivities": [
         {
@@ -61,8 +68,11 @@ Code: `apps/backend/src/events/public-catalog/`. The pure projection is `toPubli
 ```
 
 - Dates are ISO 8601 in UTC, or `null`. `event.timeZone` is the IANA zone to display them in.
+- `event.city`, `event.state` and `event.country` say where the event happens (#330). They are set together, or all `null` while the event has no location. `country` is an ISO 3166-1 alpha-2 code (`MX`); clients show its name. Added in #330, so a client tolerates their absence.
 - `sales.state` and `sales.reason` follow the [sales state rules](event-sales.md#state-rules), computed at request time: `reason` is `disabled`, `not_yet_open` or `ended` when closed, and `null` when open.
 - `passClass` is `full`, `general` or `add_on`. `requiresPassClass` names the class an add-on needs (Open Styles requires `full`), or is `null`.
+- `serviceCharge` holds the online service charge rates (#239), so the review screen shows the charge the checkout will add: the Mercado Pago percentage in hundredths of a percent (`349` is 3.49%), the fixed fee in cents, and the VAT on the fee in hundredths of a percent. All three are before VAT and come from the `ONLINE_SERVICE_CHARGE_*` environment variables. The charge for a purchase of `price` cents is `ceil((price + fixed × (1 + VAT)) / (1 − rate × (1 + VAT)))` minus `price`, and `0` when `price` is `0`. Cash and manual registrations never pay it.
+- `onlineSalesClosesAt` is the time online sales of the pass close (#240), or `null` when the pass follows the event's sales window only. `onSale` is `false` from that time on (the close time is exclusive, like the event window's). A pass that is not on sale stays listed, so the buyer sees it is no longer available, but public registration refuses it with `409 pass_type_sales_closed`.
 - `selectableActivities` are the activities a buyer picks from; `includedActivities` come with the pass. Pass and activity ids are exposed because public registration (#174) submits them.
 
 ## Ordering
@@ -73,6 +83,10 @@ Code: `apps/backend/src/events/public-catalog/`. The pure projection is `toPubli
 ## Closed sales
 
 When `sales.state` is `closed`, the response still has `event` and `sales` (so the screen can say when sales open or that they ended), and `passes` is `[]`. The pass and activity tables are not read.
+
+### One pass closed (#240)
+
+While the event is open, a pass past its own `onlineSalesClosesAt` comes with `onSale: false`. The passes screen shows it disabled with "Venta en línea cerrada" and drops it (with an add-on that needed it) from a saved selection. Once that time passes on the buyer's clock after the page loaded, the pass can no longer be chosen. A pass that was already chosen is still submitted, so the server decides: a late submit gets `409 pass_type_sales_closed`, and the review screen says "La venta en línea de uno de tus pases ya cerró. Vuelve a elegir tus pases." with a link to the passes step.
 
 ## Reusable sales check (#174)
 

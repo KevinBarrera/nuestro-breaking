@@ -436,6 +436,46 @@ describe('public registration (e2e)', () => {
     });
   });
 
+  it('rejects a pass whose online sales closed, even with the event window open (#240)', async () => {
+    const ids = await fixture();
+    await client`UPDATE event_pass_types SET online_sales_closes_at = now() - interval '1 minute' WHERE id = ${ids.general}`;
+    await client`UPDATE event_pass_types SET online_sales_closes_at = now() + interval '1 day' WHERE id = ${ids.full}`;
+
+    const closed = await register({ buyer: buyer(), passes: [{ passTypeId: ids.general }] }).expect(
+      409,
+    );
+    expect(closed.body).toEqual({
+      statusCode: 409,
+      code: 'pass_type_sales_closed',
+      message: 'Online sales of this pass are closed',
+    });
+    expect(await counts()).toEqual({ registrations: 0, passes: 0, audits: 0 });
+
+    await register({ buyer: buyer(), passes: [{ passTypeId: ids.full }] }).expect(201);
+    expect(await counts()).toEqual({ registrations: 1, passes: 1, audits: 1 });
+  });
+
+  it('rejects an active $0 pass type, which is granted in person only, and writes nothing (#263)', async () => {
+    const ids = await fixture();
+    const [free] = await client<{ id: string }[]>`
+      INSERT INTO event_pass_types (event_id, name, pass_class, price_cents, requires_pass_class, status)
+      VALUES (${ids.event}, 'Golden ticket', 'general', 0, NULL, 'active') RETURNING id`;
+
+    const response = await register({ buyer: buyer(), passes: [{ passTypeId: free.id }] }).expect(
+      409,
+    );
+
+    expect(response.body).toEqual({
+      statusCode: 409,
+      code: 'pass_type_unavailable',
+      message: 'Pass type is not available',
+    });
+    expect(await counts()).toEqual({ registrations: 0, passes: 0, audits: 0 });
+    const [{ participants }] = await client<{ participants: number }[]>`
+      SELECT count(*)::int AS participants FROM participants`;
+    expect(participants).toBe(0);
+  });
+
   it('answers 409 while sales are closed and 404 for an unknown slug', async () => {
     const ids = await fixture();
     await client`UPDATE events SET sales_enabled = false WHERE id = ${ids.event}`;

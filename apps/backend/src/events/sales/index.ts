@@ -1,3 +1,4 @@
+export { passOnSale } from './pass-sales';
 export {
   salesState,
   type SalesClosedReason,

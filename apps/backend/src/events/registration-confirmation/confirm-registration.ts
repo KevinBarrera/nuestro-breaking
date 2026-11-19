@@ -7,7 +7,7 @@ export type RegistrationTransaction = Parameters<
   Parameters<DatabaseService['db']['transaction']>[0]
 >[0];
 
-export type ConfirmationSource = 'admin_cash' | 'approved_payment';
+export type ConfirmationSource = 'admin_cash' | 'admin_complimentary' | 'approved_payment';
 
 export type ConfirmedRegistration = {
   id: string;
@@ -21,9 +21,10 @@ export const FOLIO_ATTEMPTS = 5;
 
 /**
  * Moves a `pending_payment` registration of the event to `confirmed`, inside the caller's
- * transaction, and assigns its folio. Every confirmation path uses it: cash confirmation now and an
- * approved online payment (#177), including a late one after expiry (#181). Returns null when the
- * registration is not in `fromStatus` (default `pending_payment`) in this event.
+ * transaction, and assigns its folio. Every confirmation path uses it: cash and complimentary
+ * confirmations (#263), and an approved online payment (#177), including a late one after expiry
+ * (#181). Returns null when the registration is not in `fromStatus` (default `pending_payment`) in
+ * this event.
  *
  * Each attempt runs under a savepoint, so a folio collision on the system-wide unique constraint
  * rolls back only that attempt and the next one draws a new code.

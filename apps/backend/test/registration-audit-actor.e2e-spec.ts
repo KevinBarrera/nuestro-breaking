@@ -149,6 +149,80 @@ describe('registration audit actor (e2e)', () => {
     );
   });
 
+  it('accepts a pass removal without an amount (#282)', async () => {
+    const ids = await fixture();
+    const admin = { kind: 'admin', userId: ids.userId, sessionId: ids.sessionId };
+    await expect(
+      insertFact(ids, { ...admin, operation: 'pass_removal', amount: 100 }),
+    ).rejects.toThrow(/registration_operation_audit_amount_ck/);
+    await expect(insertFact(ids, { ...admin, operation: 'pass_removal' })).resolves.toHaveLength(1);
+  });
+
+  it('accepts a registration void without an amount (#104)', async () => {
+    const ids = await fixture();
+    const admin = { kind: 'admin', userId: ids.userId, sessionId: ids.sessionId };
+    await expect(
+      insertFact(ids, { ...admin, operation: 'registration_void', amount: 100 }),
+    ).rejects.toThrow(/registration_operation_audit_amount_ck/);
+    await expect(
+      insertFact(ids, { ...admin, operation: 'registration_void' }),
+    ).resolves.toHaveLength(1);
+  });
+
+  it('accepts a registration correction without an amount (#104)', async () => {
+    const ids = await fixture();
+    const admin = { kind: 'admin', userId: ids.userId, sessionId: ids.sessionId };
+    await expect(
+      insertFact(ids, { ...admin, operation: 'registration_correction', amount: 100 }),
+    ).rejects.toThrow(/registration_operation_audit_amount_ck/);
+    await expect(
+      insertFact(ids, { ...admin, operation: 'registration_correction' }),
+    ).resolves.toHaveLength(1);
+  });
+
+  it('accepts a discipline swap without an amount (#104)', async () => {
+    const ids = await fixture();
+    const admin = { kind: 'admin', userId: ids.userId, sessionId: ids.sessionId };
+    await expect(
+      insertFact(ids, { ...admin, operation: 'registration_discipline_swap', amount: 100 }),
+    ).rejects.toThrow(/registration_operation_audit_amount_ck/);
+    await expect(
+      insertFact(ids, { ...admin, operation: 'registration_discipline_swap' }),
+    ).resolves.toHaveLength(1);
+  });
+
+  it('accepts a cash correction without an amount (#104)', async () => {
+    const ids = await fixture();
+    const admin = { kind: 'admin', userId: ids.userId, sessionId: ids.sessionId };
+    await expect(
+      insertFact(ids, { ...admin, operation: 'cash_correction', amount: 100 }),
+    ).rejects.toThrow(/registration_operation_audit_amount_ck/);
+    await expect(insertFact(ids, { ...admin, operation: 'cash_correction' })).resolves.toHaveLength(
+      1,
+    );
+  });
+
+  it('accepts a complimentary confirmation without an amount and its admin source (#263)', async () => {
+    const ids = await fixture();
+    const admin = { kind: 'admin', userId: ids.userId, sessionId: ids.sessionId };
+    await expect(
+      insertFact(ids, { ...admin, operation: 'complimentary_confirmation', amount: 100 }),
+    ).rejects.toThrow(/registration_operation_audit_amount_ck/);
+    await expect(
+      insertFact(ids, { ...admin, operation: 'complimentary_confirmation' }),
+    ).resolves.toHaveLength(1);
+    await expect(client`
+      UPDATE event_registrations
+      SET status = 'confirmed', confirmation_source = 'admin_complimentary', confirmed_at = now(),
+        folio = 'ONE-ABC123'
+      WHERE id = ${ids.registrationId} RETURNING id`).resolves.toHaveLength(1);
+    await expect(client`
+      UPDATE event_registrations SET confirmation_source = 'free'
+      WHERE id = ${ids.registrationId}`).rejects.toThrow(
+      /event_registrations_confirmation_source_ck/,
+    );
+  });
+
   it('keeps public and system facts immutable', async () => {
     const ids = await fixture();
     const [publicFact] = await insertFact(ids, {

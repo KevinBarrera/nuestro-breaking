@@ -8,6 +8,7 @@ import { invalidEvent } from './admin-event-errors';
 import {
   type CreateEventInput,
   type UpdateEventInput,
+  eventLocationErrors,
   eventWindowErrors,
 } from './admin-event-input';
 import { type AdminEvent, adminEventColumns, toAdminEvent } from './admin-event.read-model';
@@ -25,6 +26,9 @@ const EDITABLE_FIELDS: Record<keyof UpdateEventInput, true> = {
   timeZone: true,
   startsAt: true,
   endsAt: true,
+  city: true,
+  state: true,
+  country: true,
 };
 const EDITABLE = Object.keys(EDITABLE_FIELDS) as (keyof UpdateEventInput)[];
 
@@ -63,6 +67,9 @@ export class AdminEventsService {
             timeZone: input.timeZone,
             startsAt: input.startsAt,
             endsAt: input.endsAt,
+            city: input.city,
+            state: input.state,
+            country: input.country,
             salesEnabled: false,
             salesOpensAt: null,
             salesClosesAt: null,
@@ -85,6 +92,9 @@ export class AdminEventsService {
             startsAt: event.startsAt,
             endsAt: event.endsAt,
             salesEnabled: event.salesEnabled,
+            city: event.city,
+            state: event.state,
+            country: event.country,
           },
         });
         return event;
@@ -97,7 +107,8 @@ export class AdminEventsService {
 
   /**
    * Applies the supplied fields under a row lock. Dates are merged with the stored ones before the
-   * window check, so a single date can move as long as the pair stays valid. Archived events are
+   * window check, so a single date can move as long as the pair stays valid; the location is merged
+   * the same way, so an event without one must receive all three fields. Archived events are
    * refused with `409 event_archived` so their data stays as archived until restored. When nothing
    * actually changes, the current event is returned and no audit row is written.
    */
@@ -106,10 +117,13 @@ export class AdminEventsService {
       const current = await lockEvent(tx, eventId);
       if (current.archivedAt) throw eventArchived();
 
-      const { name, timeZone, startsAt, endsAt } = current;
-      const next = { name, timeZone, startsAt, endsAt, ...input };
-      const windowErrors = eventWindowErrors(next.startsAt, next.endsAt);
-      if (Object.keys(windowErrors).length > 0) throw invalidEvent(windowErrors);
+      const { name, timeZone, startsAt, endsAt, city, state, country } = current;
+      const next = { name, timeZone, startsAt, endsAt, city, state, country, ...input };
+      const errors = {
+        ...eventWindowErrors(next.startsAt, next.endsAt),
+        ...eventLocationErrors(next),
+      };
+      if (Object.keys(errors).length > 0) throw invalidEvent(errors);
 
       const changed = EDITABLE.filter((key) => !sameValue(current[key], next[key]));
       if (changed.length === 0) return toAdminEvent(current);

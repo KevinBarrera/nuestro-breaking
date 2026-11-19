@@ -9,16 +9,19 @@ const pass: CatalogPassType = {
   passClass: 'full',
   priceCents: 150000,
   requiresPassClass: null,
+  onlineSalesClosesAt: null,
   status: 'active',
   version: 2,
   activities: [],
 };
 
+const zone = 'America/Mexico_City';
+
 const activity = (id: string, name: string): CatalogActivity => ({
   id,
   eventId: 'event',
   venueId: 'venue',
-  kind: 'battle',
+  kind: 'competition',
   name,
   startsAt: '2026-11-14T16:00:00.000Z',
   endsAt: '2026-11-14T18:00:00.000Z',
@@ -29,33 +32,74 @@ const activity = (id: string, name: string): CatalogActivity => ({
 describe('passFieldRows', () => {
   it('lists each changed field with labels and pesos, in form order', () => {
     expect(
-      passFieldRows(pass, {
-        name: 'Pase VIP',
-        passClass: 'add_on',
-        priceCents: 175050,
-        requiresPassClass: 'full',
-      }),
+      passFieldRows(
+        pass,
+        {
+          name: 'Pase VIP',
+          passClass: 'add_on',
+          priceCents: 175050,
+          requiresPassClass: 'full',
+          onlineSalesClosesAt: '2026-11-17T15:00:00.000Z',
+        },
+        zone,
+      ),
     ).toEqual([
       { key: 'name', label: 'Nombre', before: 'Pase completo', after: 'Pase VIP' },
       { key: 'passClass', label: 'Clase', before: 'Completo', after: 'Adicional' },
       { key: 'price', label: 'Precio', before: '$1,500.00', after: '$1,750.50' },
       { key: 'requiresPassClass', label: 'Requiere pase', before: 'Ninguno', after: 'Completo' },
+      {
+        key: 'onlineSalesClosesAt',
+        label: 'Venta en línea',
+        before: 'Mientras el evento venda',
+        after: 'Hasta el 17 nov 2026, 09:00',
+      },
+    ]);
+  });
+
+  it('reads a cleared online sales close time as following the event (#240)', () => {
+    const closing = { ...pass, onlineSalesClosesAt: '2026-11-20T16:00:00.000Z' };
+    const { name, passClass, priceCents, requiresPassClass } = pass;
+    expect(
+      passFieldRows(
+        closing,
+        { name, passClass, priceCents, requiresPassClass, onlineSalesClosesAt: null },
+        zone,
+      ),
+    ).toEqual([
+      {
+        key: 'onlineSalesClosesAt',
+        label: 'Venta en línea',
+        before: 'Hasta el 20 nov 2026, 10:00',
+        after: 'Mientras el evento venda',
+      },
     ]);
   });
 
   it('is empty when nothing changed', () => {
-    const { name, passClass, priceCents, requiresPassClass } = pass;
-    expect(passFieldRows(pass, { name, passClass, priceCents, requiresPassClass })).toEqual([]);
+    const { name, passClass, priceCents, requiresPassClass, onlineSalesClosesAt } = pass;
+    expect(
+      passFieldRows(
+        pass,
+        { name, passClass, priceCents, requiresPassClass, onlineSalesClosesAt },
+        zone,
+      ),
+    ).toEqual([]);
   });
 
-  it('lists a new pass against "—" and leaves out an unset required class', () => {
+  it('lists a new pass against "—" and leaves out an unset required class and close time', () => {
     expect(
-      passFieldRows(undefined, {
-        name: 'Entrada general',
-        passClass: 'general',
-        priceCents: 30000,
-        requiresPassClass: null,
-      }),
+      passFieldRows(
+        undefined,
+        {
+          name: 'Entrada general',
+          passClass: 'general',
+          priceCents: 30000,
+          requiresPassClass: null,
+          onlineSalesClosesAt: null,
+        },
+        zone,
+      ),
     ).toEqual([
       { key: 'name', label: 'Nombre', before: '—', after: 'Entrada general' },
       { key: 'passClass', label: 'Clase', before: '—', after: 'General' },

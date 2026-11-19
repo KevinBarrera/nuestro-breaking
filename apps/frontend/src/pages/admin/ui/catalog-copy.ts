@@ -1,8 +1,11 @@
-import type {
-  ActivityAccess,
-  CatalogFailure,
-  CatalogStatus,
-  PassClass,
+import {
+  activityKinds,
+  isActivityKind,
+  type ActivityAccess,
+  type ActivityKind,
+  type CatalogFailure,
+  type CatalogStatus,
+  type PassClass,
 } from '@/entities/event-catalog';
 
 // Spanish copy and shared styles for the admin catalog screens.
@@ -47,25 +50,38 @@ export const accessLabels: Record<ActivityAccess, string> = {
   included: 'Incluida',
 };
 
-const activityKindLabels: Record<string, string> = {
-  battle: 'Batalla',
-  competition: 'Competencia',
+const activityKindLabels: Record<ActivityKind, string> = {
+  competition: 'Categoría',
   workshop: 'Taller',
   social: 'Social',
 };
 
+// The "Tipo" select options, in the entity's order.
+export const activityKindOptions = activityKinds.map((kind) => ({
+  id: kind,
+  label: activityKindLabels[kind],
+}));
+
 // Known kinds read in Spanish; any other kind is shown as stored.
-export const activityKindLabel = (kind: string) => activityKindLabels[kind] ?? kind;
+export const activityKindLabel = (kind: string) =>
+  isActivityKind(kind) ? activityKindLabels[kind] : kind;
+
+const fieldClass =
+  'mt-1 block min-h-11 w-full rounded-lg border bg-input px-3 py-2 text-base text-fg focus-visible:border-focus focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus';
 
 export const styles = {
   primary:
     'min-h-11 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-fg hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus disabled:cursor-wait disabled:opacity-50',
+  // A page's main call to action: 48px tall.
+  primaryLarge:
+    'inline-flex min-h-12 items-center gap-2 rounded-lg bg-primary px-5 text-[15px] font-bold text-primary-fg hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus disabled:cursor-wait disabled:opacity-50',
   secondary:
     'min-h-11 rounded-lg border border-line px-4 py-2 text-sm font-semibold text-fg hover:bg-row focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus disabled:cursor-wait disabled:opacity-50',
   danger:
     'min-h-11 rounded-lg border border-danger-fg px-4 py-2 text-sm font-semibold text-danger-fg hover:bg-danger focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus disabled:cursor-wait disabled:opacity-50',
-  field:
-    'mt-1 block min-h-11 w-full rounded-lg border border-input-line bg-input px-3 py-2 text-base text-fg focus-visible:border-focus focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus',
+  field: `${fieldClass} border-input-line`,
+  // A control whose value is wrong: the danger border replaces the neutral one.
+  fieldInvalid: `${fieldClass} border-danger-fg`,
   label: 'block text-sm font-semibold text-fg',
   card: 'rounded-xl border border-line bg-surface p-5',
   // A segmented radio control: the frame holds one label per option, and each label wraps a

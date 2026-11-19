@@ -2,17 +2,23 @@ import { Module } from '@nestjs/common';
 import { DatabaseModule } from '@/database/database.module';
 import { IdentityAccessModule } from '@/identity-access/identity-access.module';
 import { PublicRateLimitModule } from '@/http';
+import { NotificationsModule } from '@/notifications';
 import { AdminEventsController } from './admin-events/admin-events.controller';
 import { AdminEventsService } from './admin-events/admin-events.service';
+import { AttendeeListsController } from './attendee-lists/attendee-lists.controller';
+import { AttendeeListsService } from './attendee-lists/attendee-lists.service';
 import { EventFoundationGuard } from './foundation/event-foundation.guard';
 import { EventFoundationController } from './foundation/event-foundation.controller';
 import { EventFoundationService } from './foundation/event-foundation.service';
+import { RegistrationHistoryController } from './registration-history/registration-history.controller';
+import { RegistrationHistoryService } from './registration-history/registration-history.service';
 import { RegistrationSearchController } from './registration-search/registration-search.controller';
 import { RegistrationSearchService } from './registration-search/registration-search.service';
 import { ManualRegistrationController } from './manual-registration/manual-registration.controller';
 import { ManualRegistrationService } from './manual-registration/manual-registration.service';
 import { CheckInController } from './check-in/check-in.controller';
 import { CheckInService } from './check-in/check-in.service';
+import { CompetitorNumberService } from './competitor-number/competitor-number.service';
 import { CheckInEventListController } from './check-in-event-list/check-in-event-list.controller';
 import { CheckInEventListService } from './check-in-event-list/check-in-event-list.service';
 import { ActivityAdminController } from './activity-admin/activity-admin.controller';
@@ -33,15 +39,18 @@ import {
   readExpirySweepInterval,
 } from './registration-expiry';
 import { PENDING_PAYMENT_WINDOW, readPendingPaymentWindow } from './shared/pending-payment-window';
+import { SERVICE_CHARGE, readServiceCharge } from './shared/service-charge';
 import { VenueAdminController } from './venue-admin/venue-admin.controller';
 import { VenueAdminService } from './venue-admin/venue-admin.service';
 
 @Module({
-  imports: [DatabaseModule, IdentityAccessModule, PublicRateLimitModule],
+  imports: [DatabaseModule, IdentityAccessModule, NotificationsModule, PublicRateLimitModule],
   controllers: [
     AdminEventsController,
+    AttendeeListsController,
     EventFoundationController,
     RegistrationSearchController,
+    RegistrationHistoryController,
     ManualRegistrationController,
     CheckInController,
     CheckInEventListController,
@@ -55,11 +64,14 @@ import { VenueAdminService } from './venue-admin/venue-admin.service';
   ],
   providers: [
     AdminEventsService,
+    AttendeeListsService,
     EventFoundationService,
     EventFoundationGuard,
     RegistrationSearchService,
+    RegistrationHistoryService,
     ManualRegistrationService,
     CheckInService,
+    CompetitorNumberService,
     CheckInEventListService,
     ActivityAdminService,
     PassTypeAdminService,
@@ -69,6 +81,7 @@ import { VenueAdminService } from './venue-admin/venue-admin.service';
     PublicRegistrationService,
     VenueAdminService,
     { provide: PENDING_PAYMENT_WINDOW, useFactory: () => readPendingPaymentWindow(process.env) },
+    { provide: SERVICE_CHARGE, useFactory: () => readServiceCharge(process.env) },
     { provide: EXPIRY_SWEEP_INTERVAL_MS, useFactory: () => readExpirySweepInterval(process.env) },
     PendingRegistrationExpirySweeper,
   ],

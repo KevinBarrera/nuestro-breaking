@@ -4,6 +4,7 @@ import {
   createRegistration,
   PublicEventError,
   publicEventFailure,
+  serviceChargeCents,
 } from '@/entities/public-event';
 import {
   buildRegistrationRequest,
@@ -29,7 +30,7 @@ import { usePurchase } from './purchase-context';
 import { purchaseStepCount, stepNumber, stepPath, stepRedirect } from './purchase-steps';
 
 const overlapNotice =
-  'Algunas competencias o workshops pueden coincidir en horario. Puedes elegir libremente a cuáles asistir; intentaremos evitar cruces entre competencias, pero no podemos garantizarlos. Open Styles no coincidirá con competencias de pase completo, aunque podría coincidir parcialmente con workshops.';
+  'Algunas categorías o workshops pueden coincidir en horario. Puedes elegir libremente a cuáles asistir; intentaremos evitar cruces entre categorías, pero no podemos garantizarlos. Open Styles no coincidirá con categorías de pase completo, aunque podría coincidir parcialmente con workshops.';
 
 // Each document page (#180) opens in another tab, so the purchase and its checkboxes stay here.
 // The versions those pages show are the ones `buildRegistrationRequest` sends as accepted.
@@ -60,7 +61,7 @@ const legalChecks = [
 const fixLabels: Record<PayFix, string> = {
   home: 'Volver al inicio',
   passes: 'Cambiar mis pases',
-  competitions: 'Cambiar mis competencias',
+  competitions: 'Cambiar mis categorías',
   buyer: 'Corregir mis datos',
 };
 
@@ -114,7 +115,10 @@ export function PublicReviewPage() {
   if (redirect) return <Navigate replace to={stepPath(slug, redirect)} />;
 
   const lines = reviewLines(catalog.passes, selection);
-  const { totalCents } = purchaseTotals(catalog.passes, selection);
+  const passesCents = purchaseTotals(catalog.passes, selection).totalCents;
+  // Online buyers pay the Mercado Pago fee as its own line; checkout charges this same total (#239).
+  const chargeCents = serviceChargeCents(catalog.serviceCharge, passesCents);
+  const totalCents = passesCents + chargeCents;
   const person = reviewBuyer(buyer);
   const allAccepted = legalChecks.every(({ id }) => accepted[id]);
   const backTo = stepPath(slug, 'buyer');
@@ -143,7 +147,7 @@ export function PublicReviewPage() {
         registrationId.current = id;
       } catch (error) {
         if (controller.signal.aborted) return;
-        setFailure(payFailure(publicEventFailure(error)));
+        setFailure(payFailure(publicEventFailure(error), buyer.phoneMode));
         stop();
         return;
       }
@@ -185,6 +189,15 @@ export function PublicReviewPage() {
               </li>
             ))}
           </ul>
+          {chargeCents > 0 ? (
+            <p className="mt-3 flex items-start justify-between gap-3 border-t border-line pt-3">
+              <span className="min-w-0">
+                <span className="block font-bold text-heading">Cargo por servicio</span>
+                <span className="block text-sm text-muted">Comisión de Mercado Pago</span>
+              </span>
+              <span className="shrink-0 font-semibold text-fg">{formatMxn(chargeCents)}</span>
+            </p>
+          ) : null}
           <p className="mt-3 flex items-baseline justify-between gap-3 border-t border-line pt-3 font-extrabold text-heading">
             <span>Total</span>
             <span>{formatMxn(totalCents)} MXN</span>

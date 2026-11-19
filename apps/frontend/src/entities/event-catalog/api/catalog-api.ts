@@ -1,12 +1,14 @@
-import { apiUrl } from '@/shared/api';
+import { adminFetch, apiUrl } from '@/shared/api';
 import {
   isCatalogActivity,
   isCatalogEventSummary,
   isCatalogPassType,
+  readActivityWindowProblem,
   readEventContext,
 } from './readers';
 import type {
   ActivityInput,
+  ActivityWindowProblem,
   CatalogActivity,
   CatalogEventContext,
   CatalogEventSummary,
@@ -21,15 +23,24 @@ import type {
 // without echoing backend details.
 export class CatalogError extends Error {
   readonly failure: CatalogFailure;
+  // Set when a 400 names the failing fields of an activity window (#295).
+  readonly windowProblem: ActivityWindowProblem | null;
 
-  constructor(failure: CatalogFailure) {
+  constructor(failure: CatalogFailure, windowProblem: ActivityWindowProblem | null = null) {
     super(`Catalog request failed: ${failure}`);
     this.failure = failure;
+    this.windowProblem = windowProblem;
   }
 }
 
 export function catalogFailure(error: unknown): CatalogFailure {
   return error instanceof CatalogError ? error.failure : 'error';
+}
+
+// The failing fields and current event window of a rejected activity window, when the server
+// named them.
+export function activityWindowProblem(error: unknown): ActivityWindowProblem | null {
+  return error instanceof CatalogError ? error.windowProblem : null;
 }
 
 function failureFor(status: number): CatalogFailure {
@@ -44,15 +55,27 @@ function eventPath(eventId: string, suffix: string) {
   return `/admin/events/${encodeURIComponent(eventId)}${suffix}`;
 }
 
+async function readBody(response: Response): Promise<unknown> {
+  try {
+    return (await response.json()) as unknown;
+  } catch {
+    return null;
+  }
+}
+
 async function request(path: string, init: RequestInit): Promise<unknown> {
   let response: Response;
   try {
-    response = await fetch(apiUrl(path), { ...init, credentials: 'include' });
+    response = await adminFetch(apiUrl(path), { ...init, credentials: 'include' });
   } catch (error) {
     if (init.signal?.aborted) throw error;
     throw new CatalogError('error');
   }
-  if (!response.ok) throw new CatalogError(failureFor(response.status));
+  if (!response.ok) {
+    const problem =
+      response.status === 400 ? readActivityWindowProblem(await readBody(response)) : null;
+    throw new CatalogError(failureFor(response.status), problem);
+  }
   try {
     return (await response.json()) as unknown;
   } catch {
@@ -63,7 +86,7 @@ async function request(path: string, init: RequestInit): Promise<unknown> {
 async function csrfToken(): Promise<string> {
   let session: Response;
   try {
-    session = await fetch(apiUrl('/auth/session'), { credentials: 'include' });
+    session = await adminFetch(apiUrl('/auth/session'), { credentials: 'include' });
   } catch {
     throw new CatalogError('error');
   }

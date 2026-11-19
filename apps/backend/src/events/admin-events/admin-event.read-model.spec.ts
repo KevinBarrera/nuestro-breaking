@@ -11,6 +11,9 @@ describe('admin event read model', () => {
     startsAt: new Date('2026-11-14T16:00:00Z'),
     endsAt: new Date('2026-11-16T04:00:00Z'),
     salesEnabled: false,
+    city: 'Guadalajara',
+    state: 'Jalisco',
+    country: 'MX',
   };
 
   it('maps a full event, keeping missing dates as null', () => {
@@ -24,6 +27,9 @@ describe('admin event read model', () => {
       startsAt: '2026-11-14T16:00:00.000Z',
       endsAt: '2026-11-16T04:00:00.000Z',
       salesEnabled: false,
+      city: 'Guadalajara',
+      state: 'Jalisco',
+      country: 'MX',
     });
     expect(toAdminEvent({ ...row, startsAt: null, endsAt: null })).toMatchObject({
       startsAt: null,
@@ -32,5 +38,13 @@ describe('admin event read model', () => {
     expect(
       toAdminEvent({ ...row, archivedAt: new Date('2026-10-01T12:00:00Z'), salesEnabled: true }),
     ).toMatchObject({ archivedAt: '2026-10-01T12:00:00.000Z', salesEnabled: true });
+  });
+
+  it('keeps an event without a location as null fields', () => {
+    expect(toAdminEvent({ ...row, city: null, state: null, country: null })).toMatchObject({
+      city: null,
+      state: null,
+      country: null,
+    });
   });
 });

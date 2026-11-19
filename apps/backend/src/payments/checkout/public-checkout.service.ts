@@ -14,6 +14,11 @@ import {
   paymentDeadlines,
   type PendingPaymentWindow,
 } from '@/events/shared/pending-payment-window';
+import {
+  SERVICE_CHARGE,
+  serviceChargeCents,
+  type ServiceCharge,
+} from '@/events/shared/service-charge';
 import type { DatabaseService } from '@/database/database.service';
 import {
   eventPassTypes,
@@ -51,6 +56,7 @@ export class PublicCheckoutService {
     @Inject(DATABASE_CLIENT) private readonly db: Database,
     @Inject(MERCADO_PAGO_CONFIG) private readonly config: MercadoPagoConfig,
     @Inject(PENDING_PAYMENT_WINDOW) private readonly paymentWindow: PendingPaymentWindow,
+    @Inject(SERVICE_CHARGE) private readonly serviceCharge: ServiceCharge,
     private readonly mercadoPago: MercadoPagoClient,
   ) {}
 
@@ -87,8 +93,11 @@ export class PublicCheckoutService {
         ),
       )
       .orderBy(asc(eventRegistrationPasses.createdAt), asc(eventRegistrationPasses.id));
-    const amountCents = passes.reduce((total, pass) => total + pass.priceCents, 0);
-    if (amountCents <= 0) throw new ConflictException(NOT_PAYABLE);
+    const passesCents = passes.reduce((total, pass) => total + pass.priceCents, 0);
+    if (passesCents <= 0) throw new ConflictException(NOT_PAYABLE);
+    // Online buyers pay the Mercado Pago fee on top of the passes (#239); cash registrations
+    // never reach this path.
+    const chargeCents = serviceChargeCents(this.serviceCharge, passesCents);
 
     const { paymentDueAt, expiresAt } = paymentDeadlines(this.paymentWindow, new Date());
     const preference = await this.createPreference(
@@ -96,6 +105,7 @@ export class PublicCheckoutService {
         registrationId,
         slug,
         passes,
+        serviceChargeCents: chargeCents,
         publicAppUrl: this.config.publicAppUrl,
         notificationUrl: this.config.notificationUrl,
         paymentDueAt,
@@ -114,7 +124,8 @@ export class PublicCheckoutService {
         registrationId,
         mode: this.config.mode,
         preferenceId: preference.preferenceId,
-        amountCents,
+        amountCents: passesCents + chargeCents,
+        serviceChargeCents: chargeCents,
         currency: 'MXN',
       });
       await tx

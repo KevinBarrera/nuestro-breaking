@@ -88,7 +88,8 @@ export class PublicRegistrationService {
       await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${eventId}))`);
       const passTypes = await this.lockPassTypes(tx, eventId, request);
       const passIds = request.passes.map((pass) => pass.passTypeId);
-      const violation = passRuleViolation(passIds, passTypes);
+      // Checked after the locks, so a request waiting on them sees the close time as it is now.
+      const violation = passRuleViolation(passIds, passTypes, new Date());
       if (violation) throw new PublicRegistrationRuleException(violation);
       for (const pass of request.passes)
         if (
@@ -229,6 +230,7 @@ export class PublicRegistrationService {
         requiresPassClass: eventPassTypes.requiresPassClass,
         priceCents: eventPassTypes.priceCents,
         status: eventPassTypes.status,
+        onlineSalesClosesAt: eventPassTypes.onlineSalesClosesAt,
       })
       .from(eventPassTypes)
       .where(

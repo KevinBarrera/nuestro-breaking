@@ -152,7 +152,7 @@ describe('GET /admin/events/:eventId/foundation (e2e)', () => {
       VALUES
         (${event.id}, ${extra.id}, 'Later', 'workshop',
           TIMESTAMPTZ '2026-11-15 15:00:00+00', TIMESTAMPTZ '2026-11-15 16:00:00+00'),
-        (${event.id}, ${main.id}, 'Earlier', 'battle',
+        (${event.id}, ${main.id}, 'Earlier', 'competition',
           TIMESTAMPTZ '2026-11-14 15:00:00+00', TIMESTAMPTZ '2026-11-14 17:00:00+00')
       RETURNING id
     `;
@@ -180,6 +180,9 @@ describe('GET /admin/events/:eventId/foundation (e2e)', () => {
         windowStatus: 'bounded',
         salesEnabled: false,
         archivedAt: null,
+        city: null,
+        state: null,
+        country: null,
       },
       venues: [
         { id: extra.id, name: 'Extra' },
@@ -189,7 +192,7 @@ describe('GET /admin/events/:eventId/foundation (e2e)', () => {
         {
           id: earlier.id,
           name: 'Earlier',
-          kind: 'battle',
+          kind: 'competition',
           venueId: main.id,
           startsAt: '2026-11-14T15:00:00.000Z',
           endsAt: '2026-11-14T17:00:00.000Z',
@@ -237,6 +240,9 @@ describe('GET /admin/events/:eventId/foundation (e2e)', () => {
         windowStatus: 'unbounded',
         salesEnabled: false,
         archivedAt: null,
+        city: null,
+        state: null,
+        country: null,
       },
       venues: [],
       activities: [],

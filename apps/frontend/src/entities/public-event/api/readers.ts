@@ -10,6 +10,7 @@ import {
   type PublicCatalog,
   type PublicEventFailure,
   type PublicPass,
+  type PublicServiceCharge,
   type Registration,
   type RegistrationPass,
 } from './types';
@@ -26,6 +27,8 @@ function oneOf<T extends string>(values: readonly T[], value: unknown): value is
 }
 
 const text = (value: unknown): value is string => typeof value === 'string' && value.length > 0;
+// A location field (#330): text, null, or absent from a backend that predates it.
+const locationPart = (value: unknown) => value === undefined || value === null || text(value);
 const instant = (value: unknown): value is string =>
   typeof value === 'string' && !Number.isNaN(Date.parse(value));
 const instantOrNull = (value: unknown) => value === null || instant(value);
@@ -55,8 +58,22 @@ function isPublicPass(value: unknown): value is PublicPass {
     oneOf(publicPassClasses, row.passClass) &&
     cents(row.priceCents) &&
     (row.requiresPassClass === null || oneOf(publicPassClasses, row.requiresPassClass)) &&
+    instantOrNull(row.onlineSalesClosesAt) &&
+    typeof row.onSale === 'boolean' &&
     listOf(row.selectableActivities, isPublicActivity) &&
     listOf(row.includedActivities, isPublicActivity)
+  );
+}
+
+// The rates must leave part of the payment to the organizer, or the charge cannot be grossed up.
+function isServiceCharge(value: unknown): value is PublicServiceCharge {
+  const row = record(value);
+  return (
+    !!row &&
+    cents(row.rateBasisPoints) &&
+    cents(row.fixedCents) &&
+    cents(row.vatBasisPoints) &&
+    row.rateBasisPoints * (10_000 + row.vatBasisPoints) < 100_000_000
   );
 }
 
@@ -75,9 +92,11 @@ export function isPublicCatalog(value: unknown): value is PublicCatalog {
     text(event.timeZone) &&
     instantOrNull(event.startsAt) &&
     instantOrNull(event.endsAt) &&
+    [event.city, event.state, event.country].every(locationPart) &&
     stateMatches &&
     instantOrNull(sales.opensAt) &&
     instantOrNull(sales.closesAt) &&
+    isServiceCharge(body.serviceCharge) &&
     listOf(body.passes, isPublicPass)
   );
 }
@@ -124,6 +143,7 @@ export function isPaymentStatus(value: unknown): value is PaymentStatus {
     typeof body.firstName === 'string' &&
     (body.maskedEmail === null || text(body.maskedEmail)) &&
     listOf(body.passes, isPaymentStatusPass) &&
+    cents(body.serviceChargeCents) &&
     cents(body.totalCents)
   );
 }

@@ -1,6 +1,6 @@
 import type { CatalogActivity, CatalogPassType } from '@/entities/event-catalog';
 import { describe, expect, it } from 'vitest';
-import { catalogStats, describeAccess } from './overview-model';
+import { catalogStats, describeAccess, passCountLabel } from './overview-model';
 
 const activity = (id: string, kind: string, name: string, status = 'active'): CatalogActivity => ({
   id,
@@ -21,18 +21,19 @@ const passType = (overrides: Partial<CatalogPassType>): CatalogPassType => ({
   passClass: 'full',
   priceCents: 100000,
   requiresPassClass: null,
+  onlineSalesClosesAt: null,
   status: 'active',
   version: 1,
   activities: [],
   ...overrides,
 });
 
-const battle = activity('battle', 'battle', 'Batalla de crews');
-const final = activity('final', 'battle', 'Final 1 vs 1');
+const battle = activity('battle', 'competition', 'Batalla de crews');
+const final = activity('final', 'competition', 'Final 1 vs 1');
 const footwork = activity('footwork', 'workshop', 'Taller de footwork');
 const toprock = activity('toprock', 'workshop', 'Taller de toprock');
 const power = activity('power', 'workshop', 'Taller de power');
-const old = activity('old', 'battle', 'Batalla cancelada', 'archived');
+const old = activity('old', 'competition', 'Batalla cancelada', 'archived');
 const activityById = new Map(
   [battle, final, footwork, toprock, power, old].map((entry) => [entry.id, entry]),
 );
@@ -47,24 +48,26 @@ describe('catalogStats', () => {
       passType({ id: 'd', status: 'archived' }),
     ];
     expect(catalogStats([battle, final, footwork, old], passes)).toEqual([
-      { label: 'pases activos', count: 3 },
-      { label: 'batallas', count: 2 },
-      { label: 'talleres', count: 1 },
+      { label: 'pases activos', count: 3, target: 'passes' },
+      { label: 'categorías', count: 2, target: 'activities' },
+      { label: 'talleres', count: 1, target: 'activities' },
     ]);
   });
 
   it('sorts kinds by count, then by label, and names unknown kinds as sent', () => {
     const rows = [battle, footwork, toprock, power, activity('cypher', 'cypher', 'Cypher abierto')];
     expect(catalogStats(rows, [])).toEqual([
-      { label: 'pases activos', count: 0 },
-      { label: 'talleres', count: 3 },
-      { label: 'batallas', count: 1 },
-      { label: 'cypher', count: 1 },
+      { label: 'pases activos', count: 0, target: 'passes' },
+      { label: 'talleres', count: 3, target: 'activities' },
+      { label: 'categorías', count: 1, target: 'activities' },
+      { label: 'cypher', count: 1, target: 'activities' },
     ]);
   });
 
   it('reports only the pass count when no activity is active', () => {
-    expect(catalogStats([old], [passType({})])).toEqual([{ label: 'pases activos', count: 1 }]);
+    expect(catalogStats([old], [passType({})])).toEqual([
+      { label: 'pases activos', count: 1, target: 'passes' },
+    ]);
   });
 });
 
@@ -128,5 +131,12 @@ describe('describeAccess', () => {
     expect(access({ passClass: 'add_on', requiresPassClass: 'general' })).toBe(
       'Sin actividades · Requiere pase general',
     );
+  });
+});
+
+describe('passCountLabel', () => {
+  it('counts the passes on sale for the table footer', () => {
+    expect(passCountLabel(1)).toBe('1 pase');
+    expect(passCountLabel(8)).toBe('8 pases');
   });
 });

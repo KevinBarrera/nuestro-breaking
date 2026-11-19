@@ -41,6 +41,21 @@ describe('validateBuyer', () => {
     expect(validateBuyer({ ...valid, phone: '+52 33 1234 5678' }, today).phone).toBeDefined();
   });
 
+  it('starts in the Mexican phone mode', () => {
+    expect(emptyBuyerForm.phoneMode).toBe('mx');
+  });
+
+  it('accepts a number from another country with 10 to 15 digits and an optional +', () => {
+    for (const phone of ['+1 (415) 555-0100', '4155550100', '+44 20.7946.0958 123']) {
+      expect(validateBuyer({ ...valid, phoneMode: 'international', phone }, today)).toEqual({});
+    }
+    for (const phone of ['+1 415 555 01', '+44 20 7946 0958 1234', '++1 415 555 0100']) {
+      expect(validateBuyer({ ...valid, phoneMode: 'international', phone }, today).phone).toBe(
+        'Escribe tu número completo con la lada de tu país, de 10 a 15 dígitos.',
+      );
+    }
+  });
+
   it('applies the backend length limits', () => {
     const errors = validateBuyer(
       {
@@ -100,6 +115,17 @@ describe('buyerPayload', () => {
       firstLastName: 'López',
       email: 'ana@ejemplo.com',
       phone: '+52 3312345678',
+    });
+  });
+
+  it('sends a number from another country as + and its digits', () => {
+    expect(
+      buyerPayload({ ...valid, phoneMode: 'international', phone: ' +1 (415) 555-0100 ' }),
+    ).toEqual({
+      firstName: 'Ana',
+      firstLastName: 'López',
+      email: 'ana@ejemplo.com',
+      phone: '+14155550100',
     });
   });
 

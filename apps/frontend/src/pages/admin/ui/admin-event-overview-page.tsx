@@ -1,17 +1,19 @@
+import { listAdminEvents, type AdminEvent } from '@/entities/admin-event';
 import {
   formatMxn,
   listActivities,
-  listCatalogEvents,
   listPassTypes,
   type CatalogActivity,
   type CatalogPassType,
 } from '@/entities/event-catalog';
 import { routes } from '@/shared/config';
+import { DataTable, TableChip, type TableColumn } from '@/shared/ui';
 import { useCallback, useId } from 'react';
 import { Link, useParams } from 'react-router';
 import { passClassLabels, styles } from './catalog-copy';
 import { CatalogLoadFailure } from './catalog-notice';
-import { catalogStats, describeAccess } from './overview-model';
+import { eventDates, eventLocation } from './event-model';
+import { catalogStats, describeAccess, passCountLabel } from './overview-model';
 import { SalesSection } from './sales-section';
 import { useCatalogLoad } from './use-catalog-load';
 
@@ -27,13 +29,13 @@ function EventOverview({ eventId }: { eventId: string }) {
   const load = useCallback(
     async (signal: AbortSignal) => {
       const [events, activities, passTypes] = await Promise.all([
-        // The event name is a nicety: a failed event list never blocks the catalog summary.
-        listCatalogEvents(signal).catch(() => []),
+        // The event facts are a nicety: a failed event list never blocks the catalog summary.
+        listAdminEvents(signal).catch(() => []),
         listActivities(eventId, signal),
         listPassTypes(eventId, signal),
       ]);
-      const eventName = events.find((event) => event.id === eventId)?.name ?? null;
-      return { eventName, activities, passTypes };
+      const event = events.find((candidate) => candidate.id === eventId) ?? null;
+      return { event, activities, passTypes };
     },
     [eventId],
   );
@@ -41,81 +43,100 @@ function EventOverview({ eventId }: { eventId: string }) {
   const data = state.status === 'ready' ? state.data : null;
 
   return (
-    <main className="px-4 py-8 text-fg sm:px-8 lg:py-12">
-      <div className="mx-auto max-w-5xl space-y-6">
-        <header className="space-y-1">
+    <main className="px-4 py-8 text-fg sm:px-8 lg:py-10">
+      <div className="mx-auto max-w-[67.5rem] space-y-6">
+        <header className="space-y-1.5 pb-2">
           <h1 className="text-3xl font-extrabold tracking-tight text-heading">
             Resumen del evento
           </h1>
-          {data?.eventName && <p className="text-muted">{data.eventName}</p>}
+          {data?.event && <EventFacts event={data.event} />}
         </header>
-        <QuickActions eventId={eventId} />
-        {/* Keyed so another event never shows, or saves over, the previous settings. */}
-        <SalesSection key={eventId} eventId={eventId} />
-        {state.status === 'loading' && <p role="status">Cargando resumen…</p>}
-        {state.status === 'failed' && <CatalogLoadFailure failure={state.failure} />}
+        {/* Venta en línea (wide) beside Catálogo (narrow); they stack when there is no room. */}
+        <div className="flex flex-wrap items-start gap-6">
+          <div className="min-w-0 grow-2 basis-[32.5rem]">
+            {/* Keyed so another event never shows, or saves over, the previous settings. */}
+            <SalesSection key={eventId} eventId={eventId} />
+          </div>
+          <div className="min-w-0 grow basis-[17.5rem]">
+            {state.status === 'loading' && <p role="status">Cargando resumen…</p>}
+            {state.status === 'failed' && <CatalogLoadFailure failure={state.failure} />}
+            {data && (
+              <CatalogSummary
+                eventId={eventId}
+                activities={data.activities}
+                passTypes={data.passTypes}
+              />
+            )}
+          </div>
+        </div>
         {data && (
-          <>
-            <CatalogSummary
-              eventId={eventId}
-              activities={data.activities}
-              passTypes={data.passTypes}
-            />
-            <PassTable activities={data.activities} passTypes={data.passTypes} />
-          </>
+          <PassTable eventId={eventId} activities={data.activities} passTypes={data.passTypes} />
         )}
       </div>
     </main>
   );
 }
 
-const actionCard =
-  'flex min-h-36 flex-col justify-between gap-4 rounded-xl p-5 text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus';
-
-function QuickActions({ eventId }: { eventId: string }) {
-  const titleId = useId();
-  const upcoming = [
-    { eyebrow: 'EFECTIVO', title: 'Registrar en el lugar', hint: 'Con número de recibo foliado' },
-    { eyebrow: 'RESPALDO', title: 'Imprimir listas', hint: 'Por pase y actividad, sin contactos' },
-  ];
+// The event name, its dates on the event clock and where it happens, under the page title. An
+// event without a location (#322) shows none.
+function EventFacts({ event }: { event: AdminEvent }) {
+  const location = eventLocation(event);
   return (
-    <section aria-labelledby={titleId}>
-      <h2 id={titleId} className="sr-only">
-        Acciones rápidas
-      </h2>
-      <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,15rem),1fr))] gap-4">
-        <Link
-          to={eventPath(routes.adminEventCheckIn, eventId)}
-          className={`${actionCard} bg-primary text-primary-fg hover:opacity-90`}
-        >
-          <span className="text-xs font-bold tracking-[0.08em]">EN PUERTA</span>
-          <span className="text-2xl leading-tight font-extrabold">Abrir check-in</span>
-          <span className="text-sm">Busca por nombre, AKA, correo o folio</span>
-        </Link>
-        {upcoming.map((action) => (
-          // Not wired yet: visibly unavailable and announced as disabled, never a link.
-          <button
-            key={action.title}
-            type="button"
-            aria-disabled="true"
-            className={`${actionCard} cursor-not-allowed border border-line bg-surface text-muted`}
-          >
-            <span className="flex flex-wrap items-center gap-2 text-xs font-bold tracking-[0.08em]">
-              {action.eyebrow}
-              <span className="rounded bg-chip px-1.5 py-0.5 font-medium tracking-normal">
-                Próximamente
-              </span>
-            </span>
-            <span className="text-xl leading-tight font-extrabold">{action.title}</span>
-            <span className="text-sm">{action.hint}</span>
-          </button>
-        ))}
-      </div>
-    </section>
+    <p className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-muted">
+      <span className="font-semibold text-fg">{event.name}</span>
+      <span className="inline-flex items-center gap-1.5">
+        <CalendarIcon />
+        {eventDates(event)}
+      </span>
+      {location && (
+        <span className="inline-flex items-center gap-1.5">
+          <PlaceIcon />
+          {location}
+        </span>
+      )}
+    </p>
   );
 }
 
+const iconProps = {
+  'aria-hidden': true,
+  width: 16,
+  height: 16,
+  viewBox: '0 0 20 20',
+  fill: 'none',
+  stroke: 'currentColor',
+  strokeWidth: 1.75,
+  strokeLinecap: 'round',
+  strokeLinejoin: 'round',
+  className: 'shrink-0',
+} as const;
+
+const CalendarIcon = () => (
+  <svg {...iconProps}>
+    <rect x="3" y="4.5" width="14" height="13" rx="2" />
+    <path d="M3 8.5h14M7 2.5v4M13 2.5v4" />
+  </svg>
+);
+
+const PlaceIcon = () => (
+  <svg {...iconProps}>
+    <path d="M10 17.5s5.5-4.8 5.5-9a5.5 5.5 0 0 0-11 0c0 4.2 5.5 9 5.5 9z" />
+    <circle cx="10" cy="8.5" r="2" />
+  </svg>
+);
+
+const ArrowIcon = () => (
+  <svg {...iconProps}>
+    <path d="M8 6l4 4-4 4" />
+  </svg>
+);
+
 type CatalogProps = { activities: CatalogActivity[]; passTypes: CatalogPassType[] };
+
+const statTargets = {
+  passes: { route: routes.adminEventPasses, action: 'Ver pases' },
+  activities: { route: routes.adminEventActivities, action: 'Ver actividades' },
+};
 
 function CatalogSummary({ eventId, activities, passTypes }: CatalogProps & { eventId: string }) {
   const titleId = useId();
@@ -123,22 +144,30 @@ function CatalogSummary({ eventId, activities, passTypes }: CatalogProps & { eve
   const hasActivities = stats.length > 1;
   return (
     <section aria-labelledby={titleId} className={`${styles.card} space-y-4`}>
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 id={titleId} className="text-lg font-bold text-heading">
+      <div className="space-y-1">
+        <h2 id={titleId} className="text-xl font-extrabold text-heading">
           Catálogo
         </h2>
-        <Link
-          to={eventPath(routes.adminEventPasses, eventId)}
-          className="inline-flex min-h-11 items-center rounded-md px-3 text-sm font-semibold text-link hover:text-link-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
-        >
-          Editar
-        </Link>
+        <p className="text-sm text-muted">Lo que este evento ofrece.</p>
       </div>
-      <ul className="grid grid-cols-[repeat(auto-fit,minmax(8rem,1fr))] gap-3">
+      <ul className="flex flex-col gap-3">
         {stats.map((stat) => (
-          <li key={stat.label} className="flex flex-col gap-0.5 rounded-lg bg-surface-inner p-3">
-            <span className="text-3xl font-extrabold text-heading">{stat.count}</span>
-            <span className="text-sm text-muted">{stat.label}</span>
+          <li key={stat.label}>
+            <Link
+              to={eventPath(statTargets[stat.target].route, eventId)}
+              className="flex items-center gap-3 rounded-lg bg-surface-inner p-4 text-fg hover:bg-row focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+            >
+              <span className="flex flex-1 flex-col gap-0.5">
+                <span className="text-[2rem] leading-9 font-extrabold tracking-tight text-heading">
+                  {stat.count}
+                </span>
+                <span className="text-sm text-muted">{stat.label}</span>
+              </span>
+              <span className="inline-flex items-center gap-1 text-sm font-semibold text-link">
+                {statTargets[stat.target].action}
+                <ArrowIcon />
+              </span>
+            </Link>
           </li>
         ))}
       </ul>
@@ -147,56 +176,52 @@ function CatalogSummary({ eventId, activities, passTypes }: CatalogProps & { eve
   );
 }
 
-function PassTable({ activities, passTypes }: CatalogProps) {
-  const titleId = useId();
+function PassTable({ eventId, activities, passTypes }: CatalogProps & { eventId: string }) {
   const onSale = passTypes.filter((passType) => passType.status === 'active');
   const activityById = new Map(activities.map((activity) => [activity.id, activity]));
+  const columns: TableColumn<CatalogPassType>[] = [
+    {
+      key: 'name',
+      header: 'Pase',
+      rowHeader: true,
+      cell: (passType) => (
+        <Link
+          to={eventPath(routes.adminEventPass, eventId).replace(':passTypeId', passType.id)}
+          className="inline-flex min-h-11 items-center rounded font-semibold text-fg hover:underline hover:underline-offset-3 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+        >
+          {passType.name}
+        </Link>
+      ),
+    },
+    {
+      key: 'class',
+      header: 'Clase',
+      cell: (passType) => <TableChip>{passClassLabels[passType.passClass]}</TableChip>,
+    },
+    {
+      key: 'access',
+      header: 'Incluye',
+      muted: true,
+      cell: (passType) => describeAccess(passType, activityById),
+    },
+    {
+      key: 'price',
+      header: 'Precio',
+      align: 'end',
+      mono: true,
+      cell: (passType) => formatMxn(passType.priceCents),
+    },
+  ];
   return (
-    <section aria-labelledby={titleId} className="rounded-xl border border-line bg-surface">
-      <div className="flex flex-wrap items-baseline justify-between gap-3 px-5 pt-5 pb-3">
-        <h2 id={titleId} className="text-lg font-bold text-heading">
-          Pases a la venta
-        </h2>
-        <span className="text-sm text-muted">Precios en MXN</span>
-      </div>
-      {onSale.length === 0 ? (
-        <p className="px-5 pb-5 text-sm text-muted">Aún no hay pases a la venta.</p>
-      ) : (
-        <div data-testid="pass-table-scroll" className="overflow-x-auto">
-          <table aria-labelledby={titleId} className="w-full min-w-[38rem] text-sm">
-            <thead>
-              <tr className="border-b border-line text-left text-xs tracking-[0.06em] text-muted">
-                <th scope="col" className="px-5 py-2.5 font-bold">
-                  PASE
-                </th>
-                <th scope="col" className="px-3 py-2.5 font-bold">
-                  CLASE
-                </th>
-                <th scope="col" className="px-3 py-2.5 font-bold">
-                  INCLUYE
-                </th>
-                <th scope="col" className="px-5 py-2.5 text-right font-bold">
-                  PRECIO
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {onSale.map((passType) => (
-                <tr key={passType.id} className="border-b border-row last:border-b-0">
-                  <th scope="row" className="px-5 py-3 text-left font-semibold">
-                    {passType.name}
-                  </th>
-                  <td className="px-3 py-3 text-muted">{passClassLabels[passType.passClass]}</td>
-                  <td className="px-3 py-3 text-muted">{describeAccess(passType, activityById)}</td>
-                  <td className="px-5 py-3 text-right font-mono font-medium">
-                    {formatMxn(passType.priceCents)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </section>
+    <DataTable
+      title="Pases a la venta"
+      description="Lo que el público puede comprar en línea."
+      columns={columns}
+      rows={onSale}
+      rowKey={(passType) => passType.id}
+      empty="Aún no hay pases a la venta."
+      count={passCountLabel(onSale.length)}
+      note="Precios en MXN"
+    />
   );
 }

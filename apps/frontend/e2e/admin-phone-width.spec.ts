@@ -8,6 +8,7 @@ import {
   themes,
   useTheme,
 } from './support/admin-mocks.ts';
+import { registrationSweepCases } from './support/registration-mocks.ts';
 import { selectTrigger } from './support/select.ts';
 
 const width = 375;
@@ -99,7 +100,7 @@ for (const theme of themes) {
 }
 
 // Each catalog dialog fits a 375px screen in both themes: the dialog stays inside the
-// viewport, its buttons are fully visible, and the page never scrolls sideways.
+// viewport, its buttons are fully visible once scrolled to, and the page never scrolls sideways.
 for (const theme of themes) {
   for (const dialog of adminDialogs) {
     test(`${dialog.name} dialog fits ${width}px in the ${theme} theme`, async ({ page }) => {
@@ -114,8 +115,11 @@ for (const theme of themes) {
       expect(box.x).toBeGreaterThanOrEqual(0);
       expect(box.x + box.width).toBeLessThanOrEqual(width);
       expect(await open.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
-      for (const button of await open.getByRole('button').all())
+      // A tall body scrolls inside the dialog, so each button is scrolled to before measuring.
+      for (const button of await open.getByRole('button').all()) {
+        await button.scrollIntoViewIfNeeded();
         await expect(button).toBeInViewport({ ratio: 1 });
+      }
       expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
         width,
       );
@@ -168,4 +172,41 @@ for (const theme of themes) {
       width,
     );
   });
+}
+
+// The registration screen in each status and the search with a pending result (#105), with a
+// long participant name: the page never scrolls sideways and every control stays inside the
+// viewport, in both themes.
+for (const theme of themes) {
+  for (const sweep of registrationSweepCases) {
+    test(`${sweep.name} fits ${width}px in the ${theme} theme`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 800 });
+      await useTheme(page, theme);
+      await mockAdminApi(page);
+      await sweep.mock(page);
+      await page.goto(sweep.path);
+      await sweep.ready(page);
+      await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
+      const outside = await page
+        .getByRole('main')
+        .locator('a[href], button, input, textarea')
+        .evaluateAll(
+          (nodes, right) =>
+            nodes
+              .filter((node) => node.getClientRects().length > 0)
+              .map((node) => ({
+                name: (node.getAttribute('aria-label') ?? node.textContent ?? '')
+                  .trim()
+                  .slice(0, 40),
+                right: node.getBoundingClientRect().right,
+              }))
+              .filter((node) => node.right > right),
+          width,
+        );
+      expect(outside).toEqual([]);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+        width,
+      );
+    });
+  }
 }

@@ -24,6 +24,7 @@ const catalog = {
     endsAt: null,
   },
   sales: { state: 'open', reason: null, opensAt: null, closesAt: null },
+  serviceCharge: { rateBasisPoints: 349, fixedCents: 400, vatBasisPoints: 1600 },
   passes: [
     {
       id: 'p1',
@@ -31,6 +32,8 @@ const catalog = {
       passClass: 'add_on',
       priceCents: 80000,
       requiresPassClass: 'full',
+      onlineSalesClosesAt: '2026-11-17T15:00:00.000Z',
+      onSale: true,
       selectableActivities: [],
       includedActivities: [activity],
     },
@@ -63,6 +66,30 @@ describe('isPublicCatalog', () => {
     );
   });
 
+  it('rejects missing or malformed service charge rates', () => {
+    const { serviceCharge, ...withoutCharge } = catalog;
+    expect(isPublicCatalog(withoutCharge)).toBe(false);
+    for (const malformed of [
+      { ...serviceCharge, rateBasisPoints: -1 },
+      { ...serviceCharge, fixedCents: 4.5 },
+      { ...serviceCharge, vatBasisPoints: '1600' },
+      // A rate that would take the whole payment can never be grossed up.
+      { ...serviceCharge, rateBasisPoints: 10_000, vatBasisPoints: 0 },
+    ])
+      expect(isPublicCatalog({ ...catalog, serviceCharge: malformed })).toBe(false);
+  });
+
+  it('accepts an event with its location, or without one (#330)', () => {
+    const located = { city: 'Guadalajara', state: 'Jalisco', country: 'MX' };
+    expect(isPublicCatalog({ ...catalog, event: { ...catalog.event, ...located } })).toBe(true);
+    const unlocated = { city: null, state: null, country: null };
+    expect(isPublicCatalog({ ...catalog, event: { ...catalog.event, ...unlocated } })).toBe(true);
+    // A backend from before #330 sends no location fields.
+    expect(isPublicCatalog(catalog)).toBe(true);
+    expect(isPublicCatalog({ ...catalog, event: { ...catalog.event, city: 42 } })).toBe(false);
+    expect(isPublicCatalog({ ...catalog, event: { ...catalog.event, country: '' } })).toBe(false);
+  });
+
   it('rejects malformed events, passes and activities', () => {
     const pass = catalog.passes[0];
     expect(isPublicCatalog({ ...catalog, event: { ...catalog.event, slug: '' } })).toBe(false);
@@ -80,6 +107,10 @@ describe('isPublicCatalog', () => {
         passes: [{ ...pass, selectableActivities: [{ ...activity, endsAt: null }] }],
       }),
     ).toBe(false);
+    expect(isPublicCatalog({ ...catalog, passes: [{ ...pass, onSale: undefined }] })).toBe(false);
+    expect(isPublicCatalog({ ...catalog, passes: [{ ...pass, onlineSalesClosesAt: 'x' }] })).toBe(
+      false,
+    );
     expect(isPublicCatalog({ ...catalog, passes: null })).toBe(false);
     expect(isPublicCatalog(null)).toBe(false);
   });
@@ -157,6 +188,10 @@ describe('readFailure', () => {
       kind: 'rule',
       code: 'general_with_full',
     });
+    expect(readFailure(409, { code: 'pass_type_sales_closed' })).toEqual({
+      kind: 'rule',
+      code: 'pass_type_sales_closed',
+    });
     expect(readFailure(409, { code: 'registration_unavailable' })).toEqual({
       kind: 'unavailable',
     });
@@ -187,7 +222,8 @@ const paymentStatus = {
     { name: 'Pase completo Breaking', competitions: ['Popping 1v1', 'Breaking 1v1'] },
     { name: 'Open Styles', competitions: [] },
   ],
-  totalCents: 220050,
+  serviceChargeCents: 9768,
+  totalCents: 229818,
 };
 
 describe('isPaymentStatus', () => {
@@ -221,6 +257,8 @@ describe('isPaymentStatus', () => {
       { ...paymentStatus, passes: [{ name: '', competitions: [] }] },
       { ...paymentStatus, passes: [{ name: 'Open Styles', competitions: [1] }] },
       { ...paymentStatus, totalCents: -1 },
+      { ...paymentStatus, serviceChargeCents: undefined },
+      { ...paymentStatus, serviceChargeCents: -1 },
       { ...paymentStatus, totalCents: 10.5 },
     ])
       expect(isPaymentStatus(body), JSON.stringify(body)).toBe(false);

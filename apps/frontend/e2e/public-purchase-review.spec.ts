@@ -17,11 +17,11 @@ import {
 test.use({ viewport: { width: 390, height: 844 } });
 
 const home = `/e/${slug}`;
-const step = (name: 'pases' | 'competencias' | 'datos' | 'revisar') => `/e/${slug}/${name}`;
+const step = (name: 'pases' | 'categorias' | 'datos' | 'revisar') => `/e/${slug}/${name}`;
 const checkoutPath = `/public/events/${slug}/registrations/${pendingRegistration.registrationId}/checkout`;
 
 const overlapNotice =
-  'Algunas competencias o workshops pueden coincidir en horario. Puedes elegir libremente a cuáles asistir; intentaremos evitar cruces entre competencias, pero no podemos garantizarlos. Open Styles no coincidirá con competencias de pase completo, aunque podría coincidir parcialmente con workshops.';
+  'Algunas categorías o workshops pueden coincidir en horario. Puedes elegir libremente a cuáles asistir; intentaremos evitar cruces entre categorías, pero no podemos garantizarlos. Open Styles no coincidirá con categorías de pase completo, aunque podría coincidir parcialmente con workshops.';
 
 const legal = [/Reglamento oficial/, /Aviso de privacidad/, /Política de cancelación/] as const;
 
@@ -94,7 +94,8 @@ test.describe('public review and pay', () => {
     await expect(passes).toContainText('Pase completo Breaking');
     await expect(passes).toContainText('Breaking Bboy, Breaking 3v3');
     await expect(passes).toContainText('Open Styles 1vs1');
-    await expect(passes).toContainText(/Total\s*\$2,800\.00 MXN/);
+    await expect(passes).toContainText(/Cargo por servicio\s*Comisión de Mercado Pago\s*\$122\.98/);
+    await expect(passes).toContainText(/Total\s*\$2,922\.98 MXN/);
     await expect(passes.getByRole('link', { name: 'Cambiar pases' })).toHaveAttribute(
       'href',
       step('pases'),
@@ -127,7 +128,7 @@ test.describe('public review and pay', () => {
     }
 
     // Pay stays disabled, with the reason, until the three documents are accepted.
-    await expect(payButton(page)).toHaveText('Pagar $2,800.00 con Mercado Pago');
+    await expect(payButton(page)).toHaveText('Pagar $2,922.98 con Mercado Pago');
     for (const name of legal) {
       await expect(payButton(page)).toBeDisabled();
       await expect(payButton(page)).toHaveAccessibleDescription(
@@ -179,6 +180,43 @@ test.describe('public review and pay', () => {
     // A new purchase starts empty.
     await page.goto(step('revisar'));
     await expect(page).toHaveURL(step('pases'));
+  });
+
+  test('pays with a phone number from another country', async ({ page }) => {
+    await seedDraft(page);
+    await mockPublicCatalog(page, catalogReply());
+    const registration = await mockRegistration(page, registrationReply());
+    await mockCheckout(page, checkoutReply());
+    await page.goto(step('datos'));
+
+    const country = page.getByRole('group', { name: 'País de tu teléfono' });
+    await expect(country.getByRole('radio', { name: 'México +52' })).toBeChecked();
+    await country.getByRole('radio', { name: 'Otro país' }).check();
+    const phone = page.getByLabel('Teléfono celular');
+    await expect(page.getByText('+52', { exact: true })).toBeHidden();
+    await expect(phone).toHaveAccessibleDescription('Incluye la lada de tu país, por ejemplo +1.');
+    await phone.fill('+1 415 555 01');
+    await page.getByRole('button', { name: 'Revisar compra' }).click();
+    await expect(phone).toHaveAccessibleDescription(
+      /Escribe tu número completo con la lada de tu país, de 10 a 15 dígitos\./,
+    );
+    await phone.fill('+1 (415) 555-0100');
+
+    // The country survives a reload.
+    await page.reload();
+    await expect(country.getByRole('radio', { name: 'Otro país' })).toBeChecked();
+    await expect(phone).toHaveValue('+1 (415) 555-0100');
+
+    await page.getByRole('button', { name: 'Revisar compra' }).click();
+    await expect(page).toHaveURL(step('revisar'));
+    await expect(page.getByRole('region', { name: 'Tus datos' })).toContainText(
+      'ana@ejemplo.com · +14155550100',
+    );
+    await acceptLegal(page);
+    await payButton(page).click();
+    await expect(page).toHaveURL(fakeCheckoutUrl);
+    const body = registration.requests[0].postDataJSON() as { buyer: { phone: string } };
+    expect(body.buyer.phone).toBe('+14155550100');
   });
 
   test('retries only the checkout when Mercado Pago is unavailable', async ({ page }) => {
@@ -307,8 +345,14 @@ test.describe('public review and pay', () => {
     {
       kind: '409 rule',
       reply: { status: 409, json: { statusCode: 409, code: 'selection_unavailable' } },
-      message: 'Una de tus competencias ya no está disponible. Vuelve a elegir tus competencias.',
-      fix: { name: 'Cambiar mis competencias', href: step('competencias') },
+      message: 'Una de tus categorías ya no está disponible. Vuelve a elegir tus categorías.',
+      fix: { name: 'Cambiar mis categorías', href: step('categorias') },
+    },
+    {
+      kind: '409 pass sales closed',
+      reply: { status: 409, json: { statusCode: 409, code: 'pass_type_sales_closed' } },
+      message: 'La venta en línea de uno de tus pases ya cerró. Vuelve a elegir tus pases.',
+      fix: { name: 'Cambiar mis pases', href: step('pases') },
     },
     {
       kind: '409 unavailable',

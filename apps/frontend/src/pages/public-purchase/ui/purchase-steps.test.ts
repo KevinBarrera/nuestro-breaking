@@ -8,6 +8,8 @@ const pass = (id: string, competitions: number): PublicPass => ({
   passClass: competitions > 0 ? 'full' : 'general',
   priceCents: 100000,
   requiresPassClass: null,
+  onlineSalesClosesAt: null,
+  onSale: true,
   selectableActivities: Array.from({ length: competitions }, (_, index) => ({
     id: `${id}-${index}`,
     name: `${id} ${index}`,
@@ -24,7 +26,7 @@ describe('purchase steps', () => {
   it('builds each step address under the event', () => {
     expect(stepPath('nov', 'home')).toBe('/e/nov');
     expect(stepPath('nov', 'passes')).toBe('/e/nov/pases');
-    expect(stepPath('nov', 'competitions')).toBe('/e/nov/competencias');
+    expect(stepPath('nov', 'competitions')).toBe('/e/nov/categorias');
     expect(stepPath('nov', 'buyer')).toBe('/e/nov/datos');
     expect(stepPath('nov', 'review')).toBe('/e/nov/revisar');
   });

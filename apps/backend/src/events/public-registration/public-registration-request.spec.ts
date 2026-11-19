@@ -1,5 +1,9 @@
 import { LEGAL_DOCUMENT_VERSIONS } from '@/events/legal-documents';
-import { parsePublicRegistrationRequest } from './public-registration-request';
+import type { FieldErrorCode } from './public-registration.types';
+import {
+  parseParticipantFields,
+  parsePublicRegistrationRequest,
+} from './public-registration-request';
 
 const TODAY = '2026-10-08';
 const PASS = '6f1c2b8e-0000-4000-8000-000000000001';
@@ -284,5 +288,58 @@ describe('parsePublicRegistrationRequest', () => {
     expect(
       errorsOf(body({ passes: [{ passTypeId: PASS, selectedActivityIds: activities }] })),
     ).toEqual({ 'passes[0].selectedActivityIds': 'too_many' });
+  });
+});
+
+describe('parseParticipantFields', () => {
+  it('normalizes the #58 fields and reports errors under the given prefix', () => {
+    const errors = {};
+    expect(
+      parseParticipantFields(
+        {
+          firstName: ' Ana ',
+          firstLastName: 'López',
+          email: ' Ana@Example.COM ',
+          phone: '5512345678',
+        },
+        TODAY,
+        '',
+        errors,
+      ),
+    ).toEqual({
+      firstName: 'Ana',
+      firstLastName: 'López',
+      secondLastName: null,
+      stageName: null,
+      email: 'ana@example.com',
+      phone: '5512345678',
+      city: null,
+      instagram: null,
+      level: null,
+      birthDate: null,
+    });
+    expect(errors).toEqual({});
+
+    const failed: Record<string, FieldErrorCode> = {};
+    expect(
+      parseParticipantFields(
+        { firstName: 'Ana', email: 'nope', phone: '123', birthDate: '2999-01-01' },
+        TODAY,
+        '',
+        failed,
+      ),
+    ).toBeNull();
+    expect(failed).toEqual({
+      firstLastName: 'required',
+      email: 'invalid',
+      phone: 'invalid',
+      birthDate: 'in_future',
+    });
+  });
+
+  it('returns null when only an optional field is invalid', () => {
+    const errors = {};
+    expect(parseParticipantFields(buyer({ instagram: 'a b' }), TODAY, 'p.', errors)).toBeNull();
+    expect(errors).toEqual({ 'p.instagram': 'invalid' });
   });
 });

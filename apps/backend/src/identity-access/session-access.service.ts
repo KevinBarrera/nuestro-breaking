@@ -26,7 +26,8 @@ export class SessionAccessService {
     throw new UnauthorizedException('Unauthenticated');
   }
 
-  private sessionToken(request: Request): string | undefined {
+  /** The well-formed session token the request presents, if exactly one is present. */
+  sessionToken(request: Request): string | undefined {
     const raw = request.headers.cookie?.split(';').map((part) => part.trim());
     const matches = raw?.filter((part) => part.startsWith(`${sessionCookieName}=`));
     if (matches?.length !== 1) return undefined;

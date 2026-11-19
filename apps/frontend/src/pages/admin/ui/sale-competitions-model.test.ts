@@ -1,0 +1,363 @@
+import { describe, expect, it } from 'vitest';
+import {
+  adminRegistrationRuleCodes,
+  type AdminRegistrationFailure,
+  type HeldPass,
+} from '@/entities/admin-registration';
+import type { CatalogActivity, CatalogPassType, PassTypeActivity } from '@/entities/event-catalog';
+import {
+  competitionDraft,
+  competitionsPayload,
+  effectiveDraft,
+  passCompetitionLines,
+  saleCompetitionPasses,
+  saveCompetitionsFailure,
+  toggleCompetition,
+  unsavedCompetitionPasses,
+  unsavedCompetitionsHint,
+  withDraft,
+  type SaleCompetitionPass,
+} from './sale-competitions-model';
+
+const activity = (
+  id: string,
+  startsAt: string,
+  overrides: Partial<CatalogActivity> = {},
+): CatalogActivity => ({
+  id,
+  eventId: 'event-1',
+  venueId: 'venue-1',
+  kind: 'competition',
+  name: `Categoría ${id}`,
+  startsAt,
+  endsAt: startsAt,
+  status: 'active',
+  version: 1,
+  ...overrides,
+});
+
+const passType = (id: string, activities: PassTypeActivity[]): CatalogPassType => ({
+  id,
+  eventId: 'event-1',
+  name: `Pase ${id}`,
+  passClass: 'full',
+  priceCents: 10000,
+  requiresPassClass: null,
+  onlineSalesClosesAt: null,
+  status: 'active',
+  version: 1,
+  activities,
+});
+
+const held = (passTypeId: string, selections: string[] = []): HeldPass => ({
+  registrationPassId: `held-${passTypeId}`,
+  passTypeId,
+  name: `Pase ${passTypeId}`,
+  passClass: 'full',
+  priceCents: 10000,
+  selections,
+});
+
+const selectable = (activityId: string): PassTypeActivity => ({ activityId, access: 'selectable' });
+
+const popping = activity('popping', '2026-11-14T18:00:00Z', { name: 'Popping 1 vs 1' });
+const breaking = activity('breaking', '2026-11-14T16:00:00Z', { name: 'Breaking 1 vs 1' });
+const archived = activity('archived', '2026-11-14T15:00:00Z', {
+  name: 'Locking',
+  status: 'archived',
+});
+const workshop = activity('workshop', '2026-11-14T12:00:00Z');
+
+const full = passType('full', [
+  selectable('popping'),
+  selectable('breaking'),
+  selectable('archived'),
+  { activityId: 'workshop', access: 'included' },
+]);
+const general = passType('general', []);
+const activities = [popping, breaking, archived, workshop];
+
+const pass = (selections: string[] = []): SaleCompetitionPass => {
+  const [only] = saleCompetitionPasses([held('full', selections)], [full], activities);
+  return only;
+};
+
+describe('saleCompetitionPasses', () => {
+  it('lists the active selectable activities of each held pass by start time', () => {
+    expect(saleCompetitionPasses([held('full')], [full], activities)).toEqual([
+      {
+        registrationPassId: 'held-full',
+        name: 'Pase full',
+        saved: [],
+        choices: [
+          { activityId: 'breaking', name: 'Breaking 1 vs 1', available: true },
+          { activityId: 'popping', name: 'Popping 1 vs 1', available: true },
+        ],
+      },
+    ]);
+  });
+
+  it('leaves out held passes with nothing to choose', () => {
+    expect(saleCompetitionPasses([held('general')], [general], activities)).toEqual([]);
+    expect(saleCompetitionPasses([held('missing')], [full], activities)).toEqual([]);
+  });
+
+  it('keeps a saved selection that is no longer selectable, marked unavailable', () => {
+    const access = passType('full', [selectable('popping')]);
+    const [only] = saleCompetitionPasses(
+      [held('full', ['archived', 'gone', 'popping'])],
+      [access],
+      activities,
+    );
+    expect(only.saved).toEqual(['archived', 'gone', 'popping']);
+    expect(only.choices).toEqual([
+      { activityId: 'popping', name: 'Popping 1 vs 1', available: true },
+      { activityId: 'archived', name: 'Locking', available: false },
+      { activityId: 'gone', name: 'Categoría no disponible', available: false },
+    ]);
+  });
+});
+
+describe('passCompetitionLines', () => {
+  const included = (activityId: string): PassTypeActivity => ({ activityId, access: 'included' });
+  const styles = activity('styles', '2026-11-14T17:00:00Z', { name: 'Open Styles 1 vs 1' });
+  const kids = activity('kids', '2026-11-14T14:00:00Z', { name: 'Kids 1 vs 1' });
+  const retired = activity('retired', '2026-11-14T13:00:00Z', {
+    name: 'Locking',
+    status: 'archived',
+  });
+  const openStyles = passType('open', [
+    included('styles'),
+    included('kids'),
+    included('retired'),
+    included('workshop'),
+  ]);
+  // The shared `workshop` fixture is a competition; here it is a real workshop, so it is left out.
+  const catalog = [
+    popping,
+    breaking,
+    archived,
+    { ...workshop, kind: 'workshop' as const },
+    styles,
+    kids,
+    retired,
+  ];
+
+  it('lists the active included competitions by start time and no selection line', () => {
+    expect(passCompetitionLines(held('open'), [openStyles], catalog)).toEqual({
+      included: 'Kids 1 vs 1, Open Styles 1 vs 1',
+      selected: null,
+    });
+  });
+
+  it('summarizes the selections of a pass with selectable competitions', () => {
+    expect(passCompetitionLines(held('full', ['popping']), [full], catalog)).toEqual({
+      included: null,
+      selected: 'Popping 1 vs 1',
+    });
+    expect(passCompetitionLines(held('full'), [full], catalog)).toEqual({
+      included: null,
+      selected: 'Sin categorías',
+    });
+  });
+
+  it('keeps saved selections of a pass that no longer offers any', () => {
+    expect(passCompetitionLines(held('general', ['breaking']), [general], catalog)).toEqual({
+      included: null,
+      selected: 'Breaking 1 vs 1',
+    });
+    expect(passCompetitionLines(held('general'), [general], catalog)).toEqual({
+      included: null,
+      selected: null,
+    });
+  });
+
+  it('falls back to the selection summary when the catalog is unreadable', () => {
+    expect(passCompetitionLines(held('open'), null, catalog)).toEqual({
+      included: null,
+      selected: 'Sin categorías',
+    });
+    expect(passCompetitionLines(held('open', ['styles']), [openStyles], null)).toEqual({
+      included: null,
+      selected: '1 categoría',
+    });
+    // A pass type missing from the list is as unknown as an unreadable list.
+    expect(passCompetitionLines(held('missing'), [openStyles], catalog)).toEqual({
+      included: null,
+      selected: 'Sin categorías',
+    });
+  });
+});
+
+describe('toggleCompetition', () => {
+  it('adds and removes one activity', () => {
+    expect(toggleCompetition(['popping'], 'breaking')).toEqual(['popping', 'breaking']);
+    expect(toggleCompetition(['popping', 'breaking'], 'popping')).toEqual(['breaking']);
+  });
+});
+
+describe('effectiveDraft', () => {
+  it('is the saved list until the operator changes something', () => {
+    expect(effectiveDraft({}, pass(['popping']))).toEqual(['popping']);
+    expect(effectiveDraft({ 'held-other': ['breaking'] }, pass(['popping']))).toEqual(['popping']);
+  });
+
+  it('keeps the pass draft even when a refresh brings a new saved list', () => {
+    expect(effectiveDraft({ 'held-full': ['breaking'] }, pass(['popping']))).toEqual(['breaking']);
+  });
+});
+
+describe('withDraft', () => {
+  it('records a draft only for the changed pass', () => {
+    const drafts = { 'held-other': ['breaking'] };
+    expect(withDraft(drafts, pass(), ['popping'])).toEqual({
+      'held-other': ['breaking'],
+      'held-full': ['popping'],
+    });
+    expect(drafts).toEqual({ 'held-other': ['breaking'] });
+  });
+
+  it('drops the draft once cleared or back to the saved list, in any order', () => {
+    const drafts = { 'held-full': ['popping'], 'held-other': ['breaking'] };
+    expect(withDraft(drafts, pass(), null)).toEqual({ 'held-other': ['breaking'] });
+    expect(withDraft(drafts, pass(['popping', 'breaking']), ['breaking', 'popping'])).toEqual({
+      'held-other': ['breaking'],
+    });
+  });
+});
+
+describe('unsavedCompetitionPasses', () => {
+  it('names the held passes whose draft differs from their saved list, in held order', () => {
+    const passes = [held('full', ['popping']), held('general'), held('extra', ['breaking'])];
+    expect(
+      unsavedCompetitionPasses(passes, {
+        'held-extra': ['popping'],
+        'held-general': [],
+        'held-full': ['breaking'],
+      }),
+    ).toEqual(['Pase full', 'Pase extra']);
+  });
+
+  it('ignores drafts back at the saved list and drafts of passes no longer held', () => {
+    expect(
+      unsavedCompetitionPasses([held('full', ['popping', 'breaking'])], {
+        'held-full': ['breaking', 'popping'],
+        'held-removed': ['popping'],
+      }),
+    ).toEqual([]);
+  });
+});
+
+describe('unsavedCompetitionsHint', () => {
+  it('is null without unsaved passes', () => {
+    expect(unsavedCompetitionsHint([])).toBeNull();
+  });
+
+  it('names every unsaved pass', () => {
+    expect(unsavedCompetitionsHint(['Pase completo'])).toBe(
+      'Guarda o descarta los cambios de categorías de «Pase completo» antes de confirmar.',
+    );
+    expect(unsavedCompetitionsHint(['A', 'B'])).toBe(
+      'Guarda o descarta los cambios de categorías de «A» y «B» antes de confirmar.',
+    );
+    expect(unsavedCompetitionsHint(['A', 'B', 'C'])).toBe(
+      'Guarda o descarta los cambios de categorías de «A», «B» y «C» antes de confirmar.',
+    );
+  });
+});
+
+describe('competitionDraft', () => {
+  it('cannot be saved while it matches the saved list, in any order', () => {
+    expect(competitionDraft(pass(['popping', 'breaking']), ['breaking', 'popping'])).toEqual({
+      changed: false,
+      blocked: null,
+      canSave: false,
+    });
+  });
+
+  it('can be saved once it differs, including clearing every selection', () => {
+    expect(competitionDraft(pass(), ['popping'])).toEqual({
+      changed: true,
+      blocked: null,
+      canSave: true,
+    });
+    expect(competitionDraft(pass(['popping']), []).canSave).toBe(true);
+  });
+
+  it('is blocked while it keeps an unavailable activity, since the backend would reject it', () => {
+    const access = passType('full', [selectable('popping'), selectable('breaking')]);
+    const [stale] = saleCompetitionPasses([held('full', ['archived'])], [access], activities);
+    expect(competitionDraft(stale, ['archived', 'popping'])).toEqual({
+      changed: true,
+      blocked: 'Desmarca las categorías que ya no están disponibles para guardar.',
+      canSave: false,
+    });
+    expect(competitionDraft(stale, ['popping']).canSave).toBe(true);
+  });
+});
+
+describe('competitionsPayload', () => {
+  it('sends the whole desired list once, in the order shown', () => {
+    expect(competitionsPayload(pass(), ['popping', 'breaking', 'popping'])).toEqual([
+      'breaking',
+      'popping',
+    ]);
+    expect(competitionsPayload(pass(['popping']), [])).toEqual([]);
+  });
+});
+
+describe('saveCompetitionsFailure', () => {
+  it.each<[string, AdminRegistrationFailure, { message: string; reload: boolean }]>([
+    [
+      'no access',
+      { kind: 'forbidden' },
+      {
+        message: 'Sin acceso: tu cuenta no puede cambiar categorías en este evento.',
+        reload: false,
+      },
+    ],
+    [
+      'a lost answer',
+      { kind: 'unknown' },
+      {
+        message:
+          'No pudimos confirmar si se guardaron las categorías. Recarga la inscripción antes de intentarlo de nuevo.',
+        reload: true,
+      },
+    ],
+    [
+      'an activity that is no longer selectable',
+      { kind: 'rule', code: 'invalid_activity_selection' },
+      {
+        message:
+          'Alguna categoría ya no está disponible para este pase. Recarga para ver las categorías actuales.',
+        reload: true,
+      },
+    ],
+    [
+      'a voided registration',
+      { kind: 'rule', code: 'registration_voided' },
+      { message: 'Esta inscripción está anulada. Recarga para ver su estado.', reload: true },
+    ],
+    [
+      'a missing pass or registration',
+      { kind: 'not_found' },
+      {
+        message: 'No encontramos este pase o la inscripción. Recarga para ver los datos actuales.',
+        reload: true,
+      },
+    ],
+    [
+      'any other error',
+      { kind: 'error' },
+      { message: 'No pudimos guardar las categorías. Intenta de nuevo.', reload: false },
+    ],
+  ])('explains %s', (_, failure, expected) => {
+    expect(saveCompetitionsFailure(failure)).toEqual(expected);
+  });
+
+  it('offers a reload for every rule answer', () => {
+    for (const code of adminRegistrationRuleCodes)
+      expect(saveCompetitionsFailure({ kind: 'rule', code }).reload).toBe(true);
+  });
+});

@@ -20,7 +20,11 @@ const event: AdminEvent = {
   startsAt: '2026-11-14T16:00:00.000Z',
   endsAt: '2026-11-16T02:00:00.000Z',
   salesEnabled: false,
+  city: 'Guadalajara',
+  state: 'Jalisco',
+  country: 'MX',
 };
+const withoutLocation: AdminEvent = { ...event, city: null, state: null, country: null };
 
 describe('detailsDraft', () => {
   it('shows the stored dates on the event clock', () => {
@@ -29,6 +33,9 @@ describe('detailsDraft', () => {
       timeZone: 'America/Mexico_City',
       startsAt: '2026-11-14T10:00',
       endsAt: '2026-11-15T20:00',
+      city: 'Guadalajara',
+      state: 'Jalisco',
+      country: 'MX',
     });
     expect(detailsDraft({ ...event, startsAt: null, endsAt: null })).toMatchObject({
       startsAt: '',
@@ -41,6 +48,17 @@ describe('detailsDraft', () => {
   });
 });
 
+describe('detailsDraft location', () => {
+  it('shows the stored location, or empty fields with Mexico when there is none', () => {
+    expect(detailsDraft(event)).toMatchObject({
+      city: 'Guadalajara',
+      state: 'Jalisco',
+      country: 'MX',
+    });
+    expect(detailsDraft(withoutLocation)).toMatchObject({ city: '', state: '', country: 'MX' });
+  });
+});
+
 describe('isDetailsDirty', () => {
   it('compares the draft with the loaded values, field by field', () => {
     const initial = detailsDraft(event);
@@ -48,6 +66,7 @@ describe('isDetailsDirty', () => {
     expect(isDetailsDirty(initial, { ...initial })).toBe(false);
     expect(isDetailsDirty(initial, { ...initial, name: 'Otro' })).toBe(true);
     expect(isDetailsDirty(initial, { ...initial, endsAt: '' })).toBe(true);
+    expect(isDetailsDirty(initial, { ...initial, city: 'Zapopan' })).toBe(true);
   });
 });
 
@@ -77,6 +96,20 @@ describe('detailsChanges', () => {
       startsAt: '2026-11-14T18:00:00.000Z',
       endsAt: '2026-11-16T04:00:00.000Z',
     });
+  });
+
+  it('sends a changed location field, trimmed', () => {
+    expect(detailsChanges(event, { ...detailsDraft(event), city: ' Zapopan ' })).toEqual({
+      city: 'Zapopan',
+    });
+  });
+
+  it('sends the whole location to an event that had none, and nothing while it stays empty', () => {
+    const draft = detailsDraft(withoutLocation);
+    expect(detailsChanges(withoutLocation, draft)).toEqual({});
+    expect(
+      detailsChanges(withoutLocation, { ...draft, city: 'Guadalajara', state: 'Jalisco' }),
+    ).toEqual({ city: 'Guadalajara', state: 'Jalisco', country: 'MX' });
   });
 
   it('sets dates on an event that had none', () => {
@@ -115,6 +148,36 @@ describe('detailsZoneOptions and validateDetails', () => {
     expect(validateDetails(event, { ...draft, endsAt: '2026-11-14T09:00' })).toEqual({
       endsAt: 'El fin debe ser después del inicio.',
     });
+  });
+});
+
+describe('validateDetails location', () => {
+  it('requires the whole location once the event has one or the admin starts one', () => {
+    expect(validateDetails(event, { ...detailsDraft(event), city: '' })).toEqual({
+      city: 'Escribe la ciudad.',
+    });
+    const draft = detailsDraft(withoutLocation);
+    expect(validateDetails(withoutLocation, draft)).toEqual({});
+    expect(validateDetails(withoutLocation, { ...draft, city: 'Guadalajara' })).toEqual({
+      state: 'Escribe el estado.',
+    });
+    // Choosing only a country starts a location too, so the save never drops it silently.
+    expect(validateDetails(withoutLocation, { ...draft, country: 'CO' })).toEqual({
+      city: 'Escribe la ciudad.',
+      state: 'Escribe el estado.',
+    });
+  });
+
+  it('keeps a stored country outside the list selectable and valid', () => {
+    const bogota = { ...event, city: 'Bogotá', state: 'Cundinamarca', country: 'CO' };
+    expect(validateDetails(bogota, detailsDraft(bogota))).toEqual({});
+    const andorra = {
+      ...event,
+      city: 'Andorra la Vella',
+      state: 'Andorra la Vella',
+      country: 'AD',
+    };
+    expect(validateDetails(andorra, detailsDraft(andorra))).toEqual({});
   });
 });
 

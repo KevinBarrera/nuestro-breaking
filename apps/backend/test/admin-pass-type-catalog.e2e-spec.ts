@@ -22,6 +22,7 @@ type PassType = {
   passClass: string;
   priceCents: number;
   requiresPassClass: string | null;
+  onlineSalesClosesAt: string | null;
   status: string;
   version: number;
   activities: Access[];
@@ -74,10 +75,10 @@ describe('admin pass type catalog (e2e)', () => {
       VALUES (${org}, ${event.id}, ${venue}), (${org}, ${other.id}, ${venue})`;
     const [battle, workshop, retired, foreign] = await client<{ id: string }[]>`
       INSERT INTO activities (event_id, venue_id, kind, name, starts_at, ends_at, status)
-      VALUES (${event.id}, ${venue}, 'battle', 'Breaking 1v1', '2026-11-20T18:00:00Z', '2026-11-20T20:00:00Z', 'active'),
+      VALUES (${event.id}, ${venue}, 'competition', 'Breaking 1v1', '2026-11-20T18:00:00Z', '2026-11-20T20:00:00Z', 'active'),
         (${event.id}, ${venue}, 'workshop', 'Toprock', '2026-11-20T10:00:00Z', '2026-11-20T12:00:00Z', 'active'),
-        (${event.id}, ${venue}, 'battle', 'Retired', '2026-11-20T13:00:00Z', '2026-11-20T14:00:00Z', 'archived'),
-        (${other.id}, ${venue}, 'battle', 'Foreign', '2026-11-20T10:00:00Z', '2026-11-20T12:00:00Z', 'active')
+        (${event.id}, ${venue}, 'competition', 'Retired', '2026-11-20T13:00:00Z', '2026-11-20T14:00:00Z', 'archived'),
+        (${other.id}, ${venue}, 'competition', 'Foreign', '2026-11-20T10:00:00Z', '2026-11-20T12:00:00Z', 'active')
       RETURNING id`;
     return {
       event: event.id,
@@ -166,6 +167,7 @@ describe('admin pass type catalog (e2e)', () => {
       passClass: 'full',
       priceCents: 120000,
       requiresPassClass: null,
+      onlineSalesClosesAt: null,
       status: 'active',
       version: 1,
       activities: [
@@ -204,6 +206,11 @@ describe('admin pass type catalog (e2e)', () => {
       requiresPassClass: 'full',
       activities: [],
     });
+    // The admin catalog keeps listing a $0 pass type, which the public catalog hides (#263).
+    const listed = (await list(event).set('Cookie', cookie).expect(200)).body as PassType[];
+    expect(listed.find((passType) => passType.id === (addOn.body as PassType).id)).toMatchObject({
+      priceCents: 0,
+    });
   });
 
   it('lists every pass type of the event with status, version, class, price and access list', async () => {
@@ -224,6 +231,7 @@ describe('admin pass type catalog (e2e)', () => {
       passClass: 'general',
       priceCents: 120000,
       requiresPassClass: null,
+      onlineSalesClosesAt: null,
       status: 'archived',
       version: 1,
       activities: [],
@@ -265,6 +273,7 @@ describe('admin pass type catalog (e2e)', () => {
       { ...base, requiresPassClass: 'full' },
       { ...base, passClass: 'general', requiresPassClass: 'full' },
       { ...base, passClass: 'add_on', requiresPassClass: 'add_on' },
+      { ...base, onlineSalesClosesAt: '2026-11-20 10:00' },
       { ...base, activities: 'all' },
       { ...base, activities: [{ activityId: battle, access: 'vip' }] },
       { ...base, activities: [{ activityId: 'not-a-uuid', access: 'included' }] },
@@ -348,6 +357,7 @@ describe('admin pass type catalog (e2e)', () => {
       passClass: 'add_on',
       priceCents: 150000,
       requiresPassClass: null,
+      onlineSalesClosesAt: null,
       status: 'active',
       version: 2,
       activities: [{ activityId: battle, access: 'selectable' }],
@@ -380,6 +390,56 @@ describe('admin pass type catalog (e2e)', () => {
     ).toEqual([{ price_cents: 120000 }]);
   });
 
+  it('creates, sets, changes and clears the online sales close time, auditing each change (#240)', async () => {
+    const { event } = await fixture();
+    const { cookie } = await session('admin', event);
+    const created = await create(event)
+      .set(headers(cookie))
+      .send({
+        name: 'Workshops',
+        passClass: 'general',
+        priceCents: 50000,
+        onlineSalesClosesAt: '2026-11-17T09:00:00-06:00',
+      })
+      .expect(201);
+    expect(created.body).toMatchObject({ onlineSalesClosesAt: '2026-11-17T15:00:00.000Z' });
+    const plain = await create(event)
+      .set(headers(cookie))
+      .send({ name: 'Full pass', passClass: 'full', priceCents: 120000 })
+      .expect(201);
+    expect(plain.body).toMatchObject({ onlineSalesClosesAt: null });
+
+    const passType = (plain.body as PassType).id;
+    const set = await update(event, passType)
+      .set(headers(cookie))
+      .send({ expectedVersion: 1, onlineSalesClosesAt: '2026-11-20T10:00:00-06:00' })
+      .expect(200);
+    expect(set.body).toMatchObject({ onlineSalesClosesAt: '2026-11-20T16:00:00.000Z', version: 2 });
+    const changed = await update(event, passType)
+      .set(headers(cookie))
+      .send({ expectedVersion: 2, onlineSalesClosesAt: '2026-11-20T12:30:00Z' })
+      .expect(200);
+    expect(changed.body).toMatchObject({ onlineSalesClosesAt: '2026-11-20T12:30:00.000Z' });
+    const cleared = await update(event, passType)
+      .set(headers(cookie))
+      .send({ expectedVersion: 3, onlineSalesClosesAt: null })
+      .expect(200);
+    expect(cleared.body).toMatchObject({ onlineSalesClosesAt: null, version: 4 });
+
+    const [listed] = (
+      (await list(event).set('Cookie', cookie).expect(200)).body as PassType[]
+    ).filter((item) => item.id === passType);
+    expect(listed).toMatchObject({ onlineSalesClosesAt: null });
+    const updates = (await audits()).filter((fact) => fact.operation === 'update');
+    expect(
+      updates.map((fact) => [fact.before?.onlineSalesClosesAt, fact.after?.onlineSalesClosesAt]),
+    ).toEqual([
+      [null, '2026-11-20T16:00:00.000Z'],
+      ['2026-11-20T16:00:00.000Z', '2026-11-20T12:30:00.000Z'],
+      ['2026-11-20T12:30:00.000Z', null],
+    ]);
+  });
+
   it('rejects invalid updates with 400, stale versions and archived pass types with 409, without writes', async () => {
     const { event } = await fixture();
     const { cookie } = await session('admin', event);
@@ -396,6 +456,9 @@ describe('admin pass type catalog (e2e)', () => {
       { expectedVersion: 1, passClass: 'vip' },
       { expectedVersion: 1, priceCents: -5 },
       { expectedVersion: 1, requiresPassClass: 'full' },
+      { expectedVersion: 1, onlineSalesClosesAt: '2026-11-20T10:00:00' },
+      { expectedVersion: 1, onlineSalesClosesAt: '2026-02-31T10:00:00Z' },
+      { expectedVersion: 1, onlineSalesClosesAt: 1795000000000 },
     ])
       await update(event, passType).set(headers(cookie)).send(payload).expect(400);
     await update(event, addOn)

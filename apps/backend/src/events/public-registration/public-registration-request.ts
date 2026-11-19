@@ -69,6 +69,79 @@ function isCalendarDate(value: string): boolean {
   );
 }
 
+/** The #58 participant fields, shared by public registration and admin manual registration. */
+export const PARTICIPANT_FIELD_KEYS: ReadonlySet<string> = BUYER_KEYS;
+
+/**
+ * Validates and normalizes the #58 participant fields of `source` (#174, #125). Pure: `today`
+ * (`YYYY-MM-DD`) is the latest accepted birth date. Problems are written to `errors` under
+ * `prefix` + field name; unknown keys are the caller's concern. Returns null when any field fails.
+ */
+export function parseParticipantFields(
+  source: Record<string, unknown>,
+  today: string,
+  prefix: string,
+  errors: Record<string, FieldErrorCode>,
+): PublicRegistrationBuyer | null {
+  const fail = (path: string, code: FieldErrorCode) => {
+    errors[path] = code;
+    return null;
+  };
+  let valid = true;
+  const reject = (key: string, code: FieldErrorCode) => {
+    valid = false;
+    return fail(`${prefix}${key}`, code);
+  };
+  // Required text: trimmed, non-blank, bounded. Optional text: absent, null or blank means none.
+  const text = (key: string, max: number, required: boolean): string | null => {
+    const value = source[key];
+    if (value === undefined || value === null) return required ? reject(key, 'required') : null;
+    if (typeof value !== 'string') return reject(key, 'invalid');
+    const trimmed = value.trim();
+    if (!trimmed) return required ? reject(key, 'required') : null;
+    if (trimmed.length > max) return reject(key, 'too_long');
+    return trimmed;
+  };
+
+  const firstName = text('firstName', MAX.name, true);
+  const firstLastName = text('firstLastName', MAX.name, true);
+  const secondLastName = text('secondLastName', MAX.name, false);
+  const stageName = text('stageName', MAX.stageName, false);
+  let email = text('email', MAX.email, true);
+  if (email !== null)
+    email = EMAIL.test(email) ? normalizeEmail(email) : reject('email', 'invalid');
+  let phone = text('phone', MAX.phone, true);
+  if (phone !== null) {
+    const digits = normalizePhone(phone).length;
+    if (digits < PHONE_DIGITS.min || digits > PHONE_DIGITS.max) phone = reject('phone', 'invalid');
+  }
+  const city = text('city', MAX.city, false);
+  let instagram = text('instagram', MAX.instagram, false);
+  if (instagram !== null) {
+    const handle = normalizeInstagram(instagram);
+    instagram = handle && !/\s/.test(handle) ? handle : reject('instagram', 'invalid');
+  }
+  const level = text('level', MAX.level, false);
+  // A long value is simply not a date, so the length bound never reports `too_long` here.
+  let birthDate = text('birthDate', 100, false);
+  if (birthDate !== null && (!isCalendarDate(birthDate) || birthDate < MIN_BIRTH_DATE))
+    birthDate = reject('birthDate', 'invalid');
+  else if (birthDate !== null && birthDate > today) birthDate = reject('birthDate', 'in_future');
+  if (!valid || !firstName || !firstLastName || !email || !phone) return null;
+  return {
+    firstName,
+    firstLastName,
+    secondLastName,
+    stageName,
+    email,
+    phone,
+    city,
+    instagram,
+    level,
+    birthDate,
+  };
+}
+
 /**
  * Validates and normalizes the public registration body (#174). Pure: `today` (`YYYY-MM-DD`) is
  * the latest accepted birth date. Every problem is reported by field path with a stable code, so
@@ -87,23 +160,6 @@ export function parsePublicRegistrationRequest(body: unknown, today: string): Pa
       if (!allowed.has(key)) fail(`${prefix}${key}`, 'unknown_field');
   };
   unknownKeys(body, BODY_KEYS, '');
-
-  // Required text: trimmed, non-blank, bounded. Optional text: absent, null or blank means none.
-  const text = (
-    source: Record<string, unknown>,
-    key: string,
-    max: number,
-    required: boolean,
-  ): string | null => {
-    const path = `buyer.${key}`;
-    const value = source[key];
-    if (value === undefined || value === null) return required ? fail(path, 'required') : null;
-    if (typeof value !== 'string') return fail(path, 'invalid');
-    const trimmed = value.trim();
-    if (!trimmed) return required ? fail(path, 'required') : null;
-    if (trimmed.length > max) return fail(path, 'too_long');
-    return trimmed;
-  };
 
   // Optional activity ids for one pass: unique UUIDs, at most `MAX_SELECTIONS`.
   const selections = (value: unknown, path: string): string[] | null => {
@@ -128,47 +184,8 @@ export function parsePublicRegistrationRequest(body: unknown, today: string): Pa
   if (body.buyer === undefined || body.buyer === null) fail('buyer', 'required');
   else if (!isRecord(body.buyer)) fail('buyer', 'invalid');
   else {
-    const source = body.buyer;
-    unknownKeys(source, BUYER_KEYS, 'buyer.');
-    const firstName = text(source, 'firstName', MAX.name, true);
-    const firstLastName = text(source, 'firstLastName', MAX.name, true);
-    const secondLastName = text(source, 'secondLastName', MAX.name, false);
-    const stageName = text(source, 'stageName', MAX.stageName, false);
-    let email = text(source, 'email', MAX.email, true);
-    if (email !== null)
-      email = EMAIL.test(email) ? normalizeEmail(email) : fail('buyer.email', 'invalid');
-    let phone = text(source, 'phone', MAX.phone, true);
-    if (phone !== null) {
-      const digits = normalizePhone(phone).length;
-      if (digits < PHONE_DIGITS.min || digits > PHONE_DIGITS.max)
-        phone = fail('buyer.phone', 'invalid');
-    }
-    const city = text(source, 'city', MAX.city, false);
-    let instagram = text(source, 'instagram', MAX.instagram, false);
-    if (instagram !== null) {
-      const handle = normalizeInstagram(instagram);
-      instagram = handle && !/\s/.test(handle) ? handle : fail('buyer.instagram', 'invalid');
-    }
-    const level = text(source, 'level', MAX.level, false);
-    // A long value is simply not a date, so the length bound never reports `too_long` here.
-    let birthDate = text(source, 'birthDate', 100, false);
-    if (birthDate !== null && (!isCalendarDate(birthDate) || birthDate < MIN_BIRTH_DATE))
-      birthDate = fail('buyer.birthDate', 'invalid');
-    else if (birthDate !== null && birthDate > today)
-      birthDate = fail('buyer.birthDate', 'in_future');
-    if (firstName && firstLastName && email && phone)
-      buyer = {
-        firstName,
-        firstLastName,
-        secondLastName,
-        stageName,
-        email,
-        phone,
-        city,
-        instagram,
-        level,
-        birthDate,
-      };
+    unknownKeys(body.buyer, BUYER_KEYS, 'buyer.');
+    buyer = parseParticipantFields(body.buyer, today, 'buyer.', errors);
   }
 
   const passes: PublicRegistrationRequest['passes'] = [];

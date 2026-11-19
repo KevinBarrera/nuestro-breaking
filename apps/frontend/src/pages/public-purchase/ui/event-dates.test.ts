@@ -1,6 +1,6 @@
 import type { PublicEventSummary, PublicSales } from '@/entities/public-event';
 import { describe, expect, it } from 'vitest';
-import { closedSalesMessage, eventDateRange } from './event-dates';
+import { closedSalesMessage, eventContext, eventDateRange } from './event-dates';
 
 const event: PublicEventSummary = {
   slug: 'nov',
@@ -12,6 +12,23 @@ const event: PublicEventSummary = {
 
 const closed = (reason: 'disabled' | 'not_yet_open' | 'ended', opensAt: string | null = null) =>
   ({ state: 'closed', reason, opensAt, closesAt: null }) as PublicSales;
+
+describe('eventContext', () => {
+  it('joins the dates and the place for the purchase steps header (#330)', () => {
+    expect(eventContext({ ...event, city: 'Guadalajara', state: 'Jalisco', country: 'MX' })).toBe(
+      'Sábado 21 de noviembre – Domingo 22 de noviembre · Guadalajara, Jalisco',
+    );
+  });
+
+  it('shows whichever part is known, or nothing', () => {
+    expect(eventContext(event)).toBe('Sábado 21 de noviembre – Domingo 22 de noviembre');
+    const noDates = { ...event, startsAt: null, endsAt: null };
+    expect(eventContext({ ...noDates, city: 'Bogotá', state: 'Cundinamarca', country: 'CO' })).toBe(
+      'Bogotá, Cundinamarca, Colombia',
+    );
+    expect(eventContext(noDates)).toBeNull();
+  });
+});
 
 describe('eventDateRange', () => {
   it('shows the first and last day on the event clock', () => {

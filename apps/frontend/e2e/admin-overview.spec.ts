@@ -13,7 +13,13 @@ const overviewPath = `/admin/events/${eventId}`;
 const api = (url: URL) => url.port === '3000';
 
 const events = [
-  eventSummary(eventId, 'Encuentro del barrio'),
+  eventSummary(eventId, 'Encuentro del barrio', {
+    startsAt: '2026-11-21T16:00:00.000Z',
+    endsAt: '2026-11-23T03:00:00.000Z',
+    city: 'Ciudad de México',
+    state: 'Ciudad de México',
+    country: 'MX',
+  }),
   eventSummary(otherId, 'Batalla de otoño'),
 ];
 
@@ -29,14 +35,15 @@ const activity = (id: string, kind: string, name: string, status = 'active') => 
 });
 
 const activities = [
-  activity(battleId, 'battle', 'Batalla de crews'),
-  activity(finalId, 'battle', 'Final 1 vs 1'),
+  activity(battleId, 'competition', 'Batalla de crews'),
+  activity(finalId, 'competition', 'Final 1 vs 1'),
   activity(workshopId, 'workshop', 'Taller de footwork'),
-  activity(oldId, 'battle', 'Batalla cancelada', 'archived'),
+  activity(oldId, 'competition', 'Batalla cancelada', 'archived'),
 ];
 
 const passType = (overrides: Record<string, unknown>) => ({
   requiresPassClass: null,
+  onlineSalesClosesAt: null,
   status: 'active',
   version: 1,
   activities: [],
@@ -67,6 +74,7 @@ const passTypes = [
     passClass: 'add_on',
     priceCents: 25000,
     requiresPassClass: 'full',
+    onlineSalesClosesAt: null,
     activities: [{ activityId: battleId, access: 'selectable' }],
   }),
   passType({
@@ -105,32 +113,29 @@ test.beforeEach(async ({ page }) => {
 
 const sideNav = (page: Page) => page.getByRole('navigation', { name: 'Navegación administrativa' });
 
-test('shows the event overview with quick actions and Resumen as the current page', async ({
+test('shows the event overview with its dates and city and Resumen as the current page', async ({
   page,
 }) => {
   await mockCatalog(page);
   await page.goto(overviewPath);
   await expect(page.getByRole('heading', { level: 1, name: 'Resumen del evento' })).toBeVisible();
   await expect(page.getByRole('main')).toContainText('Encuentro del barrio');
+  // Dates on the event clock (#317) and its location (#322), from the event list.
+  const facts = page
+    .getByRole('main')
+    .getByRole('paragraph')
+    .filter({ hasText: 'Encuentro del barrio' });
+  await expect(facts).toContainText('21–22 de noviembre de 2026');
+  await expect(facts).toContainText('Ciudad de México');
   await expect(page.getByText('por confirmar', { exact: false })).toHaveCount(0);
 
   const resumen = sideNav(page).getByRole('link', { name: 'Resumen' });
   await expect(resumen).toHaveAttribute('href', overviewPath);
   await expect(resumen).toHaveAttribute('aria-current', 'page');
 
-  const actions = page.getByRole('region', { name: 'Acciones rápidas' });
-  await expect(actions.getByRole('link', { name: /Abrir check-in/ })).toHaveAttribute(
-    'href',
-    `${overviewPath}/check-in`,
-  );
-  for (const name of ['Registrar en el lugar', 'Imprimir listas']) {
-    const action = actions.getByRole('button', { name: new RegExp(name) });
-    await expect(action).toHaveAttribute('aria-disabled', 'true');
-    await expect(action).toContainText('Próximamente');
-    await expect(actions.getByRole('link', { name: new RegExp(name) })).toHaveCount(0);
-  }
-  const box = await actions.getByRole('link', { name: /Abrir check-in/ }).boundingBox();
-  expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
+  // The quick action cards are gone (#317): those screens are in the side navigation.
+  await expect(page.getByRole('region', { name: 'Acciones rápidas' })).toHaveCount(0);
+  await expect(page.getByRole('main').getByRole('link', { name: /Abrir check-in/ })).toHaveCount(0);
 });
 
 // Counts, access summaries and kind labels are covered by `overview-model.test.ts`, and price
@@ -141,13 +146,24 @@ test('renders catalog counts and the pass types on sale', async ({ page }) => {
   const catalog = page.getByRole('region', { name: 'Catálogo' });
   const stat = (label: string) => catalog.getByRole('listitem').filter({ hasText: label });
   await expect(stat('pases activos')).toContainText('3');
-  await expect(stat('batallas')).toContainText('2');
+  await expect(stat('categorías')).toContainText('2');
   await expect(stat('talleres')).toContainText('1');
   await expect(catalog.getByRole('listitem')).toHaveCount(3);
-  await expect(catalog.getByRole('link', { name: 'Editar' })).toHaveAttribute(
+  await expect(catalog).toContainText('Lo que este evento ofrece.');
+  // Each count links to the screen that edits it.
+  await expect(stat('pases activos').getByRole('link')).toHaveAttribute(
     'href',
     `${overviewPath}/passes`,
   );
+  await expect(stat('pases activos')).toContainText('Ver pases');
+  for (const kind of ['categorías', 'talleres']) {
+    await expect(stat(kind).getByRole('link')).toHaveAttribute(
+      'href',
+      `${overviewPath}/activities`,
+    );
+    await expect(stat(kind)).toContainText('Ver actividades');
+  }
+  await expect(catalog.getByRole('link', { name: 'Editar' })).toHaveCount(0);
 
   const table = page.getByRole('table', { name: 'Pases a la venta' });
   await expect(table.getByRole('row')).toHaveCount(4);
@@ -163,6 +179,17 @@ test('renders catalog counts and the pass types on sale', async ({ page }) => {
   await expect(table.getByText('Pase anticipado')).toHaveCount(0);
   const price = row('Pase completo').getByRole('cell').last();
   await expect(price).toHaveCSS('text-align', 'right');
+  // The shared table design (#317): sentence-case headers, the pass name links to its pass and
+  // a footer counts the passes on sale.
+  await expect(table.getByRole('columnheader')).toHaveText(['Pase', 'Clase', 'Incluye', 'Precio']);
+  await expect(row('Pase completo').getByRole('link', { name: 'Pase completo' })).toHaveAttribute(
+    'href',
+    `${overviewPath}/passes/f1b2c3d4-1234-4567-89ab-123456789abc`,
+  );
+  const tableCard = page.getByRole('region', { name: 'Pases a la venta' });
+  await expect(tableCard).toContainText('Lo que el público puede comprar en línea.');
+  await expect(tableCard).toContainText('3 pases');
+  await expect(tableCard).toContainText('Precios en MXN');
 });
 
 test('keeps the catalog summary when the event list fails', async ({ page }) => {
@@ -193,6 +220,8 @@ test('keeps the overview when switching events', async ({ page }) => {
   await chooseOption(selector, 'Batalla de otoño');
   await expect(page).toHaveURL(new RegExp(`/admin/events/${otherId}$`));
   await expect(page.getByRole('main')).toContainText('Batalla de otoño');
+  // That event has no location yet (#322), so its header shows none.
+  await expect(page.getByRole('main')).not.toContainText('Ciudad de México');
 });
 
 test('shows empty states when the catalog has nothing active', async ({ page }) => {
@@ -210,7 +239,8 @@ test('shows a load failure when the catalog cannot be read', async ({ page }) =>
   await mockCatalog(page, 500);
   await page.goto(overviewPath);
   await expect(page.getByRole('alert')).toContainText('No se pudo cargar el catálogo');
-  await expect(page.getByRole('region', { name: 'Acciones rápidas' })).toBeVisible();
+  // Venta en línea loads on its own, so it stays.
+  await expect(page.getByRole('region', { name: 'Venta en línea' })).toBeVisible();
 });
 
 test('shows a no-access state when the catalog is denied', async ({ page }) => {
@@ -228,7 +258,7 @@ test('fits a 375px viewport and scrolls the pass table inside its box', async ({
   expect(await page.evaluate<number>('document.documentElement.scrollWidth')).toBeLessThanOrEqual(
     375,
   );
-  const box = page.getByTestId('pass-table-scroll');
+  const box = page.getByTestId('data-table-scroll');
   expect(await box.evaluate((node) => node.scrollWidth > node.clientWidth)).toBe(true);
   await expect(box).toHaveCSS('overflow-x', 'auto');
 });

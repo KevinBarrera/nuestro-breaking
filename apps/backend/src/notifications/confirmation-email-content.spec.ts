@@ -7,11 +7,13 @@ const INPUT: ConfirmationEmailInput = {
   eventTimeZone: 'America/Mexico_City',
   // 10:00 in Mexico City.
   eventStartsAt: new Date('2026-11-14T16:00:00Z'),
+  eventLocation: { city: 'Guadalajara', state: 'Jalisco', country: 'MX' },
   folio: 'LMP-AB12',
   passes: [
     { name: 'Pase completo Breaking', competitions: ['Breaking 1v1', 'Popping 1v1'] },
     { name: 'Open Styles', competitions: [] },
   ],
+  payment: null,
 };
 
 describe('buildConfirmationEmail', () => {
@@ -31,7 +33,8 @@ describe('buildConfirmationEmail', () => {
       expect(body).toContain('10:00');
       expect(body).toContain('LMP-AB12');
       expect(body).toContain('Pase completo Breaking');
-      expect(body).toContain('Breaking 1v1, Popping 1v1');
+      expect(body).toContain('Categorías: Breaking 1v1, Popping 1v1');
+      expect(body).not.toContain('Competencias');
       expect(body).toContain('Open Styles');
       expect(body).toContain('Muestra este folio en la entrada');
     }
@@ -50,7 +53,7 @@ describe('buildConfirmationEmail', () => {
     });
 
     expect(text).toContain('Open Styles');
-    expect(text).not.toContain('Competencias');
+    expect(text).not.toContain('Categorías');
   });
 
   it('uses the first word of the full name when there is no first name', () => {
@@ -78,11 +81,39 @@ describe('buildConfirmationEmail', () => {
     expect(text).not.toContain('Fecha');
   });
 
+  it('shows where the event happens next to the date (#330)', () => {
+    const { text, html } = buildConfirmationEmail(INPUT);
+
+    expect(text).toMatch(/Fecha: .+\nLugar: Guadalajara, Jalisco\n/);
+    expect(html).toContain('<strong>Lugar:</strong> Guadalajara, Jalisco</p>');
+  });
+
+  it('formats the place like the admin panel: no repeated state, the country outside Mexico', () => {
+    const place = (city: string, state: string, country: string) =>
+      buildConfirmationEmail({ ...INPUT, eventLocation: { city, state, country } }).text;
+
+    expect(place('Ciudad de México', 'Ciudad de México', 'MX')).toContain(
+      'Lugar: Ciudad de México\n',
+    );
+    expect(place('Bogotá', 'Cundinamarca', 'CO')).toContain(
+      'Lugar: Bogotá, Cundinamarca, Colombia',
+    );
+  });
+
+  it('leaves the place out when the event has no location', () => {
+    const { text, html } = buildConfirmationEmail({ ...INPUT, eventLocation: null });
+
+    expect(text).not.toContain('Lugar');
+    expect(html).not.toContain('Lugar');
+    expect(text).toContain('Fecha:');
+  });
+
   it('escapes every interpolated value in the HTML body', () => {
     const { html, text } = buildConfirmationEmail({
       ...INPUT,
       firstName: '<script>alert(1)</script>',
       eventName: 'Tom & "Jerry"',
+      eventLocation: { city: '<i>León</i>', state: 'Gto & "Bajío"', country: 'MX' },
       folio: "LMP-<b>'",
       passes: [{ name: '<img src=x>', competitions: ['<a href="x">1v1</a>'] }],
     });
@@ -93,6 +124,8 @@ describe('buildConfirmationEmail', () => {
     expect(html).not.toContain('<b>');
     expect(html).toContain('&lt;script&gt;alert(1)&lt;/script&gt;');
     expect(html).toContain('Tom &amp; &quot;Jerry&quot;');
+    expect(html).not.toContain('<i>');
+    expect(html).toContain('&lt;i&gt;León&lt;/i&gt;, Gto &amp; &quot;Bajío&quot;');
     expect(html).toContain('LMP-&lt;b&gt;&#39;');
     expect(html).toContain('&lt;a href=&quot;x&quot;&gt;1v1&lt;/a&gt;');
     // The plain-text body is not HTML, so it keeps the values as they are.
@@ -103,6 +136,28 @@ describe('buildConfirmationEmail', () => {
     const { subject } = buildConfirmationEmail({ ...INPUT, eventName: 'Los más\r\npesados' });
 
     expect(subject).toBe('Tu inscripción a Los más pesados está confirmada · Folio LMP-AB12');
+  });
+
+  it('summarizes an online payment with its service charge (#239)', () => {
+    const { text, html } = buildConfirmationEmail({
+      ...INPUT,
+      payment: { passesCents: 230050, serviceChargeCents: 10190 },
+    });
+
+    expect(text).toContain(
+      'Resumen de pago:\nPases: $2,300.50\nCargo por servicio: $101.90\nTotal pagado: $2,402.40 MXN',
+    );
+    expect(html).toMatch(/Pases<\/td>\s*<td[^>]*>\$2,300\.50/);
+    expect(html).toMatch(/Cargo por servicio<\/td>\s*<td[^>]*>\$101\.90/);
+    expect(html).toMatch(/Total pagado<\/td>\s*<td[^>]*>\$2,402\.40 MXN/);
+    for (const body of [text, html]) expect(body).not.toMatch(/Mercado Pago|tarjeta|OXXO|SPEI/i);
+  });
+
+  it('shows no amounts when there is no service charge, as for cash registrations', () => {
+    for (const payment of [null, { passesCents: 230050, serviceChargeCents: 0 }]) {
+      const { html, text } = buildConfirmationEmail({ ...INPUT, payment });
+      for (const body of [html, text]) expect(body).not.toMatch(/\$|MXN|Resumen de pago/);
+    }
   });
 
   it('never includes payment data, the email address or external assets', () => {

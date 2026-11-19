@@ -120,9 +120,10 @@ describe('public checkout (e2e)', () => {
       `/public/events/${slug}/registrations/${registrationId}/checkout`,
     );
   const checkoutRows = () =>
-    client`SELECT registration_id, mode, preference_id, amount_cents, currency FROM registration_checkouts`;
+    client`SELECT registration_id, mode, preference_id, amount_cents, service_charge_cents, currency FROM registration_checkouts`;
 
-  it('creates a preference with one item per pass snapshot and records the checkout', async () => {
+  // The e2e environment forces 3.49% + $4.00 before 16% VAT: $2,200.50 grosses up to $2,298.18.
+  it('creates a preference with one item per pass snapshot plus the service charge and records the checkout', async () => {
     const ids = await fixture();
     // The snapshot price wins over the current catalog price.
     const id = await registration(ids.event, [
@@ -140,6 +141,7 @@ describe('public checkout (e2e)', () => {
         items: [
           { title: 'Pase completo Breaking', quantity: 1, unit_price: 1500.5, currency_id: 'MXN' },
           { title: 'Open Styles', quantity: 1, unit_price: 700, currency_id: 'MXN' },
+          { title: 'Cargo por servicio', quantity: 1, unit_price: 97.68, currency_id: 'MXN' },
         ],
         external_reference: id,
         back_urls: { success: returnUrl, failure: returnUrl, pending: returnUrl },
@@ -153,7 +155,8 @@ describe('public checkout (e2e)', () => {
         registration_id: id,
         mode: process.env.MERCADO_PAGO_MODE,
         preference_id: 'pref-fake-1',
-        amount_cents: 220050,
+        amount_cents: 229818,
+        service_charge_cents: 9768,
         currency: 'MXN',
       },
     ]);

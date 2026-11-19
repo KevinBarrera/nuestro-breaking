@@ -115,8 +115,13 @@ describe('public event catalog (e2e)', () => {
         timeZone: 'America/Bogota',
         startsAt: '2026-11-20T14:00:00.000Z',
         endsAt: '2026-11-22T04:00:00.000Z',
+        city: null,
+        state: null,
+        country: null,
       },
       sales: { state: 'open', reason: null, opensAt, closesAt: null },
+      // The e2e environment's placeholder rates (#239): 3.49% + $4.00 before 16% VAT.
+      serviceCharge: { rateBasisPoints: 349, fixedCents: 400, vatBasisPoints: 1600 },
       passes: [
         {
           id: ids.full,
@@ -124,6 +129,8 @@ describe('public event catalog (e2e)', () => {
           passClass: 'full',
           priceCents: 200000,
           requiresPassClass: null,
+          onlineSalesClosesAt: null,
+          onSale: true,
           selectableActivities: [
             {
               id: ids.footwork,
@@ -148,6 +155,8 @@ describe('public event catalog (e2e)', () => {
           passClass: 'general',
           priceCents: 100000,
           requiresPassClass: null,
+          onlineSalesClosesAt: null,
+          onSale: true,
           selectableActivities: [],
           includedActivities: [],
         },
@@ -157,6 +166,8 @@ describe('public event catalog (e2e)', () => {
           passClass: 'add_on',
           priceCents: 80000,
           requiresPassClass: 'full',
+          onlineSalesClosesAt: null,
+          onSale: true,
           selectableActivities: [],
           includedActivities: [
             {
@@ -194,6 +205,55 @@ describe('public event catalog (e2e)', () => {
       expect(JSON.stringify(body)).not.toMatch(FORBIDDEN);
     },
   );
+
+  it('shows where the event happens once it has a location (#330)', async () => {
+    const ids = await fixture();
+    await client`UPDATE events SET city = 'Guadalajara', state = 'Jalisco', country = 'MX'
+      WHERE id = ${ids.event}`;
+
+    const body = (await catalog(SLUG).expect(200)).body as PublicEventCatalog;
+
+    expect(body.event).toMatchObject({ city: 'Guadalajara', state: 'Jalisco', country: 'MX' });
+  });
+
+  it('lists a pass whose online sales closed as not on sale, while the event stays open (#240)', async () => {
+    const ids = await fixture();
+    await setSales(true, fromNow(-DAY), null);
+    const closedAt = fromNow(-60_000);
+    const closesAt = fromNow(DAY);
+    await client`UPDATE event_pass_types SET online_sales_closes_at = ${closedAt} WHERE id = ${ids.general}`;
+    await client`UPDATE event_pass_types SET online_sales_closes_at = ${closesAt} WHERE id = ${ids.full}`;
+
+    const body = (await catalog(SLUG).expect(200)).body as PublicEventCatalog;
+
+    expect(body.sales.state).toBe('open');
+    expect(
+      body.passes.map(({ id, onlineSalesClosesAt, onSale }) => ({
+        id,
+        onlineSalesClosesAt,
+        onSale,
+      })),
+    ).toEqual([
+      { id: ids.full, onlineSalesClosesAt: closesAt, onSale: true },
+      { id: ids.general, onlineSalesClosesAt: closedAt, onSale: false },
+      { id: ids.addOn, onlineSalesClosesAt: null, onSale: true },
+    ]);
+  });
+
+  it('does not list an active $0 pass type, which is granted in person only (#263)', async () => {
+    const ids = await fixture();
+    await setSales(true, fromNow(-DAY), null);
+    const [free] = await client<{ id: string }[]>`
+      INSERT INTO event_pass_types (event_id, name, pass_class, price_cents, requires_pass_class, status)
+      VALUES (${ids.event}, 'Golden ticket', 'full', 0, NULL, 'active') RETURNING id`;
+    await client`INSERT INTO event_pass_type_activities (event_id, pass_type_id, activity_id, access)
+      VALUES (${ids.event}, ${free.id}, ${ids.toprock}, 'selectable')`;
+
+    const body = (await catalog(SLUG).expect(200)).body as PublicEventCatalog;
+
+    expect(body.passes.map(({ id }) => id)).toEqual([ids.full, ids.general, ids.addOn]);
+    expect(JSON.stringify(body)).not.toMatch(/Golden ticket/);
+  });
 
   it('returns a neutral 404 for an unknown or malformed slug', async () => {
     await fixture();

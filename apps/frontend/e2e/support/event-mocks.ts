@@ -18,10 +18,13 @@ export type EventSummary = {
   startsAt: string | null;
   endsAt: string | null;
   salesEnabled: boolean;
+  city: string | null;
+  state: string | null;
+  country: string | null;
 };
 
 // A `GET /admin/events` row. The slug is built from the whole name; the folio prefix defaults
-// to `EV`, the zone to Mexico City, no dates and sales off.
+// to `EV`, the zone to Mexico City, no dates, sales off and no location.
 export const eventSummary = (
   id: string,
   name: string,
@@ -41,6 +44,9 @@ export const eventSummary = (
   startsAt: null,
   endsAt: null,
   salesEnabled: false,
+  city: null,
+  state: null,
+  country: null,
   ...overrides,
 });
 
@@ -92,4 +98,17 @@ export async function mockEventList(page: Page, events: () => EventSummary[]) {
     },
   );
   return queries;
+}
+
+// The event foundation read with only what the pass screens need: the event's time zone, for the
+// pass's online sales close time (#240).
+export async function mockEventTimeZone(
+  page: Page,
+  eventId: string,
+  timeZone = 'America/Mexico_City',
+) {
+  await page.route(
+    (url) => api(url) && url.pathname === `/admin/events/${eventId}/foundation`,
+    (route) => route.fulfill({ json: { event: { id: eventId, timeZone }, venues: [] } }),
+  );
 }

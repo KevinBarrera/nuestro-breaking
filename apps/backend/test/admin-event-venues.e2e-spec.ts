@@ -309,6 +309,9 @@ describe('admin event venues (e2e)', () => {
         timeZone: 'America/Mexico_City',
         startsAt: '2026-11-14T16:00:00Z',
         endsAt: '2026-11-16T04:00:00Z',
+        city: 'Guadalajara',
+        state: 'Jalisco',
+        country: 'MX',
       })
       .expect(201);
     const eventId = (event.body as { id: string }).id;
@@ -320,7 +323,7 @@ describe('admin event venues (e2e)', () => {
       .set(headers(cookie))
       .send({
         venueId,
-        kind: 'battle',
+        kind: 'competition',
         name: 'Breaking 1v1',
         startsAt: '2026-11-14T18:00:00Z',
         endsAt: '2026-11-14T20:00:00Z',

@@ -10,6 +10,16 @@ describe('readAdminLocation', () => {
       expect(readAdminLocation(path)).toEqual({ eventId, section: 'passes' });
   });
 
+  it('keeps Inscripciones current on the search, new and registration routes', () => {
+    for (const path of [
+      `${base}/registrations`,
+      `${base}/registrations/new`,
+      `${base}/registrations/c1b2c3d4-1234-4567-89ab-123456789abc`,
+      `${base}/registrations/c1b2c3d4-1234-4567-89ab-123456789abc/sale`,
+    ])
+      expect(readAdminLocation(path)).toEqual({ eventId, section: 'registrations' });
+  });
+
   it('matches the other sections exactly', () => {
     expect(readAdminLocation(base)).toEqual({ eventId, section: 'overview' });
     expect(readAdminLocation(`${base}/activities`)).toEqual({ eventId, section: 'activities' });
@@ -17,6 +27,10 @@ describe('readAdminLocation', () => {
       eventId,
       section: 'payments-review',
     });
+    expect(readAdminLocation(`${base}/lists`)).toEqual({ eventId, section: 'lists' });
+    expect(readAdminLocation(`${base}/lists/extra`)).toEqual({});
+    expect(readAdminLocation(`${base}/history`)).toEqual({ eventId, section: 'history' });
+    expect(readAdminLocation(`${base}/history/extra`)).toEqual({});
     expect(readAdminLocation(`${base}/activities/extra`)).toEqual({});
     expect(readAdminLocation(`${base}/passes-archive`)).toEqual({});
     expect(readAdminLocation('/admin')).toEqual({});
@@ -27,5 +41,8 @@ describe('readAdminLocation', () => {
 describe('eventSectionPath', () => {
   it('builds the list path of a section', () => {
     expect(eventSectionPath(eventId, 'passes')).toBe(`${base}/passes`);
+    expect(eventSectionPath(eventId, 'registrations')).toBe(`${base}/registrations`);
+    expect(eventSectionPath(eventId, 'lists')).toBe(`${base}/lists`);
+    expect(eventSectionPath(eventId, 'history')).toBe(`${base}/history`);
   });
 });

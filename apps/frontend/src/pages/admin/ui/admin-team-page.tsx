@@ -8,39 +8,26 @@ import {
   type IssuedLink,
   type TeamMember,
 } from '@/entities/admin-team';
-import { useSessionStore, type User } from '@/entities/session';
+import { useSessionStore } from '@/entities/session';
 import { routes } from '@/shared/config';
-import { ConfirmDialog, Notice } from '@/shared/ui';
+import { Breadcrumbs, Notice } from '@/shared/ui';
 import { useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router';
+import { Link, useLocation } from 'react-router';
 import { styles } from './catalog-copy';
-import { InvitationCreated } from './invitation-created';
+import { InvitationCreated, type LinkRecipient } from './invitation-created';
 import { teamDenied } from './team-copy';
-import { ChangeAccessDialog, DeactivateDialog } from './team-dialogs';
-import { accessInput, teamFailureMessage, type AccessDraft } from './team-form-model';
 import {
-  accessSummary,
-  memberActions,
-  memberStatus,
-  type MemberAction,
-  type StatusTone,
-} from './team-model';
+  CancelInvitationDialog,
+  ChangeAccessDialog,
+  DeactivateDialog,
+  NewLinkDialog,
+  ReactivateDialog,
+} from './team-dialogs';
+import { accessInput, teamFailureMessage, type AccessDraft } from './team-form-model';
+import { accessSummary, type MemberAction } from './team-model';
+import { TeamList } from './team-list';
 import { useTeamEvents } from './use-team-events';
 import { useTeamLoad } from './use-team-load';
-
-const toneClass: Record<StatusTone, string> = {
-  success: 'bg-success text-success-fg',
-  warning: 'bg-warning text-warning-fg',
-  neutral: 'bg-chip text-fg',
-};
-
-const actionLabels: Record<MemberAction, (name: string) => [string, string]> = {
-  regenerate: (name) => ['Nuevo enlace', `Nuevo enlace para ${name}`],
-  'cancel-invitation': (name) => ['Cancelar invitación', `Cancelar invitación de ${name}`],
-  'change-access': (name) => ['Cambiar acceso', `Cambiar acceso de ${name}`],
-  deactivate: (name) => ['Desactivar', `Desactivar a ${name}`],
-  reactivate: (name) => ['Reactivar', `Reactivar a ${name}`],
-};
 
 export function TeamDenied() {
   return (
@@ -51,7 +38,8 @@ export function TeamDenied() {
 }
 
 type OpenAction = { action: MemberAction; member: TeamMember };
-type Issued = { name: string; link: IssuedLink };
+type Issued = { recipient: LinkRecipient; link: IssuedLink };
+type ShownLink = Issued & { locationKey: string };
 
 // Equipo (#214): the admin team, for global admins only. Others (direct URL) see the same
 // "Sin acceso" pattern as the event list; the backend refuses their team requests anyway.
@@ -63,11 +51,16 @@ export function AdminTeamPage() {
   const [pending, setPending] = useState(false);
   const [dialogError, setDialogError] = useState<string | null>(null);
   const [notice, setNotice] = useState<{ tone: 'info' | 'danger'; text: string } | null>(null);
-  const [issued, setIssued] = useState<Issued | null>(null);
+  const [shownLink, setShownLink] = useState<ShownLink | null>(null);
   const { events, retry } = useTeamEvents(allowed && open?.action === 'change-access');
   const heading = useRef<HTMLHeadingElement>(null);
   const sending = useRef(false);
   const [focusRequest, setFocusRequest] = useState(0);
+  const { key: locationKey } = useLocation();
+  // The breadcrumb's "Equipo" link stays on this route but starts a new history entry, so the
+  // link belongs to the entry it was issued on and is forgotten once the person follows it.
+  const issued = shownLink?.locationKey === locationKey ? shownLink : null;
+  const setIssued = (next: Issued | null) => setShownLink(next && { ...next, locationKey });
 
   // After an action the row's button may be gone, so the heading takes focus and the notice
   // under it is announced. It waits a frame, after the dialog's own focus restore.
@@ -124,13 +117,16 @@ export function AdminTeamPage() {
   const name = member?.displayName ?? '';
 
   return (
-    <main className="px-4 py-8 text-fg sm:px-8 lg:py-12">
-      <div className="mx-auto max-w-5xl space-y-6">
-        <header className="flex flex-wrap items-end justify-between gap-4">
-          <div className="space-y-1">
-            <p className="text-xs font-bold tracking-[0.08em] text-muted uppercase">
-              Administración
-            </p>
+    <main className="px-4 py-8 text-fg sm:px-8 lg:pt-10 lg:pb-16">
+      <div className={`mx-auto ${issued ? 'max-w-[760px]' : 'max-w-[1080px]'} space-y-6`}>
+        {issued && (
+          <Breadcrumbs
+            variant="link"
+            items={[{ label: 'Equipo', to: routes.adminTeam }, { label: 'Enlace de activación' }]}
+          />
+        )}
+        <header className={issued ? 'hidden' : 'flex flex-wrap items-end justify-between gap-4'}>
+          <div className="space-y-1.5">
             <h1
               ref={heading}
               tabIndex={-1}
@@ -149,15 +145,15 @@ export function AdminTeamPage() {
             >
               <svg
                 aria-hidden="true"
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
+                width="16"
+                height="16"
+                viewBox="0 0 20 20"
                 fill="none"
                 stroke="currentColor"
-                strokeWidth="2.5"
+                strokeWidth="2"
                 strokeLinecap="round"
               >
-                <path d="M12 5v14M5 12h14" />
+                <path d="M10 4v12M4 10h12" />
               </svg>
               Agregar administrador
             </Link>
@@ -169,7 +165,7 @@ export function AdminTeamPage() {
         ) : issued ? (
           <InvitationCreated
             title="Nuevo enlace creado"
-            name={issued.name}
+            recipient={issued.recipient}
             link={issued.link}
             onDone={() => {
               setIssued(null);
@@ -196,43 +192,51 @@ export function AdminTeamPage() {
           <TeamList members={state.members} user={user} onAction={start} />
         )}
         {!issued && (
-          <p className="max-w-3xl text-sm text-muted">
-            Solo quien tiene acceso a <strong className="text-fg">todos los eventos</strong> ve esta
-            sección. Nadie puede desactivarse a sí mismo, y siempre queda al menos una persona
-            activa con acceso a todos los eventos.
+          <p className="flex max-w-[760px] items-start gap-2.5 text-sm text-muted">
+            <svg
+              aria-hidden="true"
+              width="18"
+              height="18"
+              viewBox="0 0 20 20"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.75"
+              strokeLinecap="round"
+              className="mt-px shrink-0"
+            >
+              <circle cx="10" cy="10" r="7.5" />
+              <path d="M10 9v4.5M10 6.5v.01" />
+            </svg>
+            <span>
+              Solo quien tiene acceso a todos los eventos ve esta sección. Nadie puede desactivarse
+              a sí mismo, y siempre queda al menos una persona activa con acceso a todos los
+              eventos.
+            </span>
           </p>
         )}
       </div>
 
       {member && open.action === 'regenerate' && (
-        <ConfirmDialog
-          isOpen
-          onOpenChange={(isOpen) => !isOpen && close()}
-          title={`¿Generar un nuevo enlace para ${name}?`}
-          consequence={
-            member.status === 'active'
-              ? 'El enlace anterior, si había uno, deja de funcionar. Su contraseña actual sigue sirviendo hasta que use el nuevo enlace.'
-              : 'El enlace anterior, si había uno, deja de funcionar.'
-          }
-          confirmLabel="Generar enlace"
-          pendingLabel="Generando…"
+        <NewLinkDialog
+          member={member}
           isPending={pending}
+          onClose={close}
           onConfirm={() =>
-            void run(async () => ({ name, link: await regenerateInvitation(member.id) }), false)
+            void run(
+              async () => ({
+                recipient: { name, email: member.email, access: accessSummary(member.access) },
+                link: await regenerateInvitation(member.id),
+              }),
+              false,
+            )
           }
         />
       )}
       {member && open.action === 'cancel-invitation' && (
-        <ConfirmDialog
-          isOpen
-          onOpenChange={(isOpen) => !isOpen && close()}
-          tone="destructive"
-          title={`¿Cancelar la invitación de ${name}?`}
-          consequence="El enlace deja de funcionar. Puedes generar uno nuevo cuando quieras."
-          confirmLabel="Cancelar invitación"
-          cancelLabel="Volver"
-          pendingLabel="Cancelando…"
+        <CancelInvitationDialog
+          member={member}
           isPending={pending}
+          onClose={close}
           onConfirm={() =>
             void run(async () => {
               await cancelInvitation(member.id);
@@ -242,14 +246,10 @@ export function AdminTeamPage() {
         />
       )}
       {member && open.action === 'reactivate' && (
-        <ConfirmDialog
-          isOpen
-          onOpenChange={(isOpen) => !isOpen && close()}
-          title={`¿Reactivar a ${name}?`}
-          consequence="Recupera el mismo acceso que tenía. Si nunca activó su cuenta, necesitará un enlace nuevo."
-          confirmLabel="Reactivar"
-          pendingLabel="Reactivando…"
+        <ReactivateDialog
+          member={member}
           isPending={pending}
+          onClose={close}
           onConfirm={() =>
             void run(async () => {
               const status = await reactivateMember(member.id);
@@ -295,105 +295,5 @@ export function AdminTeamPage() {
         />
       )}
     </main>
-  );
-}
-
-type TeamListProps = {
-  members: TeamMember[];
-  user: User | null;
-  onAction: (action: MemberAction, member: TeamMember) => void;
-};
-
-// One ARIA table. Below `lg` (where the side navigation leaves too little room for four
-// columns) each row stacks as a card; from `lg` up the rows share the table's columns through
-// subgrid, so every column lines up and the actions stay on their row.
-const subgridRow = 'lg:col-span-4 lg:grid lg:grid-cols-subgrid';
-const headerCell = 'px-5 py-3 text-xs font-bold tracking-[0.08em] text-muted uppercase';
-
-function TeamList({ members, user, onAction }: TeamListProps) {
-  const now = new Date();
-  return (
-    <div
-      role="table"
-      aria-label="Miembros del equipo"
-      className="overflow-hidden rounded-xl border border-line bg-surface lg:grid lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1.3fr)_minmax(0,1fr)_fit-content(45%)]"
-    >
-      <div role="rowgroup" className={`sr-only lg:not-sr-only ${subgridRow}`}>
-        <div role="row" className={`${subgridRow} border-b border-line bg-surface-inner`}>
-          <span role="columnheader" className={headerCell}>
-            Persona
-          </span>
-          <span role="columnheader" className={headerCell}>
-            Acceso
-          </span>
-          <span role="columnheader" className={headerCell}>
-            Estado
-          </span>
-          <span role="columnheader" className={headerCell}>
-            <span className="sr-only">Acciones</span>
-          </span>
-        </div>
-      </div>
-      <div role="rowgroup" className={`divide-y divide-row ${subgridRow}`}>
-        {members.map((member) => {
-          const status = memberStatus(member, now);
-          const isSelf = member.id === user?.id;
-          const actions = memberActions(member, isSelf, now);
-          const muted = member.status === 'deactivated';
-          return (
-            <div
-              key={member.id}
-              role="row"
-              className={`grid gap-3 px-5 py-4 lg:items-center lg:gap-0 lg:px-0 ${subgridRow}`}
-            >
-              <div role="cell" className="min-w-0 lg:px-5">
-                <p className={`font-bold break-words ${muted ? 'text-muted' : 'text-heading'}`}>
-                  {member.displayName}
-                  {isSelf && <span className="font-medium text-muted"> (tú)</span>}
-                </p>
-                <p className="text-sm break-words text-muted">{member.email}</p>
-              </div>
-              <p role="cell" className={`min-w-0 break-words lg:px-5 ${muted ? 'text-muted' : ''}`}>
-                {accessSummary(member.access)}
-              </p>
-              <div role="cell" className="lg:px-5">
-                <span
-                  className={`inline-block rounded-full px-3 py-1 text-sm font-bold ${toneClass[status.tone]}`}
-                >
-                  {status.label}
-                </span>
-                {status.hint && <p className="mt-1 text-sm text-muted">{status.hint}</p>}
-              </div>
-              <div
-                role="cell"
-                className={`${actions.length === 0 ? 'hidden lg:flex' : 'flex'} flex-wrap gap-2 lg:justify-end lg:px-5`}
-              >
-                {actions.length === 0 ? (
-                  <span className="text-muted">
-                    <span aria-hidden="true">—</span>
-                    <span className="sr-only">Sin acciones</span>
-                  </span>
-                ) : (
-                  actions.map((action) => {
-                    const [text, label] = actionLabels[action](member.displayName);
-                    return (
-                      <button
-                        key={action}
-                        type="button"
-                        aria-label={label}
-                        className={action === 'deactivate' ? styles.danger : styles.secondary}
-                        onClick={() => onAction(action, member)}
-                      >
-                        {text}
-                      </button>
-                    );
-                  })
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
   );
 }

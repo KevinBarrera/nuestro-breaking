@@ -12,6 +12,21 @@ describe('purchase draft', () => {
     expect(parseDraft(serializeDraft(draft))).toEqual(draft);
   });
 
+  it('round-trips the phone mode of a number from another country', () => {
+    const international = {
+      ...draft,
+      buyer: { ...draft.buyer, phoneMode: 'international' as const, phone: '+14155550100' },
+    };
+    expect(parseDraft(serializeDraft(international))).toEqual(international);
+  });
+
+  it('reads a draft saved without a phone mode, or with an unknown one, as Mexican', () => {
+    const legacy = { ...draft.buyer, phoneMode: undefined };
+    expect(parseDraft(JSON.stringify({ version: 1, ...draft, buyer: legacy }))).toEqual(draft);
+    const unknown = { ...draft.buyer, phoneMode: 'mars' };
+    expect(parseDraft(JSON.stringify({ version: 1, ...draft, buyer: unknown }))).toEqual(draft);
+  });
+
   it('keys drafts per event slug', () => {
     expect(draftStorageKey('los-mas-pesados')).toBe('nb-purchase-draft:los-mas-pesados');
   });

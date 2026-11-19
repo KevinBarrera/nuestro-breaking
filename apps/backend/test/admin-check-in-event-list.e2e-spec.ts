@@ -46,7 +46,7 @@ describe('GET /admin/events (e2e)', () => {
       VALUES (${organizationId}, 'Zeta', 'Etc/UTC'), (${organizationId}, 'Alpha', 'Etc/UTC')
       RETURNING id, name, slug, folio_prefix AS "folioPrefix", archived_at AS "archivedAt",
         time_zone AS "timeZone", starts_at AS "startsAt", ends_at AS "endsAt",
-        sales_enabled AS "salesEnabled"`;
+        sales_enabled AS "salesEnabled", city, state, country`;
     const [{ id: otherOrganization }] = await client<{ id: string }[]>`
       INSERT INTO organizations (name) VALUES ('Other organizer') RETURNING id`;
     const [third] = await client<{ id: string; name: string }[]>`
@@ -54,7 +54,7 @@ describe('GET /admin/events (e2e)', () => {
       VALUES (${otherOrganization}, 'Beta', 'Etc/UTC')
       RETURNING id, name, slug, folio_prefix AS "folioPrefix", archived_at AS "archivedAt",
         time_zone AS "timeZone", starts_at AS "startsAt", ends_at AS "endsAt",
-        sales_enabled AS "salesEnabled"`;
+        sales_enabled AS "salesEnabled", city, state, country`;
     return { first, second, third, organizationId };
   }
 

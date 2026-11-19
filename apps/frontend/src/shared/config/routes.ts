@@ -4,7 +4,9 @@ export const routes = {
   publicHome: '/',
   publicEvent: '/e/:slug',
   publicPasses: '/e/:slug/pases',
-  publicCompetitions: '/e/:slug/competencias',
+  publicCompetitions: '/e/:slug/categorias',
+  // Links shared before #385 used the old step name; the router redirects them.
+  publicCompetitionsLegacy: '/e/:slug/competencias',
   publicBuyer: '/e/:slug/datos',
   publicReview: '/e/:slug/revisar',
   // Mercado Pago's return address for every outcome (#177 D8): `?registration=<id>`.
@@ -18,6 +20,16 @@ export const routes = {
   adminEventCheckIn: '/admin/events/:eventId/check-in',
   // Pagos por revisar (#230): flagged Mercado Pago payments, read only.
   adminEventPaymentsReview: '/admin/events/:eventId/payments-review',
+  // Listas de respaldo (#65): printable, contact-free attendee lists.
+  adminEventLists: '/admin/events/:eventId/lists',
+  // Historial (#104): the event's registration operations, read only.
+  adminEventHistory: '/admin/events/:eventId/history',
+  // Inscripciones (#105): search, the in-person registration and one registration's screen.
+  adminEventRegistrations: '/admin/events/:eventId/registrations',
+  adminEventRegistrationNew: '/admin/events/:eventId/registrations/new',
+  adminEventRegistration: '/admin/events/:eventId/registrations/:registrationId',
+  // Nueva inscripción's pass, cash and confirmed steps for a pending registration (#346).
+  adminEventRegistrationSale: '/admin/events/:eventId/registrations/:registrationId/sale',
   adminEventActivities: '/admin/events/:eventId/activities',
   adminEventPasses: '/admin/events/:eventId/passes',
   adminEventPassNew: '/admin/events/:eventId/passes/new',

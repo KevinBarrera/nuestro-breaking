@@ -2,7 +2,9 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
+  HttpCode,
   Param,
   ParseUUIDPipe,
   Post,
@@ -12,12 +14,36 @@ import {
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { SessionAccessService } from '@/identity-access/session-access.service';
-import { RegistrationEntitlementsService } from './registration-entitlements.service';
-import type { RegistrationEntitlements } from './registration-entitlements.types';
+import type { FieldErrorCode } from '@/events/public-registration/public-registration.types';
+import { CASH_RECEIPT_MAX, isCashAmount } from '@/events/manual-registration/cash-payment-rules';
+import {
+  REASON_MESSAGE,
+  RegistrationEntitlementsService,
+} from './registration-entitlements.service';
+import type {
+  CashCorrection,
+  DisciplineSwap,
+  ParticipantCorrection,
+  RegistrationEntitlements,
+} from './registration-entitlements.types';
 import type { AdminRegistrationAuditActor } from '@/events/registration-audit/registration-audit-actor';
+import { CompetitorNumberService } from '@/events/competitor-number/competitor-number.service';
+import type { CompetitorNumberAssignment } from '@/events/competitor-number/competitor-number.types';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MAX_SELECTIONS = 500;
+const REASON_MAX = 500;
+const NAME_MAX = 100;
+const CORRECTION_KEYS = new Set([
+  'firstName',
+  'firstLastName',
+  'secondLastName',
+  'stageName',
+  'reason',
+  'confirmCrossEvent',
+]);
+const SWAP_KEYS = new Set(['toPassTypeId', 'activityIds', 'reason']);
+const CASH_KEYS = new Set(['amountCents', 'receipt', 'reason', 'receiptChecked']);
 
 function object(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value))
@@ -42,12 +68,126 @@ function activityIds(value: unknown): string[] {
   }
   return [...seen];
 }
+// A blank reason counts as missing; the service decides whether one is required.
+function reason(value: unknown): string | null {
+  if (value === undefined || value === null) return null;
+  if (typeof value !== 'string' || value.trim().length > REASON_MAX)
+    throw new BadRequestException(REASON_MESSAGE);
+  return value.trim() || null;
+}
+// Any invalid reason counts as missing, so the service rejects it once the registration is found.
+function requiredReason(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return trimmed.length <= REASON_MAX ? trimmed || null : null;
+}
+
+// The name parts and AKA of a correction (#104), trimmed and with inner whitespace collapsed before
+// the 100-character bound. Absent, null or blank optional parts clear them. The reason is checked
+// by the service once the registration is found.
+function participantCorrection(input: Record<string, unknown>): ParticipantCorrection {
+  const errors: Record<string, FieldErrorCode> = {};
+  for (const key of Object.keys(input))
+    if (!CORRECTION_KEYS.has(key)) errors[key] = 'unknown_field';
+  const name = (key: string, required: boolean): string | null => {
+    const value = input[key];
+    if (typeof value !== 'string' && value !== undefined && value !== null) {
+      errors[key] = 'invalid';
+      return null;
+    }
+    const collapsed = (typeof value === 'string' ? value : '').trim().replace(/\s+/g, ' ');
+    if (!collapsed) {
+      if (required) errors[key] = 'required';
+      return null;
+    }
+    if (collapsed.length > NAME_MAX) errors[key] = 'too_long';
+    return collapsed;
+  };
+  const firstName = name('firstName', true);
+  const firstLastName = name('firstLastName', true);
+  const secondLastName = name('secondLastName', false);
+  const stageName = name('stageName', false);
+  const confirm = input.confirmCrossEvent;
+  if (confirm !== undefined && typeof confirm !== 'boolean') errors.confirmCrossEvent = 'invalid';
+  if (Object.keys(errors).length > 0 || !firstName || !firstLastName)
+    throw new BadRequestException({
+      statusCode: 400,
+      message: 'Invalid participant correction',
+      fieldErrors: errors,
+    });
+  return {
+    firstName,
+    firstLastName,
+    secondLastName,
+    stageName,
+    confirmCrossEvent: confirm === true,
+  };
+}
+
+// The target pass type and competitions of a discipline swap (#104), with field errors in the
+// public registration codes. The reason is checked by the service once the registration is found.
+function disciplineSwap(input: Record<string, unknown>): DisciplineSwap {
+  const errors: Record<string, FieldErrorCode> = {};
+  for (const key of Object.keys(input)) if (!SWAP_KEYS.has(key)) errors[key] = 'unknown_field';
+  const target = input.toPassTypeId;
+  if (target === undefined || target === null) errors.toPassTypeId = 'required';
+  else if (typeof target !== 'string' || !UUID.test(target)) errors.toPassTypeId = 'invalid';
+  const ids: string[] = [];
+  const chosen = input.activityIds;
+  if (chosen === undefined || chosen === null) errors.activityIds = 'required';
+  else if (!Array.isArray(chosen)) errors.activityIds = 'invalid';
+  else if (chosen.length > MAX_SELECTIONS) errors.activityIds = 'too_many';
+  else
+    chosen.forEach((entry: unknown, index) => {
+      if (typeof entry !== 'string' || !UUID.test(entry))
+        errors[`activityIds[${index}]`] = 'invalid';
+      else if (ids.includes(entry.toLowerCase())) errors[`activityIds[${index}]`] = 'duplicate';
+      else ids.push(entry.toLowerCase());
+    });
+  if (Object.keys(errors).length > 0 || typeof target !== 'string')
+    throw new BadRequestException({
+      statusCode: 400,
+      message: 'Invalid discipline swap',
+      fieldErrors: errors,
+    });
+  return { toPassTypeId: target.toLowerCase(), activityIds: ids };
+}
+
+// The amount and receipt of a cash correction (#104), with the bounds of cash confirmation; both
+// replace the current values, so the receipt cannot be cleared. The reason and the receipt check
+// are enforced by the service once the registration is found.
+function cashCorrection(input: Record<string, unknown>): CashCorrection {
+  const errors: Record<string, FieldErrorCode> = {};
+  for (const key of Object.keys(input)) if (!CASH_KEYS.has(key)) errors[key] = 'unknown_field';
+  const { amountCents, receipt, receiptChecked } = input;
+  if (amountCents === undefined || amountCents === null) errors.amountCents = 'required';
+  else if (!isCashAmount(amountCents)) errors.amountCents = 'invalid';
+  const trimmed = typeof receipt === 'string' ? receipt.trim() : '';
+  if (receipt !== undefined && receipt !== null && typeof receipt !== 'string')
+    errors.receipt = 'invalid';
+  else if (!trimmed) errors.receipt = 'required';
+  else if (trimmed.length > CASH_RECEIPT_MAX) errors.receipt = 'too_long';
+  if (receiptChecked === undefined || receiptChecked === null) errors.receiptChecked = 'required';
+  else if (typeof receiptChecked !== 'boolean') errors.receiptChecked = 'invalid';
+  if (
+    Object.keys(errors).length > 0 ||
+    !isCashAmount(amountCents) ||
+    typeof receiptChecked !== 'boolean'
+  )
+    throw new BadRequestException({
+      statusCode: 400,
+      message: 'Invalid cash correction',
+      fieldErrors: errors,
+    });
+  return { amountCents, receipt: trimmed, receiptChecked };
+}
 
 @Controller('admin/events')
 export class RegistrationEntitlementsController {
   constructor(
     private readonly sessions: SessionAccessService,
     private readonly entitlements: RegistrationEntitlementsService,
+    private readonly competitorNumbers: CompetitorNumberService,
   ) {}
 
   @Get(':eventId/registrations/:registrationId/entitlements')
@@ -75,6 +215,99 @@ export class RegistrationEntitlementsController {
     return this.entitlements.addPass(eventId, registrationId, id, actor);
   }
 
+  @Delete(':eventId/registrations/:registrationId/passes/:registrationPassId')
+  async removePass(
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+    @Param('registrationId', ParseUUIDPipe) registrationId: string,
+    @Param('registrationPassId', ParseUUIDPipe) registrationPassId: string,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<RegistrationEntitlements> {
+    const session = await this.sessions.authorizeEventAdminMutation(request, response, eventId);
+    const actor: AdminRegistrationAuditActor = { kind: 'admin', ...session };
+    return this.entitlements.removePass(eventId, registrationId, registrationPassId, actor);
+  }
+
+  @Post(':eventId/registrations/:registrationId/void')
+  @HttpCode(200)
+  async voidRegistration(
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+    @Param('registrationId', ParseUUIDPipe) registrationId: string,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+    @Body() body: unknown,
+  ): Promise<RegistrationEntitlements> {
+    const session = await this.sessions.authorizeEventAdminMutation(request, response, eventId);
+    const actor: AdminRegistrationAuditActor = { kind: 'admin', ...session };
+    const reason = requiredReason(object(body).reason);
+    return this.entitlements.voidRegistration(eventId, registrationId, reason, actor);
+  }
+
+  @Post(':eventId/registrations/:registrationId/participant-correction')
+  @HttpCode(200)
+  async correctParticipant(
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+    @Param('registrationId', ParseUUIDPipe) registrationId: string,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+    @Body() body: unknown,
+  ): Promise<RegistrationEntitlements> {
+    const session = await this.sessions.authorizeEventAdminMutation(request, response, eventId);
+    const actor: AdminRegistrationAuditActor = { kind: 'admin', ...session };
+    const input = object(body);
+    const correction = participantCorrection(input);
+    const reason = requiredReason(input.reason);
+    return this.entitlements.correctParticipant(eventId, registrationId, correction, reason, actor);
+  }
+
+  @Post(':eventId/registrations/:registrationId/discipline-swap')
+  @HttpCode(200)
+  async swapDiscipline(
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+    @Param('registrationId', ParseUUIDPipe) registrationId: string,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+    @Body() body: unknown,
+  ): Promise<RegistrationEntitlements> {
+    const session = await this.sessions.authorizeEventAdminMutation(request, response, eventId);
+    const actor: AdminRegistrationAuditActor = { kind: 'admin', ...session };
+    const input = object(body);
+    const swap = disciplineSwap(input);
+    const reason = requiredReason(input.reason);
+    return this.entitlements.swapDiscipline(eventId, registrationId, swap, reason, actor);
+  }
+
+  @Post(':eventId/registrations/:registrationId/cash-correction')
+  @HttpCode(200)
+  async correctCash(
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+    @Param('registrationId', ParseUUIDPipe) registrationId: string,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+    @Body() body: unknown,
+  ): Promise<RegistrationEntitlements> {
+    const session = await this.sessions.authorizeEventAdminMutation(request, response, eventId);
+    const actor: AdminRegistrationAuditActor = { kind: 'admin', ...session };
+    const input = object(body);
+    const correction = cashCorrection(input);
+    const reason = requiredReason(input.reason);
+    return this.entitlements.correctCash(eventId, registrationId, correction, reason, actor);
+  }
+
+  // No body: an admin assignment or change always gives that competition's next number (#377).
+  @Post(':eventId/registrations/:registrationId/competitions/:activityId/competitor-number')
+  async assignCompetitorNumber(
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+    @Param('registrationId', ParseUUIDPipe) registrationId: string,
+    @Param('activityId', ParseUUIDPipe) activityId: string,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<CompetitorNumberAssignment> {
+    const session = await this.sessions.authorizeEventAdminMutation(request, response, eventId);
+    const actor: AdminRegistrationAuditActor = { kind: 'admin', ...session };
+    return this.competitorNumbers.assignByAdmin(eventId, registrationId, activityId, actor);
+  }
+
   @Put(':eventId/registrations/:registrationId/passes/:registrationPassId/selections')
   async replaceSelections(
     @Param('eventId', ParseUUIDPipe) eventId: string,
@@ -86,12 +319,14 @@ export class RegistrationEntitlementsController {
   ): Promise<RegistrationEntitlements> {
     const session = await this.sessions.authorizeEventAdminMutation(request, response, eventId);
     const actor: AdminRegistrationAuditActor = { kind: 'admin', ...session };
-    const ids = activityIds(object(body).activityIds);
+    const input = object(body);
+    const ids = activityIds(input.activityIds);
     return this.entitlements.replaceSelections(
       eventId,
       registrationId,
       registrationPassId,
       ids,
+      reason(input.reason),
       actor,
     );
   }

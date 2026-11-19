@@ -46,6 +46,9 @@ describe('admin event creation and read model (e2e)', () => {
     timeZone: 'America/Mexico_City',
     startsAt: '2026-11-14T10:00:00-06:00',
     endsAt: '2026-11-15T22:00:00-06:00',
+    city: 'Guadalajara',
+    state: 'Jalisco',
+    country: 'MX',
   };
 
   async function session(role: string, scopeType: string, scopeId: string | null = null) {
@@ -107,6 +110,9 @@ describe('admin event creation and read model (e2e)', () => {
       endsAt: '2026-11-16T04:00:00.000Z',
       salesEnabled: false,
       archivedAt: null,
+      city: 'Guadalajara',
+      state: 'Jalisco',
+      country: 'MX',
     });
 
     const [organizationRow] = await client<{ id: string; name: string }[]>`
@@ -142,6 +148,9 @@ describe('admin event creation and read model (e2e)', () => {
           startsAt: '2026-11-14T16:00:00.000Z',
           endsAt: '2026-11-16T04:00:00.000Z',
           salesEnabled: false,
+          city: 'Guadalajara',
+          state: 'Jalisco',
+          country: 'MX',
         },
       },
     ]);
@@ -157,6 +166,13 @@ describe('admin event creation and read model (e2e)', () => {
       SELECT organization_id FROM events WHERE id = ${response.id}`;
     expect(event.organization_id).toBe(organizationId);
     expect(await count('organizations')).toBe(1);
+  });
+
+  it('requires the location and stores none of a refused event', async () => {
+    const { cookie } = await globalAdmin();
+    const response = await create(cookie, { ...valid, city: ' ', country: 'XX' }).expect(400);
+    expect(response.body).toMatchObject({ fieldErrors: { city: 'invalid', country: 'invalid' } });
+    expect(await count('events')).toBe(0);
   });
 
   it('refuses event admins and judges with an audited denial and creates nothing', async () => {
@@ -260,7 +276,7 @@ describe('admin event creation and read model (e2e)', () => {
     expect(await count('event_admin_audit')).toBe(0);
   });
 
-  it('lists events with slug, folio prefix, time zone, dates, sales and archived state, hiding archived ones by default', async () => {
+  it('lists events with slug, folio prefix, time zone, dates, sales, location and archived state, hiding archived ones by default', async () => {
     const organizationId = await organization();
     const [active, archived] = await client<{ id: string }[]>`
       INSERT INTO events (organization_id, name, time_zone, slug, folio_prefix)
@@ -270,7 +286,8 @@ describe('admin event creation and read model (e2e)', () => {
     await client`UPDATE events SET archived_at = '2026-10-01T12:00:00Z' WHERE id = ${archived.id}`;
     await client`
       UPDATE events
-      SET starts_at = '2026-11-14T16:00:00Z', ends_at = '2026-11-16T04:00:00Z', sales_enabled = true
+      SET starts_at = '2026-11-14T16:00:00Z', ends_at = '2026-11-16T04:00:00Z', sales_enabled = true,
+        city = 'Guadalajara', state = 'Jalisco', country = 'MX'
       WHERE id = ${active.id}`;
     const { cookie } = await globalAdmin();
     const activeItem = {
@@ -283,6 +300,9 @@ describe('admin event creation and read model (e2e)', () => {
       startsAt: '2026-11-14T16:00:00.000Z',
       endsAt: '2026-11-16T04:00:00.000Z',
       salesEnabled: true,
+      city: 'Guadalajara',
+      state: 'Jalisco',
+      country: 'MX',
     };
     const archivedItem = {
       id: archived.id,
@@ -294,6 +314,9 @@ describe('admin event creation and read model (e2e)', () => {
       startsAt: null,
       endsAt: null,
       salesEnabled: false,
+      city: null,
+      state: null,
+      country: null,
     };
     const list = (query = '') => server().get(`/admin/events${query}`).set('Cookie', cookie);
     expect((await list().expect(200)).body).toEqual([activeItem]);
@@ -327,6 +350,9 @@ describe('admin event creation and read model (e2e)', () => {
       windowStatus: 'bounded',
       salesEnabled: false,
       archivedAt: '2026-10-01T12:00:00.000Z',
+      city: 'Guadalajara',
+      state: 'Jalisco',
+      country: 'MX',
     });
   });
 });

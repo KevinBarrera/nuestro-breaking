@@ -6,7 +6,9 @@ import {
   closedCatalog,
   draftKey,
   eventName,
+  locatedCatalog,
   mockPublicCatalog,
+  openCatalog,
   slug,
 } from './support/public-mocks.ts';
 
@@ -66,6 +68,34 @@ test.describe('public home', () => {
       expect(headers.cookie).toBeUndefined();
       expect(headers['x-csrf-token']).toBeUndefined();
     }
+  });
+
+  test('shows where the event happens with its dates, and no place without a location (#330)', async ({
+    page,
+  }) => {
+    const catalog = await mockPublicCatalog(
+      page,
+      catalogReply(locatedCatalog('Guadalajara', 'Jalisco', 'MX')),
+    );
+    await page.goto(home);
+    await expect(page.getByText('Lugar: Guadalajara, Jalisco')).toBeVisible();
+    await expect(page.getByText('America/Mexico_City')).toHaveCount(0);
+
+    // The purchase steps name it in the header next to the dates, from sm up.
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto(passes);
+    await expect(
+      page
+        .getByRole('banner')
+        .getByText('Sábado 21 de noviembre – Domingo 22 de noviembre · Guadalajara, Jalisco'),
+    ).toBeVisible();
+
+    catalog.answer(catalogReply());
+    await page.goto(home);
+    await expect(page.getByRole('heading', { level: 1, name: eventName })).toBeVisible();
+    await expect(page.getByText('Sábado 21 de noviembre – Domingo 22 de noviembre')).toBeVisible();
+    await expect(page.getByText(/Lugar/)).toHaveCount(0);
+    await expect(page.getByText('America/Mexico_City')).toHaveCount(0);
   });
 
   test('says when closed sales open, or that they are closed, without a buy button', async ({
@@ -145,6 +175,27 @@ test.describe('public passes', () => {
     await expect(bar.getByRole('button', { name: 'Continuar' })).toBeDisabled();
   });
 
+  test('shows a pass whose online sales closed as not available (#240)', async ({ page }) => {
+    await mockPublicCatalog(
+      page,
+      catalogReply({
+        ...openCatalog,
+        passes: openCatalog.passes.map((entry) =>
+          entry.id === 'general'
+            ? { ...entry, onSale: false, onlineSalesClosesAt: '2026-11-17T15:00:00.000Z' }
+            : entry,
+        ),
+      }),
+    );
+    await page.goto(passes);
+    await expect(pass(page, 'Entrada general')).toBeDisabled();
+    await expect(pass(page, 'Entrada general')).toHaveAccessibleDescription(
+      /Venta en línea cerrada/,
+    );
+    await pass(page, 'Pase completo Breaking').check();
+    await expect(bottomBar(page).getByText('1 pase')).toBeVisible();
+  });
+
   test('keeps the chosen passes after a reload', async ({ page }) => {
     await mockPublicCatalog(page, catalogReply());
     await page.goto(passes);
@@ -171,8 +222,17 @@ test.describe('public passes', () => {
     await expect(page).toHaveURL(passes);
     await pass(page, 'Pase completo Breaking').check();
     await bottomBar(page).getByRole('button', { name: 'Continuar' }).click();
-    await expect(page).toHaveURL(`/e/${slug}/competencias`);
+    await expect(page).toHaveURL(`/e/${slug}/categorias`);
     await expect(page.getByText('Paso 2 de 4')).toBeVisible();
+  });
+
+  test('sends an old competencias link to the categorias step (#385)', async ({ page }) => {
+    await mockPublicCatalog(page, catalogReply());
+    await page.goto(passes);
+    await pass(page, 'Pase completo Breaking').check();
+    await page.goto(`/e/${slug}/competencias`);
+    await expect(page).toHaveURL(`/e/${slug}/categorias`);
+    await expect(page.getByRole('heading', { name: 'Elige tus categorías' })).toBeVisible();
   });
 
   test('shows the purchase summary beside the passes on desktop', async ({ page }) => {
@@ -196,9 +256,11 @@ for (const theme of themes) {
   test(`home and passes fit 375px with 44px targets in the ${theme} theme`, async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 800 });
     await useTheme(page, theme);
-    await mockPublicCatalog(page, catalogReply());
+    // The longest place format, with the country (#330).
+    await mockPublicCatalog(page, catalogReply(locatedCatalog('Bogotá', 'Cundinamarca', 'CO')));
     await page.goto(home);
     await expect(page.getByRole('heading', { level: 1, name: eventName })).toBeVisible();
+    await expect(page.getByText('Lugar: Bogotá, Cundinamarca, Colombia')).toBeVisible();
     await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
     await expectFitsAndTargets(page, 375, page.locator('a, button'));
 

@@ -1,4 +1,4 @@
-import { apiUrl } from '@/shared/api';
+import { adminFetch, apiUrl } from '@/shared/api';
 import { readIssuedLink, readTeam, readTeamFailure } from './readers';
 import type {
   InviteInput,
@@ -27,7 +27,7 @@ export function teamFailure(error: unknown): TeamFailure {
 async function teamRequest(path: string, init: RequestInit = {}): Promise<unknown> {
   let response: Response;
   try {
-    response = await fetch(apiUrl(path), { ...init, credentials: 'include' });
+    response = await adminFetch(apiUrl(path), { ...init, credentials: 'include' });
   } catch (error) {
     if (init.signal?.aborted) throw error;
     // The request may have reached the server before the connection failed.
@@ -53,7 +53,7 @@ export async function listTeam(signal: AbortSignal): Promise<TeamMember[]> {
 async function csrfToken(): Promise<string> {
   let session: Response;
   try {
-    session = await fetch(apiUrl('/auth/session'), { credentials: 'include' });
+    session = await adminFetch(apiUrl('/auth/session'), { credentials: 'include' });
   } catch {
     throw new TeamError({ kind: 'error' });
   }

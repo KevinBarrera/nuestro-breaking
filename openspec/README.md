@@ -9,7 +9,7 @@ Navigate these artifacts by purpose; a change directory is not proof of delivere
 
 ## Proposal in validation
 
-- [November 2026 MVP proposal](../docs/product/november-2026-mvp-proposal.md) ([browser version](../docs/product/november-2026-mvp-proposal.html)) — product proposal outside OpenSpec; no implementation authorization follows from this link.
+- [November 2026 MVP proposal](../docs/product/november-2026-mvp-proposal.md) ([published client version](https://kevinbarrera.github.io/november-2026-mvp-proposal/)) — product proposal outside OpenSpec; no implementation authorization follows from this link.
 
 ## Reusable references
 

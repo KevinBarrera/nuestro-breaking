@@ -1,7 +1,14 @@
 import { formatEventTime } from '@/entities/event-catalog';
 import type { EventSales } from '@/entities/event-sales';
 import { describe, expect, it } from 'vitest';
-import { publicPath, salesFormFrom, salesInputFrom, salesStatus, salesZone } from './sales-model';
+import {
+  publicPath,
+  salesFormFrom,
+  salesInputFrom,
+  salesStatus,
+  salesZone,
+  switchHint,
+} from './sales-model';
 
 const zone = 'America/Mexico_City';
 const opensAt = '2026-10-15T15:00:00.000Z';
@@ -34,15 +41,15 @@ describe('salesZone', () => {
 describe('salesStatus', () => {
   it('explains each closed reason in plain Spanish', () => {
     expect(salesStatus(sales({ state: 'closed', reason: 'disabled' }), zone)).toEqual({
-      label: 'Cerrada',
+      label: 'Venta cerrada',
       detail: 'La venta está apagada',
     });
     expect(
       salesStatus(sales({ state: 'closed', reason: 'not_yet_open', salesOpensAt: opensAt }), zone),
-    ).toEqual({ label: 'Cerrada', detail: `Abre el ${formatEventTime(opensAt, zone)}` });
+    ).toEqual({ label: 'Venta cerrada', detail: `Abre el ${formatEventTime(opensAt, zone)}` });
     expect(
       salesStatus(sales({ state: 'closed', reason: 'ended', salesClosesAt: closesAt }), zone),
-    ).toEqual({ label: 'Cerrada', detail: `Cerró el ${formatEventTime(closesAt, zone)}` });
+    ).toEqual({ label: 'Venta cerrada', detail: `Cerró el ${formatEventTime(closesAt, zone)}` });
   });
 
   it('formats dates on the event clock', () => {
@@ -54,9 +61,9 @@ describe('salesStatus', () => {
   });
 
   it('shows the closing date while open, when there is one', () => {
-    expect(salesStatus(sales({}), zone)).toEqual({ label: 'Abierta', detail: null });
+    expect(salesStatus(sales({}), zone)).toEqual({ label: 'Venta abierta', detail: null });
     expect(salesStatus(sales({ salesClosesAt: closesAt }), zone)).toEqual({
-      label: 'Abierta',
+      label: 'Venta abierta',
       detail: `Cierra el ${formatEventTime(closesAt, zone)}`,
     });
   });
@@ -107,5 +114,14 @@ describe('salesInputFrom', () => {
       ok: false,
       errors: { opensAt: 'Fecha u hora no válida.', closesAt: 'Fecha u hora no válida.' },
     });
+  });
+});
+
+describe('switchHint', () => {
+  it('explains what the sales switch does in each position', () => {
+    expect(switchHint(true)).toBe('El público puede comprar dentro del periodo de venta.');
+    expect(switchHint(false)).toBe(
+      'Apagada, la venta queda cerrada aunque las fechas estén dentro del periodo.',
+    );
   });
 });

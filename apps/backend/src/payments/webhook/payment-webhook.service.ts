@@ -27,7 +27,11 @@ import {
   type ProviderPayment,
 } from '@/payments/mercado-pago-client';
 import { MERCADO_PAGO_CONFIG, type MercadoPagoConfig } from '@/payments/mercado-pago-config';
-import { ConfirmationEmailDispatcher, enqueueConfirmationEmail } from '@/notifications';
+import {
+  ConfirmationEmailDispatcher,
+  dispatchAfterCommit,
+  enqueueConfirmationEmail,
+} from '@/notifications';
 import { decidePayment } from './payment-decision';
 
 type Database = DatabaseService['db'];
@@ -116,7 +120,8 @@ export class PaymentWebhookService {
       return result;
     });
     this.logger.log(`Mercado Pago payment ${paymentId} notification ${claimId}: ${outcome}`);
-    if (confirmedRegistrationId) this.sendConfirmationEmail(confirmedRegistrationId);
+    if (confirmedRegistrationId)
+      dispatchAfterCommit(this.confirmationEmails, confirmedRegistrationId, this.logger);
     return outcome;
   }
 
@@ -149,17 +154,9 @@ export class PaymentWebhookService {
       return result;
     });
     this.logger.log(`Mercado Pago payment ${paymentId} reconciliation: ${outcome}`);
-    if (confirmedRegistrationId) this.sendConfirmationEmail(confirmedRegistrationId);
+    if (confirmedRegistrationId)
+      dispatchAfterCommit(this.confirmationEmails, confirmedRegistrationId, this.logger);
     return outcome;
-  }
-
-  /** Fire and forget: the outbox row is committed, so the sweep retries whatever fails here. */
-  private sendConfirmationEmail(registrationId: string) {
-    this.confirmationEmails.dispatchRegistration(registrationId).catch((error: unknown) => {
-      this.logger.error(
-        `Confirmation email dispatch for registration ${registrationId} failed (${error instanceof Error ? error.name : 'unknown'}); the sweep will retry it.`,
-      );
-    });
   }
 
   private async isProcessed(db: Database | RegistrationTransaction, claimId: string, lock = false) {
@@ -230,7 +227,10 @@ export class PaymentWebhookService {
       : [];
     const [checkout] = registration
       ? await tx
-          .select({ id: registrationCheckouts.id })
+          .select({
+            id: registrationCheckouts.id,
+            serviceChargeCents: registrationCheckouts.serviceChargeCents,
+          })
           .from(registrationCheckouts)
           .where(
             and(
@@ -264,7 +264,8 @@ export class PaymentWebhookService {
         registration && checkout
           ? {
               status: registration.status,
-              expectedAmountCents: await this.expectedAmountCents(tx, registration.id),
+              expectedAmountCents:
+                (await this.passesCents(tx, registration.id)) + checkout.serviceChargeCents,
               confirmedByThisPayment: await this.confirmedBy(tx, registration.id, payment.id),
               expiry,
             }
@@ -292,7 +293,9 @@ export class PaymentWebhookService {
     return { outcome: decision.outcome, confirmedRegistrationId: registration.id };
   }
 
-  private async expectedAmountCents(tx: RegistrationTransaction, registrationId: string) {
+  // The buyer pays the passes plus the service charge of the latest checkout (#239). A voucher
+  // from an older checkout with a different charge is flagged as a mismatch for manual review.
+  private async passesCents(tx: RegistrationTransaction, registrationId: string) {
     const [{ total }] = await tx
       .select({ total: sql<number>`coalesce(sum(${eventRegistrationPasses.priceCents}), 0)::int` })
       .from(eventRegistrationPasses)

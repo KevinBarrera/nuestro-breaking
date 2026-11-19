@@ -38,6 +38,7 @@ export type PublicRegistrationRequest = {
 /** Stable codes of catalog and duplicate rule violations (409). */
 export type PublicRegistrationRuleCode =
   | 'pass_type_unavailable'
+  | 'pass_type_sales_closed'
   | 'general_with_full'
   | 'required_pass_missing'
   | 'selection_unavailable'

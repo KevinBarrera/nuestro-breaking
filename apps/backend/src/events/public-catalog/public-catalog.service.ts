@@ -36,6 +36,7 @@ export class PublicCatalogService {
         passClass: eventPassTypes.passClass,
         priceCents: eventPassTypes.priceCents,
         requiresPassClass: eventPassTypes.requiresPassClass,
+        onlineSalesClosesAt: eventPassTypes.onlineSalesClosesAt,
       })
       .from(eventPassTypes)
       .where(and(eq(eventPassTypes.eventId, event.id), eq(eventPassTypes.status, 'active')));
@@ -93,6 +94,9 @@ export class PublicCatalogService {
         timeZone: events.timeZone,
         startsAt: events.startsAt,
         endsAt: events.endsAt,
+        city: events.city,
+        state: events.state,
+        country: events.country,
         salesEnabled: events.salesEnabled,
         salesOpensAt: events.salesOpensAt,
         salesClosesAt: events.salesClosesAt,

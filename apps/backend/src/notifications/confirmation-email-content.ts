@@ -14,8 +14,15 @@ export interface ConfirmationEmailInput {
   /** IANA time zone the event date is shown in. */
   eventTimeZone: string;
   eventStartsAt: Date | null;
+  /** Where the event happens (#330), or null while it has none. `country` is ISO 3166-1 alpha-2. */
+  eventLocation: { city: string; state: string; country: string } | null;
   folio: string;
   passes: ConfirmationEmailPass[];
+  /**
+   * What an online buyer paid (#239): the passes and the service charge of the approved payment's
+   * checkout. Null for cash and manual registrations, which show no amounts.
+   */
+  payment: { passesCents: number; serviceChargeCents: number } | null;
 }
 
 export interface ConfirmationEmailContent {
@@ -25,51 +32,99 @@ export interface ConfirmationEmailContent {
 }
 
 /**
- * Renders the Spanish confirmation email (#179 D4). It never shows amounts, payment ids, the
- * payment method or the buyer's address. Every interpolated value is escaped in the HTML body,
+ * Renders the Spanish confirmation email (#179 D4). Amounts appear only in the payment summary of an
+ * online purchase with a service charge (#239); it never shows payment ids, the payment method or
+ * the buyer's address. Every interpolated value is escaped in the HTML body,
  * because names come from buyers and admins. The HTML uses inline styles and no external assets.
  */
 export function buildConfirmationEmail(input: ConfirmationEmailInput): ConfirmationEmailContent {
   const name = displayFirstName(input.firstName, input.fullName);
   const eventName = singleLine(input.eventName);
-  const date = eventDate(input.eventStartsAt, input.eventTimeZone);
+  const when = {
+    date: eventDate(input.eventStartsAt, input.eventTimeZone),
+    place: input.eventLocation && placeText(input.eventLocation),
+  };
   const subject = `Tu inscripción a ${eventName} está confirmada · Folio ${singleLine(input.folio)}`;
-  return { subject, text: textBody(input, name, date), html: htmlBody(input, name, date) };
+  return { subject, text: textBody(input, name, when), html: htmlBody(input, name, when) };
+}
+
+/** The "Fecha:" and "Lugar:" values; each is left out of the email when null. */
+interface EventWhen {
+  date: string | null;
+  place: string | null;
 }
 
 const ENTRANCE_LINE = 'Muestra este folio en la entrada del evento para recibir tu acceso.';
 
-function textBody(input: ConfirmationEmailInput, name: string, date: string | null): string {
+const MXN = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' });
+
+/** Payment summary rows, or none when nothing was charged on top of the passes. */
+function paymentRows(input: ConfirmationEmailInput): [string, string][] {
+  const payment = input.payment;
+  if (!payment || payment.serviceChargeCents <= 0) return [];
+  const total = payment.passesCents + payment.serviceChargeCents;
+  return [
+    ['Pases', MXN.format(payment.passesCents / 100)],
+    ['Cargo por servicio', MXN.format(payment.serviceChargeCents / 100)],
+    ['Total pagado', `${MXN.format(total / 100)} MXN`],
+  ];
+}
+
+function textBody(input: ConfirmationEmailInput, name: string, when: EventWhen): string {
   const lines = [
     `Hola, ${name}:`,
     '',
     `Tu inscripción a ${input.eventName} está confirmada. ¡Gracias por ser parte!`,
     '',
   ];
-  if (date) lines.push(`Fecha: ${date}`, '');
+  if (when.date) lines.push(`Fecha: ${when.date}`);
+  if (when.place) lines.push(`Lugar: ${when.place}`);
+  if (when.date || when.place) lines.push('');
   lines.push(`Tu folio: ${input.folio}`, ENTRANCE_LINE, '', 'Tus pases:');
   for (const pass of input.passes) {
     lines.push(`- ${pass.name}`);
-    if (pass.competitions.length > 0) lines.push(`  Competencias: ${pass.competitions.join(', ')}`);
+    if (pass.competitions.length > 0) lines.push(`  Categorías: ${pass.competitions.join(', ')}`);
   }
+  const rows = paymentRows(input);
+  if (rows.length > 0)
+    lines.push('', 'Resumen de pago:', ...rows.map(([label, amount]) => `${label}: ${amount}`));
   lines.push('', `¡Nos vemos en ${input.eventName}!`);
   return lines.join('\n');
 }
 
-function htmlBody(input: ConfirmationEmailInput, name: string, date: string | null): string {
+function htmlBody(input: ConfirmationEmailInput, name: string, when: EventWhen): string {
   const event = escapeHtml(input.eventName);
   const passes = input.passes
     .map((pass) => {
       const competitions =
         pass.competitions.length > 0
-          ? `<br><span style="color:#555555;font-size:14px;">Competencias: ${escapeHtml(pass.competitions.join(', '))}</span>`
+          ? `<br><span style="color:#555555;font-size:14px;">Categorías: ${escapeHtml(pass.competitions.join(', '))}</span>`
           : '';
       return `<li style="margin:0 0 8px;"><strong>${escapeHtml(pass.name)}</strong>${competitions}</li>`;
     })
     .join('');
-  const dateLine = date
-    ? `<p style="margin:0 0 16px;"><strong>Fecha:</strong> ${escapeHtml(date)}</p>`
-    : '';
+  const rows = paymentRows(input);
+  const summary =
+    rows.length > 0
+      ? [
+          '<p style="margin:0 0 8px;font-weight:bold;">Resumen de pago</p>',
+          '<table role="presentation" style="width:100%;margin:0 0 16px;border-collapse:collapse;">',
+          ...rows.map(
+            ([label, amount], index) =>
+              `<tr${index === rows.length - 1 ? ' style="font-weight:bold;border-top:1px solid #dddddd;"' : ''}><td style="padding:4px 0;">${escapeHtml(label)}</td><td style="padding:4px 0;text-align:right;">${escapeHtml(amount)}</td></tr>`,
+          ),
+          '</table>',
+        ].join('\n')
+      : '';
+  const facts: [string, string][] = [];
+  if (when.date) facts.push(['Fecha', when.date]);
+  if (when.place) facts.push(['Lugar', when.place]);
+  const dateLine = facts
+    .map(
+      ([label, value], index) =>
+        `<p style="margin:0 0 ${index === facts.length - 1 ? 16 : 4}px;"><strong>${label}:</strong> ${escapeHtml(value)}</p>`,
+    )
+    .join('\n');
   return [
     '<!doctype html>',
     '<html lang="es"><head><meta charset="utf-8"></head>',
@@ -85,6 +140,7 @@ function htmlBody(input: ConfirmationEmailInput, name: string, date: string | nu
     '</div>',
     '<p style="margin:0 0 8px;font-weight:bold;">Tus pases</p>',
     `<ul style="margin:0 0 16px;padding-left:20px;">${passes}</ul>`,
+    summary,
     `<p style="margin:0;">¡Nos vemos en ${event}!</p>`,
     '</div>',
     '</body></html>',
@@ -103,6 +159,19 @@ function eventDate(startsAt: Date | null, timeZone: string): string | null {
   } catch {
     return null;
   }
+}
+
+const countryName = new Intl.DisplayNames(['es-MX'], { type: 'region' });
+
+/**
+ * The event's place as the admin panel shows it (#322): the city and its state, then the country
+ * name outside Mexico. The state is left out when it repeats the city ("Ciudad de México").
+ */
+function placeText({ city, state, country }: { city: string; state: string; country: string }) {
+  const parts = [singleLine(city)];
+  if (state.localeCompare(city, 'es', { sensitivity: 'base' }) !== 0) parts.push(singleLine(state));
+  if (country !== 'MX') parts.push(countryName.of(country) ?? country);
+  return parts.join(', ');
 }
 
 function singleLine(value: string): string {

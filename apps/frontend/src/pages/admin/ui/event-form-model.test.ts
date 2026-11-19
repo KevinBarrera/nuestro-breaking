@@ -3,10 +3,12 @@ import {
   createInput,
   emptyEventDraft,
   eventServerErrors,
-  previewUrl,
+  folioPrefixHint,
   sampleFolio,
+  slugHint,
   slugify,
   timeZoneOptions,
+  countryOptions,
   validateEvent,
   type EventDraft,
 } from './event-form-model';
@@ -16,6 +18,8 @@ const draft = (changes: Partial<EventDraft> = {}): EventDraft => ({
   name: 'Los más pesados',
   slug: 'los-mas-pesados',
   folioPrefix: 'LMP',
+  city: 'Guadalajara',
+  state: 'Jalisco',
   ...changes,
 });
 
@@ -36,14 +40,15 @@ describe('slugify', () => {
   });
 });
 
-describe('previewUrl and sampleFolio', () => {
-  it('builds the purchase address and a sample folio', () => {
-    expect(previewUrl('https://example.org', 'final-2027')).toBe(
-      'https://example.org/e/final-2027',
-    );
-    expect(previewUrl('https://example.org', '')).toBe('https://example.org/e/…');
+describe('sampleFolio and the identifier hints', () => {
+  it('builds a sample folio, with a placeholder until there is a prefix', () => {
     expect(sampleFolio('LMPF')).toBe('LMPF-7K3Q');
-    expect(sampleFolio('')).toBe('…-7K3Q');
+    expect(sampleFolio('')).toBe('PREFIJO-7K3Q');
+  });
+
+  it('states the address and prefix rules', () => {
+    expect(slugHint).toBe('Solo minúsculas, números y guiones, hasta 80 caracteres.');
+    expect(folioPrefixHint).toBe('De 2 a 6 caracteres; empieza con letra.');
   });
 });
 
@@ -58,6 +63,14 @@ describe('timeZoneOptions', () => {
   });
 });
 
+describe('countryOptions', () => {
+  it('starts with Mexico, the default country of a new event', () => {
+    expect(countryOptions[0]).toEqual({ id: 'MX', label: 'México' });
+    expect(emptyEventDraft.country).toBe('MX');
+    expect(new Set(countryOptions.map((option) => option.id)).size).toBe(countryOptions.length);
+  });
+});
+
 describe('validateEvent', () => {
   it('accepts a complete draft without dates', () => {
     expect(validateEvent(draft())).toEqual({});
@@ -69,6 +82,20 @@ describe('validateEvent', () => {
       'Usa 120 caracteres o menos.',
     );
     expect(validateEvent(draft({ name: 'a\u0007b' })).name).toBeDefined();
+  });
+
+  it('requires the city and the state, with the place rule, and a listed country', () => {
+    expect(validateEvent(draft({ city: ' ', state: '' }))).toEqual({
+      city: 'Escribe la ciudad.',
+      state: 'Escribe el estado.',
+    });
+    expect(validateEvent(draft({ city: 'a'.repeat(81), state: 'Jal\u0007isco' }))).toEqual({
+      city: 'Usa 80 caracteres o menos.',
+      state: 'Quita los caracteres especiales.',
+    });
+    expect(validateEvent(draft({ country: 'XX' }))).toEqual({
+      country: 'Elige un país de la lista.',
+    });
   });
 
   it('checks the slug rule', () => {
@@ -127,8 +154,15 @@ describe('createInput', () => {
       timeZone: 'America/Mexico_City',
       startsAt: '2026-11-21T16:00:00.000Z',
       endsAt: '2026-11-23T04:00:00.000Z',
+      city: 'Guadalajara',
+      state: 'Jalisco',
+      country: 'MX',
     });
     expect(createInput(draft())).toMatchObject({ startsAt: null, endsAt: null });
+    expect(createInput(draft({ city: ' Zapopan ', state: ' Jalisco ' }))).toMatchObject({
+      city: 'Zapopan',
+      state: 'Jalisco',
+    });
   });
 });
 
@@ -150,6 +184,11 @@ describe('eventServerErrors', () => {
     expect(eventServerErrors({ slug: 'invalid', endsAt: 'invalid' })).toEqual({
       slug: 'Usa solo minúsculas, números y guiones, hasta 80 caracteres.',
       endsAt: 'Revisa la fecha de fin: debe ser después del inicio.',
+    });
+    expect(eventServerErrors({ city: 'invalid', state: 'invalid', country: 'invalid' })).toEqual({
+      city: 'Revisa la ciudad.',
+      state: 'Revisa el estado.',
+      country: 'Elige un país de la lista.',
     });
     expect(eventServerErrors({ body: 'invalid' })).toEqual({});
   });

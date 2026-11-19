@@ -607,6 +607,38 @@ describe('Mercado Pago payment webhook (e2e)', () => {
     expect((await notificationRows())[0].outcome).toBe('amount_mismatch');
   });
 
+  describe('with a service charge on the checkout (#239)', () => {
+    const CHARGE_CENTS = 6815;
+
+    async function chargedRegistration() {
+      const id = await pendingRegistration();
+      await client`UPDATE registration_checkouts
+        SET service_charge_cents = ${CHARGE_CENTS}, amount_cents = ${PRICE_CENTS + CHARGE_CENTS}
+        WHERE registration_id = ${id}`;
+      return id;
+    }
+
+    it('confirms an approved payment of the passes plus the service charge', async () => {
+      const id = await chargedRegistration();
+      setPayment(id, { transactionAmountCents: PRICE_CENTS + CHARGE_CENTS });
+
+      await notify(1001).expect(200);
+
+      expect((await registrationRow(id)).status).toBe('confirmed');
+      expect((await notificationRows())[0].outcome).not.toBe('amount_mismatch');
+    });
+
+    it('records an amount mismatch for a payment of the passes alone', async () => {
+      const id = await chargedRegistration();
+      setPayment(id);
+
+      await notify(1001).expect(200);
+
+      expect((await registrationRow(id)).status).toBe('pending_payment');
+      expect((await notificationRows())[0].outcome).toBe('amount_mismatch');
+    });
+  });
+
   // A real sandbox notification body (D12): its `id` is beyond Number.MAX_SAFE_INTEGER.
   function notifyRaw(notificationId: string, dataId = PAYMENT_ID) {
     const secret = process.env.MERCADO_PAGO_WEBHOOK_SECRET ?? '';

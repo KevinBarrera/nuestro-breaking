@@ -51,7 +51,7 @@ offline operation, local records, or manual event replay as a support remedy.
 Unlike the planned sections above, this one describes implemented behavior
 ([#214](https://github.com/KevinBarrera/nuestro-breaking/issues/214)). Only a
 **global administrator** can manage the team, from the admin panel's
-**Equipo** page (side navigation, "Administración" group; other admins do not
+**Equipo** page (side navigation, "General" section; other admins do not
 see it). Each row offers the actions below as buttons: **Nuevo enlace**,
 **Cancelar invitación**, **Cambiar acceso**, **Desactivar** and **Reactivar**;
 your own row shows "—" and offers none. **Agregar administrador** opens the

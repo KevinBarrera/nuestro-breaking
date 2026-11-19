@@ -15,17 +15,17 @@ This contract describes how administrators create, edit, archive, restore and de
 
 All routes sit under `/admin/events` and use the [admin authentication boundary](admin-auth-boundary.md). Writes need a trusted `Origin` and the `X-CSRF-Token` header. Code: `apps/backend/src/events/admin-events/`, venues in `src/events/venue-admin/` (list: `src/events/check-in-event-list/`).
 
-| Method and path                                | Who                                 | Body                                                        | Success                                             |
-| ---------------------------------------------- | ----------------------------------- | ----------------------------------------------------------- | --------------------------------------------------- |
-| `GET /admin/events`                            | Any admin (global or event-scoped)  | None. `?archived=true` also returns archived events.        | `200` list of events                                |
-| `GET /admin/events/:eventId/foundation`        | Admin or judge for the event        | None                                                        | `200` event, venues, activities and delete blockers |
-| `POST /admin/events`                           | Global admin                        | `{ name, slug, folioPrefix, timeZone, startsAt?, endsAt? }` | `201` event                                         |
-| `PATCH /admin/events/:eventId`                 | Global admin or admin for the event | Any of `{ name, timeZone, startsAt, endsAt }`               | `200` event                                         |
-| `POST /admin/events/:eventId/archive`          | Global admin                        | None                                                        | `201` event                                         |
-| `POST /admin/events/:eventId/restore`          | Global admin                        | None                                                        | `201` event                                         |
-| `DELETE /admin/events/:eventId`                | Global admin                        | `{ confirmSlug }`                                           | `204`, no body                                      |
-| `POST /admin/events/:eventId/venues`           | Global admin or admin for the event | `{ name }`                                                  | `201` venue                                         |
-| `PATCH /admin/events/:eventId/venues/:venueId` | Global admin or admin for the event | `{ name }`                                                  | `200` venue                                         |
+| Method and path                                | Who                                 | Body                                                                              | Success                                             |
+| ---------------------------------------------- | ----------------------------------- | --------------------------------------------------------------------------------- | --------------------------------------------------- |
+| `GET /admin/events`                            | Any admin (global or event-scoped)  | None. `?archived=true` also returns archived events.                              | `200` list of events                                |
+| `GET /admin/events/:eventId/foundation`        | Admin or judge for the event        | None                                                                              | `200` event, venues, activities and delete blockers |
+| `POST /admin/events`                           | Global admin                        | `{ name, slug, folioPrefix, timeZone, startsAt?, endsAt?, city, state, country }` | `201` event                                         |
+| `PATCH /admin/events/:eventId`                 | Global admin or admin for the event | Any of `{ name, timeZone, startsAt, endsAt, city, state, country }`               | `200` event                                         |
+| `POST /admin/events/:eventId/archive`          | Global admin                        | None                                                                              | `201` event                                         |
+| `POST /admin/events/:eventId/restore`          | Global admin                        | None                                                                              | `201` event                                         |
+| `DELETE /admin/events/:eventId`                | Global admin                        | `{ confirmSlug }`                                                                 | `204`, no body                                      |
+| `POST /admin/events/:eventId/venues`           | Global admin or admin for the event | `{ name }`                                                                        | `201` venue                                         |
+| `PATCH /admin/events/:eventId/venues/:venueId` | Global admin or admin for the event | `{ name }`                                                                        | `200` venue                                         |
 
 A caller without the required role gets `401` and an audited `denied` row in `auth_audit`, the same as other admin routes. A missing or foreign `Origin`, or a missing CSRF token, is `403`. A path id that is not a UUID is `400`.
 
@@ -43,9 +43,14 @@ The list, `POST`, `PATCH`, archive and restore all return the same event object.
   "startsAt": "2026-11-21T16:00:00.000Z",
   "endsAt": "2026-11-23T04:00:00.000Z",
   "salesEnabled": false,
-  "archivedAt": null
+  "archivedAt": null,
+  "city": "Guadalajara",
+  "state": "Jalisco",
+  "country": "MX"
 }
 ```
+
+`city`, `state` and `country` are where the event happens (#322). They are all `null` for events created before the location existed, until an admin fills them in; the location is never derived from the time zone.
 
 The admin panel's list reader requires these fields, so deploy the backend with or before the frontend that reads them. `salesEnabled` is only the switch. Whether sales are open right now also depends on the sales window, which the [event sales API](event-sales.md) reports as `state`.
 
@@ -75,6 +80,10 @@ Code: `admin-event-input.ts` (pure parsing, unit tested).
 | `folioPrefix`        | 2 to 6 characters: an uppercase letter, then uppercase letters or digits (`FOLIO_PREFIX_PATTERN`).                                                                                                                                         |
 | `timeZone`           | An IANA zone name accepted by `Intl`, for example `America/Mexico_City`, stored in its canonical spelling. Offsets such as `+01:00` are refused.                                                                                           |
 | `startsAt`, `endsAt` | ISO 8601 with an explicit offset, or `null`. Both or neither; `endsAt` after `startsAt`. On `PATCH` they are checked merged with the stored dates, and the database still refuses a window that no longer contains the event's activities. |
+| `city`, `state`      | Required on `POST`. Trimmed, not blank, at most 80 characters, no control characters.                                                                                                                                                      |
+| `country`            | Required on `POST`. An ISO 3166-1 alpha-2 country code, for example `MX`; lower case is accepted and stored upper case. Region codes that are not countries (`EU`, `UN`, `ZZ`) are refused.                                                |
+
+The location fields are editable after creation, but never cleared: a supplied value must be valid, and on `PATCH` they are checked merged with the stored ones, so an event without a location must receive all three at once (the missing ones are reported `invalid`). The database check `events_location_ck` keeps the three together.
 
 `PATCH` refuses `slug` and `folioPrefix` with the field error `immutable`, any other unknown key with `invalid`, and an empty body with `{ "body": "invalid" }`. A `PATCH` that changes nothing answers `200` with the current event and writes no audit row.
 
@@ -136,7 +145,7 @@ Table `event_admin_audit` (migration `0021`; migration `0022` adds the venue act
 
 | Action          | `details`                                                                                            |
 | --------------- | ---------------------------------------------------------------------------------------------------- |
-| `created`       | The created fields: name, slug, folio prefix, time zone, dates, `salesEnabled: false`.               |
+| `created`       | The created fields: name, slug, folio prefix, time zone, dates, `salesEnabled: false`, location.     |
 | `updated`       | `{ before, after }` with only the changed fields.                                                    |
 | `archived`      | `{ salesEnabled }`: the switch before archiving.                                                     |
 | `restored`      | `{ archivedAt }`: when it had been archived.                                                         |

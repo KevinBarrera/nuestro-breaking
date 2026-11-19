@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { check, integer, jsonb, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { check, index, integer, jsonb, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 import { authSessions } from './auth';
 import { events } from './events';
 import { participants } from './participants';
@@ -32,7 +32,10 @@ export const registrationOperationAudit = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     amountCents: integer('amount_cents'),
     reference: text('reference'),
+    // Free text; the required reason of a complimentary confirmation (#263).
     note: text('note'),
+    // Cash receipt number as confirmed; required by the API for new cash confirmations, null on
+    // legacy rows. The current receipt, and its uniqueness, live in `event_cash_payments` (0036).
     receipt: text('receipt'),
     beforeState: jsonb('before_state').notNull(),
     afterState: jsonb('after_state').notNull(),
@@ -41,7 +44,7 @@ export const registrationOperationAudit = pgTable(
   (table) => [
     check(
       'registration_operation_audit_operation_type_check',
-      sql`${table.operationType} IN ('manual_registration', 'cash_confirmation', 'pass_assignment', 'pass_selection_change', 'online_registration', 'payment_approval', 'registration_expiry')`,
+      sql`${table.operationType} IN ('manual_registration', 'cash_confirmation', 'pass_assignment', 'pass_selection_change', 'online_registration', 'payment_approval', 'registration_expiry', 'complimentary_confirmation', 'pass_removal', 'registration_void', 'registration_correction', 'registration_discipline_swap', 'cash_correction', 'competitor_number_assignment')`,
     ),
     check(
       'registration_operation_audit_actor_kind_check',
@@ -59,6 +62,12 @@ export const registrationOperationAudit = pgTable(
     check(
       'registration_operation_audit_amount_ck',
       sql`(${table.operationType} IN ('cash_confirmation', 'payment_approval')) = (${table.amountCents} IS NOT NULL)`,
+    ),
+    // Serves the event history, newest first by the `(created_at, id)` keyset (#104, 0038).
+    index('registration_operation_audit_event_created_idx').on(
+      table.eventId,
+      table.createdAt.desc(),
+      table.id.desc(),
     ),
   ],
 );

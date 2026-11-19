@@ -1,6 +1,7 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
 import { eventId, mockAdminApi } from './support/admin-mocks.ts';
 import { eventAdmin, mockSession } from './support/event-mocks.ts';
+import { expectSelected, selectTrigger } from './support/select.ts';
 
 // The shared admin mocks plus a session that sends the CSRF token header.
 async function mockApi(page: Page) {
@@ -9,7 +10,10 @@ async function mockApi(page: Page) {
 }
 
 const form = (page: Page) => page.getByRole('form', { name: 'Nuevo evento' });
-const preview = (page: Page) => page.getByRole('complementary', { name: 'Vista previa' });
+const identifiers = (page: Page) =>
+  form(page).getByRole('region', { name: 'Identificadores permanentes' });
+const sampleFolio = (page: Page) =>
+  form(page).getByRole('status', { name: 'Así se verá un folio' });
 const slugField = (page: Page) =>
   form(page).getByRole('textbox', { name: 'Dirección de la página de compra' });
 
@@ -23,6 +27,9 @@ const created = {
   endsAt: '2027-03-22T04:00:00.000Z',
   salesEnabled: false,
   archivedAt: null,
+  city: 'Guadalajara',
+  state: 'Jalisco',
+  country: 'MX',
 };
 
 // Answers `POST /admin/events` with `reply` and records each body; reads fall through.
@@ -41,6 +48,8 @@ async function mockCreate(page: Page, reply: (route: Route) => Promise<void>) {
 
 async function fillValid(page: Page) {
   await form(page).getByLabel('Nombre del evento').fill('Los más pesados - Final - Marzo 2027');
+  await form(page).getByLabel('Ciudad', { exact: true }).fill('Guadalajara');
+  await form(page).getByLabel('Estado', { exact: true }).fill('Jalisco');
   await form(page).getByLabel('Prefijo de folio').fill('lmpf');
 }
 
@@ -62,13 +71,11 @@ test('a global admin creates an event: suggested address, preview, then the new 
   // The address follows the name until it is edited by hand.
   await expect(slugField(page)).toHaveValue('los-mas-pesados-final-marzo-2027');
   await expect(form(page).getByLabel('Prefijo de folio')).toHaveValue('LMPF');
-  const origin = new URL(page.url()).origin;
-  await expect(preview(page)).toContainText(`${origin}/e/los-mas-pesados-final-marzo-2027`);
-  await expect(preview(page)).toContainText('LMPF-7K3Q');
+  await expect(sampleFolio(page)).toHaveText('LMPF-7K3Q');
+  await expect(identifiers(page)).toContainText('No se pueden cambiar después');
   await slugField(page).fill('final-2027');
   await form(page).getByLabel('Nombre del evento').fill('Los más pesados - Final - Marzo 2027');
   await expect(slugField(page)).toHaveValue('final-2027');
-  await expect(preview(page)).toContainText(`${origin}/e/final-2027`);
   await expect(form(page)).toContainText('El evento se crea con la venta en línea cerrada.');
 
   await form(page).getByLabel('Inicio').fill('2027-03-20T10:00');
@@ -84,8 +91,29 @@ test('a global admin creates an event: suggested address, preview, then the new 
       timeZone: 'America/Mexico_City',
       startsAt: '2027-03-20T16:00:00.000Z',
       endsAt: '2027-03-22T04:00:00.000Z',
+      city: 'Guadalajara',
+      state: 'Jalisco',
+      country: 'MX',
     },
   ]);
+});
+
+test('the location is required, with Mexico as the default country', async ({ page }) => {
+  await mockApi(page);
+  const bodies = await mockCreate(page, (route) => route.fulfill({ status: 201, json: created }));
+  await page.goto('/admin/events/new');
+  await expectSelected(selectTrigger(form(page), 'País'), 'México');
+  await expect(form(page)).toContainText(
+    'Dónde sucede el evento. Se muestra en la lista de eventos, en el resumen y en la página de compra.',
+  );
+  await fillValid(page);
+  await form(page).getByLabel('Ciudad', { exact: true }).fill(' ');
+  await form(page).getByRole('button', { name: 'Crear evento' }).click();
+  const city = form(page).getByLabel('Ciudad', { exact: true });
+  await expect(city).toHaveAttribute('aria-invalid', 'true');
+  await expect(city).toHaveAccessibleDescription(/Escribe la ciudad\./);
+  await expect(city).toBeFocused();
+  expect(bodies).toEqual([]);
 });
 
 test('a taken address shows its field error and keeps the form', async ({ page }) => {
@@ -152,12 +180,19 @@ test('an event admin cannot create events', async ({ page }) => {
   await expect(form(page)).toHaveCount(0);
 });
 
-test('on a phone the preview stacks under the form', async ({ page }) => {
+test('the sample folio shows a placeholder until there is a prefix', async ({ page }) => {
+  await mockApi(page);
+  await page.goto('/admin/events/new');
+  await expect(sampleFolio(page)).toHaveText('PREFIJO-7K3Q');
+  await expect(form(page)).toContainText('Aparece en los recibos y en el check-in.');
+  await form(page).getByLabel('Prefijo de folio').fill('ev27');
+  await expect(sampleFolio(page)).toHaveText('EV27-7K3Q');
+});
+
+test('on a phone the form fits without a horizontal scroll', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 800 });
   await mockAdminApi(page);
   await page.goto('/admin/events/new');
-  const formBox = await form(page).boundingBox();
-  const previewBox = await preview(page).boundingBox();
-  expect(previewBox!.y).toBeGreaterThanOrEqual(formBox!.y + formBox!.height);
+  await expect(identifiers(page)).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
 });

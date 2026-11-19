@@ -16,6 +16,7 @@ export const paymentStatusValues = [
 ] as const;
 export const registrationRuleCodes = [
   'pass_type_unavailable',
+  'pass_type_sales_closed',
   'general_with_full',
   'required_pass_missing',
   'selection_unavailable',
@@ -40,6 +41,10 @@ export type PublicPass = {
   passClass: PublicPassClass;
   priceCents: number;
   requiresPassClass: PublicPassClass | null;
+  // When online sales of this pass close (#240), or null to follow the event's window. `onSale`
+  // is the server's answer when the catalog was read; a closed pass stays listed.
+  onlineSalesClosesAt: string | null;
+  onSale: boolean;
   selectableActivities: PublicActivity[];
   includedActivities: PublicActivity[];
 };
@@ -51,6 +56,11 @@ export type PublicEventSummary = {
   timeZone: string;
   startsAt: string | null;
   endsAt: string | null;
+  // Where the event happens (#330): all three set, or all null while it has none. Absent from a
+  // backend that predates #330. `country` is an ISO 3166-1 alpha-2 code.
+  city?: string | null;
+  state?: string | null;
+  country?: string | null;
 };
 
 export type PublicSales = {
@@ -58,10 +68,19 @@ export type PublicSales = {
   closesAt: string | null;
 } & ({ state: 'open'; reason: null } | { state: 'closed'; reason: PublicSalesClosedReason });
 
+// Online service charge rates (#239), all before VAT: percentages in hundredths of a percent
+// (349 is 3.49%) and the fixed fee in cents.
+export type PublicServiceCharge = {
+  rateBasisPoints: number;
+  fixedCents: number;
+  vatBasisPoints: number;
+};
+
 // Passes are listed only while sales are open; a closed catalog has `passes: []`.
 export type PublicCatalog = {
   event: PublicEventSummary;
   sales: PublicSales;
+  serviceCharge: PublicServiceCharge;
   passes: PublicPass[];
 };
 
@@ -114,6 +133,8 @@ export type PaymentStatus = {
   maskedEmail: string | null;
   folio: string | null;
   passes: PaymentStatusPass[];
+  // The online service charge included in `totalCents` (#239); 0 for manual registrations.
+  serviceChargeCents: number;
   totalCents: number;
 };
 

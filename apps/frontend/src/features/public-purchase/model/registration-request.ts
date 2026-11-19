@@ -5,12 +5,14 @@ import type {
   RegistrationRequest,
   RegistrationRuleCode,
 } from '@/entities/public-event';
+import { defaultPhoneMode, type PhoneMode } from '@/entities/participant';
 import { legalDocuments } from '@/shared/config';
 import {
   buyerFields,
   buyerMaxLength,
   buyerMessages,
   buyerPayload,
+  invalidPhoneMessages,
   type BuyerErrors,
   type BuyerField,
   type BuyerForm,
@@ -37,8 +39,9 @@ export function buildRegistrationRequest(
   };
 }
 
-function buyerMessage(field: BuyerField, code: string): string {
+function buyerMessage(field: BuyerField, code: string, phoneMode: PhoneMode): string {
   const limit = buyerMaxLength[field];
+  if (field === 'phone' && code === 'invalid') return invalidPhoneMessages[phoneMode];
   if (code === 'required') return buyerMessages.required[field] ?? buyerMessages.fallback;
   if (code === 'invalid' && field in buyerMessages.invalid)
     return buyerMessages.invalid[field as keyof typeof buyerMessages.invalid];
@@ -59,13 +62,19 @@ export type ServerErrors = {
 const isBuyerField = (value: string): value is BuyerField =>
   buyerFields.some((field) => field === value);
 
-/** Maps a 400 `fieldErrors` record (path → code) to the messages the screens show. */
-export function serverErrors(fieldErrors: Record<string, string>): ServerErrors {
+/**
+ * Maps a 400 `fieldErrors` record (path → code) to the messages the screens show. An invalid
+ * phone is described with the rule of the country the buyer chose (#390).
+ */
+export function serverErrors(
+  fieldErrors: Record<string, string>,
+  phoneMode: PhoneMode = defaultPhoneMode,
+): ServerErrors {
   const errors: ServerErrors = { buyer: {}, passes: null, legal: null, other: null };
   for (const [path, code] of Object.entries(fieldErrors)) {
     const field = path.startsWith('buyer.') ? path.slice('buyer.'.length) : null;
     if (field && isBuyerField(field) && code !== 'unknown_field')
-      errors.buyer[field] = buyerMessage(field, code);
+      errors.buyer[field] = buyerMessage(field, code, phoneMode);
     else if (path === 'passes' || path.startsWith('passes['))
       errors.passes = 'Algo cambió en tus pases. Vuelve a elegirlos e intenta de nuevo.';
     else if (path === 'legalAcceptances' || path.startsWith('legalAcceptances.'))
@@ -84,12 +93,14 @@ const salesClosedMessages: Record<PublicSalesClosedReason, string> = {
 
 const ruleMessages: Record<RegistrationRuleCode, string> = {
   pass_type_unavailable: 'Uno de tus pases ya no está disponible. Vuelve a elegir tus pases.',
+  pass_type_sales_closed:
+    'La venta en línea de uno de tus pases ya cerró. Vuelve a elegir tus pases.',
   general_with_full:
     'La entrada general ya está incluida en los pases completos. Quítala para continuar.',
   required_pass_missing:
     'Uno de tus pases adicionales requiere un pase completo. Agrega uno o quita el adicional.',
   selection_unavailable:
-    'Una de tus competencias ya no está disponible. Vuelve a elegir tus competencias.',
+    'Una de tus categorías ya no está disponible. Vuelve a elegir tus categorías.',
 };
 
 // One Spanish sentence per failure, for notices on the purchase screens.

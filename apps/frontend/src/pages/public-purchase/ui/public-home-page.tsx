@@ -3,7 +3,8 @@ import { emptySelection, passGroups, passOptions } from '@/features/public-purch
 import { legalDocuments } from '@/shared/config';
 import { PublicFrame } from '@/widgets/public-layout';
 import { Link } from 'react-router';
-import { closedSalesMessage, eventDateRange } from './event-dates';
+import { closedSalesMessage } from './event-dates';
+import { EventFacts } from './event-facts';
 import { usePurchase } from './purchase-context';
 import { stepPath } from './purchase-steps';
 import { SecurePaymentNote } from './secure-payment-note';
@@ -12,7 +13,6 @@ import { SecurePaymentNote } from './secure-payment-note';
 export function PublicHomePage() {
   const { slug, catalog } = usePurchase();
   const { event, sales } = catalog;
-  const dates = eventDateRange(event);
   const open = sales.state === 'open';
   const groups = passGroups(passOptions(catalog.passes, emptySelection));
 
@@ -24,7 +24,7 @@ export function PublicHomePage() {
             <h1 className="text-[34px] leading-[1.05] font-extrabold tracking-[-0.01em] break-words uppercase sm:text-[40px]">
               {event.name}
             </h1>
-            {dates ? <p className="text-base text-header-muted">{dates}</p> : null}
+            <EventFacts event={event} />
             {open ? (
               <Link
                 to={stepPath(slug, 'passes')}

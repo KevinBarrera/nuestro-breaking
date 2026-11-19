@@ -17,7 +17,7 @@ Plan MVP 3 (payment readiness): a buyer without an account buys passes for the N
 5. **Legal acceptance:** three required checkboxes before paying: Reglamento oficial, Aviso de privacidad and Política de cancelación (the MVP has no refunds). The app shows the links and records acceptance (document version and timestamp). Texts come from the organizer; legal review is recommended. This is not legal advice, and the items in the [Mexico readiness checklist](../legal/mexico-readiness-checklist.md) remain pending.
 6. **Mobile-first:** most buyers only have a phone. The buyer-facing UI is designed for phones first and also supports desktop. The phone-width e2e sweep is extended to the public screens.
 7. **Full pass includes general entry:** general entry cannot be selected together with a full pass.
-8. **Email is required** for online buyers (it stays optional in admin manual registration). The confirmation email with folio is part of the flow.
+8. **Email is required** for online buyers and in admin manual registration (#58; see [admin registration operations](../contracts/admin-registration-operations.md)). The confirmation email with folio is part of the flow.
 9. **Routes:** see [Routes](#routes).
 10. **Timeline:** online sales open mid-November 2026. The open MVP 2 items (#125, #104, #105, #170) are prioritized after the MVP 3 issues below.
 11. **Organizer dependencies:** the production account, exact fees, OXXO/SPEI availability, invoicing and tax withholding depend on the organizer's answers (see [What depends on the organizer](#what-depends-on-the-organizer)).
@@ -82,7 +82,7 @@ These questions are tracked in #59 and block the production launch (#182), not t
 - Availability of e.firma and constancia de situación fiscal.
 - Whether the money is needed before the event (instant release vs 14-day release).
 - Card only, or also OXXO/SPEI.
-- Who pays the fees.
+- Who pays the fees. Answered on 2026-10-14: the online buyer pays the Mercado Pago fee as a separate "Cargo por servicio" ([#239](https://github.com/KevinBarrera/nuestro-breaking/issues/239)), shown on the review screen and in the confirmation email; cash and manual registrations pay only the pass price. The rates are set per environment from the account's costs page (`ONLINE_SERVICE_CHARGE_*`, see the README).
 - Whether invoices must be issued.
 
 The production account, exact fees, OXXO/SPEI on/off (which affects #181), invoicing and tax withholding depend on these answers. Tax topics must be confirmed with an accountant. The final legal texts for #180 also come from the organizer.

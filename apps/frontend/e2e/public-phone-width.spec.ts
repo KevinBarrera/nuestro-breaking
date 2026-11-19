@@ -34,7 +34,7 @@ const draft = {
 const screens = [
   { name: 'Inicio', path: `/e/${slug}`, heading: /Los más pesados/ },
   { name: 'Pases', path: `/e/${slug}/pases`, heading: 'Elige tus pases' },
-  { name: 'Competencias', path: `/e/${slug}/competencias`, heading: 'Elige tus competencias' },
+  { name: 'Categorías', path: `/e/${slug}/categorias`, heading: 'Elige tus categorías' },
   { name: 'Datos', path: `/e/${slug}/datos`, heading: 'Tus datos' },
   { name: 'Revisar', path: `/e/${slug}/revisar`, heading: 'Revisa y paga' },
   { name: 'Reglamento', path: '/legal/reglamento', heading: 'Reglamento oficial' },

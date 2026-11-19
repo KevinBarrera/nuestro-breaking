@@ -22,7 +22,24 @@ type HeldPass = {
   priceCents: number;
   selections: string[];
 };
-type Entitlements = { passes: HeldPass[]; accessibleActivityIds: string[] };
+type RegistrationSummary = {
+  id: string;
+  status: string;
+  folio: string | null;
+  channel: string;
+  participant: {
+    fullName: string;
+    firstName: string | null;
+    firstLastName: string | null;
+    secondLastName: string | null;
+    stageName: string | null;
+  };
+};
+type Entitlements = {
+  registration: RegistrationSummary;
+  passes: HeldPass[];
+  accessibleActivityIds: string[];
+};
 type AuditRow = {
   operation_type: string;
   actor_user_id: string;
@@ -78,12 +95,12 @@ describe('admin registration entitlements (e2e)', () => {
       { id: string }[]
     >`
       INSERT INTO activities (event_id, venue_id, kind, name, starts_at, ends_at, status)
-      VALUES (${event.id}, ${venue}, 'battle', 'Breaking 1v1', '2026-11-20T18:00:00Z', '2026-11-20T20:00:00Z', 'active'),
-        (${event.id}, ${venue}, 'battle', 'Popping 1v1', '2026-11-20T15:00:00Z', '2026-11-20T17:00:00Z', 'active'),
+      VALUES (${event.id}, ${venue}, 'competition', 'Breaking 1v1', '2026-11-20T18:00:00Z', '2026-11-20T20:00:00Z', 'active'),
+        (${event.id}, ${venue}, 'competition', 'Popping 1v1', '2026-11-20T15:00:00Z', '2026-11-20T17:00:00Z', 'active'),
         (${event.id}, ${venue}, 'workshop', 'Toprock', '2026-11-20T10:00:00Z', '2026-11-20T12:00:00Z', 'active'),
-        (${event.id}, ${venue}, 'battle', 'Open Styles', '2026-11-20T21:00:00Z', '2026-11-20T22:00:00Z', 'active'),
-        (${event.id}, ${venue}, 'battle', 'Retired', '2026-11-20T13:00:00Z', '2026-11-20T14:00:00Z', 'archived'),
-        (${other.id}, ${venue}, 'battle', 'Foreign', '2026-11-20T10:00:00Z', '2026-11-20T12:00:00Z', 'active')
+        (${event.id}, ${venue}, 'competition', 'Open Styles', '2026-11-20T21:00:00Z', '2026-11-20T22:00:00Z', 'active'),
+        (${event.id}, ${venue}, 'competition', 'Retired', '2026-11-20T13:00:00Z', '2026-11-20T14:00:00Z', 'archived'),
+        (${other.id}, ${venue}, 'competition', 'Foreign', '2026-11-20T10:00:00Z', '2026-11-20T12:00:00Z', 'active')
       RETURNING id`;
     const [fullBreaking, fullPopping, general, openStyles, archived] = await client<
       { id: string }[]
@@ -132,6 +149,30 @@ describe('admin registration entitlements (e2e)', () => {
       RETURNING id`;
     return { id, participantId };
   }
+  // A registration whose participant has the #58 name parts, an AKA and contact data (#104).
+  async function person(
+    eventId: string,
+    contact: { email?: string | null; phone?: string | null; status?: string } = {},
+  ) {
+    const email = contact.email === undefined ? 'ana@example.com' : contact.email;
+    const phone = contact.phone === undefined ? '+52 55 1234 5678' : contact.phone;
+    const status = contact.status ?? 'pending_payment';
+    const [{ id: participantId }] = await client<{ id: string }[]>`
+      INSERT INTO participants (full_name, first_name, first_last_name, second_last_name, stage_name, email, phone)
+      VALUES ('Ana López Ruiz', 'Ana', 'López', 'Ruiz', 'Bgirl Ana', ${email}, ${phone}) RETURNING id`;
+    const confirmed = status === 'confirmed';
+    const [{ id }] = await client<{ id: string }[]>`
+      INSERT INTO event_registrations (event_id, participant_id, status, confirmation_source, confirmed_at)
+      VALUES (${eventId}, ${participantId}, ${status}, ${confirmed ? 'admin_cash' : null}, ${confirmed ? new Date().toISOString() : null})
+      RETURNING id`;
+    return { id, participantId };
+  }
+  async function thirdEvent() {
+    const [{ id }] = await client<{ id: string }[]>`
+      INSERT INTO events (organization_id, name, time_zone)
+      SELECT organization_id, 'Three', 'Etc/UTC' FROM events LIMIT 1 RETURNING id`;
+    return id;
+  }
   async function holdPass(eventId: string, registrationId: string, passTypeId: string) {
     const [{ id }] = await client<{ id: string }[]>`
       INSERT INTO event_registration_passes (event_id, event_registration_id, pass_type_id, price_cents)
@@ -166,6 +207,33 @@ describe('admin registration entitlements (e2e)', () => {
     server().post(`${base(event, registrationId)}/passes`);
   const select = (event: string, registrationId: string, registrationPassId: string) =>
     server().put(`${base(event, registrationId)}/passes/${registrationPassId}/selections`);
+  const removePass = (event: string, registrationId: string, registrationPassId: string) =>
+    server().delete(`${base(event, registrationId)}/passes/${registrationPassId}`);
+  const voidRegistration = (event: string, registrationId: string) =>
+    server().post(`${base(event, registrationId)}/void`);
+  const correct = (event: string, registrationId: string) =>
+    server().post(`${base(event, registrationId)}/participant-correction`);
+  async function people() {
+    return client`SELECT id, full_name, first_name, first_last_name, second_last_name, stage_name,
+        email, phone, updated_at
+      FROM participants ORDER BY id`;
+  }
+  async function participant(id: string) {
+    const [row] = await client`SELECT full_name, first_name, first_last_name, second_last_name,
+        stage_name, email, phone, updated_at > created_at AS touched
+      FROM participants WHERE id = ${id}`;
+    return row;
+  }
+  async function corrections() {
+    return client`SELECT operation_type, actor_kind, actor_user_id, session_id, event_id,
+        registration_id, participant_id, affected_activity_ids, amount_cents, note,
+        before_state, after_state, facts
+      FROM registration_operation_audit ORDER BY created_at, id`;
+  }
+  async function statuses() {
+    return client`SELECT id, status, confirmation_source, confirmed_at, updated_at
+      FROM event_registrations ORDER BY id`;
+  }
   async function audits() {
     return client<AuditRow[]>`
       SELECT operation_type, actor_user_id, session_id, event_id, registration_id, participant_id,
@@ -316,6 +384,20 @@ describe('admin registration entitlements (e2e)', () => {
     expect(await audits()).toHaveLength(1);
   });
 
+  it('assigns a pass whose online sales already closed, since door sales ignore it (#240)', async () => {
+    const f = await fixture();
+    const { cookie } = await session('admin', f.event);
+    const reg = await registration(f.event);
+    await client`UPDATE event_pass_types SET online_sales_closes_at = now() - interval '1 day' WHERE id = ${f.general}`;
+    const accepted = await addPass(f.event, reg.id)
+      .set(headers(cookie))
+      .send({ passTypeId: f.general })
+      .expect(201);
+    expect((accepted.body as Entitlements).passes.map((pass) => pass.passTypeId)).toEqual([
+      f.general,
+    ]);
+  });
+
   it('rejects duplicate, archived, cross-event and unknown pass types and wrong registrations without writes', async () => {
     const f = await fixture();
     const { cookie } = await session('admin', f.event);
@@ -451,15 +533,94 @@ describe('admin registration entitlements (e2e)', () => {
     expect(await audits()).toHaveLength(0);
   });
 
-  it('allows selection changes on confirmed registrations and rejects them on voided ones', async () => {
+  it('requires a reason to change selections on confirmed registrations and stores it in the audit note (#170)', async () => {
     const f = await fixture();
-    const { cookie } = await session('admin', f.event);
+    const { cookie, userId, sessionId } = await session('admin', f.event);
     const confirmed = await registration(f.event, 'confirmed');
     const confirmedPass = await holdPass(f.event, confirmed.id, f.fullPopping);
-    await select(f.event, confirmed.id, confirmedPass)
+    const before = await snapshot();
+    for (const payload of [
+      { activityIds: [f.popping] },
+      { activityIds: [f.popping], reason: null },
+      { activityIds: [f.popping], reason: '' },
+      { activityIds: [f.popping], reason: '   ' },
+    ]) {
+      const rejected = await select(f.event, confirmed.id, confirmedPass)
+        .set(headers(cookie))
+        .send(payload)
+        .expect(400);
+      expect(rejected.body).toMatchObject({
+        message: 'Reason is required and must be 1 to 500 characters',
+        code: 'selection_change_reason_required',
+      });
+    }
+    for (const reason of ['x'.repeat(501), ` ${'x'.repeat(501)} `, 42, ['Typo'], { text: 'x' }]) {
+      const rejected = await select(f.event, confirmed.id, confirmedPass)
+        .set(headers(cookie))
+        .send({ activityIds: [f.popping], reason })
+        .expect(400);
+      expect(rejected.body).toMatchObject({
+        message: 'Reason is required and must be 1 to 500 characters',
+      });
+    }
+    const unknown = await select(f.event, '00000000-0000-4000-8000-000000000000', confirmedPass)
       .set(headers(cookie))
       .send({ activityIds: [f.popping] })
+      .expect(404);
+    expect(unknown.body).toMatchObject({ message: 'Registration not found' });
+    expect(await snapshot()).toEqual(before);
+    expect(await audits()).toHaveLength(0);
+
+    const reason = `  ${'Wrong competition at the door'.padEnd(500, '.')}  `;
+    const changed = await select(f.event, confirmed.id, confirmedPass)
+      .set(headers(cookie))
+      .send({ activityIds: [f.popping], reason })
       .expect(200);
+    expect(
+      (changed.body as Entitlements).passes.find(
+        (pass) => pass.registrationPassId === confirmedPass,
+      )?.selections,
+    ).toEqual([f.popping]);
+    expect(
+      await client`SELECT operation_type, actor_user_id, session_id, note, before_state, after_state
+        FROM registration_operation_audit`,
+    ).toEqual([
+      {
+        operation_type: 'pass_selection_change',
+        actor_user_id: userId,
+        session_id: sessionId,
+        note: reason.trim(),
+        before_state: { registrationPassId: confirmedPass, selections: [] },
+        after_state: { registrationPassId: confirmedPass, selections: [f.popping] },
+      },
+    ]);
+  });
+
+  it('changes pending selections without a reason and stores an optional one (#170)', async () => {
+    const f = await fixture();
+    const { cookie } = await session('admin', f.event);
+    const reg = await registration(f.event);
+    const full = await holdPass(f.event, reg.id, f.fullBreaking);
+    await select(f.event, reg.id, full)
+      .set(headers(cookie))
+      .send({ activityIds: [f.breaking] })
+      .expect(200);
+    await select(f.event, reg.id, full)
+      .set(headers(cookie))
+      .send({ activityIds: [], reason: '  Dancer changed their mind  ' })
+      .expect(200);
+    await select(f.event, reg.id, full)
+      .set(headers(cookie))
+      .send({ activityIds: [f.breaking], reason: 'x'.repeat(501) })
+      .expect(400);
+    expect(
+      await client`SELECT note FROM registration_operation_audit ORDER BY created_at, id`,
+    ).toEqual([{ note: null }, { note: 'Dancer changed their mind' }]);
+  });
+
+  it('rejects selection changes on voided registrations', async () => {
+    const f = await fixture();
+    const { cookie } = await session('admin', f.event);
     const voided = await registration(f.event, 'voided');
     const voidedPass = await holdPass(f.event, voided.id, f.fullPopping);
     const before = await snapshot();
@@ -469,7 +630,142 @@ describe('admin registration entitlements (e2e)', () => {
       .expect(409);
     expect(response.body).toMatchObject({ message: 'Registration is voided' });
     expect(await snapshot()).toEqual(before);
-    expect(await audits()).toHaveLength(1);
+    expect(await audits()).toHaveLength(0);
+  });
+
+  it('removes a held pass and its selections from a pending in-person registration with an audit fact (#282)', async () => {
+    const f = await fixture();
+    const { cookie, userId, sessionId } = await session('admin', f.event);
+    const reg = await registration(f.event);
+    const breakingPass = await holdPass(f.event, reg.id, f.fullBreaking);
+    const poppingPass = await holdPass(f.event, reg.id, f.fullPopping);
+    await client`INSERT INTO event_registration_pass_selections (event_id, registration_pass_id, activity_id)
+      VALUES (${f.event}, ${breakingPass}, ${f.breaking}), (${f.event}, ${poppingPass}, ${f.popping})`;
+    const response = await removePass(f.event, reg.id, breakingPass)
+      .set(headers(cookie))
+      .expect(200);
+    const body = response.body as Entitlements;
+    expect(body.registration).toMatchObject({ id: reg.id, status: 'pending_payment' });
+    expect(body.passes.map((pass) => pass.registrationPassId)).toEqual([poppingPass]);
+    expect(body.accessibleActivityIds).toEqual([f.popping]);
+    expect(await snapshot()).toEqual({
+      passes: [
+        {
+          id: poppingPass,
+          event_id: f.event,
+          event_registration_id: reg.id,
+          pass_type_id: f.fullPopping,
+          price_cents: 100,
+        },
+      ],
+      selections: [
+        { event_id: f.event, registration_pass_id: poppingPass, activity_id: f.popping },
+      ],
+    });
+    expect(await audits()).toEqual([
+      {
+        operation_type: 'pass_removal',
+        actor_user_id: userId,
+        session_id: sessionId,
+        event_id: f.event,
+        registration_id: reg.id,
+        participant_id: reg.participantId,
+        affected_activity_ids: [f.breaking],
+        amount_cents: null,
+        before_state: {
+          registrationPass: {
+            registrationPassId: breakingPass,
+            passTypeId: f.fullBreaking,
+            priceCents: 100,
+            selections: [f.breaking],
+          },
+        },
+        after_state: { registrationPass: null },
+        facts: { registrationPassId: breakingPass, passTypeId: f.fullBreaking },
+      },
+    ]);
+  });
+
+  it('rejects removing passes from confirmed, voided and online registrations and foreign or unknown passes without writes', async () => {
+    const f = await fixture();
+    const { cookie } = await session('admin', f.event);
+    const closed: { reg: { id: string }; pass: string }[] = [];
+    for (const status of ['confirmed', 'voided']) {
+      const reg = await registration(f.event, status);
+      closed.push({ reg, pass: await holdPass(f.event, reg.id, f.fullBreaking) });
+    }
+    // An online checkout has an expiry; its pass list is fixed by the buyer.
+    const online = await registration(f.event);
+    await client`UPDATE event_registrations SET expires_at = now() + interval '1 hour'
+      WHERE id = ${online.id}`;
+    const onlinePass = await holdPass(f.event, online.id, f.fullBreaking);
+    const reg = await registration(f.event);
+    await holdPass(f.event, reg.id, f.fullBreaking);
+    const otherReg = await registration(f.event);
+    const otherPass = await holdPass(f.event, otherReg.id, f.fullPopping);
+    const foreignReg = await registration(f.other);
+    const foreignPass = await holdPass(f.other, foreignReg.id, f.foreignPass);
+    const before = await snapshot();
+    for (const { reg: closedReg, pass } of closed) {
+      const response = await removePass(f.event, closedReg.id, pass)
+        .set(headers(cookie))
+        .expect(409);
+      expect(response.body).toMatchObject({ message: 'Registration is not pending payment' });
+    }
+    const onlineResponse = await removePass(f.event, online.id, onlinePass)
+      .set(headers(cookie))
+      .expect(409);
+    expect(onlineResponse.body).toMatchObject({
+      message: 'Online registrations cannot lose a pass',
+    });
+    for (const registrationPassId of [
+      otherPass,
+      foreignPass,
+      '00000000-0000-4000-8000-000000000000',
+    ]) {
+      const missing = await removePass(f.event, reg.id, registrationPassId)
+        .set(headers(cookie))
+        .expect(404);
+      expect(missing.body).toMatchObject({ message: 'Registration pass not found' });
+    }
+    const missingRegistration = await removePass(f.event, foreignReg.id, foreignPass)
+      .set(headers(cookie))
+      .expect(404);
+    expect(missingRegistration.body).toMatchObject({ message: 'Registration not found' });
+    await removePass(f.event, reg.id, 'nope').set(headers(cookie)).expect(400);
+    expect(await snapshot()).toEqual(before);
+    expect(await audits()).toHaveLength(0);
+  });
+
+  it('rejects removing the last pass of a class a held add-on requires, naming the add-on (#282)', async () => {
+    const f = await fixture();
+    const { cookie } = await session('admin', f.event);
+    const reg = await registration(f.event);
+    const breakingPass = await holdPass(f.event, reg.id, f.fullBreaking);
+    const addOnPass = await holdPass(f.event, reg.id, f.openStyles);
+    const before = await snapshot();
+    const rejected = await removePass(f.event, reg.id, breakingPass)
+      .set(headers(cookie))
+      .expect(409);
+    expect(rejected.body).toMatchObject({
+      message: 'Remove «Open Styles» first; it requires this pass',
+      code: 'pass_required_by_add_on',
+    });
+    expect(await snapshot()).toEqual(before);
+    expect(await audits()).toHaveLength(0);
+
+    // Another held pass of the required class still satisfies the add-on.
+    const poppingPass = await holdPass(f.event, reg.id, f.fullPopping);
+    await removePass(f.event, reg.id, breakingPass).set(headers(cookie)).expect(200);
+    await removePass(f.event, reg.id, poppingPass).set(headers(cookie)).expect(409);
+    await removePass(f.event, reg.id, addOnPass).set(headers(cookie)).expect(200);
+    const emptied = await removePass(f.event, reg.id, poppingPass).set(headers(cookie)).expect(200);
+    expect((emptied.body as Entitlements).passes).toEqual([]);
+    expect((await audits()).map((fact) => fact.operation_type)).toEqual([
+      'pass_removal',
+      'pass_removal',
+      'pass_removal',
+    ]);
   });
 
   it('reads entitlements: general-only grants nothing, full grants included plus selected, prices stay snapshotted', async () => {
@@ -480,6 +776,20 @@ describe('admin registration entitlements (e2e)', () => {
     const generalPass = await holdPass(f.event, generalOnly.id, f.general);
     const general = await read(f.event, generalOnly.id).set(headers(cookie)).expect(200);
     expect(general.body).toEqual({
+      registration: {
+        id: generalOnly.id,
+        status: 'pending_payment',
+        folio: null,
+        channel: 'in_person',
+        cash: null,
+        participant: {
+          fullName: 'Dancer',
+          firstName: null,
+          firstLastName: null,
+          secondLastName: null,
+          stageName: null,
+        },
+      },
       passes: [
         {
           registrationPassId: generalPass,
@@ -491,6 +801,7 @@ describe('admin registration entitlements (e2e)', () => {
         },
       ],
       accessibleActivityIds: [],
+      competitorNumbers: [],
     });
 
     const reg = await registration(f.event);
@@ -527,6 +838,508 @@ describe('admin registration entitlements (e2e)', () => {
     await read(f.event, reg.id).expect(401);
   });
 
+  it('summarizes who holds the registration and its state on every route, without contact data (#105)', async () => {
+    const f = await fixture();
+    const { cookie } = await session('admin', f.event);
+    const pending = await registration(f.event);
+    await client`UPDATE participants SET stage_name = 'Flash', phone = '5512344567'
+      WHERE id = ${pending.participantId}`;
+    const pendingSummary = {
+      id: pending.id,
+      status: 'pending_payment',
+      folio: null,
+      channel: 'in_person',
+      cash: null,
+      participant: {
+        fullName: 'Dancer',
+        firstName: null,
+        firstLastName: null,
+        secondLastName: null,
+        stageName: 'Flash',
+      },
+    };
+    const bodies: Entitlements[] = [];
+    const before = await read(f.event, pending.id).set(headers(cookie)).expect(200);
+    bodies.push(before.body as Entitlements);
+    expect(bodies[0].registration).toEqual(pendingSummary);
+    const added = await addPass(f.event, pending.id)
+      .set(headers(cookie))
+      .send({ passTypeId: f.fullBreaking })
+      .expect(201);
+    bodies.push(added.body as Entitlements);
+    expect(bodies[1].registration).toEqual(pendingSummary);
+    const selected = await select(f.event, pending.id, bodies[1].passes[0].registrationPassId)
+      .set(headers(cookie))
+      .send({ activityIds: [f.breaking] })
+      .expect(200);
+    bodies.push(selected.body as Entitlements);
+    expect(bodies[2].registration).toEqual(pendingSummary);
+
+    const confirmed = await registration(f.event, 'confirmed');
+    const confirmedPass = await holdPass(f.event, confirmed.id, f.fullPopping);
+    const [{ folio }] = await client<{ folio: string }[]>`
+      SELECT folio FROM event_registrations WHERE id = ${confirmed.id}`;
+    expect(folio).toEqual(expect.any(String));
+    const confirmedSummary = {
+      id: confirmed.id,
+      status: 'confirmed',
+      folio,
+      channel: 'in_person',
+      cash: null,
+      participant: {
+        fullName: 'Dancer',
+        firstName: null,
+        firstLastName: null,
+        secondLastName: null,
+        stageName: null,
+      },
+    };
+    const confirmedRead = await read(f.event, confirmed.id).set(headers(cookie)).expect(200);
+    bodies.push(confirmedRead.body as Entitlements);
+    expect(bodies[3].registration).toEqual(confirmedSummary);
+    const confirmedSelect = await select(f.event, confirmed.id, confirmedPass)
+      .set(headers(cookie))
+      .send({ activityIds: [f.popping], reason: 'Wrong competition' })
+      .expect(200);
+    bodies.push(confirmedSelect.body as Entitlements);
+    expect(bodies[4].registration).toEqual(confirmedSummary);
+
+    const voided = await registration(f.event, 'voided');
+    const voidedRead = await read(f.event, voided.id).set(headers(cookie)).expect(200);
+    bodies.push(voidedRead.body as Entitlements);
+    expect(bodies[5].registration).toMatchObject({ id: voided.id, status: 'voided', folio: null });
+
+    // An online checkout has an expiry, which the summary reports as its channel.
+    const online = await registration(f.event);
+    await client`UPDATE event_registrations SET expires_at = now() + interval '1 hour'
+      WHERE id = ${online.id}`;
+    const onlineRead = await read(f.event, online.id).set(headers(cookie)).expect(200);
+    bodies.push(onlineRead.body as Entitlements);
+    expect(bodies[6].registration).toMatchObject({ id: online.id, channel: 'online' });
+
+    for (const body of bodies) {
+      expect(Object.keys(body.registration.participant).sort()).toEqual([
+        'firstLastName',
+        'firstName',
+        'fullName',
+        'secondLastName',
+        'stageName',
+      ]);
+      expect(JSON.stringify(body)).not.toMatch(/example\.com|5512344567/);
+    }
+  });
+
+  it('voids a pending in-person registration with a reason, keeping its passes as history (#104)', async () => {
+    const f = await fixture();
+    const { cookie, userId, sessionId } = await session('admin', f.event);
+    const reg = await registration(f.event);
+    const full = await holdPass(f.event, reg.id, f.fullBreaking);
+    await client`INSERT INTO event_registration_pass_selections (event_id, registration_pass_id, activity_id)
+      VALUES (${f.event}, ${full}, ${f.breaking})`;
+    const before = await snapshot();
+    const response = await voidRegistration(f.event, reg.id)
+      .set(headers(cookie))
+      .send({ reason: '  Duplicated by mistake  ' })
+      .expect(200);
+    const body = response.body as Entitlements;
+    expect(body.registration).toEqual({
+      id: reg.id,
+      status: 'voided',
+      folio: null,
+      channel: 'in_person',
+      cash: null,
+      participant: {
+        fullName: 'Dancer',
+        firstName: null,
+        firstLastName: null,
+        secondLastName: null,
+        stageName: null,
+      },
+    });
+    expect(body.passes.map((pass) => pass.registrationPassId)).toEqual([full]);
+    expect(await snapshot()).toEqual(before);
+    expect(
+      await client`SELECT status, updated_at > created_at AS touched
+        FROM event_registrations WHERE id = ${reg.id}`,
+    ).toEqual([{ status: 'voided', touched: true }]);
+    const activityIds = sorted([f.breaking, f.workshop]);
+    expect(
+      await client`SELECT operation_type, actor_kind, actor_user_id, session_id, event_id,
+          registration_id, participant_id, affected_activity_ids, amount_cents, note,
+          before_state, after_state, facts
+        FROM registration_operation_audit`,
+    ).toEqual([
+      {
+        operation_type: 'registration_void',
+        actor_kind: 'admin',
+        actor_user_id: userId,
+        session_id: sessionId,
+        event_id: f.event,
+        registration_id: reg.id,
+        participant_id: reg.participantId,
+        affected_activity_ids: activityIds,
+        amount_cents: null,
+        note: 'Duplicated by mistake',
+        before_state: {
+          status: 'pending_payment',
+          confirmationSource: null,
+          confirmedAt: null,
+          participantId: reg.participantId,
+          activityIds,
+        },
+        after_state: { status: 'voided', confirmationSource: null, confirmedAt: null },
+        facts: {},
+      },
+    ]);
+  });
+
+  it('rejects a void without a valid reason, of a closed or online registration and of another event without writes (#104)', async () => {
+    const f = await fixture();
+    const { cookie } = await session('admin', f.event);
+    const reg = await registration(f.event);
+    const confirmed = await registration(f.event, 'confirmed');
+    const voided = await registration(f.event, 'voided');
+    // An online checkout expires on its own; voiding it could leave a live payment behind.
+    const online = await registration(f.event);
+    await client`UPDATE event_registrations SET expires_at = now() + interval '1 hour'
+      WHERE id = ${online.id}`;
+    const foreign = await registration(f.other);
+    const before = { ...(await snapshot()), statuses: await statuses() };
+    const valid = { reason: 'Mistaken sale' };
+    const reasonRequired = {
+      statusCode: 400,
+      message: 'Reason is required and must be 1 to 500 characters',
+      code: 'void_reason_required',
+    };
+    for (const body of [{}, { reason: null }, { reason: '   ' }, { reason: 'x'.repeat(501) }]) {
+      const response = await voidRegistration(f.event, reg.id)
+        .set(headers(cookie))
+        .send(body)
+        .expect(400);
+      expect(response.body).toEqual(reasonRequired);
+    }
+    for (const closed of [confirmed, voided]) {
+      const response = await voidRegistration(f.event, closed.id)
+        .set(headers(cookie))
+        .send(valid)
+        .expect(409);
+      expect(response.body).toMatchObject({ message: 'Registration is not pending payment' });
+    }
+    const onlineResponse = await voidRegistration(f.event, online.id)
+      .set(headers(cookie))
+      .send(valid)
+      .expect(409);
+    expect(onlineResponse.body).toEqual({
+      statusCode: 409,
+      message: 'Online registrations cannot be voided',
+      code: 'online_registration_void_locked',
+    });
+    for (const id of [foreign.id, '00000000-0000-4000-8000-000000000000']) {
+      const missing = await voidRegistration(f.event, id)
+        .set(headers(cookie))
+        .send(valid)
+        .expect(404);
+      expect(missing.body).toMatchObject({ message: 'Registration not found' });
+    }
+    // The registration is found before the reason is checked.
+    await voidRegistration(f.event, foreign.id).set(headers(cookie)).send({}).expect(404);
+    await voidRegistration(f.event, 'nope').set(headers(cookie)).send(valid).expect(400);
+    expect({ ...(await snapshot()), statuses: await statuses() }).toEqual(before);
+    expect(await audits()).toHaveLength(0);
+  });
+
+  it('corrects the name parts and AKA of pending and confirmed registrations with a redacted audit fact (#104)', async () => {
+    const f = await fixture();
+    const { cookie, userId, sessionId } = await session('admin', f.event);
+    const pending = await person(f.event);
+    const confirmed = await person(f.event, {
+      email: 'beto@example.com',
+      phone: null,
+      status: 'confirmed',
+    });
+    const response = await correct(f.event, pending.id)
+      .set(headers(cookie))
+      .send({
+        firstName: '  Ana   María ',
+        firstLastName: 'Lopez',
+        secondLastName: 'Ruiz',
+        stageName: 'Bgirl Ana',
+        reason: '  Typo at the door  ',
+      })
+      .expect(200);
+    const body = response.body as Entitlements;
+    expect(body.registration).toEqual({
+      id: pending.id,
+      status: 'pending_payment',
+      folio: null,
+      channel: 'in_person',
+      cash: null,
+      participant: {
+        fullName: 'Ana María Lopez Ruiz',
+        firstName: 'Ana María',
+        firstLastName: 'Lopez',
+        secondLastName: 'Ruiz',
+        stageName: 'Bgirl Ana',
+      },
+    });
+    expect(body.passes).toEqual([]);
+    expect(await participant(pending.participantId)).toEqual({
+      full_name: 'Ana María Lopez Ruiz',
+      first_name: 'Ana María',
+      first_last_name: 'Lopez',
+      second_last_name: 'Ruiz',
+      stage_name: 'Bgirl Ana',
+      email: 'ana@example.com',
+      phone: '+52 55 1234 5678',
+      touched: true,
+    });
+    // An AKA sent blank and an omitted second last name are cleared.
+    const cleared = await correct(f.event, confirmed.id)
+      .set(headers(cookie))
+      .send({ firstName: 'Ana', firstLastName: 'López', stageName: '   ', reason: 'No AKA' })
+      .expect(200);
+    expect((cleared.body as Entitlements).registration).toMatchObject({
+      status: 'confirmed',
+      participant: {
+        fullName: 'Ana López',
+        firstName: 'Ana',
+        firstLastName: 'López',
+        secondLastName: null,
+        stageName: null,
+      },
+    });
+    expect(await participant(confirmed.participantId)).toMatchObject({
+      full_name: 'Ana López',
+      second_last_name: null,
+      stage_name: null,
+    });
+    const facts = await corrections();
+    const fact = (
+      registration: { id: string; participantId: string },
+      status: string,
+      note: string,
+      changedFields: string[],
+    ) => ({
+      operation_type: 'registration_correction',
+      actor_kind: 'admin',
+      actor_user_id: userId,
+      session_id: sessionId,
+      event_id: f.event,
+      registration_id: registration.id,
+      participant_id: registration.participantId,
+      affected_activity_ids: [],
+      amount_cents: null,
+      note,
+      before_state: { status, participantId: registration.participantId },
+      after_state: { status, participantId: registration.participantId },
+      facts: { changedFields, otherEventCount: 0, crossEventConfirmed: false },
+    });
+    expect(facts).toEqual([
+      fact(pending, 'pending_payment', 'Typo at the door', ['firstName', 'firstLastName']),
+      fact(confirmed, 'confirmed', 'No AKA', ['secondLastName', 'stageName']),
+    ]);
+    // The audit never holds names or contact data.
+    const stored = JSON.stringify(facts);
+    for (const text of ['Ana', 'Lopez', 'López', 'Ruiz', 'Bgirl', 'example.com', '55 1234'])
+      expect(stored).not.toContain(text);
+  });
+
+  it('sets the name parts of a legacy participant that had only a full name (#104)', async () => {
+    const f = await fixture();
+    const { cookie } = await session('admin', f.event);
+    const legacy = await registration(f.event);
+    await correct(f.event, legacy.id)
+      .set(headers(cookie))
+      .send({ firstName: 'Dan', firstLastName: 'Cer', reason: 'Split the name' })
+      .expect(200);
+    expect(await participant(legacy.participantId)).toMatchObject({
+      full_name: 'Dan Cer',
+      first_name: 'Dan',
+      first_last_name: 'Cer',
+      second_last_name: null,
+      stage_name: null,
+      email: 'dancer@example.com',
+    });
+    expect((await corrections())[0]).toMatchObject({
+      facts: {
+        changedFields: ['firstName', 'firstLastName'],
+        otherEventCount: 0,
+        crossEventConfirmed: false,
+      },
+    });
+  });
+
+  it('rejects a correction with invalid fields, without a valid reason, without changes, of a voided registration and of another event without writes (#104)', async () => {
+    const f = await fixture();
+    const { cookie } = await session('admin', f.event);
+    const reg = await person(f.event);
+    const voided = await person(f.event, { email: 'v@example.com', phone: null, status: 'voided' });
+    const foreign = await registration(f.other);
+    const before = { people: await people(), statuses: await statuses() };
+    const names = { firstName: 'Ana', firstLastName: 'Lopez' };
+    const valid = { ...names, reason: 'Typo' };
+    const invalid = (fieldErrors: Record<string, string>) => ({
+      statusCode: 400,
+      message: 'Invalid participant correction',
+      fieldErrors,
+    });
+    const cases: [Record<string, unknown>, Record<string, string>][] = [
+      [{ reason: 'Typo' }, { firstName: 'required', firstLastName: 'required' }],
+      [{ ...valid, firstName: '   ' }, { firstName: 'required' }],
+      [{ ...valid, firstLastName: 7 }, { firstLastName: 'invalid' }],
+      [{ ...valid, firstName: 'x'.repeat(101) }, { firstName: 'too_long' }],
+      [{ ...valid, secondLastName: 'x'.repeat(101) }, { secondLastName: 'too_long' }],
+      [{ ...valid, stageName: ['Ana'] }, { stageName: 'invalid' }],
+      [{ ...valid, confirmCrossEvent: 'yes' }, { confirmCrossEvent: 'invalid' }],
+      [{ ...valid, email: 'new@example.com' }, { email: 'unknown_field' }],
+    ];
+    for (const [body, fieldErrors] of cases) {
+      const response = await correct(f.event, reg.id).set(headers(cookie)).send(body).expect(400);
+      expect(response.body).toEqual(invalid(fieldErrors));
+    }
+    await correct(f.event, reg.id).set(headers(cookie)).send([valid]).expect(400);
+    const reasonRequired = {
+      statusCode: 400,
+      message: 'Reason is required and must be 1 to 500 characters',
+      code: 'correction_reason_required',
+    };
+    for (const reason of [undefined, null, '   ', 'x'.repeat(501)]) {
+      const response = await correct(f.event, reg.id)
+        .set(headers(cookie))
+        .send({ ...names, reason })
+        .expect(400);
+      expect(response.body).toEqual(reasonRequired);
+    }
+    // Same parts once whitespace is normalized: nothing to correct.
+    const unchanged = await correct(f.event, reg.id)
+      .set(headers(cookie))
+      .send({
+        firstName: ' Ana ',
+        firstLastName: 'López',
+        secondLastName: 'Ruiz  ',
+        stageName: 'Bgirl  Ana',
+        reason: 'Typo',
+      })
+      .expect(400);
+    expect(unchanged.body).toEqual({
+      statusCode: 400,
+      message: 'The correction changes nothing',
+      code: 'correction_no_changes',
+    });
+    const voidedResponse = await correct(f.event, voided.id)
+      .set(headers(cookie))
+      .send(valid)
+      .expect(409);
+    expect(voidedResponse.body).toEqual({
+      statusCode: 409,
+      message: 'Registration is voided',
+      code: 'registration_voided',
+    });
+    for (const id of [foreign.id, '00000000-0000-4000-8000-000000000000']) {
+      const missing = await correct(f.event, id).set(headers(cookie)).send(valid).expect(404);
+      expect(missing.body).toMatchObject({ message: 'Registration not found' });
+    }
+    // The registration is found before the reason is checked.
+    await correct(f.event, foreign.id).set(headers(cookie)).send(names).expect(404);
+    await correct(f.event, 'nope').set(headers(cookie)).send(valid).expect(400);
+    expect({ people: await people(), statuses: await statuses() }).toEqual(before);
+    expect(await audits()).toHaveLength(0);
+    // Exactly 500 characters is a valid reason; a 100-character name is accepted too.
+    await correct(f.event, reg.id)
+      .set(headers(cookie))
+      .send({ ...names, firstName: 'x'.repeat(100), reason: 'x'.repeat(500) })
+      .expect(200);
+    expect(await corrections()).toMatchObject([{ note: 'x'.repeat(500) }]);
+  });
+
+  it('requires confirmation when the same email is registered in other events and records it (#104)', async () => {
+    const f = await fixture();
+    const { cookie } = await session('admin', f.event);
+    const reg = await person(f.event);
+    // Two registrations in one other event count once; a same-event match does not count.
+    const elsewhere = await person(f.other, { email: '  ANA@Example.com ', phone: null });
+    await person(f.other, { email: 'ana@example.com', phone: null, status: 'confirmed' });
+    await person(f.event, { email: 'ana@example.com', phone: null });
+    const before = { people: await people(), statuses: await statuses() };
+    const body = {
+      firstName: 'Ana',
+      firstLastName: 'Lopez',
+      secondLastName: 'Ruiz',
+      stageName: 'Bgirl Ana',
+      reason: 'Typo',
+    };
+    const required = {
+      statusCode: 409,
+      message: 'The participant is registered in other events',
+      code: 'cross_event_confirmation_required',
+      otherEventCount: 1,
+    };
+    for (const confirmCrossEvent of [undefined, false]) {
+      const response = await correct(f.event, reg.id)
+        .set(headers(cookie))
+        .send({ ...body, confirmCrossEvent })
+        .expect(409);
+      expect(response.body).toEqual(required);
+    }
+    expect({ people: await people(), statuses: await statuses() }).toEqual(before);
+    expect(await audits()).toHaveLength(0);
+    await correct(f.event, reg.id)
+      .set(headers(cookie))
+      .send({ ...body, confirmCrossEvent: true })
+      .expect(200);
+    expect(await participant(reg.participantId)).toMatchObject({ full_name: 'Ana Lopez Ruiz' });
+    // The other event keeps its own participant.
+    expect(await participant(elsewhere.participantId)).toMatchObject({
+      full_name: 'Ana López Ruiz',
+      touched: false,
+    });
+    expect(await corrections()).toMatchObject([
+      {
+        facts: { changedFields: ['firstLastName'], otherEventCount: 1, crossEventConfirmed: true },
+      },
+    ]);
+  });
+
+  it('requires confirmation when the same phone is registered in other events (#104)', async () => {
+    const f = await fixture();
+    const third = await thirdEvent();
+    const { cookie } = await session('admin', f.event);
+    const reg = await person(f.event);
+    await person(f.other, { email: 'other@example.com', phone: '55 1234 5678' });
+    await person(third, { email: null, phone: '+521 55 1234 5678' });
+    const body = { firstName: 'Ana', firstLastName: 'Lopez', reason: 'Typo' };
+    const response = await correct(f.event, reg.id).set(headers(cookie)).send(body).expect(409);
+    expect(response.body).toMatchObject({
+      code: 'cross_event_confirmation_required',
+      otherEventCount: 2,
+    });
+    expect(await audits()).toHaveLength(0);
+    await correct(f.event, reg.id)
+      .set(headers(cookie))
+      .send({ ...body, confirmCrossEvent: true })
+      .expect(200);
+    expect(await corrections()).toMatchObject([
+      { facts: { otherEventCount: 2, crossEventConfirmed: true } },
+    ]);
+  });
+
+  it('ignores voided registrations and missing contact data in other events (#104)', async () => {
+    const f = await fixture();
+    const third = await thirdEvent();
+    const { cookie } = await session('admin', f.event);
+    const reg = await person(f.event, { phone: null });
+    await person(f.other, { email: 'ana@example.com', phone: null, status: 'voided' });
+    // Neither participant has a phone: a missing phone never matches.
+    await person(third, { email: 'someone@example.com', phone: null });
+    await correct(f.event, reg.id)
+      .set(headers(cookie))
+      .send({ firstName: 'Ana', firstLastName: 'Lopez', reason: 'Typo' })
+      .expect(200);
+    expect(await corrections()).toMatchObject([
+      { facts: { otherEventCount: 0, crossEventConfirmed: false } },
+    ]);
+  });
+
   it('rejects writes from judges, unauthenticated callers, other-event admins and missing CSRF or origin', async () => {
     const f = await fixture();
     const admin = await session('admin', f.event);
@@ -535,9 +1348,14 @@ describe('admin registration entitlements (e2e)', () => {
     const reg = await registration(f.event);
     const full = await holdPass(f.event, reg.id, f.fullBreaking);
     const before = await snapshot();
+    const participantsBefore = await people();
     const commands = [
       () => addPass(f.event, reg.id).send({ passTypeId: f.general }),
       () => select(f.event, reg.id, full).send({ activityIds: [f.breaking] }),
+      () => removePass(f.event, reg.id, full),
+      () => voidRegistration(f.event, reg.id).send({ reason: 'Mistaken sale' }),
+      () =>
+        correct(f.event, reg.id).send({ firstName: 'Dan', firstLastName: 'Cer', reason: 'Typo' }),
     ];
     for (const command of commands) {
       await command().set('Origin', trustedOrigin).expect(401);
@@ -555,6 +1373,7 @@ describe('admin registration entitlements (e2e)', () => {
       await command().set(headers(admin.cookie)).set('X-CSRF-Token', '0'.repeat(64)).expect(403);
     }
     expect(await snapshot()).toEqual(before);
+    expect(await people()).toEqual(participantsBefore);
     expect(await audits()).toHaveLength(0);
   });
 
@@ -563,9 +1382,9 @@ describe('admin registration entitlements (e2e)', () => {
     const { cookie } = await session('admin', f.event);
     const reg = await registration(f.event);
     const full = await holdPass(f.event, reg.id, f.fullBreaking);
-    const before = await snapshot();
+    const before = { ...(await snapshot()), statuses: await statuses(), people: await people() };
     await client`ALTER TABLE registration_operation_audit ADD CONSTRAINT reject_entitlement_test
-      CHECK (operation_type NOT IN ('pass_assignment', 'pass_selection_change')) NOT VALID`;
+      CHECK (operation_type NOT IN ('pass_assignment', 'pass_selection_change', 'pass_removal', 'registration_void', 'registration_correction', 'registration_discipline_swap', 'cash_correction')) NOT VALID`;
     try {
       await addPass(f.event, reg.id)
         .set(headers(cookie))
@@ -575,10 +1394,21 @@ describe('admin registration entitlements (e2e)', () => {
         .set(headers(cookie))
         .send({ activityIds: [f.breaking] })
         .expect(500);
+      await removePass(f.event, reg.id, full).set(headers(cookie)).expect(500);
+      await voidRegistration(f.event, reg.id)
+        .set(headers(cookie))
+        .send({ reason: 'Mistaken sale' })
+        .expect(500);
+      await correct(f.event, reg.id)
+        .set(headers(cookie))
+        .send({ firstName: 'Dan', firstLastName: 'Cer', reason: 'Typo' })
+        .expect(500);
     } finally {
       await client`ALTER TABLE registration_operation_audit DROP CONSTRAINT reject_entitlement_test`;
     }
-    expect(await snapshot()).toEqual(before);
+    expect({ ...(await snapshot()), statuses: await statuses(), people: await people() }).toEqual(
+      before,
+    );
     expect(await audits()).toHaveLength(0);
   });
 });

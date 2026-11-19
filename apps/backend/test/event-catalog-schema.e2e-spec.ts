@@ -13,30 +13,32 @@ import { join, resolve } from 'node:path';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import { migrate } from 'drizzle-orm/postgres-js/migrator';
 import { type Sql } from 'postgres';
+import { describeMigrationError } from '@/database/migrations';
 import { PostgresHarness } from './support/postgres-harness';
 
 jest.setTimeout(120_000);
 
 const migrationsFolder = resolve(__dirname, '../drizzle');
 const catalogMigrationTag = '0011_event_catalog';
+const kindListMigrationTag = '0031_activity_kind_list';
 
 interface JournalEntry {
   idx: number;
   tag: string;
 }
 
-/** Copies the migrations that precede the catalog migration into a temporary folder. */
-function migrationsBeforeCatalog(): string {
+/** Copies the migrations that precede the given migration into a temporary folder. */
+function migrationsBefore(tag: string): string {
   const folder = mkdtempSync(join(tmpdir(), 'nb-migrations-'));
   mkdirSync(join(folder, 'meta'));
   const journal = JSON.parse(
     readFileSync(join(migrationsFolder, 'meta/_journal.json'), 'utf8'),
   ) as { entries: JournalEntry[] };
-  const catalogIdx = journal.entries.find((entry) => entry.tag === catalogMigrationTag)?.idx;
-  if (catalogIdx === undefined) {
-    throw new Error(`Journal has no ${catalogMigrationTag} entry.`);
+  const tagIdx = journal.entries.find((entry) => entry.tag === tag)?.idx;
+  if (tagIdx === undefined) {
+    throw new Error(`Journal has no ${tag} entry.`);
   }
-  const entries = journal.entries.filter((entry) => entry.idx < catalogIdx);
+  const entries = journal.entries.filter((entry) => entry.idx < tagIdx);
   writeFileSync(join(folder, 'meta/_journal.json'), JSON.stringify({ ...journal, entries }));
   for (const file of readdirSync(join(migrationsFolder, 'meta'))) {
     if (file.endsWith('_snapshot.json')) {
@@ -76,8 +78,8 @@ describe('event catalog schema (e2e)', () => {
     await client`INSERT INTO event_venues (organization_id, event_id, venue_id) VALUES (${org}, ${event.id}, ${venue}), (${org}, ${other.id}, ${venue})`;
     const [activity, foreign] = await client<{ id: string }[]>`
       INSERT INTO activities (event_id, venue_id, kind, name, starts_at, ends_at)
-      VALUES (${event.id}, ${venue}, 'battle', 'Breaking 1v1', now(), now() + interval '1 hour'),
-        (${other.id}, ${venue}, 'battle', 'Other battle', now(), now() + interval '1 hour')
+      VALUES (${event.id}, ${venue}, 'competition', 'Breaking 1v1', now(), now() + interval '1 hour'),
+        (${other.id}, ${venue}, 'competition', 'Other battle', now(), now() + interval '1 hour')
       RETURNING id`;
     return { event: event.id, other: other.id, activity: activity.id, foreign: foreign.id };
   }
@@ -120,16 +122,20 @@ describe('event catalog schema (e2e)', () => {
     return { userId, sessionId };
   }
 
-  it('migrates existing activities to active status at version 1', async () => {
+  async function migrateUpTo(tag: string) {
     await client.unsafe('DROP SCHEMA public CASCADE');
     await client.unsafe('DROP SCHEMA drizzle CASCADE');
     await client.unsafe('CREATE SCHEMA public');
-    const previous = migrationsBeforeCatalog();
+    const previous = migrationsBefore(tag);
     try {
       await migrate(drizzle(client), { migrationsFolder: previous });
     } finally {
       rmSync(previous, { recursive: true, force: true });
     }
+  }
+
+  it('migrates existing activities to active status at version 1', async () => {
+    await migrateUpTo(catalogMigrationTag);
     const { activity } = await insertContainers();
 
     await migrate(drizzle(client), { migrationsFolder });
@@ -137,6 +143,62 @@ describe('event catalog schema (e2e)', () => {
     const [row] = await client<{ status: string; version: number }[]>`
       SELECT status, version FROM activities WHERE id = ${activity}`;
     expect(row).toEqual({ status: 'active', version: 1 });
+  });
+
+  it('rejects activity kinds outside the closed list', async () => {
+    const { event, activity } = await insertContainers();
+    const [{ venue_id: venue }] = await client<{ venue_id: string }[]>`
+      SELECT venue_id FROM activities WHERE id = ${activity}`;
+    for (const kind of ['party', 'battle', 'Taller', ' workshop '])
+      await expect(
+        client`INSERT INTO activities (event_id, venue_id, kind, name, starts_at, ends_at)
+          VALUES (${event}, ${venue}, ${kind}, 'Party', now(), now() + interval '1 hour')`,
+      ).rejects.toThrow(/activities_kind_ck/);
+    await expect(
+      client`UPDATE activities SET kind = 'party' WHERE id = ${activity}`,
+    ).rejects.toThrow(/activities_kind_ck/);
+  });
+
+  it('normalizes existing activity kinds to the closed list without touching versions', async () => {
+    await migrateUpTo(kindListMigrationTag);
+    const { event, activity, foreign } = await insertContainers();
+    await client`UPDATE activities SET kind = ' Taller ' WHERE id = ${activity}`;
+    await client`UPDATE activities SET kind = 'BATTLE' WHERE id = ${foreign}`;
+    const [{ id: spanish }] = await client<{ id: string }[]>`
+      INSERT INTO activities (event_id, venue_id, kind, name, starts_at, ends_at)
+      SELECT event_id, venue_id, 'Batalla', 'Batalla de crews', starts_at, ends_at
+      FROM activities WHERE event_id = ${event} RETURNING id`;
+
+    await migrate(drizzle(client), { migrationsFolder });
+
+    const rows = await client<{ id: string; kind: string; version: number }[]>`
+      SELECT id, kind, version FROM activities ORDER BY id`;
+    expect(rows).toEqual(
+      expect.arrayContaining([
+        { id: activity, kind: 'workshop', version: 1 },
+        { id: foreign, kind: 'competition', version: 1 },
+        { id: spanish, kind: 'competition', version: 1 },
+      ]),
+    );
+    expect(await client`SELECT 1 FROM event_catalog_audit`).toHaveLength(0);
+  });
+
+  it('stops the kind migration and lists the activities it cannot map', async () => {
+    await migrateUpTo(kindListMigrationTag);
+    const { activity } = await insertContainers();
+    await client`UPDATE activities SET kind = 'Fiesta' WHERE id = ${activity}`;
+
+    const error = await migrate(drizzle(client), { migrationsFolder }).then(
+      () => undefined,
+      (caught: unknown) => caught,
+    );
+
+    expect(describeMigrationError(error)).toBe(
+      `[P0001] activities with a kind outside competition, workshop and social: ${activity} (fiesta). Set each to one of those codes and run the migration again.`,
+    );
+    const [{ kind }] = await client<{ kind: string }[]>`
+      SELECT kind FROM activities WHERE id = ${activity}`;
+    expect(kind).toBe('Fiesta');
   });
 
   it('rejects invalid activity status and version', async () => {

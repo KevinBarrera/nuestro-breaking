@@ -9,6 +9,9 @@ const event = (overrides: Partial<CatalogEventRow> = {}): CatalogEventRow => ({
   timeZone: 'America/Bogota',
   startsAt: new Date('2026-11-20T14:00:00Z'),
   endsAt: null,
+  city: null,
+  state: null,
+  country: null,
   salesEnabled: true,
   salesOpensAt: new Date('2026-10-15T15:00:00Z'),
   salesClosesAt: null,
@@ -20,6 +23,7 @@ const pass = (id: string, name: string, passClass: string): CatalogPassRow => ({
   passClass,
   priceCents: 1000,
   requiresPassClass: passClass === 'add_on' ? 'full' : null,
+  onlineSalesClosesAt: null,
 });
 const link = (
   passTypeId: string,
@@ -39,6 +43,56 @@ const link = (
 });
 
 describe('toPublicCatalog', () => {
+  it('shows where the event happens, or null for each field while it has no location (#330)', () => {
+    const located = event({ city: 'Guadalajara', state: 'Jalisco', country: 'MX' });
+    expect(toPublicCatalog(located, [], [], now).event).toMatchObject({
+      city: 'Guadalajara',
+      state: 'Jalisco',
+      country: 'MX',
+    });
+    expect(toPublicCatalog(event(), [], [], now).event).toMatchObject({
+      city: null,
+      state: null,
+      country: null,
+    });
+  });
+
+  it('hides a $0 pass type, which is granted in person only (#263)', () => {
+    const free = { ...pass('free', 'Golden ticket', 'full'), priceCents: 0 };
+    const catalog = toPublicCatalog(
+      event(),
+      [free, pass('paid', 'Paid', 'full')],
+      [link('free', 'selectable', 'a1', '2026-11-20T15:00:00Z')],
+      now,
+    );
+    expect(catalog.passes.map(({ id }) => id)).toEqual(['paid']);
+  });
+
+  it('marks a pass off sale from its online close time, which is exclusive (#240)', () => {
+    const closing = { ...pass('closing', 'Closing', 'general'), onlineSalesClosesAt: now };
+    const later = {
+      ...pass('later', 'Later', 'full'),
+      onlineSalesClosesAt: new Date(now.getTime() + 1),
+    };
+    const catalog = toPublicCatalog(
+      event(),
+      [closing, later, pass('open', 'Open', 'add_on')],
+      [],
+      now,
+    );
+    expect(
+      catalog.passes.map(({ id, onlineSalesClosesAt, onSale }) => ({
+        id,
+        onlineSalesClosesAt,
+        onSale,
+      })),
+    ).toEqual([
+      { id: 'later', onlineSalesClosesAt: '2026-10-20T12:00:00.001Z', onSale: true },
+      { id: 'closing', onlineSalesClosesAt: '2026-10-20T12:00:00.000Z', onSale: false },
+      { id: 'open', onlineSalesClosesAt: null, onSale: true },
+    ]);
+  });
+
   it('summarizes the event and the sales window as ISO strings', () => {
     const catalog = toPublicCatalog(event(), [], [], now);
     expect(catalog.event).toEqual({
@@ -47,6 +101,9 @@ describe('toPublicCatalog', () => {
       timeZone: 'America/Bogota',
       startsAt: '2026-11-20T14:00:00.000Z',
       endsAt: null,
+      city: null,
+      state: null,
+      country: null,
     });
     expect(catalog.sales).toEqual({
       state: 'open',
@@ -105,6 +162,8 @@ describe('toPublicCatalog', () => {
       passClass: 'add_on',
       priceCents: 1000,
       requiresPassClass: 'full',
+      onlineSalesClosesAt: null,
+      onSale: true,
       selectableActivities: [],
       includedActivities: [
         {

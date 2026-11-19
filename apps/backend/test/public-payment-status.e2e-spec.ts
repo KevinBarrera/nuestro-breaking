@@ -68,8 +68,8 @@ describe('public payment status (e2e)', () => {
       VALUES (${org}, ${event.id}, ${venue})`;
     const [breaking, popping] = await client<{ id: string }[]>`
       INSERT INTO activities (event_id, venue_id, kind, name, starts_at, ends_at)
-      VALUES (${event.id}, ${venue}, 'battle', 'Breaking 1v1', '2026-11-20T18:00:00Z', '2026-11-20T20:00:00Z'),
-        (${event.id}, ${venue}, 'battle', 'Popping 1v1', '2026-11-20T15:00:00Z', '2026-11-20T17:00:00Z')
+      VALUES (${event.id}, ${venue}, 'competition', 'Breaking 1v1', '2026-11-20T18:00:00Z', '2026-11-20T20:00:00Z'),
+        (${event.id}, ${venue}, 'competition', 'Popping 1v1', '2026-11-20T15:00:00Z', '2026-11-20T17:00:00Z')
       RETURNING id`;
     const [full, addOn, foreign] = await client<{ id: string }[]>`
       INSERT INTO event_pass_types (event_id, name, pass_class, price_cents, requires_pass_class, status)
@@ -155,6 +155,7 @@ describe('public payment status (e2e)', () => {
         { name: 'Pase completo Breaking', competitions: ['Popping 1v1', 'Breaking 1v1'] },
         { name: 'Open Styles', competitions: [] },
       ],
+      serviceChargeCents: 0,
       totalCents: 220050,
     });
     const body = JSON.stringify(response.body);
@@ -184,6 +185,18 @@ describe('public payment status (e2e)', () => {
     const response = await status(id).expect(200);
 
     expect(response.body).toMatchObject({ status: expected, folio: null, totalCents: 150050 });
+  });
+
+  it('adds the latest checkout service charge to the total the buyer paid (#239)', async () => {
+    const ids = await fixture();
+    const id = await registration(ids.event, [{ passTypeId: ids.full, priceCents: 150050 }]);
+    await payments(id, ['pending']);
+    await client`UPDATE registration_checkouts SET service_charge_cents = 6815, amount_cents = 156865
+      WHERE registration_id = ${id}`;
+
+    const response = await status(id).expect(200);
+
+    expect(response.body).toMatchObject({ serviceChargeCents: 6815, totalCents: 156865 });
   });
 
   it('answers unavailable for a voided registration and hides its folio', async () => {

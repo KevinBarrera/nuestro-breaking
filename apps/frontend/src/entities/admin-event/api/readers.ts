@@ -29,7 +29,29 @@ export function readAdminEvent(value: unknown): AdminEvent | null {
   if (!isText(slug) || !isText(folioPrefix) || !isInstantOrNull(archivedAt)) return null;
   if (!isText(timeZone) || !isInstantOrNull(startsAt) || !isInstantOrNull(endsAt)) return null;
   if (typeof salesEnabled !== 'boolean') return null;
-  return { id, name, slug, folioPrefix, archivedAt, timeZone, startsAt, endsAt, salesEnabled };
+  return {
+    id,
+    name,
+    slug,
+    folioPrefix,
+    archivedAt,
+    timeZone,
+    startsAt,
+    endsAt,
+    salesEnabled,
+    ...readLocation(value),
+  };
+}
+
+// The location is shown, never trusted for anything else: a partial or malformed one, or a
+// backend from before #322, reads as no location, so the screens hide it.
+function readLocation(
+  value: Record<string, unknown>,
+): Pick<AdminEvent, 'city' | 'state' | 'country'> {
+  const { city, state, country } = value;
+  return isText(city) && isText(state) && isText(country)
+    ? { city, state, country }
+    : { city: null, state: null, country: null };
 }
 
 // The whole list is rejected when any entry is malformed, so the screen never shows a

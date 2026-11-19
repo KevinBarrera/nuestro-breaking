@@ -41,7 +41,16 @@ test('several events show a picker built only from the returned events', async (
   });
   await page.route(
     (url) => url.port === '3000' && url.pathname.endsWith('/participants'),
-    (route) => route.fulfill({ json: { total: 0, limit: 20, offset: 0, results: [] } }),
+    (route) =>
+      route.fulfill({
+        json: {
+          total: 0,
+          limit: 20,
+          offset: 0,
+          counts: { all: 0, pending_payment: 0, confirmed: 0, voided: 0 },
+          results: [],
+        },
+      }),
   );
   await page.goto('/admin');
   await expect(main(page).getByRole('heading', { name: 'Eventos', level: 1 })).toBeVisible();
@@ -49,7 +58,6 @@ test('several events show a picker built only from the returned events', async (
     const eventCard = card(page, event.name);
     await expect(eventCard).toHaveAttribute('href', `/admin/events/${event.id}`);
     await expect(eventCard).toContainText(`/e/${event.slug}`);
-    await expect(eventCard).toContainText(`Folios ${event.folioPrefix}-····`);
   }
   await expect(page).toHaveURL(/\/admin$/);
   await expectNoSampleContent(page);
@@ -137,7 +145,7 @@ test('aborts the credentialed event request when leaving the admin landing', asy
     history.pushState(null, '', '/admin/events/${firstId}/check-in');
     dispatchEvent(new PopStateEvent('popstate'));
   `);
-  await expect(page.getByRole('heading', { name: 'Control de entrada' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Check-in', level: 1 })).toBeVisible();
   await expect
     .poll(() => page.evaluate("sessionStorage.getItem('eventRequestAborted')"))
     .toBe('yes');
@@ -146,7 +154,7 @@ test('aborts the credentialed event request when leaving the admin landing', asy
   await expect(page).toHaveURL(new RegExp(`/admin/events/${firstId}/check-in$`));
 });
 
-test('signed out never fetches events; 401 and 403 do not claim authorization', async ({
+test('signed out never fetches events; 401 ends the session and 403 does not claim authorization', async ({
   page,
 }) => {
   let requests = 0;
@@ -158,16 +166,24 @@ test('signed out never fetches events; 401 and 403 do not claim authorization', 
   await page.goto('/admin');
   await expect(page.getByRole('heading', { name: 'Iniciar sesión' })).toBeVisible();
   expect(requests).toBe(0);
-  for (const status of [401, 403]) {
-    await page.route(session, (route) =>
-      route.fulfill({ json: { user: { id: 'judge', roles: ['judge'] } } }),
-    );
-    await page.route(endpoint, (route) => route.fulfill({ status, json: { message: 'private' } }));
-    await page.reload();
-    await expect(main(page).getByRole('alert')).toContainText('Sin acceso');
-    await expect(main(page).getByRole('link')).toHaveCount(0);
-    await expect(page.getByText('private')).toHaveCount(0);
-  }
+  await page.route(session, (route) =>
+    route.fulfill({ json: { user: { id: 'judge', roles: ['judge'] } } }),
+  );
+  // A 401 means the session ended (#392): back to sign-in, never a permission message.
+  await page.route(endpoint, (route) =>
+    route.fulfill({ status: 401, json: { message: 'private' } }),
+  );
+  await page.reload();
+  await expect(page.getByRole('heading', { name: 'Iniciar sesión' })).toBeVisible();
+  await expect(page.getByText('Tu sesión terminó. Inicia sesión de nuevo')).toBeVisible();
+  await expect(page.getByText(/^Sin acceso/)).toHaveCount(0);
+  await page.route(endpoint, (route) =>
+    route.fulfill({ status: 403, json: { message: 'private' } }),
+  );
+  await page.reload();
+  await expect(main(page).getByRole('alert')).toContainText('Sin acceso');
+  await expect(main(page).getByRole('link')).toHaveCount(0);
+  await expect(page.getByText('private')).toHaveCount(0);
 });
 
 test('a failed load shows a Spanish error with a retry that recovers', async ({ page }) => {

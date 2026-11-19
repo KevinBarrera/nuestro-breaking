@@ -116,6 +116,9 @@ describe('admin event editing (e2e)', () => {
       endsAt: '2026-11-16T04:00:00.000Z',
       salesEnabled: false,
       archivedAt: null,
+      city: null,
+      state: null,
+      country: null,
     });
     expect(await auditRows()).toEqual([
       {
@@ -140,6 +143,44 @@ describe('admin event editing (e2e)', () => {
         },
       },
     ]);
+  });
+
+  it('fills in the location of an event created without one, then edits a single field', async () => {
+    const { event } = await fixture();
+    const { cookie } = await globalAdmin();
+
+    const filled = await edit(cookie, event, {
+      city: ' Guadalajara ',
+      state: 'Jalisco',
+      country: 'mx',
+    }).expect(200);
+    expect(filled.body).toMatchObject({ city: 'Guadalajara', state: 'Jalisco', country: 'MX' });
+
+    await edit(cookie, event, { city: 'Zapopan' }).expect(200);
+    const [row] = await client<Record<string, unknown>[]>`
+      SELECT city, state, country FROM events WHERE id = ${event}`;
+    expect(row).toEqual({ city: 'Zapopan', state: 'Jalisco', country: 'MX' });
+    expect((await auditRows()).at(-1)?.details).toEqual({
+      before: { city: 'Guadalajara' },
+      after: { city: 'Zapopan' },
+    });
+  });
+
+  it('refuses part of a location for an event without one and keeps the event unchanged', async () => {
+    const { event } = await fixture();
+    const { cookie } = await globalAdmin();
+
+    const response = await edit(cookie, event, { city: 'Guadalajara' }).expect(400);
+
+    expect(response.body).toEqual({
+      statusCode: 400,
+      message: 'Invalid event',
+      fieldErrors: { state: 'invalid', country: 'invalid' },
+    });
+    const [row] = await client<Record<string, unknown>[]>`
+      SELECT city, state, country FROM events WHERE id = ${event}`;
+    expect(row).toEqual({ city: null, state: null, country: null });
+    expect(await auditRows()).toEqual([]);
   });
 
   it('lets an admin scoped to the event edit it', async () => {

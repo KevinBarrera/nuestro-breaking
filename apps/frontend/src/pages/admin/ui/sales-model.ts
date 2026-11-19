@@ -15,7 +15,7 @@ export function salesZone(eventTimeZone: string | null): SalesZone {
   return { timeZone: browser, label: `Hora de tu navegador (${browser})` };
 }
 
-export type SalesStatus = { label: 'Abierta' | 'Cerrada'; detail: string | null };
+export type SalesStatus = { label: 'Venta abierta' | 'Venta cerrada'; detail: string | null };
 
 const at = (iso: string | null, timeZone: string) =>
   iso ? formatEventTime(iso, timeZone) : 'una fecha sin definir';
@@ -23,7 +23,7 @@ const at = (iso: string | null, timeZone: string) =>
 export function salesStatus(sales: EventSales, timeZone: string): SalesStatus {
   if (sales.state === 'open')
     return {
-      label: 'Abierta',
+      label: 'Venta abierta',
       detail: sales.salesClosesAt ? `Cierra el ${at(sales.salesClosesAt, timeZone)}` : null,
     };
   const detail =
@@ -32,8 +32,14 @@ export function salesStatus(sales: EventSales, timeZone: string): SalesStatus {
       : sales.reason === 'ended'
         ? `Cerró el ${at(sales.salesClosesAt, timeZone)}`
         : 'La venta está apagada';
-  return { label: 'Cerrada', detail };
+  return { label: 'Venta cerrada', detail };
 }
+
+// The hint under "Venta en línea activa", for the switch position in the form.
+export const switchHint = (enabled: boolean) =>
+  enabled
+    ? 'El público puede comprar dentro del periodo de venta.'
+    : 'Apagada, la venta queda cerrada aunque las fechas estén dentro del periodo.';
 
 // The public route that serves this address is built in #176 (decision D1 of #175).
 export const publicPath = (slug: string) => `/e/${slug}`;

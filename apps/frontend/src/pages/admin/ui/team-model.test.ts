@@ -1,6 +1,16 @@
 import type { TeamMember } from '@/entities/admin-team';
 import { describe, expect, it } from 'vitest';
-import { accessSummary, expiryHint, memberActions, memberStatus } from './team-model';
+import {
+  accessLines,
+  accessSummary,
+  expiryHint,
+  filterTeam,
+  memberActions,
+  memberInitials,
+  memberStatus,
+  teamCountText,
+  teamCounts,
+} from './team-model';
 
 const now = new Date('2026-10-11T12:00:00.000Z');
 
@@ -82,8 +92,8 @@ describe('memberStatus', () => {
 describe('memberActions', () => {
   it('offers the actions each status allows', () => {
     expect(memberActions(member(), false, now)).toEqual([
-      'regenerate',
       'change-access',
+      'regenerate',
       'deactivate',
     ]);
     expect(
@@ -95,7 +105,7 @@ describe('memberActions', () => {
         false,
         now,
       ),
-    ).toEqual(['regenerate', 'cancel-invitation', 'change-access', 'deactivate']);
+    ).toEqual(['regenerate', 'change-access', 'cancel-invitation', 'deactivate']);
     expect(memberActions(member({ status: 'pending' }), false, now)).toEqual([
       'regenerate',
       'change-access',
@@ -116,7 +126,7 @@ describe('memberActions', () => {
         false,
         now,
       ),
-    ).toEqual(['cancel-invitation', 'change-access', 'deactivate']);
+    ).toEqual(['change-access', 'cancel-invitation', 'deactivate']);
     expect(memberActions(none, true, now)).toEqual([]);
   });
 
@@ -145,5 +155,94 @@ describe('status and actions agree on an expired link', () => {
       );
       expect(memberActions(link, false, now).includes('cancel-invitation')).toBe(open);
     }
+  });
+});
+
+describe('memberInitials', () => {
+  it('takes the first letter of the first two words', () => {
+    expect(memberInitials('Jairo Barrera')).toBe('JB');
+    expect(memberInitials('  local   admin  ')).toBe('LA');
+    expect(memberInitials('Ana María Torres')).toBe('AM');
+    expect(memberInitials('Sofía')).toBe('S');
+    expect(memberInitials('Élia Ñuñez')).toBe('ÉÑ');
+  });
+});
+
+describe('accessLines', () => {
+  it('names the access and adds a short count or scope line', () => {
+    expect(accessLines({ kind: 'global' })).toEqual({
+      main: 'Todos los eventos',
+      sub: 'Incluye eventos nuevos y el equipo',
+    });
+    expect(accessLines({ kind: 'events', events: [{ id: 'a', name: 'Final' }] })).toEqual({
+      main: 'Final',
+      sub: '1 evento',
+    });
+    expect(
+      accessLines({
+        kind: 'events',
+        events: [
+          { id: 'a', name: 'Preliminares' },
+          { id: 'b', name: 'Final' },
+        ],
+      }),
+    ).toEqual({ main: 'Preliminares, Final', sub: '2 eventos' });
+    expect(accessLines({ kind: 'events', events: [] })).toEqual({ main: 'Sin eventos', sub: '' });
+    expect(accessLines({ kind: 'none' })).toEqual({ main: 'Sin acceso', sub: '' });
+  });
+});
+
+describe('team search and status filter', () => {
+  const team = [
+    member({ id: 'a', displayName: 'Local Admin', email: 'admin@lmp.mx' }),
+    member({
+      id: 'b',
+      displayName: 'Sofía Méndez',
+      email: 'sofia@correo.mx',
+      status: 'pending',
+      access: { kind: 'events', events: [{ id: 'e1', name: 'Nuestro Breaking 2026' }] },
+    }),
+    member({ id: 'c', displayName: 'Carla Ruiz', email: 'carla@correo.mx', status: 'deactivated' }),
+    member({
+      id: 'd',
+      displayName: 'Diego',
+      email: 'diego@correo.mx',
+      status: 'no_access',
+      access: { kind: 'none' },
+    }),
+  ];
+  const ids = (list: TeamMember[]) => list.map((entry) => entry.id);
+
+  it('counts each status', () => {
+    expect(teamCounts(team)).toEqual({
+      all: 4,
+      active: 1,
+      pending: 1,
+      deactivated: 1,
+      no_access: 1,
+    });
+  });
+
+  it('filters by status', () => {
+    expect(ids(filterTeam(team, '', 'all'))).toEqual(['a', 'b', 'c', 'd']);
+    expect(ids(filterTeam(team, '', 'pending'))).toEqual(['b']);
+    expect(ids(filterTeam(team, '', 'no_access'))).toEqual(['d']);
+  });
+
+  it('searches name, email and access, ignoring case and accents', () => {
+    expect(ids(filterTeam(team, 'sofia', 'all'))).toEqual(['b']);
+    expect(ids(filterTeam(team, 'MENDEZ', 'all'))).toEqual(['b']);
+    expect(ids(filterTeam(team, 'carla@', 'all'))).toEqual(['c']);
+    expect(ids(filterTeam(team, 'nuestro breaking', 'all'))).toEqual(['b']);
+    expect(ids(filterTeam(team, 'todos los eventos', 'all'))).toEqual(['a', 'c']);
+    expect(ids(filterTeam(team, '  ', 'all'))).toEqual(['a', 'b', 'c', 'd']);
+    expect(ids(filterTeam(team, 'sofia', 'active'))).toEqual([]);
+  });
+
+  it('describes how many people are shown', () => {
+    expect(teamCountText(4, 4)).toBe('4 personas');
+    expect(teamCountText(1, 1)).toBe('1 persona');
+    expect(teamCountText(2, 7)).toBe('Mostrando 2 de 7 personas');
+    expect(teamCountText(0, 1)).toBe('Mostrando 0 de 1 persona');
   });
 });

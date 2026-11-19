@@ -29,14 +29,17 @@ export function CheckboxField({
 
   return (
     <div className={className}>
-      <label htmlFor={inputId} className="flex min-h-11 cursor-pointer items-start gap-3 py-2">
+      <label
+        htmlFor={inputId}
+        className="flex w-fit max-w-full min-h-11 cursor-pointer items-start gap-3 py-2"
+      >
         <input
           {...inputProps}
           id={inputId}
           type="checkbox"
           aria-invalid={error ? true : undefined}
           aria-describedby={describedBy || undefined}
-          className="mt-0.5 size-5 shrink-0 accent-primary outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus disabled:opacity-60"
+          className="size-5 shrink-0 accent-primary outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus disabled:opacity-60"
         />
         <span className="min-w-0 text-sm text-fg">{label}</span>
       </label>

@@ -14,18 +14,20 @@ Test runner: backend Jest unit (`pnpm --filter @nuestro-breaking/backend test`) 
 - S6 — Issue scope: the frontend is a single-page app on Cloudflare with a fallback to `index.html` (`createBrowserRouter`) and build-time `VITE_API_BASE_URL` / `VITE_PUBLIC_EVENT_SLUG`.
 - S7 — Issue scope: "A deployment runbook in `docs/runbooks/`, and ADR 0008 updated if the DNS or hostname plan differs from it."
 - S8 — Issue scope (S1 follow-up, from the staging client IP check): on Railway, "the IP cannot be spoofed with a forged `X-Forwarded-For`." The rate limit keys on a client address the client cannot choose: Railway's `X-Real-IP` on Railway alone, and Cloudflare's `CF-Connecting-IP` behind Cloudflare, trusted only when a Cloudflare-added origin secret matches, so a request that bypasses Cloudflare cannot pick its address.
+- S9 — User request (2026-11-18): "crees que sea posible de forma "provisional" habilitar el ambiente de pruebas/staging en nuestro dominio? así podríamos compartirlo con el organizador y el personalmente podría comenzar a utilizar y dar feedback." Staging uses `staging.hazlonuestro.com` and `staging-api.hazlonuestro.com`; production stays out of this change.
 
 ## Tasks
 
-| ID  | Specs  | Route  | Status                           | Evidence                                         |
-| --- | ------ | ------ | -------------------------------- | ------------------------------------------------ |
-| T1  | S1, S2 | writer | done                             | `df2f3f3`, review approved                       |
-| T2  | S3, S4 | inline | done                             | `d020229`, verifier passed                       |
-| T3  | S5     | inline | done                             | `33dbcc2`, verifier passed                       |
-| T4  | S6     | inline | done                             | `b936693`, verifier passed                       |
-| T5  | S7     | inline | done                             | `0d244b4`                                        |
-| T7  | S8     | inline | code done, staging check pending | `efa8974`, `143c613`, verifier passed on recheck |
-| T6  | all    | user   | pending                          |                                                  |
+| ID  | Specs  | Route  | Status                                 | Evidence                                         |
+| --- | ------ | ------ | -------------------------------------- | ------------------------------------------------ |
+| T1  | S1, S2 | writer | done                                   | `df2f3f3`, review approved                       |
+| T2  | S3, S4 | inline | done                                   | `d020229`, verifier passed                       |
+| T3  | S5     | inline | done                                   | `33dbcc2`, verifier passed                       |
+| T4  | S6     | inline | done                                   | `b936693`, verifier passed                       |
+| T5  | S7     | inline | done                                   | `0d244b4`                                        |
+| T7  | S8     | inline | code done, staging check pending       | `efa8974`, `143c613`, verifier passed on recheck |
+| T6  | all    | user   | pending                                |                                                  |
+| T8  | S9     | inline | docs in progress; provisioning pending | see Log                                          |
 
 - T1 — Proxy-aware client IP (`TRUST_PROXY_HOPS`, Express `trust proxy` hop count, default 0 for local) and `GET /health` with a database ping, excluded from rate limiting. Swagger off when `NODE_ENV=production`.
 - T2 — A compiled migration command (`drizzle-orm` migrator over `apps/backend/drizzle`) and a compiled `admin:bootstrap`, both runnable with plain `node` from `dist`.
@@ -34,6 +36,7 @@ Test runner: backend Jest unit (`pnpm --filter @nuestro-breaking/backend test`) 
 - T5 — `docs/runbooks/deploy.md` (Railway dashboard settings, variables, limits, pre-deploy, bootstrap; Cloudflare; DNS move), ADR 0008 amendment (subdomain hostnames, Workers static assets, Railway dashboard configuration because Config as Code is deprecated), admin-bootstrap runbook, `.env.example`.
 - T7 — `CLIENT_IP_SOURCE` (`request` default, `x-real-ip`, `cloudflare` with `CLOUDFLARE_ORIGIN_SECRET`) picks the throttler tracker; docs, runbook client IP check and Cloudflare Transform Rule; verify on staging with forged `X-Forwarded-For` and `X-Real-IP`.
 - T6 — Provision staging in the dashboards with the user and verify the public purchase flow on provider URLs; admin sign-in and custom hostnames after the DNS move.
+- T8 — Record the provisional staging domain in the runbook and ADR 0008, promote `dev` to `staging`, then connect the hostnames, authenticate the Brevo sender and verify staging end to end with the user.
 
 Risk: T1 (rate limiting and client identity on public endpoints), T2 (migrations against live databases). Each gets an independent verifier.
 
@@ -57,3 +60,5 @@ Risk: T1 (rate limiting and client identity on public endpoints), T2 (migrations
 - 2026-10-15 (user): "sí, haz el arreglo antes de seguir" — T7 before continuing T6 (Cloudflare, frontend).
 - 2026-10-15: T7 implemented inline in `efa8974` on `fix/238-05-client-ip-source`. `CLIENT_IP_SOURCE` is `request` (default, `req.ip` via `TRUST_PROXY_HOPS`), `x-real-ip` or `cloudflare`. With `cloudflare`, `CLOUDFLARE_ORIGIN_SECRET` must be at least 32 characters. `CF-Connecting-IP` is trusted only when `X-Origin-Secret` matches the secret in a constant-time compare; otherwise the address comes from `X-Real-IP`, then `req.ip`. Only valid IPs are accepted. The throttler's module-level `getTracker` uses it. Docs: the contract's client-address section was rewritten, and the runbook now has the variables, a DNS step 7 (Transform Rule with Set static `X-Origin-Secret`; Cloudflare docs confirm it is on the Free plan with 10 active rules) and a client IP check that forges `X-Forwarded-For`, `X-Real-IP` and `CF-Connecting-IP`, run both through Cloudflare and against the Railway domain. Evidence: RED, then GREEN. In unit tests the module was missing. In e2e, three cases failed: forged XFF picked a counter under `x-real-ip`, CF counting, and the boot refusal. The bypass case already passed. Results: backend unit 555/555, e2e 416/416 (41 suites), lint, `tsc --noEmit` and Prettier clean. `.env.example` was not edited: the `Read(.env.*)` deny rule in the user's settings blocks it, and the user was given the lines to add.
 - 2026-10-15: The T7 independent verifier found 1 blocker. The custom `getTracker` replaced the throttler default `normalizeIp(req.ip, 64)`, so IPv6 rotation inside one /64 and IPv4-mapped addresses got fresh counters in every mode, including the default (a regression from baseline `16ac4da`). Advisory: a header source with `TRUST_PROXY_HOPS=1` falls back to a forged XFF. One correction batch in `143c613`: every source goes through `normalizeIp`; `x-real-ip`/`cloudflare` refuse `TRUST_PROXY_HOPS` other than 0; the docs cover IPv6 grouping, the hops conflict, the current Cloudflare menu path, and IPv6 in the client IP check. RED: 4 unit + 4 e2e, then GREEN. Backend unit 560/560, e2e 420/420. Recheck: blocker fixed; P6/P7/P7cf/P8/P9 all reach 429 and match the baseline; the hops combination refuses to boot.
+- 2026-11-18 (user): staging moves provisionally to the team's domain `hazlonuestro.com`, registered through Cloudflare in the user's account, so the organizer can try the system. Sender: `no-reply@hazlonuestro.com`. Between `origin/staging` and `origin/dev`, the only new required backend variables are the three `ONLINE_SERVICE_CHARGE_*`, and 15 SQL migrations are added.
+- 2026-11-18 (user): "listas las variables en railway, pasamos al paso 2?" — the user set the Railway staging variables; this step updates the docs and prepares the `dev` to `staging` promotion.

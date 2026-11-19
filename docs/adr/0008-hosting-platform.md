@@ -4,7 +4,9 @@
 
 Accepted on 2026-10-11. The product owner chose the platforms. Prices were checked on that date.
 
-Amended on 2026-10-14 (#238): concrete hostnames under the organizer's domain, the frontend on Workers static assets, Railway settings in the dashboard, and the nameserver move. See [Amendment 2026-10-14](#amendment-2026-10-14). The setup steps are in the [deploy runbook](../runbooks/deploy.md).
+Amended on 2026-10-14 (#238): concrete hostnames under the organizer's domain, the frontend on Workers static assets, Railway settings in the dashboard, and the nameserver move. See [Amendment 2026-10-14](#amendment-2026-10-14).
+
+Amended on 2026-11-18 (#238): staging provisionally moves to a domain the development team owns. See [Amendment 2026-11-18](#amendment-2026-11-18). The setup steps are in the [deploy runbook](../runbooks/deploy.md).
 
 ## Context
 
@@ -38,12 +40,12 @@ TLS has two legs, and both certificates are free and renew automatically:
 
 Universal SSL covers the apex domain and first-level subdomains only. A deeper name such as `api.staging.[domain]` gets no valid certificate unless a paid add-on is bought. Every hostname therefore stays at the first level:
 
-| Environment | Frontend                       | Backend                            |
-| ----------- | ------------------------------ | ---------------------------------- |
-| Production  | `boletos.losmaspesados.com.mx` | `api.losmaspesados.com.mx`         |
-| Staging     | `staging.losmaspesados.com.mx` | `staging-api.losmaspesados.com.mx` |
+| Environment | Frontend                       | Backend                        |
+| ----------- | ------------------------------ | ------------------------------ |
+| Production  | `boletos.losmaspesados.com.mx` | `api.losmaspesados.com.mx`     |
+| Staging     | `staging.hazlonuestro.com`     | `staging-api.hazlonuestro.com` |
 
-Both environments stay under the same registrable domain, which the admin session cookie requires. The admin panel is served by the same frontend, under `/admin`.
+Within each environment, the frontend and the backend stay under one registrable domain, which the admin session cookie requires. The admin panel is served by the same frontend, under `/admin`.
 
 Cloudflare's SSL/TLS encryption mode is **Full**, as Railway recommends:
 
@@ -111,6 +113,14 @@ Decided while preparing the first deploy (#238):
 - **Frontend on Workers static assets, not Pages.** `apps/frontend/wrangler.jsonc` defines one Worker per environment with no Worker script and single-page-application fallback, built and deployed by Workers Builds. It stays on the free plan, because requests for static assets are free.
 - **Railway settings live in the dashboard.** Railway's Config as Code (`railway.json`) is deprecated, so the service settings (Dockerfile path, pre-deploy migration command, healthcheck path, watch paths) are recorded in the deploy runbook instead of the repository.
 - **The backend image** is `apps/backend/Dockerfile`, built from the repository root. Migrations run as Railway's pre-deploy command with `node dist/scripts/migrate-database.js`, and the first administrator is created with `node dist/scripts/bootstrap-admin.js`; neither needs development dependencies.
+
+## Amendment 2026-11-18
+
+Decided so the organizer can try the system while `losmaspesados.com.mx` is not available (#238):
+
+- **Provisional staging domain.** Staging uses `staging.hazlonuestro.com` and `staging-api.hazlonuestro.com`. The development team owns `hazlonuestro.com`, and it is registered through Cloudflare, so no nameserver move is needed.
+- **The cookie rule is per environment.** The admin session needs the frontend and the backend of one environment under one registrable domain. Staging and production do not have to share a domain.
+- **Production is unchanged.** It keeps the organizer's domain and is not provisioned by this change. Staging keeps Mercado Pago in sandbox mode.
 
 ## Sources
 

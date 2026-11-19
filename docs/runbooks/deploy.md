@@ -6,15 +6,19 @@ This guide sets up and deploys the hosted staging and production environments
 Railway, the frontend on Cloudflare, and DNS on Cloudflare. Settings live in
 the provider dashboards; this page is the record of what to set.
 
-| Environment | Git branch | Frontend (Cloudflare Worker)                                   | Backend (Railway)                  |
-| ----------- | ---------- | -------------------------------------------------------------- | ---------------------------------- |
-| Staging     | `staging`  | `staging.losmaspesados.com.mx` (`los-mas-pesados-web-staging`) | `staging-api.losmaspesados.com.mx` |
-| Production  | `main`     | `boletos.losmaspesados.com.mx` (`los-mas-pesados-web`)         | `api.losmaspesados.com.mx`         |
+| Environment | Git branch | Frontend (Cloudflare Worker)                               | Backend (Railway)              |
+| ----------- | ---------- | ---------------------------------------------------------- | ------------------------------ |
+| Staging     | `staging`  | `staging.hazlonuestro.com` (`los-mas-pesados-web-staging`) | `staging-api.hazlonuestro.com` |
+| Production  | `main`     | `boletos.losmaspesados.com.mx` (`los-mas-pesados-web`)     | `api.losmaspesados.com.mx`     |
 
 The admin panel lives on the same frontend host, under `/admin`. Every name
-stays one level below `losmaspesados.com.mx`, so Cloudflare's free certificate
-covers it, and frontend and backend share one site, as the admin session
-cookie requires.
+stays one level below its domain, so Cloudflare's free certificate covers it.
+Within each environment, frontend and backend share one site, as the admin
+session cookie requires.
+
+Staging provisionally uses `hazlonuestro.com`, a domain the development team
+owns, so the organizer can try the system while `losmaspesados.com.mx` is not
+available. Production keeps the organizer's domain.
 
 ## Quick path
 
@@ -25,7 +29,8 @@ Do staging first, end to end, then repeat for production.
 2. [Cloudflare Workers](#cloudflare-workers): connect the repository and set
    the build variables.
 3. [DNS](#dns-move-to-cloudflare): move the domain's nameservers to
-   Cloudflare, then add the custom domains.
+   Cloudflare (the staging domain is already there), then add the custom
+   domains.
 4. [First administrator](#first-administrator): run the bootstrap once.
 5. [Verify](#verify-an-environment): the checklist at the end of this page.
 
@@ -82,19 +87,19 @@ from the provider and are never committed.
 | ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
 | `RAILWAY_DOCKERFILE_PATH`           | `apps/backend/Dockerfile`                                                                                                          | same                                                                    |
 | `DATABASE_URL`                      | `${{Postgres.DATABASE_URL}}` (private network, no egress cost)                                                                     | same                                                                    |
-| `AUTH_TRUSTED_ORIGIN`               | `https://staging.losmaspesados.com.mx`                                                                                             | `https://boletos.losmaspesados.com.mx`                                  |
-| `PUBLIC_APP_URL`                    | `https://staging.losmaspesados.com.mx`                                                                                             | `https://boletos.losmaspesados.com.mx`                                  |
+| `AUTH_TRUSTED_ORIGIN`               | `https://staging.hazlonuestro.com`                                                                                                 | `https://boletos.losmaspesados.com.mx`                                  |
+| `PUBLIC_APP_URL`                    | `https://staging.hazlonuestro.com`                                                                                                 | `https://boletos.losmaspesados.com.mx`                                  |
 | `PUBLIC_ALLOWED_ORIGINS`            | Empty (the admin origin is already allowed)                                                                                        | Empty                                                                   |
 | `CLIENT_IP_SOURCE`                  | `x-real-ip` before the DNS move, `cloudflare` after (see [Client IP check](#client-ip-check))                                      | same                                                                    |
 | `CLOUDFLARE_ORIGIN_SECRET`          | _secret_, only with `cloudflare`: a random value of at least 32 characters, also set in the Cloudflare Transform Rule (DNS step 7) | _secret_, a different value                                             |
 | `BREVO_API_KEY`                     | _secret_ ([email runbook](email-delivery.md))                                                                                      | _secret_                                                                |
-| `EMAIL_SENDER_ADDRESS`              | Verified sender in Brevo                                                                                                           | same                                                                    |
+| `EMAIL_SENDER_ADDRESS`              | `no-reply@hazlonuestro.com`, on a domain authenticated in Brevo                                                                    | An address on the production domain, authenticated in Brevo             |
 | `EMAIL_SENDER_NAME`                 | `Los más pesados`                                                                                                                  | same                                                                    |
-| `EMAIL_SANDBOX`                     | `true` (Brevo validates, never delivers)                                                                                           | Unset (defaults to `false` in production)                               |
+| `EMAIL_SANDBOX`                     | `true` (Brevo validates, never delivers) until the domain is authenticated, then `false` so the organizer receives real email      | Unset (defaults to `false` in production)                               |
 | `MERCADO_PAGO_MODE`                 | `sandbox`                                                                                                                          | `production`, only after the staging demo with the organizer            |
 | `MERCADO_PAGO_ACCESS_TOKEN`         | _secret_, test account ([sandbox runbook](mercado-pago-sandbox.md))                                                                | _secret_, organizer's account (a `TEST-` token is refused)              |
 | `MERCADO_PAGO_WEBHOOK_SECRET`       | _secret_                                                                                                                           | _secret_                                                                |
-| `MERCADO_PAGO_NOTIFICATION_URL`     | `https://staging-api.losmaspesados.com.mx/public/payments/mercado-pago/webhook`                                                    | `https://api.losmaspesados.com.mx/public/payments/mercado-pago/webhook` |
+| `MERCADO_PAGO_NOTIFICATION_URL`     | `https://staging-api.hazlonuestro.com/public/payments/mercado-pago/webhook`                                                        | `https://api.losmaspesados.com.mx/public/payments/mercado-pago/webhook` |
 | `ONLINE_SERVICE_CHARGE_PERCENT`     | The organizer's rate, or placeholder `3.49`                                                                                        | The organizer's rate from the Mercado Pago costs page                   |
 | `ONLINE_SERVICE_CHARGE_FIXED_MXN`   | The organizer's rate, or placeholder `4.00`                                                                                        | The organizer's rate from the Mercado Pago costs page                   |
 | `ONLINE_SERVICE_CHARGE_VAT_PERCENT` | `16`                                                                                                                               | `16`                                                                    |
@@ -139,12 +144,12 @@ Create > Import a repository**:
 Build variables (**Settings > Build > Variables and secrets**, not the runtime
 variables; Vite copies them into the files at build time):
 
-| Variable                 | Staging                                    | Production                         |
-| ------------------------ | ------------------------------------------ | ---------------------------------- |
-| `VITE_API_BASE_URL`      | `https://staging-api.losmaspesados.com.mx` | `https://api.losmaspesados.com.mx` |
-| `VITE_PUBLIC_EVENT_SLUG` | The event's slug                           | The event's slug                   |
-| `NODE_VERSION`           | `24.18.1`                                  | same                               |
-| `PNPM_VERSION`           | `11.20.0`                                  | same                               |
+| Variable                 | Staging                                | Production                         |
+| ------------------------ | -------------------------------------- | ---------------------------------- |
+| `VITE_API_BASE_URL`      | `https://staging-api.hazlonuestro.com` | `https://api.losmaspesados.com.mx` |
+| `VITE_PUBLIC_EVENT_SLUG` | The event's slug                       | The event's slug                   |
+| `NODE_VERSION`           | `24.18.1`                              | same                               |
+| `PNPM_VERSION`           | `11.20.0`                              | same                               |
 
 - Cloudflare's build image defaults to Node 24.18.0 and pnpm 10, so set both
   versions. On the first build, check in the log that the install used pnpm
@@ -160,6 +165,10 @@ variables; Vite copies them into the files at build time):
 
 Custom domains on Workers and the proxy in front of the backend both need the
 domain's nameservers on Cloudflare.
+
+`hazlonuestro.com` (staging) is registered through Cloudflare, so it already
+uses Cloudflare's nameservers: skip steps 1 to 3 and start at step 4.
+`losmaspesados.com.mx` (production) needs every step.
 
 1. In Cloudflare, **Add a domain** `losmaspesados.com.mx` (free plan). It
    imports the existing DNS records.

@@ -117,7 +117,7 @@ describe('participant field rules', () => {
   it('finds the first invalid field in form order', () => {
     expect(firstInvalidField({})).toBeNull();
     expect(firstInvalidField({ city: 'x', phone: 'y', email: 'z' })).toBe('email');
-    expect(firstInvalidField({ email: 'x', birthDate: 'y', stageName: 'z' })).toBe('stageName');
+    expect(firstInvalidField({ email: 'x', stageName: 'y', birthDate: 'z' })).toBe('birthDate');
     expect(firstInvalidField({ phone: 'x', birthDate: 'y' })).toBe('birthDate');
   });
 });

@@ -296,8 +296,8 @@ function NewRegistration({ eventId }: { eventId: string }) {
             {input('secondLastName')}
           </div>
           <div className="grid gap-4 *:min-w-0 @min-[641px]:grid-cols-2">
-            {input('stageName')}
             {input('birthDate')}
+            {input('stageName')}
           </div>
         </section>
         <section

@@ -158,8 +158,10 @@ export function PublicBuyerPage() {
             {input('firstLastName')}
             {input('secondLastName')}
           </div>
-          {input('stageName')}
-          {input('birthDate')}
+          <div className="grid grid-cols-2 gap-3 *:min-w-0">
+            {input('birthDate')}
+            {input('stageName')}
+          </div>
           {input('email')}
           <div className="flex flex-col gap-1">
             <fieldset>

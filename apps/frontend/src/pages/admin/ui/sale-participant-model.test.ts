@@ -14,6 +14,7 @@ const valid: ParticipantForm = {
   firstLastName: 'López',
   email: 'ana@ejemplo.com',
   phone: '33 1234 5678',
+  birthDate: '2000-02-29',
 };
 
 describe('validateSaleParticipant', () => {
@@ -28,6 +29,7 @@ describe('validateSaleParticipant', () => {
       firstLastName: 'Escribe el primer apellido.',
       email: 'Escribe el correo del participante.',
       phone: 'Escribe el teléfono celular.',
+      birthDate: 'Escribe la fecha de nacimiento.',
     });
   });
 
@@ -89,6 +91,7 @@ describe('saleParticipantPayload', () => {
       firstLastName: 'López',
       email: 'ana@ejemplo.com',
       phone: '+52 3312345678',
+      birthDate: '2000-02-29',
     });
   });
 

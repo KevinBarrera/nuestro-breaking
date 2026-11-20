@@ -29,6 +29,7 @@ export const saleParticipantMessages = (mode: SalePhoneMode): ParticipantMessage
     firstLastName: 'Escribe el primer apellido.',
     email: 'Escribe el correo del participante.',
     phone: 'Escribe el teléfono celular.',
+    birthDate: 'Escribe la fecha de nacimiento.',
   },
   invalid: {
     email: 'Escribe un correo válido, por ejemplo nombre@correo.com.',

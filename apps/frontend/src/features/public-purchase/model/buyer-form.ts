@@ -38,6 +38,7 @@ export const buyerMessages = {
     firstLastName: 'Escribe tu primer apellido.',
     email: 'Escribe tu correo electrónico.',
     phone: 'Escribe tu teléfono celular.',
+    birthDate: 'Escribe tu fecha de nacimiento.',
   } as Partial<Record<BuyerField, string>>,
   invalid: {
     email: 'Escribe un correo válido, por ejemplo nombre@correo.com.',

@@ -10,6 +10,7 @@ const buyer = {
   firstLastName: 'López',
   email: 'ana@ejemplo.com',
   phone: '3312345678',
+  birthDate: '2000-02-29',
 };
 
 describe('buildRegistrationRequest', () => {
@@ -28,6 +29,7 @@ describe('buildRegistrationRequest', () => {
         firstLastName: 'López',
         email: 'ana@ejemplo.com',
         phone: '+52 3312345678',
+        birthDate: '2000-02-29',
       },
       passes: [
         { passTypeId: 'breaking', selectedActivityIds: ['bboy'] },

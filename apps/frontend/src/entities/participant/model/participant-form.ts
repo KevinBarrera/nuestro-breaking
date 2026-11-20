@@ -24,10 +24,10 @@ export type ParticipantPayload = {
   stageName?: string;
   email: string;
   phone: string;
+  birthDate: string;
   city?: string;
   instagram?: string;
   level?: string;
-  birthDate?: string;
 };
 
 export const participantFields = [
@@ -35,12 +35,12 @@ export const participantFields = [
   'firstLastName',
   'secondLastName',
   'stageName',
+  'birthDate',
   'email',
   'phone',
   'city',
   'instagram',
   'level',
-  'birthDate',
 ] as const satisfies readonly ParticipantField[];
 
 export const emptyParticipantForm: ParticipantForm = {
@@ -87,7 +87,6 @@ export const optionalDetailFields = [
   'city',
   'instagram',
   'level',
-  'birthDate',
 ] as const satisfies readonly ParticipantField[];
 
 // The Spanish copy of a form; only fields listed in `required` must be filled.
@@ -172,15 +171,9 @@ export function participantPayload(
     firstLastName: form.firstLastName.trim(),
     email: form.email.trim(),
     phone: formatPhone(form.phone),
+    birthDate: form.birthDate.trim(),
   };
-  for (const field of [
-    'secondLastName',
-    'stageName',
-    'city',
-    'instagram',
-    'level',
-    'birthDate',
-  ] as const) {
+  for (const field of ['secondLastName', 'stageName', 'city', 'instagram', 'level'] as const) {
     const value = form[field].trim();
     if (value) payload[field] = value;
   }

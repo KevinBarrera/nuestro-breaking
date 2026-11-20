@@ -18,10 +18,17 @@ const valid: ParticipantForm = {
   firstLastName: 'López',
   email: 'ana@ejemplo.com',
   phone: '33 1234 5678',
+  birthDate: '2000-02-29',
 };
 
 const messages: ParticipantMessages = {
-  required: { firstName: 'name', firstLastName: 'last', email: 'mail', phone: 'phone' },
+  required: {
+    firstName: 'name',
+    firstLastName: 'last',
+    email: 'mail',
+    phone: 'phone',
+    birthDate: 'birth',
+  },
   invalid: { email: 'bad mail', phone: 'bad phone', instagram: 'bad ig', birthDate: 'bad date' },
   tooLong: (max) => `max ${max}`,
   inFuture: 'future',
@@ -35,6 +42,7 @@ describe('validateParticipant', () => {
       firstLastName: 'last',
       email: 'mail',
       phone: 'phone',
+      birthDate: 'birth',
     });
   });
 
@@ -68,19 +76,23 @@ describe('validateParticipant', () => {
 describe('participantPayload', () => {
   it('trims text, omits blank optional fields and formats the phone with the given function', () => {
     expect(
-      participantPayload({ ...valid, firstName: ' Ana ', city: '  ' }, (phone) => `+${phone}`),
+      participantPayload(
+        { ...valid, firstName: ' Ana ', city: '  ', birthDate: ' 2000-02-29 ' },
+        (phone) => `+${phone}`,
+      ),
     ).toEqual({
       firstName: 'Ana',
       firstLastName: 'López',
       email: 'ana@ejemplo.com',
       phone: '+33 1234 5678',
+      birthDate: '2000-02-29',
     });
   });
 
   it('keeps filled optional fields', () => {
-    expect(
-      participantPayload({ ...valid, stageName: ' B-Girl Ana ', birthDate: '2000-02-29' }, String),
-    ).toMatchObject({ stageName: 'B-Girl Ana', birthDate: '2000-02-29' });
+    expect(participantPayload({ ...valid, stageName: ' B-Girl Ana ' }, String)).toMatchObject({
+      stageName: 'B-Girl Ana',
+    });
   });
 });
 
@@ -104,6 +116,8 @@ describe('participant field rules', () => {
 
   it('finds the first invalid field in form order', () => {
     expect(firstInvalidField({})).toBeNull();
-    expect(firstInvalidField({ birthDate: 'x', phone: 'y', email: 'z' })).toBe('email');
+    expect(firstInvalidField({ city: 'x', phone: 'y', email: 'z' })).toBe('email');
+    expect(firstInvalidField({ email: 'x', stageName: 'y', birthDate: 'z' })).toBe('birthDate');
+    expect(firstInvalidField({ phone: 'x', birthDate: 'y' })).toBe('birthDate');
   });
 });

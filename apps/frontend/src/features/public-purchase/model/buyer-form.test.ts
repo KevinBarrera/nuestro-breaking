@@ -17,6 +17,7 @@ const valid: BuyerForm = {
   firstLastName: 'López',
   email: 'ana@ejemplo.com',
   phone: '33 1234 5678',
+  birthDate: '2000-02-29',
 };
 
 describe('validateBuyer', () => {
@@ -30,6 +31,7 @@ describe('validateBuyer', () => {
       firstLastName: 'Escribe tu primer apellido.',
       email: 'Escribe tu correo electrónico.',
       phone: 'Escribe tu teléfono celular.',
+      birthDate: 'Escribe tu fecha de nacimiento.',
     });
   });
 
@@ -115,6 +117,7 @@ describe('buyerPayload', () => {
       firstLastName: 'López',
       email: 'ana@ejemplo.com',
       phone: '+52 3312345678',
+      birthDate: '2000-02-29',
     });
   });
 
@@ -126,6 +129,7 @@ describe('buyerPayload', () => {
       firstLastName: 'López',
       email: 'ana@ejemplo.com',
       phone: '+14155550100',
+      birthDate: '2000-02-29',
     });
   });
 
@@ -154,13 +158,15 @@ describe('buyerPayload', () => {
 describe('buyer form errors', () => {
   it('finds the first invalid field in form order', () => {
     expect(firstInvalidField({})).toBeNull();
-    expect(firstInvalidField({ birthDate: 'x', phone: 'y', email: 'z' })).toBe('email');
+    expect(firstInvalidField({ city: 'x', phone: 'y', email: 'z' })).toBe('email');
+    expect(firstInvalidField({ phone: 'x', birthDate: 'y' })).toBe('birthDate');
   });
 
   it('tells when an error sits in the optional details block', () => {
     expect(detailsHaveError({ email: 'x' })).toBe(false);
     expect(detailsHaveError({ email: 'x', instagram: 'y' })).toBe(true);
-    expect(optionalDetailFields).toEqual(['city', 'instagram', 'level', 'birthDate']);
+    expect(detailsHaveError({ birthDate: 'x' })).toBe(false);
+    expect(optionalDetailFields).toEqual(['city', 'instagram', 'level']);
   });
 
   it('formats the local calendar day as YYYY-MM-DD', () => {

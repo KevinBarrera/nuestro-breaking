@@ -25,6 +25,7 @@ async function fillRequired(page: Page) {
   await field(page, 'Primer apellido').fill('López');
   await field(page, 'Correo electrónico').fill('ana@ejemplo.com');
   await field(page, 'Teléfono celular').fill('33 1234 5678');
+  await field(page, 'Fecha de nacimiento').fill('2001-04-09');
 }
 
 async function expectFitsAndTargets(page: Page, width: number, targets: Locator) {
@@ -115,12 +116,18 @@ test.describe('public buyer data', () => {
     await expect(field(page, 'Nombre(s)')).toHaveAttribute('aria-invalid', 'true');
     await expect(page.getByText('Escribe tu nombre.', { exact: true })).toBeVisible();
     await expect(page.getByText('Escribe tu teléfono celular.', { exact: true })).toBeVisible();
+    await expect(page.getByText('Escribe tu fecha de nacimiento.', { exact: true })).toBeVisible();
+    await expect(field(page, 'Fecha de nacimiento')).toHaveAttribute('type', 'date');
+    await expect(page.locator('details')).not.toContainText('Fecha de nacimiento');
     await expect(page).toHaveURL(step('datos'));
 
     await field(page, 'Nombre(s)').fill('Ana');
     await field(page, 'Primer apellido').fill('López');
     await field(page, 'Correo electrónico').fill('ana@ejemplo');
     await field(page, 'Teléfono celular').fill('331234');
+    await page.getByRole('button', { name: 'Revisar compra' }).click();
+    await expect(field(page, 'Fecha de nacimiento')).toBeFocused();
+    await field(page, 'Fecha de nacimiento').fill('2001-04-09');
     await page.getByRole('button', { name: 'Revisar compra' }).click();
     await expect(field(page, 'Correo electrónico')).toBeFocused();
     await expect(
@@ -156,7 +163,6 @@ test.describe('public buyer data', () => {
     await field(page, 'Segundo').fill('Ruiz');
     await page.getByText('Más datos (opcional): ciudad, Instagram, nivel').click();
     await field(page, /^Ciudad/).fill('Guadalajara');
-    await field(page, /^Fecha de nacimiento/).fill('2001-04-09');
     await expect
       .poll(() => page.evaluate((key) => sessionStorage.getItem(key), draftKey))
       .toMatch(/Guadalajara/);
@@ -165,6 +171,7 @@ test.describe('public buyer data', () => {
     await expect(field(page, 'Nombre(s)')).toHaveValue('Ana');
     await expect(field(page, 'Segundo')).toHaveValue('Ruiz');
     await expect(field(page, 'Teléfono celular')).toHaveValue('33 1234 5678');
+    await expect(field(page, 'Fecha de nacimiento')).toHaveValue('2001-04-09');
     await page.getByRole('link', { name: 'Atrás' }).click();
     await expect(page).toHaveURL(step('categorias'));
     await expect(page.getByRole('button', { name: 'Breaking Bboy' })).toHaveAttribute(

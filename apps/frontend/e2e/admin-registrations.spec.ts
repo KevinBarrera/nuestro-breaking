@@ -39,6 +39,7 @@ async function fillRequired(page: Page, phone = '33 1234 5678') {
   await field(page, 'Primer apellido').fill('López');
   await field(page, 'Correo electrónico').fill('ana@example.org');
   await field(page, 'Teléfono celular').fill(phone);
+  await form(page).getByLabel('Fecha de nacimiento').fill('1999-05-14');
 }
 
 const register = (page: Page) =>
@@ -50,6 +51,7 @@ const expectedBody = {
   firstLastName: 'López',
   email: 'ana@example.org',
   phone: '+52 3312345678',
+  birthDate: '1999-05-14',
 };
 
 test('lists the roster, filters by status, searches live and opens one', async ({ page }) => {
@@ -490,15 +492,26 @@ test('focuses the first invalid field and opens Más datos for its errors', asyn
   await register(page);
   await expect(field(page, 'Nombre(s)')).toBeFocused();
   await expect(form(page).getByText('Escribe el nombre.')).toHaveCount(2);
+  await expect(form(page).getByText('Escribe la fecha de nacimiento.')).toHaveCount(2);
   await expect(page.getByRole('alert')).toContainText('Revisa estos datos:');
+  const who = form(page).getByRole('region', { name: '¿Quién se inscribe?' });
+  await expect(who.getByLabel('Fecha de nacimiento')).toBeVisible();
 
   await fillRequired(page);
-  await form(page).locator('summary').click();
   await form(page).getByLabel('Fecha de nacimiento').fill('2999-01-01');
-  await form(page).locator('summary').click();
   await register(page);
   await expect(form(page).getByLabel('Fecha de nacimiento')).toBeFocused();
   await expect(form(page).getByText('La fecha no puede ser futura.').first()).toBeVisible();
+
+  await form(page).getByLabel('Fecha de nacimiento').fill('1999-05-14');
+  await form(page).locator('summary').click();
+  await form(page)
+    .getByLabel(/^Instagram/)
+    .fill('b girl');
+  await form(page).locator('summary').click();
+  await register(page);
+  await expect(form(page).getByLabel(/^Instagram/)).toBeFocused();
+  await expect(form(page).getByText('Escribe el usuario sin espacios.').first()).toBeVisible();
   expect(creates).toHaveLength(0);
 });
 

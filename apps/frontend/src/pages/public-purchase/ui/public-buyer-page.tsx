@@ -52,7 +52,6 @@ const fieldSetup: Record<BuyerField, FieldSetup> = {
   level: { label: buyerFieldLabels.level, optional: true, autoComplete: 'off' },
   birthDate: {
     label: buyerFieldLabels.birthDate,
-    optional: true,
     type: 'date',
     autoComplete: 'bday',
   },
@@ -159,7 +158,10 @@ export function PublicBuyerPage() {
             {input('firstLastName')}
             {input('secondLastName')}
           </div>
-          {input('stageName')}
+          <div className="grid grid-cols-2 gap-3 *:min-w-0">
+            {input('birthDate')}
+            {input('stageName')}
+          </div>
           {input('email')}
           <div className="flex flex-col gap-1">
             <fieldset>
@@ -195,7 +197,6 @@ export function PublicBuyerPage() {
               {input('city')}
               {input('instagram')}
               {input('level')}
-              {input('birthDate')}
             </div>
           </details>
         </main>

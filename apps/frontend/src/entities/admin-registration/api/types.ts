@@ -54,12 +54,12 @@ export type ManualRegistrationInput = {
   firstLastName: string;
   email: string;
   phone: string;
+  birthDate: string;
   secondLastName?: string | null;
   stageName?: string | null;
   city?: string | null;
   instagram?: string | null;
   level?: string | null;
-  birthDate?: string | null;
 };
 
 export type ManualRegistration = {

@@ -46,6 +46,7 @@ async function seedDraft(page: Page, buyer: Record<string, string> = {}) {
       stageName: 'B-girl Ana',
       email: 'ana@ejemplo.com',
       phone: '33 1234 5678',
+      birthDate: '2000-02-29',
       ...buyer,
     },
   });
@@ -85,6 +86,7 @@ test.describe('public review and pay', () => {
     await page.getByLabel(/^AKA/).fill('B-girl Ana');
     await page.getByLabel('Correo electrónico').fill('ana@ejemplo.com');
     await page.getByLabel('Teléfono celular').fill('33 1234 5678');
+    await page.getByLabel('Fecha de nacimiento').fill('2000-02-29');
     await page.getByRole('button', { name: 'Revisar compra' }).click();
 
     await expect(page).toHaveURL(step('revisar'));
@@ -160,6 +162,7 @@ test.describe('public review and pay', () => {
         stageName: 'B-girl Ana',
         email: 'ana@ejemplo.com',
         phone: '+52 3312345678',
+        birthDate: '2000-02-29',
       },
       passes: [
         { passTypeId: 'breaking', selectedActivityIds: ['breaking-0', 'breaking-2'] },

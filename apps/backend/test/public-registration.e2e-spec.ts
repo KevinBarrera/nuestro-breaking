@@ -274,6 +274,7 @@ describe('public registration (e2e)', () => {
         'buyer.firstLastName': 'required',
         'buyer.email': 'required',
         'buyer.phone': 'required',
+        'buyer.birthDate': 'required',
         passes: 'required',
       },
     });

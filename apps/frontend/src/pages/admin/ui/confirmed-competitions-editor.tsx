@@ -12,6 +12,7 @@ import {
   type SelectionChangeFailure,
 } from './confirmed-competitions-model';
 import { CorrectionDialog, OptionCheckbox, ReasonField, ReloadAlert } from './correction-dialog';
+import { groupByKind } from './activity-kind-groups';
 import { toggleCompetition, type SaleCompetitionPass } from './sale-competitions-model';
 
 type CompetitionsDialogProps = {
@@ -25,7 +26,7 @@ type CompetitionsDialogProps = {
 
 type Sent = { activityIds: string[]; reason: string };
 
-// "Editar categorías" of one held pass on a confirmed registration (#170, #345): the new list
+// "Editar actividades" (#410) of one held pass on a confirmed registration (#170, #345): the new list
 // and the required reason, reviewed before the PUT. A failure keeps the draft; one that needs a
 // reload only offers "Recargar", so a lost answer is never sent twice.
 export function CompetitionsDialog({
@@ -99,8 +100,8 @@ export function CompetitionsDialog({
 
   return (
     <CorrectionDialog
-      title="Editar categorías"
-      description={`De «${pass.name}». Marca las categorías en las que participa.`}
+      title="Editar actividades"
+      description={`De «${pass.name}». Marca las actividades en las que participa.`}
       formId={formId}
       reviewing={sent !== null}
       rows={sent ? selectionChangeRows(pass, draft) : []}
@@ -116,7 +117,7 @@ export function CompetitionsDialog({
           />
         )
       }
-      confirmLabel="Guardar categorías"
+      confirmLabel="Guardar actividades"
       pending={pending}
       locked={!!failure?.reload}
       onBack={() => setSent(null)}
@@ -128,33 +129,40 @@ export function CompetitionsDialog({
         noValidate
         onSubmit={review}
         className="space-y-4"
-        aria-label={`Editar categorías de «${pass.name}»`}
+        aria-label={`Editar actividades de «${pass.name}»`}
       >
         <fieldset
           aria-describedby={selectionError ? selectionErrorId : undefined}
           className="flex flex-col gap-0.5 rounded-lg border border-line p-1"
         >
-          <legend className="sr-only">Categorías</legend>
-          {pass.choices.map((choice) => (
-            <OptionCheckbox
-              key={choice.activityId}
-              label={choice.name}
-              note={choice.available ? undefined : 'Ya no está disponible para este pase.'}
-              tag={pass.saved.includes(choice.activityId) ? 'Actual' : undefined}
-              checked={draft.includes(choice.activityId)}
-              disabled={!choice.available && !draft.includes(choice.activityId)}
-              onChange={() => {
-                setDraft((current) => toggleCompetition(current, choice.activityId));
-                setSelectionError(undefined);
-              }}
-            />
+          <legend className="sr-only">Actividades</legend>
+          {groupByKind(pass.choices, (choice) => choice.kind ?? '').map((group) => (
+            <div key={group.label} role="group" aria-label={group.label} className="flex flex-col">
+              <span className="px-2 pt-1.5 pb-0.5 text-xs font-semibold text-muted">
+                {group.label}
+              </span>
+              {group.items.map((choice) => (
+                <OptionCheckbox
+                  key={choice.activityId}
+                  label={choice.name}
+                  note={choice.available ? undefined : 'Ya no está disponible para este pase.'}
+                  tag={pass.saved.includes(choice.activityId) ? 'Actual' : undefined}
+                  checked={draft.includes(choice.activityId)}
+                  disabled={!choice.available && !draft.includes(choice.activityId)}
+                  onChange={() => {
+                    setDraft((current) => toggleCompetition(current, choice.activityId));
+                    setSelectionError(undefined);
+                  }}
+                />
+              ))}
+            </div>
           ))}
         </fieldset>
         {selectionError ? <FieldError id={selectionErrorId}>{selectionError}</FieldError> : null}
         <ReasonField
           id={reasonId}
           value={reason}
-          placeholder="Ej. Pidió cambiar de categoría en mesa"
+          placeholder="Ej. Pidió cambiar de actividad en mesa"
           error={reasonError}
           onChange={(value) => {
             setReason(value);

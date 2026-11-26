@@ -71,7 +71,7 @@ export const selectionChangeRows = (
 ): ChangeRow[] => [
   {
     key: 'competitions',
-    label: 'Categorías',
+    label: 'Actividades',
     before: namesOf(pass, pass.saved),
     after: namesOf(pass, draft),
   },

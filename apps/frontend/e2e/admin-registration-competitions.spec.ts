@@ -150,7 +150,7 @@ test('explains a rejected selection and reloads only when asked', async ({ page 
 
   const alert = passStep(page).getByRole('alert');
   await expect(alert).toContainText(
-    'Alguna categoría ya no está disponible para este pase. Recarga para ver las categorías actuales.',
+    'Alguna actividad ya no está disponible para este pase. Recarga para ver las actividades actuales.',
   );
   expect(sent.selections.map((selection) => selection.body)).toEqual([
     { activityIds: [saleActivities.popping2.id] },

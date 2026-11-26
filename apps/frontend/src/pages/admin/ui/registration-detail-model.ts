@@ -61,8 +61,8 @@ const otherChosen = 'Actividades elegidas';
 // The activities of a held pass as chip groups (#345, #405): by kind, then the active ones its type
 // includes (by start) apart from the chosen ones, since included ones are access, not a choice
 // (#277). A pass with something to choose and nothing chosen says so; null hides the block.
-// Without the activities only the number chosen is known. Like `passCompetitionLines`, an unknown
-// pass type keeps its selections.
+// Without the activities only the number chosen is known. An unknown pass type keeps its
+// selections.
 export function heldPassActivities(
   pass: HeldPass,
   passTypes: readonly CatalogPassType[] | null,

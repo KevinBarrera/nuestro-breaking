@@ -7,6 +7,7 @@ import {
   type PassClass,
   type RequiredPassClass,
 } from '@/entities/event-catalog';
+import { groupByKind } from './activity-kind-groups';
 import type { RegistrationContact } from './registration-model';
 import { cashFormErrors } from './sale-cash-model';
 
@@ -15,7 +16,7 @@ import { cashFormErrors } from './sale-cash-model';
 // (add, remove, competitions), and the cash step confirms it. The backend stays the authority on
 // every rule; these mirror them only to guide the operator.
 
-export type StepperChoice = { activityId: string; name: string };
+export type StepperChoice = { activityId: string; name: string; kind: string };
 
 export type StepperPass = {
   passTypeId: string;
@@ -23,9 +24,9 @@ export type StepperPass = {
   passClass: PassClass;
   priceCents: number;
   requiresPassClass: RequiredPassClass | null;
-  // Active competitions the type includes, by start.
+  // Active activities of any kind the type includes, by start (#410).
   included: string[];
-  // Active competitions to choose, by start.
+  // Active activities of any kind to choose, by start (#410).
   choices: StepperChoice[];
 };
 
@@ -40,9 +41,7 @@ export function stepperPasses(
   passTypes: readonly CatalogPassType[],
   activities: readonly CatalogActivity[],
 ): StepperPasses {
-  const competitions = activities
-    .filter((activity) => activity.kind === 'competition' && activity.status === 'active')
-    .sort(byStart);
+  const active = activities.filter((activity) => activity.status === 'active').sort(byStart);
   const toPass = (passType: CatalogPassType): StepperPass => {
     const access = new Map(passType.activities.map((link) => [link.activityId, link.access]));
     return {
@@ -51,26 +50,29 @@ export function stepperPasses(
       passClass: passType.passClass,
       priceCents: passType.priceCents,
       requiresPassClass: passType.requiresPassClass,
-      included: competitions
+      included: active
         .filter((activity) => access.get(activity.id) === 'included')
         .map((activity) => activity.name),
-      choices: competitions
+      choices: active
         .filter((activity) => access.get(activity.id) === 'selectable')
-        .map((activity) => ({ activityId: activity.id, name: activity.name })),
+        .map((activity) => ({ activityId: activity.id, name: activity.name, kind: activity.kind })),
     };
   };
-  const active = passTypes.filter((passType) => passType.status === 'active').map(toPass);
+  const passes = passTypes.filter((passType) => passType.status === 'active').map(toPass);
   return {
-    bases: active.filter((pass) => pass.passClass !== 'add_on'),
-    addOns: active.filter((pass) => pass.passClass === 'add_on'),
+    bases: passes.filter((pass) => pass.passClass !== 'add_on'),
+    addOns: passes.filter((pass) => pass.passClass === 'add_on'),
   };
 }
 
-// The line under a pass's name in the pass step.
+// The line under a pass's name in the pass step: the kind to choose when there is one (#410).
 export function passIncludes(pass: StepperPass): string {
-  if (pass.choices.length > 0) return 'Categorías a elegir';
+  if (pass.choices.length > 0) {
+    const groups = groupByKind(pass.choices, (choice) => choice.kind);
+    return `${groups.length === 1 ? groups[0].label : 'Actividades'} a elegir`;
+  }
   if (pass.included.length > 0) return pass.included.join(', ');
-  return pass.passClass === 'general' ? 'Solo entrada al evento, sin categorías' : 'Sin categorías';
+  return pass.passClass === 'general' ? 'Solo entrada al evento' : 'Sin actividades';
 }
 
 const requiredNames: Record<RequiredPassClass, string> = {
@@ -98,7 +100,7 @@ export function addOnState(
   };
 }
 
-// The pass step's choice: one base pass, its add-ons and the competitions of each, by pass type.
+// The pass step's choice: one base pass, its add-ons and the activities of each, by pass type.
 export type PassDraft = {
   baseId: string | null;
   addOnIds: string[];
@@ -191,7 +193,7 @@ export function passPlan(held: readonly HeldPass[], draft: PassDraft): PassPlan 
 
 export type CobroLine = { key: string; name: string; detail: string; priceCents: number };
 
-// The cash step's summary: each held pass with its competitions and the price it was charged.
+// The cash step's summary: each held pass with its activities and the price it was charged.
 export function cobroLines(held: readonly HeldPass[], options: StepperPasses): CobroLine[] {
   return held.map((pass) => {
     const type = findPass(options, pass.passTypeId);
@@ -199,12 +201,12 @@ export function cobroLines(held: readonly HeldPass[], options: StepperPasses): C
       .filter((choice) => pass.selections.includes(choice.activityId))
       .map((choice) => choice.name);
     const missing = pass.selections.length - chosen.length;
-    const names = [...chosen, ...Array<string>(missing).fill('Categoría no disponible')];
+    const names = [...chosen, ...Array<string>(missing).fill('Actividad no disponible')];
     let detail: string;
     if (names.length > 0) detail = names.join(', ');
     else if (type && type.included.length > 0) detail = type.included.join(', ');
     else if (pass.passClass === 'general') detail = 'Entrada al evento';
-    else detail = 'Sin categorías elegidas';
+    else detail = 'Sin actividades elegidas';
     return { key: pass.registrationPassId, name: pass.name, detail, priceCents: pass.priceCents };
   });
 }
@@ -232,7 +234,7 @@ export const stepperSteps = (current: 1 | 2 | 3): StepperStep[] =>
     state: index + 1 < current ? 'done' : index + 1 === current ? 'current' : 'pending',
   }));
 
-// A pass's competitions as the PUT sends them: in the order shown, only the ones still offered.
+// A pass's activities as the PUT sends them: in choice order, only the ones still offered.
 // A saved choice that is no longer selectable is dropped instead of being rejected again.
 export function selectionPayload(
   options: StepperPasses,

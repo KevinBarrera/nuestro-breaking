@@ -735,7 +735,7 @@ export const registrationSweepCases: {
       await overrideRoute(page, '/activities', [activity]);
     },
     ready: async (page) => {
-      await page.getByRole('button', { name: /^Editar categorías de/ }).click();
+      await page.getByRole('button', { name: /^Editar actividades de/ }).click();
       await page.getByRole('textbox', { name: 'Motivo' }).waitFor();
     },
   },

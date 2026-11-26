@@ -40,15 +40,16 @@ const catalog = {
 
 const passes = (page: Page) => page.getByRole('region', { name: 'Pases' });
 const editor = (page: Page) =>
-  page.getByRole('form', { name: 'Editar categorías de «Pase completo»' });
+  page.getByRole('form', { name: 'Editar actividades de «Pase completo»' });
 const reason = (page: Page) => editor(page).getByRole('textbox', { name: 'Motivo' });
 const dialog = (page: Page) => page.getByRole('dialog');
 const reviewButton = (page: Page) => dialog(page).getByRole('button', { name: 'Revisar cambios' });
-const saveButton = (page: Page) => dialog(page).getByRole('button', { name: 'Guardar categorías' });
+const saveButton = (page: Page) =>
+  dialog(page).getByRole('button', { name: 'Guardar actividades' });
 
 async function openEditor(page: Page) {
   await page.goto(registrationPath(registrationId));
-  await passes(page).getByRole('button', { name: 'Editar categorías de «Pase completo»' }).click();
+  await passes(page).getByRole('button', { name: 'Editar actividades de «Pase completo»' }).click();
 }
 
 test('changes the competitions of a confirmed registration with a reason', async ({ page }) => {
@@ -62,32 +63,32 @@ test('changes the competitions of a confirmed registration with a reason', async
   await editor(page).getByText('Popping 1 vs 1').click();
   await editor(page).getByText('Breaking 1 vs 1').click();
   await expect(editor(page).getByText('Actual')).toHaveCount(1);
-  await reason(page).fill('  Pidió cambiar de categoría en mesa  ');
+  await reason(page).fill('  Pidió cambiar de actividad en mesa  ');
   await reviewButton(page).click();
 
   await expect(dialog(page)).toContainText('Paso 2 de 2 · Revisión');
   await expect(dialog(page).getByRole('table', { name: 'Cambios' }).getByRole('row')).toHaveText([
     'DatoAntesDespués',
-    'CategoríasPopping 1 vs 1Breaking 1 vs 1',
+    'ActividadesPopping 1 vs 1Breaking 1 vs 1',
   ]);
-  await expect(dialog(page)).toContainText('Pidió cambiar de categoría en mesa');
+  await expect(dialog(page)).toContainText('Pidió cambiar de actividad en mesa');
   expect(selections).toHaveLength(0);
   // Two quick clicks send one PUT.
   await saveButton(page).dblclick();
 
   await expect(passes(page).getByRole('status')).toHaveText(
-    'Se cambiaron las categorías de «Pase completo».',
+    'Se cambiaron las actividades de «Pase completo».',
   );
   await expect(passes(page)).toContainText('Breaking 1 vs 1');
   await expect(dialog(page)).toHaveCount(0);
   await expect(
-    passes(page).getByRole('button', { name: 'Editar categorías de «Pase completo»' }),
+    passes(page).getByRole('button', { name: 'Editar actividades de «Pase completo»' }),
   ).toBeFocused();
   expect(selections).toEqual([
     {
       registrationId,
       registrationPassId: heldPass.registrationPassId,
-      body: { activityIds: [breaking.id], reason: 'Pidió cambiar de categoría en mesa' },
+      body: { activityIds: [breaking.id], reason: 'Pidió cambiar de actividad en mesa' },
       csrf: 'csrf-token',
     },
   ]);
@@ -157,7 +158,7 @@ test('a failed change shows an alert and keeps the draft', async ({ page }) => {
   await saveButton(page).click();
 
   await expect(editor(page).getByRole('alert')).toHaveText(
-    'No pudimos guardar las categorías. Intenta de nuevo.',
+    'No pudimos guardar las actividades. Intenta de nuevo.',
   );
   await expect(reason(page)).toHaveValue('Cambio en mesa');
   await expect(editor(page).getByRole('checkbox', { name: 'Breaking 1 vs 1' })).toBeChecked();
@@ -178,4 +179,37 @@ test('a voided registration offers no competition changes', async ({ page }) => 
   await expect(page.getByText('Inscripción anulada', { exact: true })).toBeVisible();
   await expect(passes(page)).toContainText('Popping 1 vs 1');
   await expect(passes(page).getByRole('button')).toHaveCount(0);
+});
+
+test('lists a chosen workshop under "Talleres", apart from the competitions (#410)', async ({
+  page,
+}) => {
+  const footwork = {
+    ...catalogActivity(
+      'b3b2c3d4-1234-4567-89ab-123456789abc',
+      'Workshop intensivo de footwork',
+      '2026-11-14T12:00:00Z',
+    ),
+    kind: 'workshop',
+  };
+  const withWorkshop = {
+    ...full,
+    activities: [...full.activities, { activityId: footwork.id, access: 'selectable' }],
+  };
+  await mockRegistrations(page, {
+    entitlements: () => confirmed([footwork.id]),
+    passTypes: () => ({ json: [withWorkshop] }),
+    activities: () => ({ json: [breaking, popping, footwork] }),
+  });
+  await openEditor(page);
+
+  await expect(dialog(page).getByRole('heading', { name: 'Editar actividades' })).toBeVisible();
+  await expect(
+    editor(page).getByRole('group', { name: 'Categorías' }).getByRole('checkbox'),
+  ).toHaveCount(2);
+  await expect(
+    editor(page)
+      .getByRole('group', { name: 'Talleres' })
+      .getByRole('checkbox', { name: /^Workshop intensivo de footwork/ }),
+  ).toBeChecked();
 });

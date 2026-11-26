@@ -278,7 +278,7 @@ function RegistrationScreen({
                       type="button"
                       disabled={correctionsLocked}
                       className={buttonClass('secondary')}
-                      aria-label={`Editar categorías de «${pass.name}»`}
+                      aria-label={`Editar actividades de «${pass.name}»`}
                       onClick={(event) =>
                         openCorrection(
                           {
@@ -290,8 +290,8 @@ function RegistrationScreen({
                       }
                     >
                       {editablePasses.length > 1
-                        ? `Editar categorías de ${pass.name}`
-                        : 'Editar categorías'}
+                        ? `Editar actividades de ${pass.name}`
+                        : 'Editar actividades'}
                     </button>
                   ))}
                 </>
@@ -408,7 +408,7 @@ function RegistrationScreen({
                 pass={editingPass}
                 onSaved={corrected(
                   'passes',
-                  `Se cambiaron las categorías de «${editingPass.name}».`,
+                  `Se cambiaron las actividades de «${editingPass.name}».`,
                 )}
                 onReload={reload}
                 onClose={closeCorrection}

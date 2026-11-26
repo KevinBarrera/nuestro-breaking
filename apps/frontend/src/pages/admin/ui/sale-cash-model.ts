@@ -165,14 +165,14 @@ const viewModes: Record<RegistrationStatus, RegistrationViewMode> = {
 
 export const registrationViewMode = (status: RegistrationStatus) => viewModes[status];
 
-// The competitions a held pass selected, by name; a count when the activities are unreadable.
+// The activities a held pass selected, by name; a count when the activities are unreadable.
 export function selectionSummary(
   selections: readonly string[],
   activities: readonly CatalogActivity[] | null,
 ): string {
-  if (selections.length === 0) return 'Sin categorías';
+  if (selections.length === 0) return 'Sin actividades';
   if (!activities)
-    return selections.length === 1 ? '1 categoría' : `${selections.length} categorías`;
+    return selections.length === 1 ? '1 actividad' : `${selections.length} actividades`;
   const names = new Map(activities.map((activity) => [activity.id, activity.name]));
-  return selections.map((id) => names.get(id) ?? 'Categoría no disponible').join(', ');
+  return selections.map((id) => names.get(id) ?? 'Actividad no disponible').join(', ');
 }

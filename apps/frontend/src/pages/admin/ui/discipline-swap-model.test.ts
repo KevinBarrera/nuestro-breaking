@@ -137,8 +137,18 @@ describe('disciplineSwapOptions', () => {
           priceCents: 80000,
           // Active selectable competitions by start time; included workshops are not choices.
           choices: [
-            { activityId: 'popping-2v2', name: 'Popping 2vs2', available: true },
-            { activityId: 'popping-1v1', name: 'Popping 1vs1', available: true },
+            {
+              activityId: 'popping-2v2',
+              name: 'Popping 2vs2',
+              kind: 'competition',
+              available: true,
+            },
+            {
+              activityId: 'popping-1v1',
+              name: 'Popping 1vs1',
+              kind: 'competition',
+              available: true,
+            },
           ],
         },
       ],
@@ -216,7 +226,7 @@ describe('disciplineSwapRows', () => {
       { key: 'pass', label: 'Pase', before: 'Breaking', after: 'Popping' },
       {
         key: 'competitions',
-        label: 'Categorías',
+        label: 'Actividades',
         before: 'Breaking 1vs1',
         after: 'Popping 1vs1',
       },
@@ -224,7 +234,7 @@ describe('disciplineSwapRows', () => {
     expect(disciplineSwapRows({ ...options.from, selected: null }, options.targets[0], [])).toEqual(
       [
         { key: 'pass', label: 'Pase', before: 'Breaking', after: 'Popping' },
-        { key: 'competitions', label: 'Categorías', before: 'Ninguna', after: 'Ninguna' },
+        { key: 'competitions', label: 'Actividades', before: 'Ninguna', after: 'Ninguna' },
       ],
     );
   });
@@ -282,7 +292,7 @@ describe('disciplineSwapFailure', () => {
       ],
       [
         'invalid_activity_selection',
-        'Alguna categoría ya no está disponible para ese pase. Recarga para ver las categorías actuales.',
+        'Alguna actividad ya no está disponible para ese pase. Recarga para ver las actividades actuales.',
       ],
       ['registration_not_pending', 'La inscripción cambió. Recarga para ver su estado.'],
     ] as const;

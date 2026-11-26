@@ -230,22 +230,22 @@ describe('registrationViewMode', () => {
 describe('selectionSummary', () => {
   const activities = [activity('act-1', 'Breaking 1 vs 1'), activity('act-2', 'Popping')];
 
-  it('names the selected competitions in the saved order', () => {
+  it('names the selected activities in the saved order', () => {
     expect(selectionSummary(['act-2', 'act-1'], activities)).toBe('Popping, Breaking 1 vs 1');
   });
 
   it('marks a selection the catalog no longer lists', () => {
     expect(selectionSummary(['act-1', 'act-9'], activities)).toBe(
-      'Breaking 1 vs 1, Categoría no disponible',
+      'Breaking 1 vs 1, Actividad no disponible',
     );
   });
 
   it('counts the selections when the activities could not be read', () => {
-    expect(selectionSummary(['act-1'], null)).toBe('1 categoría');
-    expect(selectionSummary(['act-1', 'act-2'], null)).toBe('2 categorías');
+    expect(selectionSummary(['act-1'], null)).toBe('1 actividad');
+    expect(selectionSummary(['act-1', 'act-2'], null)).toBe('2 actividades');
   });
 
-  it('says when a pass has no competitions', () => {
-    expect(selectionSummary([], activities)).toBe('Sin categorías');
+  it('says when a pass has no activities', () => {
+    expect(selectionSummary([], activities)).toBe('Sin actividades');
   });
 });

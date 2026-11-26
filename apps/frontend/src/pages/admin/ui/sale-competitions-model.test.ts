@@ -8,14 +8,9 @@ import type { CatalogActivity, CatalogPassType, PassTypeActivity } from '@/entit
 import {
   competitionDraft,
   competitionsPayload,
-  effectiveDraft,
-  passCompetitionLines,
   saleCompetitionPasses,
   saveCompetitionsFailure,
   toggleCompetition,
-  unsavedCompetitionPasses,
-  unsavedCompetitionsHint,
-  withDraft,
   type SaleCompetitionPass,
 } from './sale-competitions-model';
 
@@ -90,8 +85,8 @@ describe('saleCompetitionPasses', () => {
         name: 'Pase full',
         saved: [],
         choices: [
-          { activityId: 'breaking', name: 'Breaking 1 vs 1', available: true },
-          { activityId: 'popping', name: 'Popping 1 vs 1', available: true },
+          { activityId: 'breaking', name: 'Breaking 1 vs 1', kind: 'competition', available: true },
+          { activityId: 'popping', name: 'Popping 1 vs 1', kind: 'competition', available: true },
         ],
       },
     ]);
@@ -111,81 +106,26 @@ describe('saleCompetitionPasses', () => {
     );
     expect(only.saved).toEqual(['archived', 'gone', 'popping']);
     expect(only.choices).toEqual([
-      { activityId: 'popping', name: 'Popping 1 vs 1', available: true },
-      { activityId: 'archived', name: 'Locking', available: false },
-      { activityId: 'gone', name: 'Categoría no disponible', available: false },
+      { activityId: 'popping', name: 'Popping 1 vs 1', kind: 'competition', available: true },
+      { activityId: 'archived', name: 'Locking', kind: 'competition', available: false },
+      { activityId: 'gone', name: 'Actividad no disponible', kind: null, available: false },
     ]);
   });
-});
 
-describe('passCompetitionLines', () => {
-  const included = (activityId: string): PassTypeActivity => ({ activityId, access: 'included' });
-  const styles = activity('styles', '2026-11-14T17:00:00Z', { name: 'Open Styles 1 vs 1' });
-  const kids = activity('kids', '2026-11-14T14:00:00Z', { name: 'Kids 1 vs 1' });
-  const retired = activity('retired', '2026-11-14T13:00:00Z', {
-    name: 'Locking',
-    status: 'archived',
-  });
-  const openStyles = passType('open', [
-    included('styles'),
-    included('kids'),
-    included('retired'),
-    included('workshop'),
-  ]);
-  // The shared `workshop` fixture is a competition; here it is a real workshop, so it is left out.
-  const catalog = [
-    popping,
-    breaking,
-    archived,
-    { ...workshop, kind: 'workshop' as const },
-    styles,
-    kids,
-    retired,
-  ];
-
-  it('lists the active included competitions by start time and no selection line', () => {
-    expect(passCompetitionLines(held('open'), [openStyles], catalog)).toEqual({
-      included: 'Kids 1 vs 1, Open Styles 1 vs 1',
-      selected: null,
+  it('lists a selectable workshop with its kind, not as a competition (#410)', () => {
+    const footwork = activity('footwork', '2026-11-14T11:00:00Z', {
+      name: 'Taller de footwork',
+      kind: 'workshop',
     });
-  });
-
-  it('summarizes the selections of a pass with selectable competitions', () => {
-    expect(passCompetitionLines(held('full', ['popping']), [full], catalog)).toEqual({
-      included: null,
-      selected: 'Popping 1 vs 1',
-    });
-    expect(passCompetitionLines(held('full'), [full], catalog)).toEqual({
-      included: null,
-      selected: 'Sin categorías',
-    });
-  });
-
-  it('keeps saved selections of a pass that no longer offers any', () => {
-    expect(passCompetitionLines(held('general', ['breaking']), [general], catalog)).toEqual({
-      included: null,
-      selected: 'Breaking 1 vs 1',
-    });
-    expect(passCompetitionLines(held('general'), [general], catalog)).toEqual({
-      included: null,
-      selected: null,
-    });
-  });
-
-  it('falls back to the selection summary when the catalog is unreadable', () => {
-    expect(passCompetitionLines(held('open'), null, catalog)).toEqual({
-      included: null,
-      selected: 'Sin categorías',
-    });
-    expect(passCompetitionLines(held('open', ['styles']), [openStyles], null)).toEqual({
-      included: null,
-      selected: '1 categoría',
-    });
-    // A pass type missing from the list is as unknown as an unreadable list.
-    expect(passCompetitionLines(held('missing'), [openStyles], catalog)).toEqual({
-      included: null,
-      selected: 'Sin categorías',
-    });
+    const [only] = saleCompetitionPasses(
+      [held('full', ['footwork'])],
+      [passType('full', [selectable('footwork'), selectable('popping')])],
+      [...activities, footwork],
+    );
+    expect(only.choices).toEqual([
+      { activityId: 'footwork', name: 'Taller de footwork', kind: 'workshop', available: true },
+      { activityId: 'popping', name: 'Popping 1 vs 1', kind: 'competition', available: true },
+    ]);
   });
 });
 
@@ -193,76 +133,6 @@ describe('toggleCompetition', () => {
   it('adds and removes one activity', () => {
     expect(toggleCompetition(['popping'], 'breaking')).toEqual(['popping', 'breaking']);
     expect(toggleCompetition(['popping', 'breaking'], 'popping')).toEqual(['breaking']);
-  });
-});
-
-describe('effectiveDraft', () => {
-  it('is the saved list until the operator changes something', () => {
-    expect(effectiveDraft({}, pass(['popping']))).toEqual(['popping']);
-    expect(effectiveDraft({ 'held-other': ['breaking'] }, pass(['popping']))).toEqual(['popping']);
-  });
-
-  it('keeps the pass draft even when a refresh brings a new saved list', () => {
-    expect(effectiveDraft({ 'held-full': ['breaking'] }, pass(['popping']))).toEqual(['breaking']);
-  });
-});
-
-describe('withDraft', () => {
-  it('records a draft only for the changed pass', () => {
-    const drafts = { 'held-other': ['breaking'] };
-    expect(withDraft(drafts, pass(), ['popping'])).toEqual({
-      'held-other': ['breaking'],
-      'held-full': ['popping'],
-    });
-    expect(drafts).toEqual({ 'held-other': ['breaking'] });
-  });
-
-  it('drops the draft once cleared or back to the saved list, in any order', () => {
-    const drafts = { 'held-full': ['popping'], 'held-other': ['breaking'] };
-    expect(withDraft(drafts, pass(), null)).toEqual({ 'held-other': ['breaking'] });
-    expect(withDraft(drafts, pass(['popping', 'breaking']), ['breaking', 'popping'])).toEqual({
-      'held-other': ['breaking'],
-    });
-  });
-});
-
-describe('unsavedCompetitionPasses', () => {
-  it('names the held passes whose draft differs from their saved list, in held order', () => {
-    const passes = [held('full', ['popping']), held('general'), held('extra', ['breaking'])];
-    expect(
-      unsavedCompetitionPasses(passes, {
-        'held-extra': ['popping'],
-        'held-general': [],
-        'held-full': ['breaking'],
-      }),
-    ).toEqual(['Pase full', 'Pase extra']);
-  });
-
-  it('ignores drafts back at the saved list and drafts of passes no longer held', () => {
-    expect(
-      unsavedCompetitionPasses([held('full', ['popping', 'breaking'])], {
-        'held-full': ['breaking', 'popping'],
-        'held-removed': ['popping'],
-      }),
-    ).toEqual([]);
-  });
-});
-
-describe('unsavedCompetitionsHint', () => {
-  it('is null without unsaved passes', () => {
-    expect(unsavedCompetitionsHint([])).toBeNull();
-  });
-
-  it('names every unsaved pass', () => {
-    expect(unsavedCompetitionsHint(['Pase completo'])).toBe(
-      'Guarda o descarta los cambios de categorías de «Pase completo» antes de confirmar.',
-    );
-    expect(unsavedCompetitionsHint(['A', 'B'])).toBe(
-      'Guarda o descarta los cambios de categorías de «A» y «B» antes de confirmar.',
-    );
-    expect(unsavedCompetitionsHint(['A', 'B', 'C'])).toBe(
-      'Guarda o descarta los cambios de categorías de «A», «B» y «C» antes de confirmar.',
-    );
   });
 });
 
@@ -289,7 +159,7 @@ describe('competitionDraft', () => {
     const [stale] = saleCompetitionPasses([held('full', ['archived'])], [access], activities);
     expect(competitionDraft(stale, ['archived', 'popping'])).toEqual({
       changed: true,
-      blocked: 'Desmarca las categorías que ya no están disponibles para guardar.',
+      blocked: 'Desmarca las actividades que ya no están disponibles para guardar.',
       canSave: false,
     });
     expect(competitionDraft(stale, ['popping']).canSave).toBe(true);
@@ -312,7 +182,7 @@ describe('saveCompetitionsFailure', () => {
       'no access',
       { kind: 'forbidden' },
       {
-        message: 'Sin acceso: tu cuenta no puede cambiar categorías en este evento.',
+        message: 'Sin acceso: tu cuenta no puede cambiar actividades en este evento.',
         reload: false,
       },
     ],
@@ -321,7 +191,7 @@ describe('saveCompetitionsFailure', () => {
       { kind: 'unknown' },
       {
         message:
-          'No pudimos confirmar si se guardaron las categorías. Recarga la inscripción antes de intentarlo de nuevo.',
+          'No pudimos confirmar si se guardaron las actividades. Recarga la inscripción antes de intentarlo de nuevo.',
         reload: true,
       },
     ],
@@ -330,7 +200,7 @@ describe('saveCompetitionsFailure', () => {
       { kind: 'rule', code: 'invalid_activity_selection' },
       {
         message:
-          'Alguna categoría ya no está disponible para este pase. Recarga para ver las categorías actuales.',
+          'Alguna actividad ya no está disponible para este pase. Recarga para ver las actividades actuales.',
         reload: true,
       },
     ],
@@ -350,7 +220,7 @@ describe('saveCompetitionsFailure', () => {
     [
       'any other error',
       { kind: 'error' },
-      { message: 'No pudimos guardar las categorías. Intenta de nuevo.', reload: false },
+      { message: 'No pudimos guardar las actividades. Intenta de nuevo.', reload: false },
     ],
   ])('explains %s', (_, failure, expected) => {
     expect(saveCompetitionsFailure(failure)).toEqual(expected);

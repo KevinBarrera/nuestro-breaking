@@ -18,6 +18,7 @@ import {
   type SwapField,
   type SwapOptions,
 } from './discipline-swap-model';
+import { groupByKind } from './activity-kind-groups';
 import { toggleCompetition } from './sale-competitions-model';
 
 type DisciplineSwapDialogProps = {
@@ -60,6 +61,8 @@ export function DisciplineSwapDialog({
   const sending = useRef(false);
   const targets = options.status === 'ready' ? options.targets : [];
   const target = targets.find((candidate) => candidate.passTypeId === targetId) ?? null;
+  // Grouped by kind (#410); a single kind names the list ("Categorías de «X»").
+  const targetGroups = groupByKind(target?.choices ?? [], (choice) => choice.kind ?? '');
   const [focusTarget, setFocusTarget] = useState<{ field: SwapField } | null>(null);
   useEffect(() => {
     if (!focusTarget) return;
@@ -194,21 +197,36 @@ export function DisciplineSwapDialog({
           {target && (
             <fieldset>
               <legend className="text-sm font-semibold text-heading">
-                Categorías de «{target.name}»
+                {`${targetGroups.length === 1 ? targetGroups[0].label : 'Actividades'} de «${target.name}»`}
               </legend>
               {target.choices.length === 0 ? (
-                <p className="py-2 text-sm text-muted">Este pase no tiene categorías a elegir.</p>
+                <p className="py-2 text-sm text-muted">Este pase no tiene actividades a elegir.</p>
               ) : (
                 <div className="mt-1.5 flex flex-col gap-0.5 rounded-lg border border-line p-1">
-                  {target.choices.map((choice) => (
-                    <OptionCheckbox
-                      key={choice.activityId}
-                      label={choice.name}
-                      checked={draft.includes(choice.activityId)}
-                      onChange={() =>
-                        setDraft((current) => toggleCompetition(current, choice.activityId))
-                      }
-                    />
+                  {targetGroups.map((group) => (
+                    <div
+                      key={group.label}
+                      role="group"
+                      aria-label={group.label}
+                      className="flex flex-col"
+                    >
+                      {/* The legend already names a single kind. */}
+                      {targetGroups.length > 1 && (
+                        <span className="px-2 pt-1.5 pb-0.5 text-xs font-semibold text-muted">
+                          {group.label}
+                        </span>
+                      )}
+                      {group.items.map((choice) => (
+                        <OptionCheckbox
+                          key={choice.activityId}
+                          label={choice.name}
+                          checked={draft.includes(choice.activityId)}
+                          onChange={() =>
+                            setDraft((current) => toggleCompetition(current, choice.activityId))
+                          }
+                        />
+                      ))}
+                    </div>
                   ))}
                 </div>
               )}

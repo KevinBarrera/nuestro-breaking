@@ -194,7 +194,7 @@ test('opens a pending registration with its sale from the list', async ({ page }
   for (const name of ['Agregar pase', 'Categorías', 'Pago en efectivo'])
     await expect(page.getByRole('region', { name, exact: true })).toHaveCount(0);
   await expect(page.getByRole('region', { name: 'Pases' })).toContainText(
-    'Sin categorías elegidas.',
+    'Sin actividades elegidas.',
   );
 
   await sale.getByRole('link', { name: 'Continuar venta' }).click();

@@ -1,5 +1,10 @@
 import type { HeldPass } from '@/entities/admin-registration';
-import { formatMxn, type CatalogActivity, type CatalogPassType } from '@/entities/event-catalog';
+import {
+  formatMxn,
+  type ActivityKind,
+  type CatalogActivity,
+  type CatalogPassType,
+} from '@/entities/event-catalog';
 
 // Inscripción detail (#345): copy for the header and the summary strip.
 
@@ -36,40 +41,68 @@ export function cashDifference(totalCents: number, amountCents: number): CashDif
 const byStart = (left: CatalogActivity, right: CatalogActivity) =>
   left.startsAt.localeCompare(right.startsAt) || left.name.localeCompare(right.name, 'es');
 
-// The competitions of a held pass as chips (#345): the active ones its type includes (by start)
-// apart from the chosen ones, since included ones are access, not a choice (#277). `chosen` is null
-// when the pass has nothing to choose; null hides the block. Without the activities only the
-// number chosen is known. Like `passCompetitionLines`, an unknown pass type keeps its selections.
-export function heldPassCompetitions(
+export type ActivityGroup = {
+  label: string;
+  names: string[];
+  // Shown instead of the chips when the group is empty.
+  empty?: string;
+};
+
+// Kinds in display order, with the group label for each access (#405). "Categoría" means a
+// competition only (#385), so workshops and social activities get their own labels.
+const kindGroups: readonly { kind: ActivityKind; included: string; chosen: string }[] = [
+  { kind: 'competition', included: 'Categorías incluidas', chosen: 'Categorías elegidas' },
+  { kind: 'workshop', included: 'Talleres incluidos', chosen: 'Talleres elegidos' },
+  { kind: 'social', included: 'Sociales incluidas', chosen: 'Sociales elegidas' },
+];
+// Chosen activities whose kind is unknown, and the empty choice: neutral wording.
+const otherChosen = 'Actividades elegidas';
+
+// The activities of a held pass as chip groups (#345, #405): by kind, then the active ones its type
+// includes (by start) apart from the chosen ones, since included ones are access, not a choice
+// (#277). A pass with something to choose and nothing chosen says so; null hides the block.
+// Without the activities only the number chosen is known. Like `passCompetitionLines`, an unknown
+// pass type keeps its selections.
+export function heldPassActivities(
   pass: HeldPass,
   passTypes: readonly CatalogPassType[] | null,
   activities: readonly CatalogActivity[] | null,
-): { included: string[]; chosen: string[] | null } | { text: string } | null {
+): { groups: ActivityGroup[] } | { text: string } | null {
   const passType = passTypes?.find((candidate) => candidate.id === pass.passTypeId);
   const links = passType?.activities ?? [];
   const choosable =
     !passType || pass.selections.length > 0 || links.some((link) => link.access === 'selectable');
+  const noneChosen: ActivityGroup = {
+    label: otherChosen,
+    names: [],
+    empty: 'Sin actividades elegidas.',
+  };
   if (!activities) {
     const count = pass.selections.length;
-    if (count > 0) return { text: count === 1 ? '1 categoría' : `${count} categorías` };
-    return choosable ? { included: [], chosen: [] } : null;
+    if (count > 0) return { text: count === 1 ? '1 actividad' : `${count} actividades` };
+    return choosable ? { groups: [noneChosen] } : null;
   }
   const includedIds = new Set(
     links.filter((link) => link.access === 'included').map((link) => link.activityId),
   );
   const included = activities
-    .filter(
-      (activity) =>
-        activity.kind === 'competition' &&
-        activity.status === 'active' &&
-        includedIds.has(activity.id),
-    )
-    .sort(byStart)
-    .map((activity) => activity.name);
-  const names = new Map(activities.map((activity) => [activity.id, activity.name]));
-  const chosen = choosable
-    ? pass.selections.map((id) => names.get(id) ?? 'Categoría no disponible')
-    : null;
-  if (included.length === 0 && chosen === null) return null;
-  return { included, chosen };
+    .filter((activity) => activity.status === 'active' && includedIds.has(activity.id))
+    .sort(byStart);
+  const byId = new Map(activities.map((activity) => [activity.id, activity]));
+  const chosen = pass.selections.map((id) => byId.get(id));
+  const namesOf = (list: readonly (CatalogActivity | undefined)[], kind: ActivityKind) =>
+    list.flatMap((activity) => (activity?.kind === kind ? [activity.name] : []));
+  const groups: ActivityGroup[] = kindGroups.flatMap(({ kind, ...labels }) =>
+    [
+      { label: labels.included, names: namesOf(included, kind) },
+      { label: labels.chosen, names: namesOf(chosen, kind) },
+    ].filter((group) => group.names.length > 0),
+  );
+  const known = new Set<string>(kindGroups.map(({ kind }) => kind));
+  const others = chosen.flatMap((activity) =>
+    activity && known.has(activity.kind) ? [] : [activity?.name ?? 'Actividad no disponible'],
+  );
+  if (others.length > 0) groups.push({ label: otherChosen, names: others });
+  if (choosable && pass.selections.length === 0) groups.push(noneChosen);
+  return groups.length > 0 ? { groups } : null;
 }

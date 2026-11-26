@@ -81,14 +81,52 @@ test('the confirmed view tells included competitions apart from chosen ones', as
   // Included competitions are access, not a choice, so they never read as chosen (#277).
   const rows = page.getByRole('region', { name: 'Pases' }).getByRole('listitem');
   await expect(
-    rows.filter({ hasText: 'Pase completo' }).getByRole('list', { name: 'Categorías' }),
+    rows.filter({ hasText: 'Pase completo' }).getByRole('list', { name: 'Categorías elegidas' }),
   ).toHaveText('Breaking 1 vs 1');
   const addOnRow = rows.filter({ hasText: 'Open Styles' }).first();
   await expect(addOnRow.getByRole('list', { name: 'Categorías incluidas' })).toHaveText(
     'Open Styles 1 vs 1',
   );
-  await expect(addOnRow).not.toContainText('Sin categorías');
+  await expect(addOnRow).not.toContainText('Sin actividades');
   await expect(addOnRow).not.toContainText('Categorías elegidas');
+});
+
+test('the confirmed view labels each activity by its kind (#405)', async ({ page }) => {
+  const footwork = {
+    ...catalogActivity(
+      'b5b2c3d4-1234-4567-89ab-123456789abc',
+      'Workshop intensivo de footwork',
+      '2026-11-14T12:00:00Z',
+    ),
+    kind: 'workshop',
+  };
+  const passType = catalogPassType(heldPass.passTypeId, 'Pase completo', 'full', 150000, {
+    activities: [
+      { activityId: breaking.id, access: 'included' },
+      { activityId: footwork.id, access: 'selectable' },
+    ],
+  });
+  await mockRegistrations(page, {
+    entitlements: (id) => ({
+      json: {
+        registration: registrationSummary(id, { status: 'confirmed', folio: 'LMP-7K3Q' }),
+        passes: [{ ...heldPass, selections: [footwork.id] }],
+        accessibleActivityIds: [breaking.id, footwork.id],
+      },
+    }),
+    passTypes: () => ({ json: [passType] }),
+    activities: () => ({ json: [breaking, footwork] }),
+  });
+  await page.goto(registrationPath(registrationId));
+
+  const row = page.getByRole('region', { name: 'Pases' }).getByRole('listitem').first();
+  await expect(row.getByRole('list', { name: 'Categorías incluidas' })).toHaveText(
+    'Breaking 1 vs 1',
+  );
+  await expect(row.getByRole('list', { name: 'Talleres elegidos' })).toHaveText(
+    'Workshop intensivo de footwork',
+  );
+  await expect(row).not.toContainText('Categorías elegidas');
 });
 
 test('explains a rejected selection and reloads only when asked', async ({ page }) => {

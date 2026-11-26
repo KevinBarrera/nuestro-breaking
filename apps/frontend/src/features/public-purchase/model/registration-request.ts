@@ -103,8 +103,12 @@ const ruleMessages: Record<Exclude<RegistrationRuleCode, 'selection_unavailable'
 };
 
 // One Spanish sentence per failure, for notices on the purchase screens. `choices` names what the
-// buyer picked on step 2 when a pick stopped being available (#411).
-export function failureMessage(failure: PublicEventFailure, choices: ChoiceKind = 'mixed'): string {
+// buyer picked on step 2 when a pick stopped being available (#411); callers that do not know it
+// keep the competition wording they had before.
+export function failureMessage(
+  failure: PublicEventFailure,
+  choices: ChoiceKind = 'competition',
+): string {
   switch (failure.kind) {
     case 'not-found':
       return 'No encontramos este evento.';

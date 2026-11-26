@@ -58,7 +58,7 @@ export type PayFailure = { message: string; details: string[]; fix: PayFix | nul
 export function payFailure(
   failure: PublicEventFailure,
   phoneMode: PhoneMode = defaultPhoneMode,
-  choices: ChoiceKind = 'mixed',
+  choices: ChoiceKind = 'competition',
 ): PayFailure {
   const only = (message: string, fix: PayFix | null = null): PayFailure => ({
     message,

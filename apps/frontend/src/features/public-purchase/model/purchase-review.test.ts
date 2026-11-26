@@ -122,8 +122,12 @@ describe('payFailure', () => {
     expect(payFailure(failure, undefined, 'workshop').message).toBe(
       'Uno de tus talleres ya no está disponible. Vuelve a elegir tus talleres.',
     );
-    expect(payFailure(failure).message).toBe(
+    expect(payFailure(failure, undefined, 'mixed').message).toBe(
       'Una de tus actividades ya no está disponible. Vuelve a elegir tus actividades.',
+    );
+    // Callers that do not know the kind keep the copy they had before #411.
+    expect(payFailure(failure).message).toBe(
+      'Una de tus categorías ya no está disponible. Vuelve a elegir tus categorías.',
     );
   });
 

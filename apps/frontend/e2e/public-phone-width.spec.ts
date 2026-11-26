@@ -28,6 +28,7 @@ const draft = {
     stageName: 'B-girl Ana con un nombre artístico largo',
     email: 'ana.lopez.hernandez@ejemplo.com',
     phone: '33 1234 5678',
+    birthDate: '2000-02-29',
   },
 };
 

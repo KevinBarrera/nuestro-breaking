@@ -23,7 +23,7 @@ export type PublicRegistrationBuyer = {
   city: string | null;
   instagram: string | null;
   level: string | null;
-  birthDate: string | null;
+  birthDate: string;
 };
 
 export type RequestedPass = { passTypeId: string; selectedActivityIds: string[] };

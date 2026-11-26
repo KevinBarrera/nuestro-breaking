@@ -274,6 +274,7 @@ describe('public registration (e2e)', () => {
         'buyer.firstLastName': 'required',
         'buyer.email': 'required',
         'buyer.phone': 'required',
+        'buyer.birthDate': 'required',
         passes: 'required',
       },
     });
@@ -288,6 +289,29 @@ describe('public registration (e2e)', () => {
     });
     expect(await counts()).toEqual({ registrations: 0, passes: 0, audits: 0 });
   });
+
+  it.each([
+    ['missing', undefined],
+    ['null', null],
+    ['blank', '   '],
+  ])(
+    'rejects an otherwise valid buyer whose birth date is %s and writes nothing (#402)',
+    async (_case, birthDate) => {
+      const ids = await fixture();
+
+      const response = await register({
+        buyer: buyer({ birthDate }),
+        passes: [{ passTypeId: ids.full, selectedActivityIds: [ids.toprock, ids.footwork] }],
+      }).expect(400);
+
+      expect(response.body).toEqual({
+        statusCode: 400,
+        message: 'Invalid registration',
+        fieldErrors: { 'buyer.birthDate': 'required' },
+      });
+      expect(await counts()).toEqual({ registrations: 0, passes: 0, audits: 0 });
+    },
+  );
 
   it.each([
     [

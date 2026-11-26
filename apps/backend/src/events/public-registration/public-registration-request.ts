@@ -123,11 +123,11 @@ export function parseParticipantFields(
   }
   const level = text('level', MAX.level, false);
   // A long value is simply not a date, so the length bound never reports `too_long` here.
-  let birthDate = text('birthDate', 100, false);
+  let birthDate = text('birthDate', 100, true);
   if (birthDate !== null && (!isCalendarDate(birthDate) || birthDate < MIN_BIRTH_DATE))
     birthDate = reject('birthDate', 'invalid');
   else if (birthDate !== null && birthDate > today) birthDate = reject('birthDate', 'in_future');
-  if (!valid || !firstName || !firstLastName || !email || !phone) return null;
+  if (!valid || !firstName || !firstLastName || !email || !phone || !birthDate) return null;
   return {
     firstName,
     firstLastName,

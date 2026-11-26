@@ -55,6 +55,10 @@ each one means.
 | `ONLINE_SERVICE_CHARGE_FIXED_MXN`   | Placeholder `4.00`                                              |
 | `ONLINE_SERVICE_CHARGE_VAT_PERCENT` | `16`                                                            |
 
+- The `ONLINE_SERVICE_CHARGE_*` values are the rates exactly as Mercado Pago
+  publishes them, before VAT. The backend adds the VAT and rounds it the way
+  Mercado Pago does (#406), so a $2,000 purchase pays $2,089.26 and the seller
+  receives $2,000.00.
 - The test Access Token starts with `APP_USR-`. That is normal: Mercado Pago's
   Checkout Pro test credentials use the same prefix as live ones.
 - Only the Access Token is needed. Our flow does not use the Public Key.

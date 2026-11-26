@@ -95,7 +95,7 @@ export type RegistrationBuyer = {
   city?: string;
   instagram?: string;
   level?: string;
-  birthDate?: string;
+  birthDate: string;
 };
 
 export type RegistrationRequest = {

@@ -29,8 +29,8 @@ Code: `apps/backend/src/payments/status/`. The pure rules are `decidePaymentStat
     { "name": "Pase completo Breaking", "competitions": ["Popping 1v1", "Breaking 1v1"] },
     { "name": "Open Styles", "competitions": [] }
   ],
-  "serviceChargeCents": 9768,
-  "totalCents": 229818
+  "serviceChargeCents": 9772,
+  "totalCents": 229822
 }
 ```
 

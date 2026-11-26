@@ -50,12 +50,24 @@ describe('readServiceCharge', () => {
 
 describe('serviceChargeCents', () => {
   it.each([
-    // [price, charge]: total = (price + fixed × 1.16) / (1 − 3.49% × 1.16), rounded up to the cent.
-    [100_000, 4_703], // 1,047.0278… → 1,047.03
-    [280_000, 12_298], // 2,922.9736… → 2,922.98
-    [1, 484], // 4.8461… → 4.85
+    // [price, charge]: Mercado Pago rounds the rate with VAT up to 4.05% and the fixed fee with
+    // VAT to $4.64, then total = (price + 4.64) / (1 − 4.05%), rounded up to the cent (#406).
+    [50_000, 2_595], // 525.9406… → 525.95
+    [200_000, 8_926], // 2,089.2548… → 2,089.26
+    [100_000, 4_705], // 1,047.0453… → 1,047.05
+    [280_000, 12_303], // 2,923.0224… → 2,923.03
+    [1, 484], // 4.8462… → 4.85
   ])('grosses up a %p cent price to a %p cent charge', (price, charge) => {
     expect(serviceChargeCents(RATES, price)).toBe(charge);
+  });
+
+  it('rounds the rate with VAT up to a hundredth of a percent and the fixed fee up to the cent', () => {
+    // 3.5% × 1.16 = 4.06% exactly, so nothing rounds: total = (1,000 + 4.64) / 0.9594.
+    expect(serviceChargeCents({ ...RATES, rateBasisPoints: 350 }, 100_000)).toBe(4_716);
+    // $4.01 × 1.16 = $4.6516 → $4.66: total = (1,000 + 4.66) / 0.9594 = 1,047.1753… → 1,047.18.
+    expect(serviceChargeCents({ ...RATES, rateBasisPoints: 350, fixedCents: 401 }, 100_000)).toBe(
+      4_718,
+    );
   });
 
   it('charges only the fixed amount with VAT when the percentage is zero', () => {
@@ -67,16 +79,24 @@ describe('serviceChargeCents', () => {
     expect(serviceChargeCents(RATES, 0)).toBe(0);
   });
 
-  it('always leaves the organizer at least the full price after the fee', () => {
-    // What the organizer keeps, scaled by 10^8 so the check is exact integer math.
-    const scaledNet = (total: bigint) =>
-      total * 100_000_000n - total * 349n * 11_600n - 400n * 11_600n * 10_000n;
-    for (let price = 1; price <= 500_000; price += 997) {
-      const total = BigInt(price + serviceChargeCents(RATES, price));
-      const scaledPrice = BigInt(price) * 100_000_000n;
-      expect(scaledNet(total) >= scaledPrice).toBe(true);
-      // Rounded up to the nearest cent only: one cent less would leave the organizer short.
-      expect(scaledNet(total - 1n) < scaledPrice).toBe(true);
+  // Mercado Pago's fee as observed on staging (#406): round(total × 4.05% + $4.64) to the cent.
+  const mercadoPagoFeeCents = (total: number) =>
+    Number((BigInt(total) * 405n * 2n + 464n * 20_000n + 10_000n) / 20_000n);
+
+  it.each([
+    // [total charged, Mercado Pago fee] from the three staging payments in #406.
+    [52_594, 2_594],
+    [208_922, 8_925],
+    [280_000, 11_804],
+  ])('models the observed Mercado Pago fee on a %p cent payment as %p cents', (total, fee) => {
+    expect(mercadoPagoFeeCents(total)).toBe(fee);
+  });
+
+  it('leaves the organizer the price or one cent more after the Mercado Pago fee', () => {
+    for (let price = 1; price <= 1_000_000; price += 97) {
+      const total = price + serviceChargeCents(RATES, price);
+      const received = total - mercadoPagoFeeCents(total);
+      expect([price, price + 1]).toContain(received);
     }
   });
 });

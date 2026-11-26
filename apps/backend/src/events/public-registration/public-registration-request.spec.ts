@@ -15,6 +15,7 @@ const buyer = (overrides: Record<string, unknown> = {}) => ({
   firstLastName: 'López',
   email: 'ana@example.com',
   phone: '55 1234 5678',
+  birthDate: '2000-02-29',
   ...overrides,
 });
 const accepted = (overrides: Record<string, unknown> = {}) => ({
@@ -64,7 +65,7 @@ describe('parsePublicRegistrationRequest', () => {
           city: null,
           instagram: null,
           level: null,
-          birthDate: null,
+          birthDate: '2000-02-29',
         },
         passes: [{ passTypeId: PASS, selectedActivityIds: [] }],
         legalAcceptances: ACCEPTANCES,
@@ -111,6 +112,7 @@ describe('parsePublicRegistrationRequest', () => {
       'buyer.firstLastName': 'required',
       'buyer.email': 'required',
       'buyer.phone': 'required',
+      'buyer.birthDate': 'required',
       passes: 'required',
       legalAcceptances: 'required',
     });
@@ -122,6 +124,12 @@ describe('parsePublicRegistrationRequest', () => {
     expect(errorsOf(body({ buyer: buyer({ firstName: '  ', email: '' }) }))).toEqual({
       'buyer.firstName': 'required',
       'buyer.email': 'required',
+    });
+  });
+
+  it.each([undefined, null, '', '   '])('requires the birth date (%p)', (birthDate) => {
+    expect(errorsOf(body({ buyer: buyer({ birthDate }) }))).toEqual({
+      'buyer.birthDate': 'required',
     });
   });
 
@@ -301,6 +309,7 @@ describe('parseParticipantFields', () => {
           firstLastName: 'López',
           email: ' Ana@Example.COM ',
           phone: '5512345678',
+          birthDate: '2000-02-29',
         },
         TODAY,
         '',
@@ -316,7 +325,7 @@ describe('parseParticipantFields', () => {
       city: null,
       instagram: null,
       level: null,
-      birthDate: null,
+      birthDate: '2000-02-29',
     });
     expect(errors).toEqual({});
 

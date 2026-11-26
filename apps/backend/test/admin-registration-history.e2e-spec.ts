@@ -154,6 +154,7 @@ describe('admin registration history (e2e)', () => {
     firstLastName: 'Test',
     email: `person${n}@buyers.example`,
     phone: `55000000${String(n).padStart(2, '0')}`,
+    birthDate: '2000-01-15',
   });
 
   // Every operation type through the real admin routes, plus the public and system facts the

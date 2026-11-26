@@ -59,7 +59,7 @@ Buyer fields follow #58. Unknown keys are rejected at every level.
 | `city`                | No       | Trimmed, at most 100 characters.                                                                   |
 | `instagram`           | No       | At most 64 characters. Stored without leading `@`, lowercased; it cannot contain spaces.           |
 | `level`               | No       | Free text, at most 50 characters.                                                                  |
-| `birthDate`           | No       | `YYYY-MM-DD`, a real calendar date, from `1900-01-01` up to today (UTC).                           |
+| `birthDate`           | Yes      | `YYYY-MM-DD`, a real calendar date, from `1900-01-01` up to today (UTC). Required since #402.      |
 | `passes`              | Yes      | 1 to 10 items. Each `passTypeId` is a UUID and appears once.                                       |
 | `selectedActivityIds` | No       | Per pass: at most 20 unique activity UUIDs. Omitted or `null` means no selection.                  |
 | `legalAcceptances`    | Yes      | The accepted version of `rules`, `privacy` and `cancellation`; see [below](#legal-acceptance-180). |

@@ -110,6 +110,7 @@ describe('admin registration commands (e2e)', () => {
     firstLastName: 'Rivera',
     phone: ' 55 1234 4567 ',
     email: ' Alex@Example.com ',
+    birthDate: '1999-05-14',
   };
   // A valid #58 body for another person, distinct by name, email and phone.
   const person = (n: number) => ({
@@ -117,6 +118,7 @@ describe('admin registration commands (e2e)', () => {
     firstLastName: 'Test',
     email: `person${n}@example.com`,
     phone: `55000000${String(n).padStart(2, '0')}`,
+    birthDate: '2000-01-15',
   });
   type Match = {
     registrationId: string;
@@ -262,10 +264,11 @@ describe('admin registration commands (e2e)', () => {
         firstLastName: 'required',
         email: 'invalid',
         phone: 'invalid',
+        birthDate: 'required',
         fullName: 'unknown_field',
       },
     });
-    for (const missing of ['firstName', 'firstLastName', 'email', 'phone']) {
+    for (const missing of ['firstName', 'firstLastName', 'email', 'phone', 'birthDate']) {
       const body: Record<string, unknown> = { ...person(1) };
       delete body[missing];
       const response = await manual(event).set(headers(cookie)).send(body).expect(400);

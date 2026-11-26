@@ -68,7 +68,7 @@ const fieldSetup: Record<ParticipantField, FieldSetup> = {
   city: { label: participantFieldLabels.city, optional: true },
   instagram: { label: participantFieldLabels.instagram, optional: true, placeholder: '@usuario' },
   level: { label: participantFieldLabels.level, optional: true },
-  birthDate: { label: participantFieldLabels.birthDate, optional: true, type: 'date' },
+  birthDate: { label: participantFieldLabels.birthDate, type: 'date' },
 };
 
 const phoneSetup: Record<SalePhoneMode, { placeholder: string; hint: string }> = {
@@ -295,7 +295,10 @@ function NewRegistration({ eventId }: { eventId: string }) {
             {input('firstLastName')}
             {input('secondLastName')}
           </div>
-          {input('stageName')}
+          <div className="grid gap-4 *:min-w-0 @min-[641px]:grid-cols-2">
+            {input('birthDate')}
+            {input('stageName')}
+          </div>
         </section>
         <section
           aria-labelledby="registration-contact"
@@ -384,16 +387,13 @@ function NewRegistration({ eventId }: { eventId: string }) {
             </StepperIcon>
             <span className="flex-1">
               Más datos{' '}
-              <span className="font-normal text-muted">
-                (opcional) · ciudad, Instagram, nivel y fecha de nacimiento
-              </span>
+              <span className="font-normal text-muted">(opcional) · ciudad, Instagram y nivel</span>
             </span>
           </summary>
           <div className="grid gap-4 px-5 pb-5 *:min-w-0 sm:px-7 sm:pb-7 @min-[641px]:grid-cols-2">
             {input('city')}
             {input('instagram')}
             {input('level')}
-            {input('birthDate')}
           </div>
         </details>
         <StepperFooter

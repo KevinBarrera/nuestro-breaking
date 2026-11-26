@@ -404,7 +404,7 @@ export async function revealControls(page: Page, name: AdminScreenName) {
     await form.getByRole('button', { name: 'Continuar a pases' }).click();
     await form.getByText('Escribe el nombre.').first().waitFor();
     await form.locator('summary').click();
-    await form.getByLabel('Fecha de nacimiento').waitFor();
+    await form.getByLabel(/^Nivel/).waitFor();
   }
   if (name === 'Inscripción') await page.getByRole('region', { name: 'Pases' }).waitFor();
   // `flaggedPayments` has one payment per case and fewer than 9 payments, so every case starts
@@ -557,6 +557,7 @@ export const adminDialogs: {
       await form.getByRole('textbox', { name: 'Primer apellido', exact: true }).fill('López');
       await form.getByRole('textbox', { name: 'Correo electrónico' }).fill('ana@example.org');
       await form.getByRole('textbox', { name: 'Teléfono celular' }).fill('3312345678');
+      await form.getByLabel('Fecha de nacimiento').fill('1999-05-14');
       await form.getByRole('button', { name: 'Continuar a pases' }).click();
       const dialog = page.getByRole('alertdialog', { name: '¿Es la misma persona?' });
       await dialog.getByRole('listitem').nth(1).waitFor();

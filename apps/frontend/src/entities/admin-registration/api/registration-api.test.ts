@@ -30,6 +30,7 @@ const input: ManualRegistrationInput = {
   firstLastName: 'Rivera',
   email: 'alex@example.com',
   phone: '5512344567',
+  birthDate: '1999-05-14',
   stageName: 'Flash',
 };
 const created = { registrationId, participantId, eventId, status: 'pending_payment', auditId };

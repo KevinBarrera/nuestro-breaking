@@ -41,6 +41,7 @@ export {
 } from './model/purchase-draft';
 export {
   competitionGroups,
+  competitionsChoiceKind,
   competitionsStepApplies,
   emptySelection,
   normalizeSelection,
@@ -48,6 +49,7 @@ export {
   purchaseTotals,
   toggleActivity,
   togglePass,
+  type CompetitionChoice,
   type CompetitionGroup,
   type PassOption,
   type PurchaseSelection,
@@ -66,3 +68,4 @@ export {
   serverErrors,
   type ServerErrors,
 } from './model/registration-request';
+export { choicesStepCopy, type ChoiceKind } from './model/activity-choices';

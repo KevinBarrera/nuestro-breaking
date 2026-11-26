@@ -3,6 +3,7 @@ import { defaultPhoneMode, type PhoneMode } from '@/entities/participant';
 import { buyerFieldLabels, buyerFields, displayPhone, type BuyerForm } from './buyer-form';
 import { normalizeSelection, type PurchaseSelection } from './purchase-selection';
 import { failureMessage, serverErrors } from './registration-request';
+import type { ChoiceKind } from './activity-choices';
 
 // One row of the "Tus pases" card: a chosen pass with the competitions it covers (picked ones
 // plus the ones it includes) and its catalog price.
@@ -51,11 +52,13 @@ export type PayFailure = { message: string; details: string[]; fix: PayFix | nul
 
 /**
  * What the review screen shows when creating the registration fails. The draft is kept.
- * `phoneMode` is the buyer's, so an invalid phone reads like the check on datos.
+ * `phoneMode` is the buyer's, so an invalid phone reads like the check on datos, and `choices`
+ * names what the buyer picked on step 2 (#411).
  */
 export function payFailure(
   failure: PublicEventFailure,
   phoneMode: PhoneMode = defaultPhoneMode,
+  choices: ChoiceKind = 'mixed',
 ): PayFailure {
   const only = (message: string, fix: PayFix | null = null): PayFailure => ({
     message,
@@ -75,7 +78,7 @@ export function payFailure(
     }
     case 'rule':
       return only(
-        failureMessage(failure),
+        failureMessage(failure, choices),
         failure.code === 'selection_unavailable' ? 'competitions' : 'passes',
       );
     case 'sales-closed':

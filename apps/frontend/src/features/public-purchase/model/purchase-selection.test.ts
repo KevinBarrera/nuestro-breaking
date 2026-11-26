@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { breaking, catalogPasses, general, openStyles, popping } from './test-fixtures';
+import { activity, breaking, catalogPasses, general, openStyles, popping } from './test-fixtures';
 import {
   competitionGroups,
+  competitionsChoiceKind,
   competitionsStepApplies,
   emptySelection,
   normalizeSelection,
@@ -184,5 +185,43 @@ describe('competitions and totals', () => {
       totalCents: 480000,
     });
     expect(purchaseTotals(catalogPasses, emptySelection)).toEqual({ passCount: 0, totalCents: 0 });
+  });
+});
+
+describe('activity kinds in the purchase (#411)', () => {
+  const workshops = {
+    ...popping,
+    id: 'workshops',
+    name: 'Talleres',
+    selectableActivities: [activity('footwork', 'Footwork', 'workshop')],
+  };
+  const mixed = {
+    ...breaking,
+    selectableActivities: [
+      ...breaking.selectableActivities,
+      activity('footwork', 'Footwork', 'workshop'),
+    ],
+  };
+
+  it('counts a workshop pass in talleres and a mixed pass in actividades on the Pases screen', () => {
+    expect(option(emptySelection, 'breaking')?.hint).toBe('2 categorías para elegir');
+    const pick = (passes: (typeof breaking)[]) =>
+      passOptions(passes, emptySelection).map((entry) => entry.hint);
+    expect(pick([workshops])).toEqual(['1 taller para elegir']);
+    expect(pick([mixed])).toEqual(['3 actividades para elegir']);
+  });
+
+  it('splits the choices of a mixed pass by kind and names the step by every chosen pass', () => {
+    const passes = [mixed, workshops];
+    const selection = togglePass(passes, emptySelection, 'breaking');
+    const [group] = competitionGroups(passes, selection);
+    expect(group.sections.map((section) => section.label)).toEqual(['Categorías', 'Talleres']);
+    expect(competitionsChoiceKind(passes, selection)).toBe('mixed');
+    expect(competitionsChoiceKind(passes, togglePass(passes, emptySelection, 'workshops'))).toBe(
+      'workshop',
+    );
+    expect(competitionsChoiceKind(catalogPasses, choose('breaking', 'popping'))).toBe(
+      'competition',
+    );
   });
 });

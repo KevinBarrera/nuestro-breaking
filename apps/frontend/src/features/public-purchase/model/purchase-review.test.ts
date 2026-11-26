@@ -114,6 +114,19 @@ describe('payFailure', () => {
     });
   });
 
+  it('names what became unavailable by the kind the buyer picked (#411)', () => {
+    const failure = { kind: 'rule', code: 'selection_unavailable' } as const;
+    expect(payFailure(failure, undefined, 'competition').message).toBe(
+      'Una de tus categorías ya no está disponible. Vuelve a elegir tus categorías.',
+    );
+    expect(payFailure(failure, undefined, 'workshop').message).toBe(
+      'Uno de tus talleres ya no está disponible. Vuelve a elegir tus talleres.',
+    );
+    expect(payFailure(failure).message).toBe(
+      'Una de tus actividades ya no está disponible. Vuelve a elegir tus actividades.',
+    );
+  });
+
   it('points each rule to the screen that fixes it', () => {
     expect(payFailure({ kind: 'rule', code: 'selection_unavailable' }).fix).toBe('competitions');
     for (const code of [

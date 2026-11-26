@@ -7,6 +7,7 @@ import type {
 } from '@/entities/public-event';
 import { defaultPhoneMode, type PhoneMode } from '@/entities/participant';
 import { legalDocuments } from '@/shared/config';
+import { choiceUnavailableMessage, type ChoiceKind } from './activity-choices';
 import {
   buyerFields,
   buyerMaxLength,
@@ -91,7 +92,7 @@ const salesClosedMessages: Record<PublicSalesClosedReason, string> = {
   ended: 'La venta en línea ya terminó.',
 };
 
-const ruleMessages: Record<RegistrationRuleCode, string> = {
+const ruleMessages: Record<Exclude<RegistrationRuleCode, 'selection_unavailable'>, string> = {
   pass_type_unavailable: 'Uno de tus pases ya no está disponible. Vuelve a elegir tus pases.',
   pass_type_sales_closed:
     'La venta en línea de uno de tus pases ya cerró. Vuelve a elegir tus pases.',
@@ -99,12 +100,11 @@ const ruleMessages: Record<RegistrationRuleCode, string> = {
     'La entrada general ya está incluida en los pases completos. Quítala para continuar.',
   required_pass_missing:
     'Uno de tus pases adicionales requiere un pase completo. Agrega uno o quita el adicional.',
-  selection_unavailable:
-    'Una de tus categorías ya no está disponible. Vuelve a elegir tus categorías.',
 };
 
-// One Spanish sentence per failure, for notices on the purchase screens.
-export function failureMessage(failure: PublicEventFailure): string {
+// One Spanish sentence per failure, for notices on the purchase screens. `choices` names what the
+// buyer picked on step 2 when a pick stopped being available (#411).
+export function failureMessage(failure: PublicEventFailure, choices: ChoiceKind = 'mixed'): string {
   switch (failure.kind) {
     case 'not-found':
       return 'No encontramos este evento.';
@@ -113,7 +113,9 @@ export function failureMessage(failure: PublicEventFailure): string {
     case 'invalid':
       return 'Revisa los datos marcados.';
     case 'rule':
-      return ruleMessages[failure.code];
+      return failure.code === 'selection_unavailable'
+        ? choiceUnavailableMessage(choices)
+        : ruleMessages[failure.code];
     case 'unavailable':
       return 'No podemos completar esta inscripción en línea. Comunícate con la organización.';
     case 'not-payable':

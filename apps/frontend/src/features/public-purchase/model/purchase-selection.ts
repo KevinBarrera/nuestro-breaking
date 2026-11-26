@@ -1,4 +1,11 @@
 import type { PublicActivity, PublicPass, PublicPassClass } from '@/entities/public-event';
+import {
+  choiceCountHint,
+  choiceKind,
+  kindSections,
+  type ChoiceKind,
+  type KindSection,
+} from './activity-choices';
 
 // What the buyer chose: pass type ids, and per chosen pass the competitions picked from its
 // `selectableActivities`. Rules come from `passClass`/`requiresPassClass`, never from names.
@@ -16,9 +23,13 @@ export type PassOption = {
   hint: string | null;
 };
 
+export type CompetitionChoice = { activity: PublicActivity; selected: boolean };
+
 export type CompetitionGroup = {
   pass: PublicPass;
-  selectable: { activity: PublicActivity; selected: boolean }[];
+  selectable: CompetitionChoice[];
+  // The selectable choices split by kind when they mix kinds (#411).
+  sections: KindSection<CompetitionChoice>[];
   included: PublicActivity[];
 };
 
@@ -123,9 +134,7 @@ export function toggleActivity(
 function describePass(pass: PublicPass, chosen: PublicPass[]): string | null {
   if (pass.requiresPassClass && holdsClass(chosen, pass.requiresPassClass))
     return `Disponible porque elegiste ${requirementCopy[pass.requiresPassClass]}`;
-  const choices = pass.selectableActivities.length;
-  if (choices > 0)
-    return choices === 1 ? '1 categoría para elegir' : `${choices} categorías para elegir`;
+  if (pass.selectableActivities.length > 0) return choiceCountHint(pass.selectableActivities);
   if (pass.includedActivities.length > 0)
     return `Incluye: ${pass.includedActivities.map((activity) => activity.name).join(', ')}`;
   return null;
@@ -155,15 +164,29 @@ export function competitionGroups(
     .filter((pass) => pass.selectableActivities.length + pass.includedActivities.length > 0)
     .map((pass) => {
       const picked = selection.selectedActivityIds[pass.id] ?? [];
+      const selectable = pass.selectableActivities.map((activity) => ({
+        activity,
+        selected: picked.includes(activity.id),
+      }));
       return {
         pass,
-        selectable: pass.selectableActivities.map((activity) => ({
-          activity,
-          selected: picked.includes(activity.id),
-        })),
+        selectable,
+        sections: kindSections(selectable),
         included: pass.includedActivities,
       };
     });
+}
+
+// The kind of everything the chosen passes offer to pick, which names step 2 (#411).
+export function competitionsChoiceKind(
+  passes: PublicPass[],
+  selection: PurchaseSelection,
+): ChoiceKind {
+  return choiceKind(
+    chosenPasses(passes, normalizeSelection(passes, selection)).flatMap(
+      (pass) => pass.selectableActivities,
+    ),
+  );
 }
 
 // D6: the competitions step is skipped when no chosen pass offers competitions to pick.

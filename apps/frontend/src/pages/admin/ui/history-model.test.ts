@@ -19,7 +19,7 @@ describe('historyTitle', () => {
       ['complimentary_confirmation', 'Cortesía'],
       ['pass_assignment', 'Pase agregado'],
       ['pass_removal', 'Pase quitado'],
-      ['pass_selection_change', 'Cambio de categorías'],
+      ['pass_selection_change', 'Cambio de actividades'],
       ['cash_confirmation', 'Pago en efectivo'],
       ['cash_correction', 'Corrección de pago en efectivo'],
       ['payment_approval', 'Pago en línea aprobado'],
@@ -76,7 +76,7 @@ describe('historyDetailLine', () => {
         fromActivityNames: ['Cypher'],
         toActivityNames: ['Cypher'],
       }),
-    ).toBe('Sin cambios en las categorías');
+    ).toBe('Sin cambios en las actividades');
   });
 
   it('shows the cash amount and receipt, and previous → new for a correction', () => {
@@ -164,7 +164,7 @@ describe('historyDetailLine', () => {
         fromActivityNames: ['Batalla 1vs1'],
         toActivityNames: [],
       }),
-    ).toBe('pase desconocido → Pase completo · Categorías: Batalla 1vs1 → ninguna');
+    ).toBe('pase desconocido → Pase completo · Actividades: Batalla 1vs1 → ninguna');
   });
 });
 
@@ -221,7 +221,7 @@ describe('type filter', () => {
   it('explains the selected type and words the no-match state', () => {
     expect(historyTypeHint('all')).toBeNull();
     expect(historyTypeHint('corrections')).toBe(
-      'Anulaciones y cambios de nombre, disciplina, categorías o pago en inscripciones confirmadas.',
+      'Anulaciones y cambios de nombre, disciplina, actividades o pago en inscripciones confirmadas.',
     );
     expect(historyTypeHint('on_site')).toBe(
       'Cada inscripción en mesa junta el registro, sus pases y el pago en efectivo.',

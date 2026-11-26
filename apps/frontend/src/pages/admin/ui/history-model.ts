@@ -16,7 +16,7 @@ const titles: Record<HistoryDetails['kind'], string> = {
   complimentary_confirmation: 'Cortesía',
   pass_assignment: 'Pase agregado',
   pass_removal: 'Pase quitado',
-  pass_selection_change: 'Cambio de categorías',
+  pass_selection_change: 'Cambio de actividades',
   cash_confirmation: 'Pago en efectivo',
   cash_correction: 'Corrección de pago en efectivo',
   payment_approval: 'Pago en línea aprobado',
@@ -92,7 +92,7 @@ export function historyDetailLine(details: HistoryDetails): string | null {
       return `Pase: ${passName(details.passTypeName)}`;
     case 'pass_selection_change': {
       const changes = competitionChange(details.fromActivityNames, details.toActivityNames);
-      if (changes.length === 0) return 'Sin cambios en las categorías';
+      if (changes.length === 0) return 'Sin cambios en las actividades';
       return [...(details.passTypeName ? [details.passTypeName] : []), ...changes].join(' · ');
     }
     case 'cash_confirmation':
@@ -117,7 +117,7 @@ export function historyDetailLine(details: HistoryDetails): string | null {
       const passes = `${passName(details.fromPassTypeName)} → ${passName(details.toPassTypeName)}`;
       const { fromActivityNames: from, toActivityNames: to } = details;
       if (from.length === 0 && to.length === 0) return passes;
-      return `${passes} · Categorías: ${list(from)} → ${list(to)}`;
+      return `${passes} · Actividades: ${list(from)} → ${list(to)}`;
     }
     case 'competitor_number_assignment': {
       const change =
@@ -167,7 +167,7 @@ export const historyChips = (counts: HistoryCounts, selected: HistoryFilter): Hi
 const typeHints: Record<HistoryFilter, string | null> = {
   all: null,
   corrections:
-    'Anulaciones y cambios de nombre, disciplina, categorías o pago en inscripciones confirmadas.',
+    'Anulaciones y cambios de nombre, disciplina, actividades o pago en inscripciones confirmadas.',
   on_site: 'Cada inscripción en mesa junta el registro, sus pases y el pago en efectivo.',
   complimentary: 'Pases sin costo y su motivo.',
 };

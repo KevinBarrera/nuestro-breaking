@@ -8,7 +8,7 @@ Objective: the admin pass flows sell, show and label workshops and social activi
 - **S2 Shared copy and dialogs.** "Rename the copy in the table to neutral wording ("actividad"/"actividades") where the list can hold any kind, or to the kind label when it is known. Examples: "Editar actividades", "Guardar actividades", "Se cambiaron las actividades de «X».", "Actividad no disponible", "Cambio de actividades"." and "Edit dialog and discipline swap: group the checkboxes by kind, like the registration detail." Covers `confirmed-competitions-editor.tsx`, `admin-registration-page.tsx` (button and notice), `confirmed-competitions-model.ts:74`, `sale-competitions-model.ts` failures and hints, `sale-cash-model.ts` `selectionSummary`, `discipline-swap.tsx` and `discipline-swap-model.ts`.
 - **S3 Historial.** `history-model.ts:19,95,120,170` and `history-feed-model.ts:66,123,152`: "Cambio de categorías", "Sin cambios en las categorías", "Categorías: A → B", diff label "Categorías".
 - **S4 Catalog and operations copy.** `pass-editor-model.ts:261,365` ("Escoge entre N categorías", "…no da acceso a ninguna categoría"), `pass-catalog-model.ts:100`, `attendee-lists-printout.tsx:234` ("Pase y categorías"), `admin-check-in-model.ts:20` ("…ni de categorías.").
-- **S5 Registrations list row.** "Decide whether the registrations list row (`registration-model.ts:95,109`, filtered to competitions on purpose) should also show chosen workshops." Pending the user's decision.
+- **S5 Registrations list row.** "Decide whether the registrations list row (`registration-model.ts:95,109`, filtered to competitions on purpose) should also show chosen workshops." Decided 2026-11-25 (L7): show every activity, competitions first.
 - **S6 Dead code.** "Delete `passCompetitionLines` and its test."
 - **S7 Docs.** "Update `docs/frontend-architecture.md` and any contract that quotes the old copy."
 - **Acceptance.** "Unit tests: `stepperPasses` keeps included and selectable workshops and social activities; `passIncludes`, `cobroLines`, `selectionSummary` and the shared failures use the neutral wording; a saved workshop selection is named, not "no disponible"." "Playwright: an in-person sale of a pass with a selectable workshop lets the staff pick it, and the edit dialog lists it under "Talleres"." "No admin copy calls a non-competition a "categoría"." "Checked in light and dark themes and at phone width."
@@ -16,13 +16,13 @@ Objective: the admin pass flows sell, show and label workshops and social activi
 
 ## Tasks
 
-| ID  | Specs      | Route  | Status              | Commit  |
-| --- | ---------- | ------ | ------------------- | ------- |
-| T1  | S1, S7     | inline | done                | a632270 |
-| T2  | S2, S6, S7 | inline | done                | 921dc4e |
-| T3  | S3, S7     | inline | done                | 23ab4bc |
-| T4  | S4, S7     | inline | done                | d8c5dac |
-| T5  | S5, S7     | inline | blocked on decision |         |
+| ID  | Specs      | Route  | Status | Commit  |
+| --- | ---------- | ------ | ------ | ------- |
+| T1  | S1, S7     | inline | done   | a632270 |
+| T2  | S2, S6, S7 | inline | done   | 921dc4e |
+| T3  | S3, S7     | inline | done   | 23ab4bc |
+| T4  | S4, S7     | inline | done   | d8c5dac |
+| T5  | S5, S7     | inline | done   | 702a10d |
 
 Route evidence: one understood change per task, no writer trigger (no parallel units with several minutes each that need launching together).
 
@@ -34,3 +34,5 @@ Route evidence: one understood change per task, no writer trigger (no parallel u
 - L4 (2026-11-25): T2. RED: 17 Vitest failures (choice `kind`, neutral failures, `selectionSummary`, review row "Actividades"); the new Playwright test ("Talleres" in "Editar actividades") failed on the old code. GREEN: Vitest 961/961 (dead tests removed), registration e2e 83/83, lint and typecheck pass. Also deleted the unused sale draft helpers (`CompetitionDrafts`, `effectiveDraft`, `withDraft`, `unsavedCompetitionPasses`, `unsavedCompetitionsHint`), left over since the #346 stepper, instead of renaming copy no screen shows. Browser: "Editar actividades" on LMP-B3XG groups "Categorías" and "Talleres"; "Cambiar disciplina" to Popping reads "Categorías de «Pase completo Popping»" and its review row "Actividades"; the single-kind heading inside the swap list is hidden since the legend names it. Runbook step 7 updated; `docs/runbooks/event-day.md` steps 3-4 still describe the pre-#346 sale (pre-existing, not changed).
 - L5 (2026-11-25): T3. RED: 6 Vitest failures with the neutral Historial copy; GREEN Vitest 28/28 and `admin-registration-history.spec.ts` 11/11. Browser: the two selection changes read "Cambio de actividades" with the workshop under "Agregó". Competitor number entries keep "Categoría · 012" (competition-only, correct).
 - L6 (2026-11-25): T4. RED: 3 Vitest failures (kind-aware preview title, empty-access warnings); GREEN Vitest 962/962, check-in, pass editor, pass list and attendee lists e2e 76/76, lint pass. Browser: the Breaking preview reads "Escoge entre 8 actividades"; the backup sheet column is "Pase y actividades". The public page keeps "N categorías para elegir" until #411, so the preview and the public page differ for mixed passes in the meantime. No doc quotes these strings.
+- L7 (2026-11-25, user decision on S5): "Todas las actividades (Recommended)": "Categorías, talleres y sociales elegidos o incluidos, como en el detalle. Vacío dice \"Sin actividades\". El staff ve todo lo que tiene la persona sin abrirla."
+- L8 (2026-11-25): T5. RED: 2 Vitest failures (`registrationRow` lists every kind, "Sin actividades"); the list spec pinned the old omission and now asserts "Batalla de crews, Taller de footwork". GREEN: Vitest 962/962, `admin-registrations.spec.ts` 20/20, lint pass. Browser: LMP-B3XG reads "Open Styles 1vs1, Breaking Footwork, Workshop intensivo de footwork"; passes without activities read "Sin actividades". Commit 702a10d.

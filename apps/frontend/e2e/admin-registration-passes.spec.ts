@@ -42,7 +42,7 @@ test('resumes a pending sale from its detail with what it holds', async ({ page 
   // Base passes as radios, in catalog order, with what they include and their price.
   await expect(passStep(page).getByRole('radio')).toHaveCount(3);
   await expect(radio(page, 'Entrada general')).toHaveAccessibleDescription(
-    'Solo entrada al evento, sin categorías',
+    'Solo entrada al evento',
   );
   await expect(passStep(page)).toContainText('Pase completo Popping');
   await expect(passStep(page)).toContainText('$2,000.00');
@@ -107,7 +107,55 @@ test('changes only the competitions when the passes stay', async ({ page }) => {
       csrf: 'csrf-token',
     },
   ]);
-  await expect(cobro(page)).toContainText('Sin categorías elegidas');
+  await expect(cobro(page)).toContainText('Sin actividades elegidas');
+});
+
+test('sells a workshop the pass lets the buyer choose, grouped by kind (#410)', async ({
+  page,
+}) => {
+  const footwork = {
+    ...saleActivities.openStyles,
+    id: 'b5b2c3d4-1234-4567-89ab-123456789abc',
+    name: 'Workshop intensivo de footwork',
+    kind: 'workshop',
+  };
+  const withWorkshop = {
+    ...breaking,
+    activities: [...breaking.activities, { activityId: footwork.id, access: 'selectable' }],
+  };
+  const backend = saleBackend([heldOf(withWorkshop, [saleActivities.breaking.id])]);
+  const sent = await mockRegistrations(page, {
+    ...backend.mocks,
+    passTypes: () => ({ json: [general, popping, withWorkshop, openStyles] }),
+    activities: () => ({ json: [...Object.values(saleActivities), footwork] }),
+  });
+  await page.goto(salePath(registrationId));
+
+  await expect(radio(page, 'Pase completo Breaking')).toHaveAccessibleDescription(
+    'Actividades a elegir',
+  );
+  const activities = passStep(page).getByRole('group', {
+    name: 'Actividades de Pase completo Breaking',
+  });
+  await expect(
+    activities.getByRole('group', { name: 'Categorías' }).getByRole('checkbox'),
+  ).toHaveAccessibleName('Breaking Bboy');
+  await activities
+    .getByRole('group', { name: 'Talleres' })
+    .getByRole('checkbox', { name: 'Workshop intensivo de footwork' })
+    .check();
+  await next(page).click();
+
+  await expect(cobro(page)).toBeVisible();
+  expect(sent.selections).toEqual([
+    {
+      registrationId,
+      registrationPassId: heldPassId(withWorkshop),
+      body: { activityIds: [saleActivities.breaking.id, footwork.id] },
+      csrf: 'csrf-token',
+    },
+  ]);
+  await expect(cobro(page)).toContainText('Breaking Bboy, Workshop intensivo de footwork');
 });
 
 test('does not retry a pass whose answer was lost and offers a reload', async ({ page }) => {

@@ -56,6 +56,13 @@ const activityKindLabels: Record<ActivityKind, string> = {
   social: 'Social',
 };
 
+// A group of activities of one kind (#405, #410).
+export const activityKindPluralLabels: Record<ActivityKind, string> = {
+  competition: 'Categorías',
+  workshop: 'Talleres',
+  social: 'Sociales',
+};
+
 // The "Tipo" select options, in the entity's order.
 export const activityKindOptions = activityKinds.map((kind) => ({
   id: kind,

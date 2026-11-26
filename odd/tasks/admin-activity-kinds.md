@@ -1,0 +1,33 @@
+# Admin activity kinds
+
+Objective: the admin pass flows sell, show and label workshops and social activities by kind (#410). Branch `fix/410-admin-activity-kinds` → `dev`, delivery `ask-on-risk`, one commit per task. Runners: Vitest (`pnpm --filter @nuestro-breaking/frontend test`), Playwright (`test:e2e`), checked in the browser on the local stack.
+
+## Specs
+
+- **S1 In-person sale.** "In-person sale: offer and show included and selectable workshops and social activities (drop the competition-only filter in `stepperPasses`). Group the choices by kind with the #405 labels ("Categorías", "Talleres", "Sociales")." Also covers `passIncludes`, `addOnState`, `cobroLines` (a saved workshop is named, not "Categoría no disponible"), `selectionPayload` (a saved workshop is kept on save), the pass step copy ("Elige un pase. Si es completo, marca sus categorías.", group "Categorías de X") and `sale-pass-removal-model.ts:37`.
+- **S2 Shared copy and dialogs.** "Rename the copy in the table to neutral wording ("actividad"/"actividades") where the list can hold any kind, or to the kind label when it is known. Examples: "Editar actividades", "Guardar actividades", "Se cambiaron las actividades de «X».", "Actividad no disponible", "Cambio de actividades"." and "Edit dialog and discipline swap: group the checkboxes by kind, like the registration detail." Covers `confirmed-competitions-editor.tsx`, `admin-registration-page.tsx` (button and notice), `confirmed-competitions-model.ts:74`, `sale-competitions-model.ts` failures and hints, `sale-cash-model.ts` `selectionSummary`, `discipline-swap.tsx` and `discipline-swap-model.ts`.
+- **S3 Historial.** `history-model.ts:19,95,120,170` and `history-feed-model.ts:66,123,152`: "Cambio de categorías", "Sin cambios en las categorías", "Categorías: A → B", diff label "Categorías".
+- **S4 Catalog and operations copy.** `pass-editor-model.ts:261,365` ("Escoge entre N categorías", "…no da acceso a ninguna categoría"), `pass-catalog-model.ts:100`, `attendee-lists-printout.tsx:234` ("Pase y categorías"), `admin-check-in-model.ts:20` ("…ni de categorías.").
+- **S5 Registrations list row.** "Decide whether the registrations list row (`registration-model.ts:95,109`, filtered to competitions on purpose) should also show chosen workshops." Pending the user's decision.
+- **S6 Dead code.** "Delete `passCompetitionLines` and its test."
+- **S7 Docs.** "Update `docs/frontend-architecture.md` and any contract that quotes the old copy."
+- **Acceptance.** "Unit tests: `stepperPasses` keeps included and selectable workshops and social activities; `passIncludes`, `cobroLines`, `selectionSummary` and the shared failures use the neutral wording; a saved workshop selection is named, not "no disponible"." "Playwright: an in-person sale of a pass with a selectable workshop lets the staff pick it, and the edit dialog lists it under "Talleres"." "No admin copy calls a non-competition a "categoría"." "Checked in light and dark themes and at phone width."
+- **Out of scope.** Public purchase (#411), payment result and email (#404), competitor numbers, attendee lists, check-in roster, overview catalog card, backend.
+
+## Tasks
+
+| ID  | Specs      | Route  | Status              | Commit  |
+| --- | ---------- | ------ | ------------------- | ------- |
+| T1  | S1, S7     | inline | done                | a632270 |
+| T2  | S2, S6, S7 | inline | pending             |         |
+| T3  | S3, S7     | inline | pending             |         |
+| T4  | S4, S7     | inline | pending             |         |
+| T5  | S5, S7     | inline | blocked on decision |         |
+
+Route evidence: one understood change per task, no writer trigger (no parallel units with several minutes each that need launching together).
+
+## Log
+
+- L1 (2026-11-25, user): "ya le di merge al PR para el issue #405, cierra el issue y haz clean-up de la rama local que usamos para el mismo. Después arranquemos con el issue #410, recuerda ir verificando la implementación en el navegador"
+- L2 (2026-11-25): Exploration. The backend accepts selectable activities of any kind (`apps/backend/src/events/registration-entitlements/selectable-activities.ts`), so the fix is frontend-only. `selectionPayload` filters through the competition-only `choices`, so finishing a sale at the desk would drop a workshop chosen online. Kind group labels: a shared `groupByKind` keeps "Categorías" for competition-only passes. Local data: "Workshop intensivo de footwork" is selectable in "Pase completo Breaking"; pending registration "dfgh dfgh" reaches the pass step.
+- L3 (2026-11-25): T1. RED: 7 Vitest failures (`stepperPasses` kinds, `passIncludes`, `cobroLines`, `selectionPayload`) plus the missing `activity-kind-groups` module; the new Playwright test failed on the old code (`toHaveAccessibleDescription`). GREEN: Vitest 972/972, registration e2e 82/82, lint and typecheck pass. Browser (local): "Pase completo Breaking" reads "Actividades a elegir" with "Categorías" and "Talleres" groups; checking the workshop and "Continuar al cobro" saved it (cobro "Breaking Footwork, Workshop intensivo de footwork"), and "Atrás" resumes with it checked; light theme and 390 px checked. The pending registration "dfgh dfgh" now holds "Pase completo Breaking" with those two selections (local data).

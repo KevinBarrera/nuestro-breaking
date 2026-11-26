@@ -26,7 +26,7 @@ import { canSwapDiscipline, disciplineSwapOptions, swapSourcePass } from './disc
 import { ParticipantCorrectionDialog } from './participant-correction';
 import { canCorrectParticipant } from './participant-correction-model';
 import { statusTone } from './payments-review-model';
-import { akaLine, cashDifference, heldPassCompetitions } from './registration-detail-model';
+import { akaLine, cashDifference, heldPassActivities } from './registration-detail-model';
 import {
   readRegistrationContext,
   registrationLoadMessage,
@@ -613,7 +613,7 @@ function HeldPassList({ ready }: { ready: Extract<LoadState, { status: 'ready' }
         <PassRow
           key={pass.registrationPassId}
           pass={pass}
-          competitions={heldPassCompetitions(pass, ready.passTypes, ready.activities)}
+          activities={heldPassActivities(pass, ready.passTypes, ready.activities)}
         />
       ))}
     </ul>
@@ -622,10 +622,10 @@ function HeldPassList({ ready }: { ready: Extract<LoadState, { status: 'ready' }
 
 function PassRow({
   pass,
-  competitions,
+  activities,
 }: {
   pass: HeldPass;
-  competitions: ReturnType<typeof heldPassCompetitions>;
+  activities: ReturnType<typeof heldPassActivities>;
 }) {
   return (
     <li className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-3 py-3.5 first:pt-0 last:pb-0">
@@ -634,28 +634,17 @@ function PassRow({
         <span className="block text-sm text-muted">{passClassLabels[pass.passClass]}</span>
       </span>
       <span className="font-mono">{formatMxn(pass.priceCents)}</span>
-      {competitions &&
-        ('text' in competitions ? (
-          <CompetitionChips label="Categorías" names={[]} count={competitions.text} />
+      {activities &&
+        ('text' in activities ? (
+          <ActivityChips label="Actividades" names={[]} count={activities.text} />
         ) : (
-          <>
-            {competitions.included.length > 0 && (
-              <CompetitionChips label="Categorías incluidas" names={competitions.included} />
-            )}
-            {competitions.chosen && (
-              <CompetitionChips
-                label={competitions.included.length > 0 ? 'Categorías elegidas' : 'Categorías'}
-                names={competitions.chosen}
-                empty="Sin categorías elegidas."
-              />
-            )}
-          </>
+          activities.groups.map((group) => <ActivityChips key={group.label} {...group} />)
         ))}
     </li>
   );
 }
 
-function CompetitionChips({
+function ActivityChips({
   label,
   names,
   empty,

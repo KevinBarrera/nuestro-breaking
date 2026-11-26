@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { HeldPass } from '@/entities/admin-registration';
 import type { CatalogActivity, CatalogPassType } from '@/entities/event-catalog';
-import { akaLine, cashDifference, heldPassCompetitions } from './registration-detail-model';
+import { akaLine, cashDifference, heldPassActivities } from './registration-detail-model';
 
 describe('akaLine', () => {
   it('names the AKA, or says there is none', () => {
@@ -38,13 +38,15 @@ describe('cashDifference', () => {
   });
 });
 
-describe('heldPassCompetitions', () => {
+describe('heldPassActivities', () => {
   const activity = (id: string, name: string, startsAt: string, kind = 'competition') =>
     ({ id, name, startsAt, kind, status: 'active' }) as CatalogActivity;
   const activities = [
     activity('b', 'Popping 2v2', '2026-11-14T18:00:00Z'),
     activity('a', 'Popping 1v1', '2026-11-14T17:00:00Z'),
     activity('w', 'Taller', '2026-11-14T12:00:00Z', 'workshop'),
+    activity('f', 'Workshop intensivo de footwork', '2026-11-14T13:00:00Z', 'workshop'),
+    activity('s', 'Fiesta', '2026-11-14T22:00:00Z', 'social'),
     activity('i', 'Kids', '2026-11-14T10:00:00Z'),
   ];
   const passType = (links: { activityId: string; access: string }[]) =>
@@ -62,41 +64,87 @@ describe('heldPassCompetitions', () => {
     { activityId: 'b', access: 'selectable' },
   ]);
 
-  it('names the included competitions by start apart from the chosen ones (#277)', () => {
+  it('groups the activities by kind, then by access, included first (#405)', () => {
+    const types = [
+      passType([
+        { activityId: 's', access: 'included' },
+        { activityId: 'w', access: 'included' },
+        { activityId: 'i', access: 'included' },
+        { activityId: 'a', access: 'selectable' },
+        { activityId: 'f', access: 'selectable' },
+      ]),
+    ];
+    expect(heldPassActivities(held(['f', 'a']), types, activities)).toEqual({
+      groups: [
+        { label: 'Categorías incluidas', names: ['Kids'] },
+        { label: 'Categorías elegidas', names: ['Popping 1v1'] },
+        { label: 'Talleres incluidos', names: ['Taller'] },
+        { label: 'Talleres elegidos', names: ['Workshop intensivo de footwork'] },
+        { label: 'Sociales incluidas', names: ['Fiesta'] },
+      ],
+    });
+  });
+
+  it('lists a chosen workshop as a workshop, never as a competition (#405)', () => {
     const types = [
       passType([
         { activityId: 'i', access: 'included' },
-        { activityId: 'w', access: 'included' },
-        { activityId: 'a', access: 'selectable' },
+        { activityId: 'f', access: 'selectable' },
       ]),
     ];
-    expect(heldPassCompetitions(held(['a']), types, activities)).toEqual({
-      included: ['Kids'],
-      chosen: ['Popping 1v1'],
+    expect(heldPassActivities(held(['f']), types, activities)).toEqual({
+      groups: [
+        { label: 'Categorías incluidas', names: ['Kids'] },
+        { label: 'Talleres elegidos', names: ['Workshop intensivo de footwork'] },
+      ],
     });
   });
 
-  it('shows an empty list for a pass with competitions to choose and none chosen', () => {
-    expect(heldPassCompetitions(held([]), [selectable], activities)).toEqual({
-      included: [],
-      chosen: [],
+  it('lists the included activities by start', () => {
+    const types = [
+      passType([
+        { activityId: 'b', access: 'included' },
+        { activityId: 'a', access: 'included' },
+      ]),
+    ];
+    expect(heldPassActivities(held([]), types, activities)).toEqual({
+      groups: [{ label: 'Categorías incluidas', names: ['Popping 1v1', 'Popping 2v2'] }],
     });
   });
 
-  it('hides the block for a pass without competitions, and the chosen line for included only', () => {
-    expect(heldPassCompetitions(held([]), [passType([])], activities)).toBeNull();
+  it('says nothing was chosen for a pass with activities to choose and none chosen', () => {
+    expect(heldPassActivities(held([]), [selectable], activities)).toEqual({
+      groups: [{ label: 'Actividades elegidas', names: [], empty: 'Sin actividades elegidas.' }],
+    });
+  });
+
+  it('names an unknown chosen activity without assuming its kind', () => {
+    expect(heldPassActivities(held(['a', 'gone']), [selectable], activities)).toEqual({
+      groups: [
+        { label: 'Categorías elegidas', names: ['Popping 1v1'] },
+        { label: 'Actividades elegidas', names: ['Actividad no disponible'] },
+      ],
+    });
+  });
+
+  it('hides the block for a pass without activities, and the chosen line for included only', () => {
+    expect(heldPassActivities(held([]), [passType([])], activities)).toBeNull();
     expect(
-      heldPassCompetitions(
+      heldPassActivities(
         held([]),
-        [passType([{ activityId: 'i', access: 'included' }])],
+        [passType([{ activityId: 'w', access: 'included' }])],
         activities,
       ),
-    ).toEqual({ included: ['Kids'], chosen: null });
+    ).toEqual({ groups: [{ label: 'Talleres incluidos', names: ['Taller'] }] });
   });
 
   it('counts the chosen ones when the activities could not be read', () => {
-    expect(heldPassCompetitions(held(['a', 'b']), [selectable], null)).toEqual({
-      text: '2 categorías',
+    expect(heldPassActivities(held(['a', 'b']), [selectable], null)).toEqual({
+      text: '2 actividades',
+    });
+    expect(heldPassActivities(held(['a']), [selectable], null)).toEqual({ text: '1 actividad' });
+    expect(heldPassActivities(held([]), [selectable], null)).toEqual({
+      groups: [{ label: 'Actividades elegidas', names: [], empty: 'Sin actividades elegidas.' }],
     });
   });
 });

@@ -51,7 +51,8 @@ describe('public payment status (e2e)', () => {
     await harness.stop();
   });
 
-  // One event with a full pass and an add-on, two competitions, and another event.
+  // One event with a full pass and an add-on, competitions, a workshop and an archived social, and
+  // another event.
   async function fixture() {
     const [{ id: org }] = await client<
       { id: string }[]
@@ -71,17 +72,32 @@ describe('public payment status (e2e)', () => {
       VALUES (${event.id}, ${venue}, 'competition', 'Breaking 1v1', '2026-11-20T18:00:00Z', '2026-11-20T20:00:00Z'),
         (${event.id}, ${venue}, 'competition', 'Popping 1v1', '2026-11-20T15:00:00Z', '2026-11-20T17:00:00Z')
       RETURNING id`;
+    const [workshop] = await client<{ id: string }[]>`
+      INSERT INTO activities (event_id, venue_id, kind, name, starts_at, ends_at)
+      VALUES (${event.id}, ${venue}, 'workshop', 'Workshop de footwork', '2026-11-20T16:00:00Z', '2026-11-20T17:00:00Z')
+      RETURNING id`;
+    const [archived] = await client<{ id: string }[]>`
+      INSERT INTO activities (event_id, venue_id, kind, name, starts_at, ends_at, status)
+      VALUES (${event.id}, ${venue}, 'social', 'Cypher archivado', '2026-11-20T21:00:00Z', '2026-11-20T22:00:00Z', 'archived')
+      RETURNING id`;
     const [full, addOn, foreign] = await client<{ id: string }[]>`
       INSERT INTO event_pass_types (event_id, name, pass_class, price_cents, requires_pass_class, status)
       VALUES (${event.id}, 'Pase completo Breaking', 'full', 150050, NULL, 'active'),
         (${event.id}, 'Open Styles', 'add_on', 80000, 'full', 'active'),
         (${other.id}, 'Foreign pass', 'full', 1000, NULL, 'active')
       RETURNING id`;
+    // The full pass includes Breaking (and an archived social) and lets the buyer pick the rest.
+    await client`INSERT INTO event_pass_type_activities (event_id, pass_type_id, activity_id, access)
+      VALUES (${event.id}, ${full.id}, ${breaking.id}, 'included'),
+        (${event.id}, ${full.id}, ${archived.id}, 'included'),
+        (${event.id}, ${full.id}, ${popping.id}, 'selectable'),
+        (${event.id}, ${full.id}, ${workshop.id}, 'selectable')`;
     return {
       event: event.id,
       other: other.id,
       breaking: breaking.id,
       popping: popping.id,
+      workshop: workshop.id,
       full: full.id,
       addOn: addOn.id,
       foreign: foreign.id,
@@ -132,12 +148,12 @@ describe('public payment status (e2e)', () => {
       `/public/events/${slug}/registrations/${registrationId}/payment-status`,
     );
 
-  it('answers confirmed with folio, passes, selected competitions and total', async () => {
+  it('answers confirmed with folio, passes, their activities by kind and total', async () => {
     const ids = await fixture();
     const id = await registration(
       ids.event,
       [
-        { passTypeId: ids.full, priceCents: 150050, activityIds: [ids.breaking, ids.popping] },
+        { passTypeId: ids.full, priceCents: 150050, activityIds: [ids.workshop, ids.popping] },
         { passTypeId: ids.addOn, priceCents: 70000 },
       ],
       'confirmed',
@@ -152,8 +168,16 @@ describe('public payment status (e2e)', () => {
       maskedEmail: 'a***@gmail.com',
       folio: 'LMP-2345',
       passes: [
-        { name: 'Pase completo Breaking', competitions: ['Popping 1v1', 'Breaking 1v1'] },
-        { name: 'Open Styles', competitions: [] },
+        // Included and selected activities together, by start time; the archived one is left out.
+        {
+          name: 'Pase completo Breaking',
+          activities: [
+            { name: 'Popping 1v1', kind: 'competition' },
+            { name: 'Workshop de footwork', kind: 'workshop' },
+            { name: 'Breaking 1v1', kind: 'competition' },
+          ],
+        },
+        { name: 'Open Styles', activities: [] },
       ],
       serviceChargeCents: 0,
       totalCents: 220050,
@@ -164,6 +188,24 @@ describe('public payment status (e2e)', () => {
     expect(body).not.toContain('1234');
     expect(body).not.toContain('pay-');
     expect(body).not.toContain(id);
+  });
+
+  it('lists an activity that is both included and selected once (#404)', async () => {
+    const ids = await fixture();
+    const id = await registration(ids.event, [
+      { passTypeId: ids.full, priceCents: 150050, activityIds: [ids.breaking] },
+    ]);
+
+    const response = await status(id).expect(200);
+
+    expect(response.body).toMatchObject({
+      passes: [
+        {
+          name: 'Pase completo Breaking',
+          activities: [{ name: 'Breaking 1v1', kind: 'competition' }],
+        },
+      ],
+    });
   });
 
   it.each([

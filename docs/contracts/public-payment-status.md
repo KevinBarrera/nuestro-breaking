@@ -26,23 +26,30 @@ Code: `apps/backend/src/payments/status/`. The pure rules are `decidePaymentStat
   "maskedEmail": "a***@gmail.com",
   "folio": "LMP-2345",
   "passes": [
-    { "name": "Pase completo Breaking", "competitions": ["Popping 1v1", "Breaking 1v1"] },
-    { "name": "Open Styles", "competitions": [] }
+    {
+      "name": "Pase completo Breaking",
+      "activities": [
+        { "name": "Popping 1v1", "kind": "competition" },
+        { "name": "Workshop intensivo de footwork", "kind": "workshop" },
+        { "name": "Breaking 1v1", "kind": "competition" }
+      ]
+    },
+    { "name": "Open Styles", "activities": [] }
   ],
   "serviceChargeCents": 9772,
   "totalCents": 229822
 }
 ```
 
-| Field                | Rule                                                                                                                                                        |
-| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `status`             | See [Status](#status).                                                                                                                                      |
-| `firstName`          | The participant's first name; the first word of the display name when only that is stored.                                                                  |
-| `maskedEmail`        | First character of the local part, `***`, then the whole domain (D1). `null` when there is no email.                                                        |
-| `folio`              | Only when `status` is `confirmed`; otherwise `null`, also for a voided registration that had one.                                                           |
-| `passes`             | Pass names in purchase order, each with its selected competitions ordered by start time.                                                                    |
-| `serviceChargeCents` | Online service charge of the registration's latest checkout (#239). `0` when it has no checkout (manual registrations) or the checkout predates the charge. |
-| `totalCents`         | What the buyer pays: the sum of the price snapshots stored on the registration plus `serviceChargeCents`.                                                   |
+| Field                | Rule                                                                                                                                                                                                                   |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `status`             | See [Status](#status).                                                                                                                                                                                                 |
+| `firstName`          | The participant's first name; the first word of the display name when only that is stored.                                                                                                                             |
+| `maskedEmail`        | First character of the local part, `***`, then the whole domain (D1). `null` when there is no email.                                                                                                                   |
+| `folio`              | Only when `status` is `confirmed`; otherwise `null`, also for a voided registration that had one.                                                                                                                      |
+| `passes`             | Pass names in purchase order, each with `activities`: its included (active only) and selected activities, each once, ordered by start time then name, with their `kind` (`competition`, `workshop` or `social`; #404). |
+| `serviceChargeCents` | Online service charge of the registration's latest checkout (#239). `0` when it has no checkout (manual registrations) or the checkout predates the charge.                                                            |
+| `totalCents`         | What the buyer pays: the sum of the price snapshots stored on the registration plus `serviceChargeCents`.                                                                                                              |
 
 Never returned: the full email, phone, last names, ids of other records, or any Mercado Pago data.
 

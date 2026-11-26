@@ -10,8 +10,14 @@ const INPUT: ConfirmationEmailInput = {
   eventLocation: { city: 'Guadalajara', state: 'Jalisco', country: 'MX' },
   folio: 'LMP-AB12',
   passes: [
-    { name: 'Pase completo Breaking', competitions: ['Breaking 1v1', 'Popping 1v1'] },
-    { name: 'Open Styles', competitions: [] },
+    {
+      name: 'Pase completo Breaking',
+      activities: [
+        { name: 'Breaking 1v1', kind: 'competition' },
+        { name: 'Popping 1v1', kind: 'competition' },
+      ],
+    },
+    { name: 'Open Styles', activities: [] },
   ],
   payment: null,
 };
@@ -23,7 +29,7 @@ describe('buildConfirmationEmail', () => {
     );
   });
 
-  it('greets the buyer and lists the event, date, folio, passes and competitions', () => {
+  it('greets the buyer and lists the event, date, folio, passes and activities', () => {
     const { text, html } = buildConfirmationEmail(INPUT);
 
     for (const body of [text, html]) {
@@ -46,14 +52,62 @@ describe('buildConfirmationEmail', () => {
     expect(text).toMatch(/sábado, 14 de noviembre de 2026, 5:00\sp\.\s?m\./u);
   });
 
-  it('lists a pass without competitions without a competitions line', () => {
-    const { text } = buildConfirmationEmail({
+  it('lists a pass without activities with only its name', () => {
+    const { text, html } = buildConfirmationEmail({
       ...INPUT,
-      passes: [{ name: 'Open Styles', competitions: [] }],
+      passes: [{ name: 'Open Styles', activities: [] }],
     });
 
-    expect(text).toContain('Open Styles');
-    expect(text).not.toContain('Categorías');
+    expect(text).toContain('- Open Styles\n\n');
+    expect(html).toContain('<li style="margin:0 0 8px;"><strong>Open Styles</strong></li>');
+    for (const body of [text, html]) {
+      expect(body).not.toMatch(/Categorías|Talleres|Actividades sociales/);
+    }
+  });
+
+  it('groups each pass activities by kind, one line per kind in kind order (#404)', () => {
+    const { text, html } = buildConfirmationEmail({
+      ...INPUT,
+      passes: [
+        {
+          name: 'Pase completo Breaking',
+          // Start order mixes kinds; each line keeps the order within its kind.
+          activities: [
+            { name: 'Cypher nocturno', kind: 'social' },
+            { name: 'Workshop intensivo de footwork', kind: 'workshop' },
+            { name: 'Breaking 1vs1', kind: 'competition' },
+            { name: 'Taller de toprock', kind: 'workshop' },
+            { name: 'Popping 1v1', kind: 'competition' },
+          ],
+        },
+        {
+          name: 'Pase taller',
+          activities: [{ name: 'Workshop intensivo de footwork', kind: 'workshop' }],
+        },
+      ],
+    });
+
+    expect(text).toContain(
+      [
+        '- Pase completo Breaking',
+        '  Categorías: Breaking 1vs1, Popping 1v1',
+        '  Talleres: Workshop intensivo de footwork, Taller de toprock',
+        '  Actividades sociales: Cypher nocturno',
+        '- Pase taller',
+        '  Talleres: Workshop intensivo de footwork',
+        '',
+      ].join('\n'),
+    );
+    const line = (label: string, names: string) =>
+      `<br><span style="color:#555555;font-size:14px;">${label}: ${names}</span>`;
+    expect(html).toContain(
+      `<li style="margin:0 0 8px;"><strong>Pase completo Breaking</strong>${line('Categorías', 'Breaking 1vs1, Popping 1v1')}${line('Talleres', 'Workshop intensivo de footwork, Taller de toprock')}${line('Actividades sociales', 'Cypher nocturno')}</li>`,
+    );
+    expect(html).toContain(
+      `<li style="margin:0 0 8px;"><strong>Pase taller</strong>${line('Talleres', 'Workshop intensivo de footwork')}</li>`,
+    );
+    // A workshop is never listed as a categoría.
+    for (const body of [text, html]) expect(body).not.toMatch(/Categorías:[^\n<]*Workshop/);
   });
 
   it('uses the first word of the full name when there is no first name', () => {
@@ -115,7 +169,9 @@ describe('buildConfirmationEmail', () => {
       eventName: 'Tom & "Jerry"',
       eventLocation: { city: '<i>León</i>', state: 'Gto & "Bajío"', country: 'MX' },
       folio: "LMP-<b>'",
-      passes: [{ name: '<img src=x>', competitions: ['<a href="x">1v1</a>'] }],
+      passes: [
+        { name: '<img src=x>', activities: [{ name: '<a href="x">1v1</a>', kind: 'workshop' }] },
+      ],
     });
 
     expect(html).not.toContain('<script>');

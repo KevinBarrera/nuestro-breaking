@@ -68,4 +68,9 @@ export {
   serverErrors,
   type ServerErrors,
 } from './model/registration-request';
-export { choicesStepCopy, type ChoiceKind } from './model/activity-choices';
+export {
+  choicesStepCopy,
+  passActivityLines,
+  type ChoiceKind,
+  type PassActivityLine,
+} from './model/activity-choices';

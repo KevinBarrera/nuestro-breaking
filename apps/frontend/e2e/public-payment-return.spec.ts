@@ -51,7 +51,12 @@ test.describe('public payment return', () => {
     await expect(page.getByRole('status')).toContainText('Pago aprobado');
     await expect(main).toContainText('Tu folio');
     await expect(main).toContainText('LMP-0427');
-    await expect(main).toContainText('Categorías: Breaking Bboy, Breaking 3v3');
+    // Each pass lists its activities one line per kind, competitions first (#404).
+    const passes = main.getByRole('region', { name: 'Tus pases' }).getByRole('listitem');
+    await expect(passes.nth(0)).toHaveText(
+      'Pase completo BreakingCategorías: Breaking BboyTalleres: Workshop intensivo de footwork',
+    );
+    await expect(passes.nth(1)).toHaveText('Open Styles');
     await expect(main).toContainText('$2,923.03 MXN');
     await expect(main).toContainText('Enviamos esta confirmación a a***@ejemplo.com.');
     await expect(page.getByRole('link', { name: 'Volver al inicio' })).toHaveAttribute(

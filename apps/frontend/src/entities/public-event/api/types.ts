@@ -125,7 +125,9 @@ export type Checkout = { checkoutUrl: string };
 
 // What the return page may show about a registration's payment (D1): a first name and a masked
 // email only. `folio` is set only when `status` is `confirmed`.
-export type PaymentStatusPass = { name: string; competitions: string[] };
+// `kind` stays open so an activity kind added later still shows instead of failing (#404).
+export type PaymentStatusActivity = { name: string; kind: string };
+export type PaymentStatusPass = { name: string; activities: PaymentStatusActivity[] };
 
 export type PaymentStatus = {
   status: PaymentStatusValue;

@@ -272,8 +272,15 @@ export const paymentStatusBody = (status: PaymentStatusValue) => ({
   maskedEmail: 'a***@ejemplo.com',
   folio: status === 'confirmed' ? 'LMP-0427' : null,
   passes: [
-    { name: 'Pase completo Breaking', competitions: ['Breaking Bboy', 'Breaking 3v3'] },
-    { name: 'Open Styles', competitions: [] },
+    // An included competition and a chosen workshop, in start order (#404).
+    {
+      name: 'Pase completo Breaking',
+      activities: [
+        { name: 'Workshop intensivo de footwork', kind: 'workshop' },
+        { name: 'Breaking Bboy', kind: 'competition' },
+      ],
+    },
+    { name: 'Open Styles', activities: [] },
   ],
   serviceChargeCents: 12303,
   totalCents: 292303,

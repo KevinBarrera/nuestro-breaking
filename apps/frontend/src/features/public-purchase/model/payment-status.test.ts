@@ -15,7 +15,7 @@ const answer = (status: PaymentStatusValue): PaymentStatus => ({
   firstName: 'Ana',
   maskedEmail: 'a***@gmail.com',
   folio: status === 'confirmed' ? 'LMP-2345' : null,
-  passes: [{ name: 'Open Styles', competitions: [] }],
+  passes: [{ name: 'Open Styles', activities: [] }],
   serviceChargeCents: 0,
   totalCents: 80000,
 });

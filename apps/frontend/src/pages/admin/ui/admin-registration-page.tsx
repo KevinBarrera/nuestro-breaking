@@ -226,8 +226,8 @@ function RegistrationScreen({
             {mode === 'voided' && (
               <Notice title="Inscripción anulada">
                 {voidedHere
-                  ? 'Se anuló la inscripción. Sus pases quedan como historial y ya no admite pases, categorías ni pagos.'
-                  : 'Esta inscripción está anulada: no admite pases, categorías ni pagos.'}
+                  ? 'Se anuló la inscripción. Sus pases quedan como historial y ya no admite pases, actividades ni pagos.'
+                  : 'Esta inscripción está anulada: no admite pases, actividades ni pagos.'}
               </Notice>
             )}
             <SummaryStrip entitlements={state.entitlements} />
@@ -241,7 +241,7 @@ function RegistrationScreen({
                     Venta pendiente
                   </h2>
                   <p className="text-sm text-muted">
-                    Esta inscripción aún no está pagada. Sus pases, categorías y cobro se registran
+                    Esta inscripción aún no está pagada. Sus pases, actividades y cobro se registran
                     en los pasos de Nueva inscripción.
                   </p>
                 </div>

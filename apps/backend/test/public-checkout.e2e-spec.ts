@@ -141,7 +141,7 @@ describe('public checkout (e2e)', () => {
         items: [
           { title: 'Pase completo Breaking', quantity: 1, unit_price: 1500.5, currency_id: 'MXN' },
           { title: 'Open Styles', quantity: 1, unit_price: 700, currency_id: 'MXN' },
-          { title: 'Cargo por servicio', quantity: 1, unit_price: 97.68, currency_id: 'MXN' },
+          { title: 'Cargo por servicio', quantity: 1, unit_price: 97.72, currency_id: 'MXN' },
         ],
         external_reference: id,
         back_urls: { success: returnUrl, failure: returnUrl, pending: returnUrl },
@@ -155,8 +155,8 @@ describe('public checkout (e2e)', () => {
         registration_id: id,
         mode: process.env.MERCADO_PAGO_MODE,
         preference_id: 'pref-fake-1',
-        amount_cents: 229818,
-        service_charge_cents: 9768,
+        amount_cents: 229822,
+        service_charge_cents: 9772,
         currency: 'MXN',
       },
     ]);

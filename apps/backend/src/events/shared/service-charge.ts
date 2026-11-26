@@ -45,19 +45,25 @@ export function readServiceCharge(env: Environment): ServiceCharge {
 
 /**
  * The charge added to an online purchase of `priceCents`, so that after Mercado Pago takes its
- * fee (percentage and fixed amount, each plus VAT) the organizer keeps the full price:
- * `total = (price + fixed × (1 + VAT)) / (1 − rate × (1 + VAT))`, rounded up to the cent.
+ * fee (percentage and fixed amount, each plus VAT) the organizer keeps the full price. Mercado
+ * Pago rounds the rate with VAT to a hundredth of a percent before applying it (3.49% × 1.16 is
+ * charged as 4.05%, #406), so both fee parts are rounded up first:
+ * `total = (price + ⌈fixed × (1 + VAT)⌉) / (1 − ⌈rate × (1 + VAT)⌉)`, rounded up to the cent.
  * Nothing is charged when nothing is paid.
  */
 export function serviceChargeCents(charge: ServiceCharge, priceCents: number): number {
   if (priceCents <= 0) return 0;
   const vatFactor = 10_000n + BigInt(charge.vatBasisPoints);
-  // Both sides scaled by 10^8 so the division is the only rounding step.
-  const numerator =
-    (BigInt(priceCents) * 10_000n + BigInt(charge.fixedCents) * vatFactor) * 10_000n;
-  const denominator = 100_000_000n - BigInt(charge.rateBasisPoints) * vatFactor;
-  const totalCents = (numerator + denominator - 1n) / denominator;
+  // The fee as Mercado Pago applies it: the rate with VAT in hundredths of a percent and the
+  // fixed fee with VAT in cents, each rounded up so the organizer is never short.
+  const rateWithVat = divideUp(BigInt(charge.rateBasisPoints) * vatFactor, 10_000n);
+  const fixedWithVat = divideUp(BigInt(charge.fixedCents) * vatFactor, 10_000n);
+  const totalCents = divideUp((BigInt(priceCents) + fixedWithVat) * 10_000n, 10_000n - rateWithVat);
   return Number(totalCents) - priceCents;
+}
+
+function divideUp(numerator: bigint, denominator: bigint): bigint {
+  return (numerator + denominator - 1n) / denominator;
 }
 
 function readHundredths(env: Environment, name: string, max: number, rule: string): number {

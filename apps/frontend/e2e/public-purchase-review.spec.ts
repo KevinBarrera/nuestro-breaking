@@ -96,8 +96,8 @@ test.describe('public review and pay', () => {
     await expect(passes).toContainText('Pase completo Breaking');
     await expect(passes).toContainText('Breaking Bboy, Breaking 3v3');
     await expect(passes).toContainText('Open Styles 1vs1');
-    await expect(passes).toContainText(/Cargo por servicio\s*Comisión de Mercado Pago\s*\$122\.98/);
-    await expect(passes).toContainText(/Total\s*\$2,922\.98 MXN/);
+    await expect(passes).toContainText(/Cargo por servicio\s*Comisión de Mercado Pago\s*\$123\.03/);
+    await expect(passes).toContainText(/Total\s*\$2,923\.03 MXN/);
     await expect(passes.getByRole('link', { name: 'Cambiar pases' })).toHaveAttribute(
       'href',
       step('pases'),
@@ -130,7 +130,7 @@ test.describe('public review and pay', () => {
     }
 
     // Pay stays disabled, with the reason, until the three documents are accepted.
-    await expect(payButton(page)).toHaveText('Pagar $2,922.98 con Mercado Pago');
+    await expect(payButton(page)).toHaveText('Pagar $2,923.03 con Mercado Pago');
     for (const name of legal) {
       await expect(payButton(page)).toBeDisabled();
       await expect(payButton(page)).toHaveAccessibleDescription(

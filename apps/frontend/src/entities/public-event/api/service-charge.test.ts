@@ -7,11 +7,20 @@ const RATES = { rateBasisPoints: 349, fixedCents: 400, vatBasisPoints: 1600 };
 
 describe('serviceChargeCents', () => {
   it.each([
-    [100_000, 4_703],
-    [280_000, 12_298],
+    [50_000, 2_595],
+    [200_000, 8_926],
+    [100_000, 4_705],
+    [280_000, 12_303],
     [1, 484],
   ])('grosses up a %i cent price to a %i cent charge', (price, charge) => {
     expect(serviceChargeCents(RATES, price)).toBe(charge);
+  });
+
+  it('rounds the rate with VAT up to a hundredth of a percent and the fixed fee up to the cent', () => {
+    expect(serviceChargeCents({ ...RATES, rateBasisPoints: 350 }, 100_000)).toBe(4_716);
+    expect(serviceChargeCents({ ...RATES, rateBasisPoints: 350, fixedCents: 401 }, 100_000)).toBe(
+      4_718,
+    );
   });
 
   it('charges only the fixed amount with VAT when the percentage is zero', () => {

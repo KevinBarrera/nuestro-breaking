@@ -231,7 +231,7 @@ function PaperSheet({ newSheet }: { newSheet: boolean }) {
       <table className="w-full border-collapse text-[15px]">
         <thead>
           <tr>
-            {['#', 'Nombre completo', 'AKA', 'Pase y categorías', 'Monto', 'Recibo'].map(
+            {['#', 'Nombre completo', 'AKA', 'Pase y actividades', 'Monto', 'Recibo'].map(
               (label) => (
                 <th key={label} scope="col" className={th}>
                   {label}

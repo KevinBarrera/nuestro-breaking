@@ -19,7 +19,7 @@ const generalPass = 'f2b2c3d4-1234-4567-89ab-123456789abc';
 const path = `/admin/events/${eventId}/check-in`;
 const api = (url: URL) => url.port === '3000';
 const escalation =
-  'Envía a la persona a coordinación general. En la entrada no se hacen cambios de inscripción ni de categorías.';
+  'Envía a la persona a coordinación general. En la entrada no se hacen cambios de inscripción ni de actividades.';
 
 // `battleNumber` is the competitor number in the battle (#377); workshops never carry one.
 type Check = {

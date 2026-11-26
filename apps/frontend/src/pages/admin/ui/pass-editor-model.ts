@@ -258,7 +258,7 @@ export function accessWarning(passClass: PassClass, days: AgendaDay[], choices: 
   if (countOf(days, choices, 'included') + countOf(days, choices, 'selectable') > 0) return null;
   return passClass === 'add_on'
     ? 'Un adicional sin actividades no suma nada al pase completo. Marca al menos una como incluida.'
-    : 'Un pase completo sin actividades no da acceso a ninguna categoría. Marca las que puede escoger o las que incluye.';
+    : 'Un pase completo sin actividades no da acceso a ninguna actividad. Marca las que puede escoger o las que incluye.';
 }
 
 // The whole desired access list: active activities only (the backend rejects archived ones),
@@ -338,6 +338,22 @@ const previewRequires: Record<RequiredPassClass, string> = {
   general: 'Requiere entrada general',
 };
 
+// What the buyer chooses from, by kind (#410): "Categoría" means a competition only (#385).
+const choiceNouns: Record<string, [string, string]> = {
+  competition: ['categoría', 'categorías'],
+  workshop: ['taller', 'talleres'],
+  social: ['actividad social', 'actividades sociales'],
+};
+
+function selectableTitle(selectable: readonly CatalogActivity[]): string {
+  const kinds = new Set(selectable.map((activity) => activity.kind));
+  const [one, many] = (kinds.size === 1 && choiceNouns[[...kinds][0]]) || [
+    'actividad',
+    'actividades',
+  ];
+  return `Escoge entre ${selectable.length} ${selectable.length === 1 ? one : many}`;
+}
+
 const shortList = (names: string[]) =>
   names.length > 4 ? `${names.slice(0, 4).join(', ')} y ${names.length - 4} más` : names.join(', ');
 
@@ -361,9 +377,7 @@ export function passPreview(
     requires:
       draft.passClass === 'add_on' && draft.requires ? previewRequires[draft.requires] : null,
     included: included.map((activity) => activity.name),
-    selectableTitle: selectable.length
-      ? `Escoge entre ${selectable.length} ${selectable.length === 1 ? 'categoría' : 'categorías'}`
-      : null,
+    selectableTitle: selectable.length ? selectableTitle(selectable) : null,
     selectable: selectable.length ? shortList(selectable.map((activity) => activity.name)) : null,
     empty:
       included.length + selectable.length > 0

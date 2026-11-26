@@ -106,9 +106,10 @@ test('lists the roster, filters by status, searches live and opens one', async (
   const luzRow = rows.nth(0).getByRole('link', {
     name: 'Luz Rivera, EV-7K3Q, Confirmada. Ver inscripción',
   });
-  for (const text of ['AKA Luz', 'Pase completo + Open Styles', 'Batalla de crews'])
+  for (const text of ['AKA Luz', 'Pase completo + Open Styles'])
     await expect(luzRow).toContainText(text);
-  await expect(luzRow).not.toContainText('Taller de footwork');
+  // Every activity, competitions first, so a chosen workshop is not left out (#410).
+  await expect(luzRow).toContainText('Batalla de crews, Taller de footwork');
   await expect(
     rows
       .nth(1)

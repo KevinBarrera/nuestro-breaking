@@ -1,6 +1,12 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { themes, useTheme } from './support/admin-mocks.ts';
-import { catalogReply, draftKey, mockPublicCatalog, slug } from './support/public-mocks.ts';
+import {
+  catalogReply,
+  draftKey,
+  mockPublicCatalog,
+  slug,
+  workshopCatalog,
+} from './support/public-mocks.ts';
 
 // Phone first, like the home and passes spec.
 test.use({ viewport: { width: 390, height: 844 } });
@@ -92,6 +98,44 @@ test.describe('public competitions', () => {
       await expect(page).toHaveURL(step('pases'));
       await expect(page.getByRole('heading', { level: 1, name: 'Elige tus pases' })).toBeVisible();
     }
+  });
+});
+
+test.describe('public activity kinds (#411)', () => {
+  test('shows a selectable workshop as a workshop on pases and on the choices step', async ({
+    page,
+  }) => {
+    await mockPublicCatalog(page, catalogReply(workshopCatalog));
+    await page.goto(step('pases'));
+    const breakingPass = page.getByRole('checkbox', { name: /Pase completo Breaking/ });
+    await expect(page.getByText('4 actividades para elegir')).toBeVisible();
+    await expect(page.getByText('1 categoría para elegir')).toBeVisible();
+
+    await breakingPass.check();
+    await page
+      .getByRole('region', { name: 'Resumen de tu compra' })
+      .getByRole('button', { name: 'Continuar' })
+      .click();
+    await expect(page).toHaveURL(step('categorias'));
+    await expect(
+      page.getByRole('heading', { level: 1, name: 'Elige tus actividades' }),
+    ).toBeVisible();
+    await expect(
+      page.getByText(/^Es opcional\. Marca en las que quieres participar;/),
+    ).toBeVisible();
+    await expect(page.getByText(/quieres competir/)).toHaveCount(0);
+
+    const breaking = page.getByRole('group', { name: 'Pase completo Breaking' });
+    const competitions = breaking.getByRole('group', { name: 'Categorías' });
+    const workshops = breaking.getByRole('group', { name: 'Talleres' });
+    await expect(competitions.getByRole('button')).toHaveText([
+      'Breaking Bboy',
+      'Breaking Bgirl',
+      'Breaking 3v3',
+    ]);
+    const footwork = workshops.getByRole('button', { name: 'Workshop de footwork' });
+    await footwork.click();
+    await expect(footwork).toHaveAttribute('aria-pressed', 'true');
   });
 });
 

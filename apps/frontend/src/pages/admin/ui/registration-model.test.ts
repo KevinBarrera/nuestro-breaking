@@ -113,13 +113,13 @@ describe('registrationRow', () => {
     ],
   };
 
-  it('shows the passes joined and only the competitions', () => {
+  it('shows the passes joined and every activity, competitions first (#410)', () => {
     expect(registrationRow(result)).toEqual({
       name: 'Ale Ferman',
       aka: 'AKA Alesita',
       folio: 'EV-P8TA',
       passes: 'Pase completo Locking + Open Styles',
-      competitions: 'Open Styles 1vs1, Locking 1v1',
+      activities: 'Open Styles 1vs1, Locking 1v1, Taller de locking',
       status: 'Confirmada',
       accessibleName: 'Ale Ferman, EV-P8TA, Confirmada. Ver inscripción',
     });
@@ -137,7 +137,7 @@ describe('registrationRow', () => {
       aka: 'Sin AKA',
       folio: null,
       passes: 'Sin pases',
-      competitions: 'Sin categorías',
+      activities: 'Sin actividades',
       status: 'Pendiente de pago',
       accessibleName: 'Ale Ferman, sin folio, Pendiente de pago. Ver inscripción',
     });

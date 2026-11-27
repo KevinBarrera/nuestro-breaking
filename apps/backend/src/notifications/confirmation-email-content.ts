@@ -1,9 +1,27 @@
+import type { ActivityKind } from '@/database/schema/activities';
 import { displayFirstName } from './registration-summary';
 
 export interface ConfirmationEmailPass {
   name: string;
-  /** Selected competition names, in start order; may be empty. */
-  competitions: string[];
+  /** Included and selected activities, in start order; may be empty. */
+  activities: { name: string; kind: ActivityKind }[];
+}
+
+/** Buyer-facing kind labels, the same words as the public purchase steps (#404, #411). */
+const KIND_LABELS: Record<ActivityKind, string> = {
+  competition: 'Categorías',
+  workshop: 'Talleres',
+  social: 'Actividades sociales',
+};
+
+const KIND_ORDER: readonly ActivityKind[] = ['competition', 'workshop', 'social'];
+
+/** One `[label, "A, B"]` line per kind that has activities, in kind order, keeping start order. */
+function activityLines(pass: ConfirmationEmailPass): [string, string][] {
+  return KIND_ORDER.flatMap((kind): [string, string][] => {
+    const names = pass.activities.filter((a) => a.kind === kind).map((a) => a.name);
+    return names.length > 0 ? [[KIND_LABELS[kind], names.join(', ')]] : [];
+  });
 }
 
 /** What the confirmation email shows. Built from the database when sending (#179 D4). */
@@ -83,7 +101,7 @@ function textBody(input: ConfirmationEmailInput, name: string, when: EventWhen):
   lines.push(`Tu folio: ${input.folio}`, ENTRANCE_LINE, '', 'Tus pases:');
   for (const pass of input.passes) {
     lines.push(`- ${pass.name}`);
-    if (pass.competitions.length > 0) lines.push(`  Categorías: ${pass.competitions.join(', ')}`);
+    for (const [label, names] of activityLines(pass)) lines.push(`  ${label}: ${names}`);
   }
   const rows = paymentRows(input);
   if (rows.length > 0)
@@ -96,11 +114,13 @@ function htmlBody(input: ConfirmationEmailInput, name: string, when: EventWhen):
   const event = escapeHtml(input.eventName);
   const passes = input.passes
     .map((pass) => {
-      const competitions =
-        pass.competitions.length > 0
-          ? `<br><span style="color:#555555;font-size:14px;">Categorías: ${escapeHtml(pass.competitions.join(', '))}</span>`
-          : '';
-      return `<li style="margin:0 0 8px;"><strong>${escapeHtml(pass.name)}</strong>${competitions}</li>`;
+      const lines = activityLines(pass)
+        .map(
+          ([label, names]) =>
+            `<br><span style="color:#555555;font-size:14px;">${label}: ${escapeHtml(names)}</span>`,
+        )
+        .join('');
+      return `<li style="margin:0 0 8px;"><strong>${escapeHtml(pass.name)}</strong>${lines}</li>`;
     })
     .join('');
   const rows = paymentRows(input);

@@ -100,7 +100,10 @@ describe('Confirmation email dispatch (e2e)', () => {
 
   const mode = () => process.env.MERCADO_PAGO_MODE ?? 'sandbox';
 
-  /** A pending online registration with a full pass (two competitions) and an add-on (none). */
+  /**
+   * A pending online registration with a full pass (two chosen competitions and an included
+   * workshop) and an add-on (none).
+   */
   async function pendingRegistration(email: string | null = EMAIL, chargeCents = 0) {
     const [{ id: org }] = await client<
       { id: string }[]
@@ -119,11 +122,19 @@ describe('Confirmation email dispatch (e2e)', () => {
       VALUES (${eventId}, ${venue}, 'competition', 'Breaking 1v1', '2026-11-20T18:00:00Z', '2026-11-20T20:00:00Z'),
         (${eventId}, ${venue}, 'competition', 'Popping 1v1', '2026-11-20T15:00:00Z', '2026-11-20T17:00:00Z')
       RETURNING id`;
+    const [workshop] = await client<{ id: string }[]>`
+      INSERT INTO activities (event_id, venue_id, kind, name, starts_at, ends_at)
+      VALUES (${eventId}, ${venue}, 'workshop', 'Workshop de footwork', '2026-11-20T16:00:00Z', '2026-11-20T17:00:00Z')
+      RETURNING id`;
     const [full, addOn] = await client<{ id: string }[]>`
       INSERT INTO event_pass_types (event_id, name, pass_class, price_cents, requires_pass_class, status)
       VALUES (${eventId}, 'Pase completo Breaking', 'full', ${FULL_CENTS}, NULL, 'active'),
         (${eventId}, 'Open Styles', 'add_on', ${ADD_ON_CENTS}, 'full', 'active')
       RETURNING id`;
+    await client`INSERT INTO event_pass_type_activities (event_id, pass_type_id, activity_id, access)
+      VALUES (${eventId}, ${full.id}, ${workshop.id}, 'included'),
+        (${eventId}, ${full.id}, ${breaking.id}, 'selectable'),
+        (${eventId}, ${full.id}, ${popping.id}, 'selectable')`;
     const [{ id }] = await client<{ id: string }[]>`
       WITH participant AS (
         INSERT INTO participants (full_name, first_name, first_last_name, email)
@@ -280,7 +291,7 @@ describe('Confirmation email dispatch (e2e)', () => {
         SELECT status, folio FROM event_registrations WHERE id = ${id}`
     )[0];
 
-  it('sends one email with the folio, passes and competitions when the webhook confirms', async () => {
+  it('sends one email with the folio, passes and activities by kind when the webhook confirms', async () => {
     const id = await pendingRegistration();
     setPayment(id);
 
@@ -300,8 +311,9 @@ describe('Confirmation email dispatch (e2e)', () => {
       expect(body).toContain('viernes, 20 de noviembre de 2026');
       expect(body).toContain('Guadalajara, Jalisco');
       expect(body).toContain('Pase completo Breaking');
-      // Competitions in start order.
-      expect(body).toContain('Popping 1v1, Breaking 1v1');
+      // Chosen competitions in start order, and the included workshop on its own line (#404).
+      expect(body).toContain('Categorías: Popping 1v1, Breaking 1v1');
+      expect(body).toContain('Talleres: Workshop de footwork');
       expect(body).toContain('Open Styles');
       expect(body).not.toContain(EMAIL);
       expect(body).not.toContain(PAYMENT_ID);

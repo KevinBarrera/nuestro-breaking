@@ -38,6 +38,7 @@ import {
   StepperFooter,
   StepperFrame,
 } from './new-registration-layout';
+import { groupByKind } from './activity-kind-groups';
 import {
   addOnState,
   chooseBase,
@@ -454,7 +455,7 @@ function PassStep({
           <h2 id={titleId} ref={headingRef} tabIndex={-1} className={stepHeading}>
             Pase de {firstName}
           </h2>
-          <p className={stepLead}>Elige un pase. Si es completo, marca sus categorías.</p>
+          <p className={stepLead}>Elige un pase. Si es completo, marca sus actividades.</p>
         </div>
         {options.bases.length === 0 ? (
           <p className="text-muted">Este evento no tiene pases a la venta.</p>
@@ -636,6 +637,8 @@ function AddOnOption({
   );
 }
 
+// A pass's activities to choose, grouped by kind (#410). A single kind names the group ("Categorías
+// de X"), so a competition-only pass reads as before; mixed kinds get "Actividades de X".
 function Competitions({
   name,
   pass,
@@ -649,21 +652,27 @@ function Competitions({
   disabled: boolean;
   onToggle: (activityId: string) => void;
 }) {
+  const groups = groupByKind(pass.choices, (choice) => choice.kind);
+  const label = groups.length === 1 ? groups[0].label : 'Actividades';
   return (
     <div
       role="group"
-      aria-label={`Categorías de ${name}`}
+      aria-label={`${label} de ${name}`}
       className="mx-4 mb-3 flex flex-col border-t border-line pt-2 sm:ml-12"
     >
-      <span className="py-1 text-xs font-semibold text-muted">Categorías</span>
-      {pass.choices.map((choice) => (
-        <CheckboxField
-          key={choice.activityId}
-          label={choice.name}
-          checked={chosen.includes(choice.activityId)}
-          disabled={disabled}
-          onChange={() => onToggle(choice.activityId)}
-        />
+      {groups.map((group) => (
+        <div key={group.label} role="group" aria-label={group.label} className="flex flex-col">
+          <span className="py-1 text-xs font-semibold text-muted">{group.label}</span>
+          {group.items.map((choice) => (
+            <CheckboxField
+              key={choice.activityId}
+              label={choice.name}
+              checked={chosen.includes(choice.activityId)}
+              disabled={disabled}
+              onChange={() => onToggle(choice.activityId)}
+            />
+          ))}
+        </div>
       ))}
     </div>
   );

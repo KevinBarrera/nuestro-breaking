@@ -75,6 +75,30 @@ export const openCatalog = {
   passes,
 };
 
+// The open catalog with a workshop to pick in the Breaking pass (#411): Breaking mixes kinds,
+// Dancehall keeps only competitions.
+export const workshopCatalog = {
+  ...openCatalog,
+  passes: passes.map((pass) =>
+    pass.id === 'breaking'
+      ? {
+          ...pass,
+          selectableActivities: [
+            ...pass.selectableActivities,
+            {
+              ...competition(
+                'breaking-footwork',
+                'Workshop de footwork',
+                '2026-11-22T17:00:00.000Z',
+              ),
+              kind: 'workshop',
+            },
+          ],
+        }
+      : pass,
+  ),
+};
+
 // The open catalog of an event with a location (#330); the default catalog has none.
 export const locatedCatalog = (city: string, state: string, country: string) => ({
   ...openCatalog,
@@ -248,8 +272,15 @@ export const paymentStatusBody = (status: PaymentStatusValue) => ({
   maskedEmail: 'a***@ejemplo.com',
   folio: status === 'confirmed' ? 'LMP-0427' : null,
   passes: [
-    { name: 'Pase completo Breaking', competitions: ['Breaking Bboy', 'Breaking 3v3'] },
-    { name: 'Open Styles', competitions: [] },
+    // An included competition and a chosen workshop, in start order (#404).
+    {
+      name: 'Pase completo Breaking',
+      activities: [
+        { name: 'Workshop intensivo de footwork', kind: 'workshop' },
+        { name: 'Breaking Bboy', kind: 'competition' },
+      ],
+    },
+    { name: 'Open Styles', activities: [] },
   ],
   serviceChargeCents: 12303,
   totalCents: 292303,

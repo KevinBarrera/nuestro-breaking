@@ -401,7 +401,7 @@ test.describe('create', () => {
     await mockCatalog(page, () => [fullPass]);
     await page.goto(newPath);
     await expect(accessList(page)).toContainText(
-      'Un pase completo sin actividades no da acceso a ninguna categoría.',
+      'Un pase completo sin actividades no da acceso a ninguna actividad.',
     );
     const saturday = dayGroup(page, 'Sábado 14 de noviembre');
     await saturday.getByRole('button', { name: 'Todas elegibles' }).click();
@@ -410,7 +410,7 @@ test.describe('create', () => {
     // Other days keep their choices.
     await expectAccess(access(page, 'Taller de toprock'), 'Sin acceso');
     await expect(accessList(page)).toContainText('0 incluidas · 3 elegibles de 4');
-    await expect(accessList(page)).not.toContainText('no da acceso a ninguna categoría');
+    await expect(accessList(page)).not.toContainText('no da acceso a ninguna actividad');
 
     const onlyWithAccess = accessList(page).getByRole('button', { name: 'Solo con acceso' });
     await onlyWithAccess.click();

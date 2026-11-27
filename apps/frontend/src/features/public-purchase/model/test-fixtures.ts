@@ -1,10 +1,10 @@
 import type { PublicActivity, PublicPass } from '@/entities/public-event';
 
 // Test catalog: two full passes with competitions, general entry and an add-on that needs a full pass.
-const activity = (id: string, name: string): PublicActivity => ({
+export const activity = (id: string, name: string, kind = 'competition'): PublicActivity => ({
   id,
   name,
-  kind: 'competition',
+  kind,
   startsAt: '2026-11-21T18:00:00.000Z',
   endsAt: '2026-11-21T20:00:00.000Z',
 });

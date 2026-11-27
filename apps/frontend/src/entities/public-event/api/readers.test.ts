@@ -219,8 +219,14 @@ const paymentStatus = {
   maskedEmail: 'a***@gmail.com',
   folio: 'LMP-2345',
   passes: [
-    { name: 'Pase completo Breaking', competitions: ['Popping 1v1', 'Breaking 1v1'] },
-    { name: 'Open Styles', competitions: [] },
+    {
+      name: 'Pase completo Breaking',
+      activities: [
+        { name: 'Popping 1v1', kind: 'competition' },
+        { name: 'Workshop intensivo de footwork', kind: 'workshop' },
+      ],
+    },
+    { name: 'Open Styles', activities: [] },
   ],
   serviceChargeCents: 9768,
   totalCents: 229818,
@@ -234,6 +240,11 @@ describe('isPaymentStatus', () => {
         isPaymentStatus({ ...paymentStatus, status, folio: null, maskedEmail: null }),
         status,
       ).toBe(true);
+  });
+
+  it('accepts an activity of a kind it does not know yet (#404)', () => {
+    const passes = [{ name: 'Open Styles', activities: [{ name: 'Expo', kind: 'exhibition' }] }];
+    expect(isPaymentStatus({ ...paymentStatus, passes })).toBe(true);
   });
 
   it('rejects an unknown status value', () => {
@@ -254,8 +265,16 @@ describe('isPaymentStatus', () => {
       { ...paymentStatus, firstName: 7 },
       { ...paymentStatus, maskedEmail: 3 },
       { ...paymentStatus, passes: null },
-      { ...paymentStatus, passes: [{ name: '', competitions: [] }] },
-      { ...paymentStatus, passes: [{ name: 'Open Styles', competitions: [1] }] },
+      { ...paymentStatus, passes: [{ name: '', activities: [] }] },
+      { ...paymentStatus, passes: [{ name: 'Open Styles', activities: null }] },
+      { ...paymentStatus, passes: [{ name: 'Open Styles', activities: ['Bboy'] }] },
+      { ...paymentStatus, passes: [{ name: 'Open Styles', activities: [{ name: 'Bboy' }] }] },
+      {
+        ...paymentStatus,
+        passes: [{ name: 'Open Styles', activities: [{ name: '', kind: 'workshop' }] }],
+      },
+      // The previous shape (#404 replaced it).
+      { ...paymentStatus, passes: [{ name: 'Open Styles', competitions: [] }] },
       { ...paymentStatus, totalCents: -1 },
       { ...paymentStatus, serviceChargeCents: undefined },
       { ...paymentStatus, serviceChargeCents: -1 },

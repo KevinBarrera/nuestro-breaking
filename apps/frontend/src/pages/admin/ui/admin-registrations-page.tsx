@@ -303,7 +303,7 @@ function RegistrationRowLink({
       </span>
       <span className="hidden min-w-0 flex-col @3xl:flex">
         <span className="truncate font-semibold text-heading">{row.passes}</span>
-        <span className="truncate text-muted">{row.competitions}</span>
+        <span className="truncate text-muted">{row.activities}</span>
       </span>
       <span className="flex">
         <StatusPill tone={statusTone(result.registration.status)}>{row.status}</StatusPill>

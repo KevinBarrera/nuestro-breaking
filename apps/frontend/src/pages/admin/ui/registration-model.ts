@@ -14,6 +14,7 @@ import {
   type ParticipantForm,
 } from '@/entities/participant';
 import { saleParticipantMessages, type SalePhoneMode } from './sale-participant-model';
+import { groupByKind } from './activity-kind-groups';
 
 // Inscripciones (#105, #345): copy and pure rules for the roster, the in-person registration
 // form and its possible-duplicates confirmation.
@@ -80,19 +81,22 @@ export type RegistrationRow = {
   aka: string;
   folio: string | null;
   passes: string;
-  competitions: string;
+  activities: string;
   status: string;
   accessibleName: string;
 };
 
-// One roster row: the held passes joined and only the competitions among the activities.
+// One roster row: the held passes joined and their activities of every kind, competitions first
+// (#410), so a chosen workshop is never left out silently.
 export function registrationRow({
   participant,
   registration,
   passes,
   activities,
 }: RegistrationSearchResult): RegistrationRow {
-  const competitions = activities.filter((activity) => activity.kind === 'competition');
+  const byKind = groupByKind(activities, (activity) => activity.kind).flatMap(
+    (group) => group.items,
+  );
   const status = registrationStatusLabel(registration.status);
   // Base passes lead and add-ons follow, each group in the backend's name order.
   const ordered = [
@@ -104,9 +108,9 @@ export function registrationRow({
     aka: participant.stageName ? `AKA ${participant.stageName}` : 'Sin AKA',
     folio: registration.folio,
     passes: ordered.length ? ordered.map((pass) => pass.name).join(' + ') : 'Sin pases',
-    competitions: competitions.length
-      ? competitions.map((activity) => activity.name).join(', ')
-      : 'Sin categorías',
+    activities: byKind.length
+      ? byKind.map((activity) => activity.name).join(', ')
+      : 'Sin actividades',
     status,
     accessibleName: `${participant.fullName}, ${registration.folio ?? 'sin folio'}, ${status}. Ver inscripción`,
   };

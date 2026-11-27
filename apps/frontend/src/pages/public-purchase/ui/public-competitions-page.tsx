@@ -1,6 +1,9 @@
 import {
+  choicesStepCopy,
   competitionGroups,
+  competitionsChoiceKind,
   toggleActivity,
+  type CompetitionChoice,
   type CompetitionGroup,
 } from '@/features/public-purchase';
 import { CheckIcon } from '@/shared/ui';
@@ -15,8 +18,10 @@ const toggleTone = (selected: boolean) =>
     ? 'border-chip-selected bg-chip-selected text-chip-selected-fg'
     : 'border-input-line bg-surface text-heading hover:bg-row';
 
-// Screen 3 (Elige tus categorías), optional: one group of toggle buttons per chosen pass with
-// competitions to pick, and the competitions a pass includes marked "Incluida".
+// Screen 3, optional, named by what the chosen passes offer (#411): "Elige tus categorías" for
+// competitions, "Elige tus talleres" for workshops, "Elige tus actividades" for a mix. One group of
+// toggle buttons per chosen pass, split by kind when it mixes kinds, and the activities a pass
+// includes marked "Incluida".
 export function PublicCompetitionsPage() {
   const { slug, catalog, selection, setSelection } = usePurchase();
   const navigate = useNavigate();
@@ -25,18 +30,14 @@ export function PublicCompetitionsPage() {
 
   const toggle = (passId: string, activityId: string) =>
     setSelection(toggleActivity(catalog.passes, selection, passId, activityId));
+  const copy = choicesStepCopy(competitionsChoiceKind(catalog.passes, selection));
 
   return (
     <PublicFrame backTo={stepPath(slug, 'passes')}>
       <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-4 px-5 py-5">
         <StepProgress step={stepNumber('competitions')} total={purchaseStepCount} />
-        <h1 className="text-[26px] leading-tight font-extrabold text-heading">
-          Elige tus categorías
-        </h1>
-        <p className="text-muted">
-          Es opcional. Marca en las que quieres competir; si cambias de opinión, la organización
-          puede ajustarlo después.
-        </p>
+        <h1 className="text-[26px] leading-tight font-extrabold text-heading">{copy.title}</h1>
+        <p className="text-muted">{copy.intro}</p>
         <div className="flex flex-col gap-6 pt-1">
           {competitionGroups(catalog.passes, selection).map((group) =>
             group.selectable.length > 0 ? (
@@ -44,20 +45,22 @@ export function PublicCompetitionsPage() {
                 <legend className="mb-3 text-lg font-extrabold text-heading">
                   {group.pass.name}
                 </legend>
-                <div className="flex flex-wrap gap-2">
-                  {group.selectable.map(({ activity, selected }) => (
-                    <button
-                      key={activity.id}
-                      type="button"
-                      aria-pressed={selected}
-                      onClick={() => toggle(group.pass.id, activity.id)}
-                      className={`inline-flex min-h-11 max-w-full items-center gap-1.5 rounded-full border-[1.5px] px-4 text-[15px] font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus ${toggleTone(selected)}`}
-                    >
-                      {selected ? <CheckIcon /> : null}
-                      {activity.name}
-                    </button>
-                  ))}
-                </div>
+                {group.sections.map((section) =>
+                  section.label ? (
+                    <KindSection
+                      key={section.label}
+                      label={section.label}
+                      choices={section.items}
+                      onToggle={(activityId) => toggle(group.pass.id, activityId)}
+                    />
+                  ) : (
+                    <ChoiceToggles
+                      key="all"
+                      choices={section.items}
+                      onToggle={(activityId) => toggle(group.pass.id, activityId)}
+                    />
+                  ),
+                )}
                 <IncludedList group={group} />
               </fieldset>
             ) : (
@@ -76,6 +79,43 @@ export function PublicCompetitionsPage() {
         </button>
       </StepBar>
     </PublicFrame>
+  );
+}
+
+type ChoiceTogglesProps = {
+  choices: CompetitionChoice[];
+  onToggle: (activityId: string) => void;
+};
+
+function ChoiceToggles({ choices, onToggle }: ChoiceTogglesProps) {
+  return (
+    <div className="flex flex-wrap gap-2">
+      {choices.map(({ activity, selected }) => (
+        <button
+          key={activity.id}
+          type="button"
+          aria-pressed={selected}
+          onClick={() => onToggle(activity.id)}
+          className={`inline-flex min-h-11 max-w-full items-center gap-1.5 rounded-full border-[1.5px] px-4 text-[15px] font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus ${toggleTone(selected)}`}
+        >
+          {selected ? <CheckIcon /> : null}
+          {activity.name}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// The choices of one kind inside a pass that mixes kinds, such as "Talleres" (#411).
+function KindSection({ label, ...toggles }: ChoiceTogglesProps & { label: string }) {
+  const labelId = useId();
+  return (
+    <div role="group" aria-labelledby={labelId} className="flex flex-col gap-2">
+      <h3 id={labelId} className="text-sm font-semibold text-muted">
+        {label}
+      </h3>
+      <ChoiceToggles {...toggles} />
+    </div>
   );
 }
 

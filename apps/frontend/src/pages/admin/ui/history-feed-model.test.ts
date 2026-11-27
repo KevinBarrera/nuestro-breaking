@@ -122,7 +122,7 @@ describe('historyEntry', () => {
     expect(swap.kind).toBe('correction');
     expect(swap.diff).toEqual([
       { label: 'Pase', before: 'Pase completo Breaking', after: 'Pase completo Popping' },
-      { label: 'Categorías', before: 'Breaking 1v1 Toprock', after: 'Sin categorías' },
+      { label: 'Actividades', before: 'Breaking 1v1 Toprock', after: 'Sin actividades' },
     ]);
     const voided = historyEntry(
       item('2026-10-21T17:00:00.000Z', {
@@ -188,7 +188,7 @@ describe('historyEntry', () => {
     expect(unreasoned).toMatchObject({
       kind: 'registration',
       competitions: null,
-      summary: 'Sin cambios en las categorías',
+      summary: 'Sin cambios en las actividades',
     });
   });
 

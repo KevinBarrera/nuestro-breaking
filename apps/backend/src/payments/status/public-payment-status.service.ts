@@ -69,7 +69,7 @@ export class PublicPaymentStatusService {
       firstName: displayFirstName(registration.firstName, registration.fullName),
       maskedEmail: maskEmail(registration.email),
       folio: status === 'confirmed' ? registration.folio : null,
-      passes: passes.map(({ name, competitions }) => ({ name, competitions })),
+      passes: passes.map(({ name, activities }) => ({ name, activities })),
       serviceChargeCents,
       totalCents: passes.reduce((total, pass) => total + pass.priceCents, serviceChargeCents),
     };

@@ -1,6 +1,6 @@
 import { formatMxn } from '@/entities/event-catalog';
 import type { PaymentStatus } from '@/entities/public-event';
-import type { CheckoutFailure } from '@/features/public-purchase';
+import { passActivityLines, type CheckoutFailure } from '@/features/public-purchase';
 import { Notice } from '@/shared/ui';
 import { continueButtonClass } from '@/widgets/public-layout';
 import type { ReactNode, Ref } from 'react';
@@ -139,11 +139,11 @@ export function ConfirmedView({ headingRef, slug, status }: ViewProps & { status
           {status.passes.map((pass, index) => (
             <li key={`${pass.name}-${index}`} className="flex flex-col">
               <span className="font-semibold text-heading">{pass.name}</span>
-              {pass.competitions.length > 0 ? (
-                <span className="text-sm text-muted">
-                  Categorías: {pass.competitions.join(', ')}
+              {passActivityLines(pass.activities).map((line) => (
+                <span key={line.label} className="text-sm text-muted">
+                  {line.label}: {line.names}
                 </span>
-              ) : null}
+              ))}
             </li>
           ))}
         </ul>

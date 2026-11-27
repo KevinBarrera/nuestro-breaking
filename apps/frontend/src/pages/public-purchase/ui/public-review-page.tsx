@@ -9,6 +9,8 @@ import {
 import {
   buildRegistrationRequest,
   checkoutFailure,
+  choicesStepCopy,
+  competitionsChoiceKind,
   localIsoDate,
   payFailure,
   purchaseTotals,
@@ -17,6 +19,7 @@ import {
   safeCheckoutUrl,
   validateBuyer,
   type CheckoutFailure,
+  type ChoiceKind,
   type PayFailure,
   type PayFix,
 } from '@/features/public-purchase';
@@ -58,12 +61,14 @@ const legalChecks = [
   { id: 'cancellation', label: <>Leí y acepto la {documentLink('cancellation')}.</> },
 ] as const satisfies readonly { id: LegalDocumentKey; label: ReactNode }[];
 
-const fixLabels: Record<PayFix, string> = {
-  home: 'Volver al inicio',
-  passes: 'Cambiar mis pases',
-  competitions: 'Cambiar mis categorías',
-  buyer: 'Corregir mis datos',
-};
+// The step 2 link is named by what the buyer picked there (#411).
+const fixLabel = (fix: PayFix, choices: ChoiceKind): string =>
+  ({
+    home: 'Volver al inicio',
+    passes: 'Cambiar mis pases',
+    competitions: choicesStepCopy(choices).change,
+    buyer: 'Corregir mis datos',
+  })[fix];
 
 const linkClass =
   'inline-flex min-h-11 items-center font-semibold text-link underline underline-offset-2 hover:text-link-hover focus-visible:outline-2 focus-visible:outline-focus';
@@ -79,6 +84,7 @@ const linkClass =
 // registration, so paying again never creates a second one.
 export function PublicReviewPage() {
   const { slug, catalog, selection, buyer } = usePurchase();
+  const choices = competitionsChoiceKind(catalog.passes, selection);
   const [accepted, setAccepted] = useState<Record<LegalDocumentKey, boolean>>({
     rules: false,
     privacy: false,
@@ -147,7 +153,7 @@ export function PublicReviewPage() {
         registrationId.current = id;
       } catch (error) {
         if (controller.signal.aborted) return;
-        setFailure(payFailure(publicEventFailure(error), buyer.phoneMode));
+        setFailure(payFailure(publicEventFailure(error), buyer.phoneMode, choices));
         stop();
         return;
       }
@@ -255,7 +261,9 @@ export function PublicReviewPage() {
                   </button>
                 </>
               ) : null}
-              {checkoutError.fix ? <FixLink slug={slug} fix={checkoutError.fix} /> : null}
+              {checkoutError.fix ? (
+                <FixLink slug={slug} fix={checkoutError.fix} choices={choices} />
+              ) : null}
             </Notice>
           </div>
         ) : null}
@@ -272,7 +280,7 @@ export function PublicReviewPage() {
               ) : (
                 <p>{failure.message}</p>
               )}
-              {failure.fix ? <FixLink slug={slug} fix={failure.fix} /> : null}
+              {failure.fix ? <FixLink slug={slug} fix={failure.fix} choices={choices} /> : null}
             </Notice>
           </div>
         ) : null}
@@ -328,16 +336,16 @@ function Card({ title, change, children }: CardProps) {
 
 // The way out of a failed payment. Home is a full page load, so the catalog (and the sales
 // state that just closed) is read again.
-function FixLink({ slug, fix }: { slug: string; fix: PayFix }) {
+function FixLink({ slug, fix, choices }: { slug: string; fix: PayFix; choices: ChoiceKind }) {
   if (fix === 'home')
     return (
       <a href={stepPath(slug, 'home')} className={linkClass}>
-        {fixLabels.home}
+        {fixLabel('home', choices)}
       </a>
     );
   return (
     <Link to={stepPath(slug, fix)} className={linkClass}>
-      {fixLabels[fix]}
+      {fixLabel(fix, choices)}
     </Link>
   );
 }

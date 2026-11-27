@@ -77,11 +77,12 @@ outcome, and the screen only shows what it answered.
    the participant. It is not the paper receipt number. Both the cash and the
    without-payment confirmation send the participant the confirmation email
    with the folio.
-7. To change the competitions of a confirmed registration, open it, press
-   "Editar categorías" on the pass, check the new competitions, write why in
-   "Motivo del cambio" (required, up to 500 characters) and press "Guardar
-   cambios". Check the before and after in the dialog and press "Cambiar
-   categorías". The reason stays in the registration audit.
+7. To change the activities of a confirmed registration (competitions,
+   workshops or social activities the pass lets the buyer choose), open it,
+   press "Editar actividades" on the pass, check the new ones, write why in
+   "Motivo" (required, up to 500 characters) and press "Revisar cambios".
+   Check the before and after and press "Guardar actividades". The reason
+   stays in the registration audit.
 8. To void an in-person registration made by mistake (for example, the same
    person registered twice) while it is still "Pendiente de pago", press
    "Anular inscripción" at the end of the sale, write why in "Motivo"

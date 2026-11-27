@@ -280,7 +280,7 @@ describe('accessWarning', () => {
   it('warns when a full pass or an add-on gives access to nothing', () => {
     const days = accessDays(activities, timeZone);
     expect(accessWarning('full', days, {})).toBe(
-      'Un pase completo sin actividades no da acceso a ninguna categoría. Marca las que puede escoger o las que incluye.',
+      'Un pase completo sin actividades no da acceso a ninguna actividad. Marca las que puede escoger o las que incluye.',
     );
     expect(accessWarning('add_on', days, { toprock: 'none' })).toBe(
       'Un adicional sin actividades no suma nada al pase completo. Marca al menos una como incluida.',
@@ -437,6 +437,18 @@ describe('passPreview', () => {
     expect(
       passPreview(draftOf({ passClass: 'general', choices: {} }), days, timeZone, eventWindow),
     ).toMatchObject({ classLabel: 'Entrada general', empty: 'Entrada al evento.' });
+  });
+
+  it('names the kind to choose, or "actividades" when the kinds are mixed (#410)', () => {
+    const workshop = { ...activity('ws', 'Taller', '2026-11-21T18:00:00.000Z'), kind: 'workshop' };
+    const party = { ...activity('party', 'Fiesta', '2026-11-21T20:00:00.000Z'), kind: 'social' };
+    const days = accessDays([...activities, workshop, party], timeZone);
+    const title = (choices: Record<string, 'selectable'>) =>
+      passPreview(draftOf({ choices }), days, timeZone, eventWindow).selectableTitle;
+    expect(title({ ws: 'selectable' })).toBe('Escoge entre 1 taller');
+    expect(title({ party: 'selectable' })).toBe('Escoge entre 1 actividad social');
+    expect(title({ popping: 'selectable' })).toBe('Escoge entre 1 categoría');
+    expect(title({ ws: 'selectable', popping: 'selectable' })).toBe('Escoge entre 2 actividades');
   });
 
   it('shortens a long eligible list', () => {

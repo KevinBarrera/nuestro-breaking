@@ -23,13 +23,20 @@ import {
   toggleChoice,
 } from './new-registration-model';
 
-const activity = (id: string, name: string, startsAt: string, status = 'active') =>
-  ({ id, name, startsAt, kind: 'competition', status }) as CatalogActivity;
+const activity = (
+  id: string,
+  name: string,
+  startsAt: string,
+  status = 'active',
+  kind = 'competition',
+) => ({ id, name, startsAt, kind, status }) as CatalogActivity;
 const activities = [
   activity('p2', 'Popping 2v2', '2026-11-14T18:00:00Z'),
   activity('p1', 'Popping 1v1', '2026-11-14T17:00:00Z'),
   activity('os', 'Open Styles 1vs1', '2026-11-14T19:00:00Z'),
   activity('old', 'Retirada', '2026-11-14T10:00:00Z', 'archived'),
+  activity('ws', 'Taller de footwork', '2026-11-14T12:00:00Z', 'active', 'workshop'),
+  activity('party', 'Fiesta', '2026-11-14T22:00:00Z', 'active', 'social'),
 ];
 const passType = (
   id: string,
@@ -65,6 +72,16 @@ const openStyles = passType(
 );
 const archived = passType('gone', 'Archivado', 'full', 200000, [], { status: 'archived' });
 const options = stepperPasses([general, popping, openStyles, archived], activities);
+// A pass with a selectable workshop and an included social activity (#410).
+const breaking = passType('breaking', 'Pase completo Breaking', 'full', 200000, [
+  { activityId: 'p1', access: 'selectable' },
+  { activityId: 'ws', access: 'selectable' },
+  { activityId: 'party', access: 'included' },
+]);
+const workshopOnly = passType('workshops', 'Pase de talleres', 'full', 150000, [
+  { activityId: 'ws', access: 'selectable' },
+]);
+const mixed = stepperPasses([breaking, workshopOnly], activities);
 
 const held = (passTypeId: string, passClass: HeldPass['passClass'], selections: string[] = []) => ({
   registrationPassId: `rp-${passTypeId}`,
@@ -79,20 +96,36 @@ describe('stepperPasses', () => {
   it('splits the active base passes from the add-ons, with their competitions by start', () => {
     expect(options.bases.map((pass) => pass.passTypeId)).toEqual(['general', 'popping']);
     expect(options.bases[1].choices).toEqual([
-      { activityId: 'p1', name: 'Popping 1v1' },
-      { activityId: 'p2', name: 'Popping 2v2' },
+      { activityId: 'p1', name: 'Popping 1v1', kind: 'competition' },
+      { activityId: 'p2', name: 'Popping 2v2', kind: 'competition' },
     ]);
     expect(options.addOns).toMatchObject([
       { passTypeId: 'open', included: ['Open Styles 1vs1'], requiresPassClass: 'full' },
     ]);
   });
+
+  it('offers and includes workshops and social activities, not only competitions (#410)', () => {
+    expect(mixed.bases[0]).toMatchObject({
+      included: ['Fiesta'],
+      choices: [
+        { activityId: 'ws', name: 'Taller de footwork', kind: 'workshop' },
+        { activityId: 'p1', name: 'Popping 1v1', kind: 'competition' },
+      ],
+    });
+  });
 });
 
 describe('passIncludes', () => {
   it('says what each pass gives', () => {
-    expect(passIncludes(options.bases[0])).toBe('Solo entrada al evento, sin categorías');
+    expect(passIncludes(options.bases[0])).toBe('Solo entrada al evento');
     expect(passIncludes(options.bases[1])).toBe('Categorías a elegir');
     expect(passIncludes(options.addOns[0])).toBe('Open Styles 1vs1');
+  });
+
+  it('names the kind to choose, or "actividades" when the kinds are mixed (#410)', () => {
+    expect(passIncludes(mixed.bases[0])).toBe('Actividades a elegir');
+    expect(passIncludes(mixed.bases[1])).toBe('Talleres a elegir');
+    expect(passIncludes({ ...mixed.bases[1], choices: [] })).toBe('Sin actividades');
   });
 });
 
@@ -186,11 +219,22 @@ describe('cobroLines', () => {
       { key: 'rp-open', name: 'open', detail: 'Open Styles 1vs1', priceCents: 80000 },
     ]);
     expect(cobroLines([held('popping', 'full')], options)[0].detail).toBe(
-      'Sin categorías elegidas',
+      'Sin actividades elegidas',
     );
     expect(
       cobroLines([{ ...held('general', 'general'), name: 'Entrada general' }], options)[0],
     ).toMatchObject({ detail: 'Entrada al evento' });
+  });
+});
+
+describe('cobroLines with workshops (#410)', () => {
+  it('names a chosen workshop and an unknown choice without assuming a kind', () => {
+    expect(cobroLines([held('breaking', 'full', ['ws', 'p1'])], mixed)[0].detail).toBe(
+      'Taller de footwork, Popping 1v1',
+    );
+    expect(cobroLines([held('breaking', 'full', ['gone'])], mixed)[0].detail).toBe(
+      'Actividad no disponible',
+    );
   });
 });
 
@@ -225,6 +269,10 @@ describe('selectionPayload', () => {
   it('sends the chosen competitions in the order shown, without ones no longer offered', () => {
     expect(selectionPayload(options, 'popping', ['p2', 'old', 'p1'])).toEqual(['p1', 'p2']);
     expect(selectionPayload(options, 'gone', ['p1'])).toEqual([]);
+  });
+
+  it('keeps a chosen workshop, so finishing an online sale at the desk does not drop it (#410)', () => {
+    expect(selectionPayload(mixed, 'breaking', ['p1', 'ws'])).toEqual(['ws', 'p1']);
   });
 });
 

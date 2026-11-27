@@ -1,11 +1,13 @@
+import type { ActivityKind } from '@/database/schema/activities';
+
 /** The result the return page shows after Mercado Pago sends the buyer back (#178 D4). */
 export type PublicPaymentStatus =
   'confirming' | 'confirmed' | 'pending' | 'rejected' | 'unavailable';
 
 export type PublicPaymentStatusPass = {
   name: string;
-  /** Names of the competitions selected for this pass. */
-  competitions: string[];
+  /** Included and selected activities, each once, ordered by start time then name (#404). */
+  activities: { name: string; kind: ActivityKind }[];
 };
 
 /**

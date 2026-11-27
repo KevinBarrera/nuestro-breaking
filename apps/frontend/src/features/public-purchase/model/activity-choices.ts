@@ -87,3 +87,23 @@ export function kindSections<T extends { activity: KindedActivity }>(
     (section) => section.items.length > 0,
   );
 }
+
+export type PassActivityLine = { label: string; names: string };
+
+// A paid pass's activities on the payment result (#404): one labeled line per kind (competitions,
+// workshops, social, then any other kind as "Actividades"), keeping the start order inside.
+export function passActivityLines(
+  activities: readonly { name: string; kind: string }[],
+): PassActivityLine[] {
+  const line = (label: string, kinds: (kind: string) => boolean) => ({
+    label,
+    names: activities
+      .filter((activity) => kinds(activity.kind))
+      .map((activity) => activity.name)
+      .join(', '),
+  });
+  return [
+    ...kindOrder.map((kind) => line(sectionLabels[kind], (other) => other === kind)),
+    line('Actividades', (kind) => !isKnownKind(kind)),
+  ].filter((entry) => entry.names.length > 0);
+}

@@ -13,11 +13,11 @@ Objective: the payment result screen and the confirmation email list each pass's
 
 ## Tasks
 
-| ID  | Specs          | Route  | Status  | Commit |
-| --- | -------------- | ------ | ------- | ------ |
-| T1  | S1, S2, S3, S4 | inline | pending |        |
-| T2  | S2, S3         | inline | pending |        |
-| T3  | Acceptance     | user   | pending |        |
+| ID  | Specs          | Route  | Status  | Commit         |
+| --- | -------------- | ------ | ------- | -------------- |
+| T1  | S1, S2, S3, S4 | inline | done    | b2179ec        |
+| T2  | S2, S3         | inline | done    | (slice 2 head) |
+| T3  | Acceptance     | user   | pending |                |
 
 T1: backend reader, payment status API, email text and HTML, both contracts (slice 1). T2: frontend payment status reader, result view, Playwright, `docs/frontend-architecture.md` (slice 2). T3: staging check after both merge. Route evidence: each slice is one dependent behavior, no writer trigger.
 
@@ -27,3 +27,4 @@ T1: backend reader, payment status API, email text and HTML, both contracts (sli
 - L2 (2026-11-26, user): "usemos \"Actividades sociales\""
 - L3 (2026-11-26, user choices): "Solo activas, sin duplicados (Recomendado)"; "Agruparlo en \"Actividades\" (Recomendado)"; "Comentar en #404 y arrancar la PR 1". Decisions posted on #404 (issuecomment-7205857876).
 - L4 (2026-11-26): T1. RED: the email content spec failed 16/16 (new `activities` shape) and 3 e2e tests failed (payment status by kind, included+selected once, email "Talleres: Workshop de footwork"). GREEN: backend unit 664/664, e2e 557/557, lint and typecheck pass. Included activities follow `registration-entitlements.service.ts` (active only); a selection of an included activity is listed once.
+- L5 (2026-11-26): T2. RED: Vitest 6 failures (`passActivityLines`, `isPaymentStatus` with `activities`) and the Playwright confirmed-result test failed on the old reader (the confirmed view never rendered). GREEN: `pnpm verify:pr` passes (format, lint, build, Vitest 977/977, Playwright 619 passed). An unknown kind is accepted by the reader and listed last as "Actividades".

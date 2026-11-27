@@ -1,6 +1,7 @@
 import {
   type Checkout,
   type PaymentStatus,
+  type PaymentStatusActivity,
   type PaymentStatusPass,
   paymentStatusValues,
   publicPassClasses,
@@ -128,9 +129,14 @@ export function isCheckout(value: unknown): value is Checkout {
   return text(record(value)?.checkoutUrl);
 }
 
+function isPaymentStatusActivity(value: unknown): value is PaymentStatusActivity {
+  const row = record(value);
+  return !!row && text(row.name) && text(row.kind);
+}
+
 function isPaymentStatusPass(value: unknown): value is PaymentStatusPass {
   const row = record(value);
-  return !!row && text(row.name) && listOf(row.competitions, text);
+  return !!row && text(row.name) && listOf(row.activities, isPaymentStatusActivity);
 }
 
 // Only a confirmed answer carries a folio, so a malformed body can never show one by mistake.

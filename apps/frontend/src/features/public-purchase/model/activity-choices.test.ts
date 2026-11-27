@@ -5,6 +5,7 @@ import {
   choiceUnavailableMessage,
   choicesStepCopy,
   kindSections,
+  passActivityLines,
 } from './activity-choices';
 import { activity } from './test-fixtures';
 
@@ -92,6 +93,40 @@ describe('kindSections (#411)', () => {
       { label: 'Categorías', items: [item(bboy), item(bgirl)] },
       { label: 'Talleres', items: [item(footwork)] },
       { label: 'Actividades sociales', items: [item(party)] },
+    ]);
+  });
+});
+
+describe('passActivityLines (#404)', () => {
+  const entry = (name: string, kind: string) => ({ name, kind });
+
+  it('lists one labeled line per kind in kind order, keeping start order inside', () => {
+    expect(
+      passActivityLines([
+        entry('Cypher nocturno', 'social'),
+        entry('Workshop intensivo de footwork', 'workshop'),
+        entry('Breaking 1vs1', 'competition'),
+        entry('Taller de toprock', 'workshop'),
+        entry('Popping 1v1', 'competition'),
+      ]),
+    ).toEqual([
+      { label: 'Categorías', names: 'Breaking 1vs1, Popping 1v1' },
+      { label: 'Talleres', names: 'Workshop intensivo de footwork, Taller de toprock' },
+      { label: 'Actividades sociales', names: 'Cypher nocturno' },
+    ]);
+  });
+
+  it('labels a single kind too and leaves out kinds without activities', () => {
+    expect(passActivityLines([entry('Workshop intensivo de footwork', 'workshop')])).toEqual([
+      { label: 'Talleres', names: 'Workshop intensivo de footwork' },
+    ]);
+    expect(passActivityLines([])).toEqual([]);
+  });
+
+  it('lists an unknown kind last under "Actividades"', () => {
+    expect(passActivityLines([entry('Expo', 'exhibition'), entry('Bboy', 'competition')])).toEqual([
+      { label: 'Categorías', names: 'Bboy' },
+      { label: 'Actividades', names: 'Expo' },
     ]);
   });
 });
